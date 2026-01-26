@@ -1,0 +1,36 @@
+# ============================================
+# La Première Pierre - Backend
+# .gitignore
+# ============================================
+
+# Dependencies
+node_modules/
+
+# Environment Variables - NEVER COMMIT!
+.env
+.env.local
+.env.development
+.env.production
+
+# Build output
+dist/
+build/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
