@@ -15,6 +15,13 @@ export const creerApp = (): Application => {
   const app = express();
 
   // ============================================
+  // CONFIGURATION PROXY (pour Render, Heroku, etc.)
+  // ============================================
+  // Nécessaire pour que express-rate-limit fonctionne correctement
+  // derrière un reverse proxy
+  app.set('trust proxy', 1);
+
+  // ============================================
   // MIDDLEWARES DE SÉCURITÉ
   // ============================================
 
