@@ -15,10 +15,8 @@ export const creerApp = (): Application => {
   const app = express();
 
   // ============================================
-  // CONFIGURATION PROXY (pour Render, Heroku, etc.)
+  // CONFIGURATION PROXY (Render, Heroku, etc.)
   // ============================================
-  // Nécessaire pour que express-rate-limit fonctionne correctement
-  // derrière un reverse proxy
   app.set('trust proxy', 1);
 
   // ============================================
@@ -28,17 +26,43 @@ export const creerApp = (): Application => {
   // Helmet - headers de sécurité
   app.use(helmet());
 
-  // CORS - autoriser les requêtes du frontend
+  // CORS - autoriser les requêtes du frontend (prod + previews Vercel)
+  const allowedOrigins = [
+    process.env.CLIENT_URL, // ex: https://siteweb-front-lpp-v100.vercel.app
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ].filter(Boolean) as string[];
+
+  // Autorise les previews Vercel du projet (ex: https://siteweb-front-lpp-v100-xxxxx.vercel.app)
+  const vercelPreviewRegex =
+    /^https:\/\/siteweb-front-lpp-v100-[a-z0-9-]+\.vercel\.app$/i;
+
   app.use(
     cors({
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: (origin, cb) => {
+        // Requêtes sans Origin (Postman, curl, server-to-server)
+        if (!origin) return cb(null, true);
+
+        // Prod / Local / Preview Vercel
+        if (allowedOrigins.includes(origin) || vercelPreviewRegex.test(origin)) {
+          return cb(null, true);
+        }
+
+        return cb(new Error('Not allowed by CORS: ' + origin));
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     })
   );
 
-  // Rate limiting - limiter les requêtes
+  // Important : répondre aux requêtes preflight OPTIONS
+  app.options('*', cors());
+
+  // ============================================
+  // RATE LIMITING
+  // ============================================
+
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // max 100 requêtes par fenêtre
@@ -50,7 +74,6 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   });
 
-  // Limiter spécifiquement les routes d'auth
   const limiterAuth = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 10, // max 10 tentatives par fenêtre
@@ -85,7 +108,7 @@ export const creerApp = (): Application => {
   // ============================================
 
   // Route de santé
-  app.get('/api/sante', (req, res) => {
+  app.get('/api/sante', (_req, res) => {
     res.status(200).json({
       succes: true,
       message: 'API La Première Pierre opérationnelle',
