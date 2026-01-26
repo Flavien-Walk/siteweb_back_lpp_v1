@@ -1,0 +1,33 @@
+<svg width="320" height="140" viewBox="0 0 320 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="greenBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0D1117"/>
+      <stop offset="100%" style="stop-color:#1a2332"/>
+    </linearGradient>
+    <linearGradient id="greenAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00D68F"/>
+      <stop offset="100%" style="stop-color:#2DE2E6"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="140" fill="url(#greenBg)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="260" cy="30" r="60" fill="#00D68F" opacity="0.1"/>
+  <circle cx="40" cy="120" r="40" fill="#2DE2E6" opacity="0.08"/>
+
+  <!-- Compost box icon -->
+  <rect x="130" y="35" width="60" height="50" rx="6" fill="url(#greenAccent)" opacity="0.9"/>
+  <rect x="138" y="28" width="44" height="10" rx="3" fill="url(#greenAccent)"/>
+
+  <!-- Leaf -->
+  <path d="M160 55 Q175 45 185 60 Q175 75 160 65 Q165 60 160 55Z" fill="#0D1117" opacity="0.5"/>
+
+  <!-- Recycling arrows -->
+  <path d="M145 95 L155 105 L145 115" stroke="#00D68F" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M155 105 L175 105" stroke="#00D68F" stroke-width="2" stroke-linecap="round"/>
+  <path d="M175 95 L165 105 L175 115" stroke="#00D68F" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Grid pattern -->
+  <line x1="0" y1="0" x2="320" y2="0" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+  <line x1="0" y1="140" x2="320" y2="140" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+</svg>

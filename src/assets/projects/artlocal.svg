@@ -1,0 +1,35 @@
+<svg width="320" height="140" viewBox="0 0 320 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="artBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0D1117"/>
+      <stop offset="100%" style="stop-color:#1a2332"/>
+    </linearGradient>
+    <linearGradient id="artAccent1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7C5CFF"/>
+      <stop offset="100%" style="stop-color:#FF4D6D"/>
+    </linearGradient>
+    <linearGradient id="artAccent2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2DE2E6"/>
+      <stop offset="100%" style="stop-color:#FFBD59"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="140" fill="url(#artBg)"/>
+
+  <!-- Decorative blobs -->
+  <circle cx="280" cy="30" r="45" fill="#7C5CFF" opacity="0.1"/>
+  <circle cx="40" cy="100" r="35" fill="#FF4D6D" opacity="0.08"/>
+
+  <!-- Frame -->
+  <rect x="115" y="25" width="90" height="70" rx="4" fill="none" stroke="url(#artAccent1)" stroke-width="3"/>
+
+  <!-- Abstract art inside -->
+  <circle cx="140" cy="50" r="15" fill="url(#artAccent1)" opacity="0.8"/>
+  <circle cx="175" cy="65" r="12" fill="url(#artAccent2)" opacity="0.8"/>
+  <path d="M130 80 Q150 60 170 80 Q180 70 190 75" stroke="#FFBD59" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Palette -->
+  <ellipse cx="160" cy="115" rx="25" ry="12" fill="#1a2332" stroke="url(#artAccent1)" stroke-width="2"/>
+  <circle cx="148" cy="113" r="4" fill="#FF4D6D"/>
+  <circle cx="160" cy="110" r="4" fill="#FFBD59"/>
+  <circle cx="172" cy="113" r="4" fill="#2DE2E6"/>
+</svg>

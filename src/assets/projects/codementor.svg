@@ -1,0 +1,35 @@
+<svg width="320" height="140" viewBox="0 0 320 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="codeBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0D1117"/>
+      <stop offset="100%" style="stop-color:#1a2332"/>
+    </linearGradient>
+    <linearGradient id="codeAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7C5CFF"/>
+      <stop offset="100%" style="stop-color:#9178FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="140" fill="url(#codeBg)"/>
+
+  <!-- Decorative shapes -->
+  <circle cx="50" cy="30" r="50" fill="#7C5CFF" opacity="0.1"/>
+  <circle cx="280" cy="110" r="45" fill="#9178FF" opacity="0.08"/>
+
+  <!-- Code window -->
+  <rect x="110" y="25" width="100" height="75" rx="8" fill="#1a2332" stroke="url(#codeAccent)" stroke-width="2"/>
+
+  <!-- Window buttons -->
+  <circle cx="125" cy="38" r="4" fill="#FF4D6D"/>
+  <circle cx="140" cy="38" r="4" fill="#FFBD59"/>
+  <circle cx="155" cy="38" r="4" fill="#00D68F"/>
+
+  <!-- Code lines -->
+  <rect x="120" y="52" width="40" height="4" rx="2" fill="#7C5CFF" opacity="0.8"/>
+  <rect x="120" y="62" width="60" height="4" rx="2" fill="#2DE2E6" opacity="0.6"/>
+  <rect x="120" y="72" width="35" height="4" rx="2" fill="#7C5CFF" opacity="0.8"/>
+  <rect x="120" y="82" width="55" height="4" rx="2" fill="#2DE2E6" opacity="0.6"/>
+
+  <!-- Connection line -->
+  <path d="M160 105 L160 120 L200 120" stroke="url(#codeAccent)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <circle cx="200" cy="120" r="6" fill="url(#codeAccent)"/>
+</svg>
