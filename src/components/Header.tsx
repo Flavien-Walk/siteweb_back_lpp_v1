@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiMenu, HiX } from 'react-icons/hi';
 import { useAuth } from '../contexts/AuthContext';
+import HeaderNotificationBell from './Espace/HeaderNotificationBell';
 import logoLpp from '../assets/logo-lpp.svg';
 
 const Header = () => {
@@ -81,9 +82,12 @@ const Header = () => {
           {chargement ? (
             <span className="header-link" style={{ opacity: 0.5 }}>Chargement...</span>
           ) : estConnecte ? (
-            <Link to="/espace" className="btn btn-primary header-cta">
-              Mon espace
-            </Link>
+            <>
+              <HeaderNotificationBell />
+              <Link to="/espace" className="btn btn-primary header-cta">
+                Mon espace
+              </Link>
+            </>
           ) : (
             <>
               <Link to="/connexion" className="header-link">

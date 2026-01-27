@@ -92,6 +92,9 @@ export const api = {
   put: <T>(endpoint: string, body: unknown, avecAuth = false) =>
     requeteAPI<T>(endpoint, { method: 'PUT', body, avecAuth }),
 
+  patch: <T>(endpoint: string, body: unknown = {}, avecAuth = false) =>
+    requeteAPI<T>(endpoint, { method: 'PATCH', body, avecAuth }),
+
   delete: <T>(endpoint: string, avecAuth = false) =>
     requeteAPI<T>(endpoint, { method: 'DELETE', avecAuth }),
 };
