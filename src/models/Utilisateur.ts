@@ -61,7 +61,7 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     },
     providerId: {
       type: String,
-      sparse: true,
+      default: undefined,
     },
     avatar: {
       type: String,

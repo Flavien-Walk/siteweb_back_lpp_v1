@@ -18,10 +18,8 @@ export const gestionErreurs = (
   res: Response,
   _next: NextFunction
 ): void => {
-  // Log de l'erreur en développement
-  if (process.env.NODE_ENV === 'development') {
-    console.error('❌ Erreur:', err);
-  }
+  // Log de l'erreur (toujours, pour diagnostiquer en production)
+  console.error('❌ Erreur:', err.name, err.message, err.code || '', err.stack?.split('\n')[1] || '');
 
   // Erreur de validation Zod
   if (err instanceof ZodError) {
