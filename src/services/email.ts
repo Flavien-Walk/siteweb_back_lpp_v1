@@ -66,10 +66,12 @@ export const envoyerEmailVerification = async (
 
   const transport = creerTransport();
 
-  await transport.sendMail({
+  const info = await transport.sendMail({
     from: `"La Première Pierre" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
     to: email,
     subject: 'Vérifie ton adresse email — La Première Pierre',
     html,
   });
+
+  console.log(`[EMAIL] Vérification envoyée à ${email} — messageId: ${info.messageId}`);
 };

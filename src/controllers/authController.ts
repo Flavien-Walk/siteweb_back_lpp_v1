@@ -48,9 +48,8 @@ export const inscription = async (
 
     try {
       await envoyerEmailVerification(utilisateur.email, utilisateur.prenom, tokenVerification);
-    } catch {
-      // L'envoi d'email échoue silencieusement — l'utilisateur peut renvoyer plus tard
-      console.error('Échec envoi email de vérification pour:', utilisateur.email);
+    } catch (erreurEmail) {
+      console.error(`[EMAIL] Échec envoi vérification pour ${utilisateur.email}:`, erreurEmail);
     }
 
     // Générer le token JWT
