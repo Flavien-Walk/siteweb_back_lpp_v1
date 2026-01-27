@@ -88,6 +88,8 @@ export const creerApp = (): Application => {
   app.use('/api/', limiter);
   app.use('/api/auth/connexion', limiterAuth);
   app.use('/api/auth/inscription', limiterAuth);
+  app.use('/api/auth/verify-email', limiterAuth);
+  app.use('/api/auth/resend-verification', limiterAuth);
 
   // ============================================
   // MIDDLEWARES DE PARSING

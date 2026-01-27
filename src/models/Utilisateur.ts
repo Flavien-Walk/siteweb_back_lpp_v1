@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 // Types pour les providers OAuth
 export type ProviderOAuth = 'local' | 'google' | 'facebook' | 'apple';
@@ -15,10 +16,13 @@ export interface IUtilisateur extends Document {
   providerId?: string;
   avatar?: string;
   emailVerifie: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
   cguAcceptees: boolean;
   dateCreation: Date;
   dateMiseAJour: Date;
   comparerMotDePasse(motDePasseCandidat: string): Promise<boolean>;
+  genererTokenVerificationEmail(): string;
 }
 
 // Schéma Mongoose
@@ -71,6 +75,14 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       type: Boolean,
       default: false,
     },
+    emailVerificationToken: {
+      type: String,
+      select: false,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      select: false,
+    },
     cguAcceptees: {
       type: Boolean,
       required: [true, 'Vous devez accepter les CGU'],
@@ -118,10 +130,21 @@ utilisateurSchema.methods.comparerMotDePasse = async function (
   return bcrypt.compare(motDePasseCandidat, this.motDePasse);
 };
 
+// Méthode pour générer un token de vérification email
+utilisateurSchema.methods.genererTokenVerificationEmail = function (): string {
+  const token = crypto.randomBytes(32).toString('hex');
+  // Stocker le hash du token (sécurité : le token brut n'est jamais en DB)
+  this.emailVerificationToken = crypto.createHash('sha256').update(token).digest('hex');
+  this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+  return token;
+};
+
 // Méthode pour transformer en JSON (retirer le mot de passe)
 utilisateurSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.motDePasse;
+  delete obj.emailVerificationToken;
+  delete obj.emailVerificationExpires;
   return obj;
 };
 

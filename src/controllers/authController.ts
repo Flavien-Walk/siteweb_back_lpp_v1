@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import Utilisateur from '../models/Utilisateur.js';
 import { genererToken } from '../utils/tokens.js';
 import { schemaInscription, schemaConnexion } from '../utils/validation.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
+import { envoyerEmailVerification } from '../services/email.js';
 
 /**
  * Inscription d'un nouvel utilisateur
@@ -39,13 +41,25 @@ export const inscription = async (
       cguAcceptees: donnees.cguAcceptees,
       provider: 'local',
     });
+
+    // Générer et envoyer l'email de vérification
+    const tokenVerification = utilisateur.genererTokenVerificationEmail();
+    await utilisateur.save({ validateBeforeSave: false });
+
+    try {
+      await envoyerEmailVerification(utilisateur.email, utilisateur.prenom, tokenVerification);
+    } catch {
+      // L'envoi d'email échoue silencieusement — l'utilisateur peut renvoyer plus tard
+      console.error('Échec envoi email de vérification pour:', utilisateur.email);
+    }
+
     // Générer le token JWT
     const token = genererToken(utilisateur);
 
     // Répondre avec l'utilisateur et le token
     res.status(201).json({
       succes: true,
-      message: 'Inscription réussie. Bienvenue sur La Première Pierre !',
+      message: 'Inscription réussie. Un email de vérification a été envoyé.',
       data: {
         utilisateur: {
           id: utilisateur._id,
@@ -54,6 +68,7 @@ export const inscription = async (
           email: utilisateur.email,
           avatar: utilisateur.avatar,
           provider: utilisateur.provider,
+          emailVerifie: utilisateur.emailVerifie,
         },
         token,
       },
@@ -156,6 +171,91 @@ export const moi = async (
         },
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Vérifier l'email via token
+ * POST /api/auth/verify-email
+ */
+export const verifierEmail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { token } = req.body;
+
+    if (!token || typeof token !== 'string') {
+      throw new ErreurAPI('Token de vérification manquant.', 400);
+    }
+
+    // Hasher le token reçu pour le comparer à celui en DB
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const utilisateur = await Utilisateur.findOne({
+      emailVerificationToken: tokenHash,
+      emailVerificationExpires: { $gt: new Date() },
+    }).select('+emailVerificationToken +emailVerificationExpires');
+
+    if (!utilisateur) {
+      throw new ErreurAPI('Token invalide ou expiré.', 400);
+    }
+
+    // Marquer email comme vérifié et supprimer le token
+    utilisateur.emailVerifie = true;
+    utilisateur.emailVerificationToken = undefined;
+    utilisateur.emailVerificationExpires = undefined;
+    await utilisateur.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      succes: true,
+      message: 'Adresse email vérifiée avec succès.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Renvoyer l'email de vérification
+ * POST /api/auth/resend-verification
+ */
+export const renvoyerVerification = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      throw new ErreurAPI('Email requis.', 400);
+    }
+
+    // Message générique pour ne pas révéler si l'email existe
+    const messageSucces = 'Si un compte existe avec cet email, un nouveau lien de vérification a été envoyé.';
+
+    const utilisateur = await Utilisateur.findOne({ email: email.toLowerCase() });
+
+    if (!utilisateur || utilisateur.emailVerifie) {
+      // Ne pas révéler si le compte existe ou est déjà vérifié
+      res.status(200).json({ succes: true, message: messageSucces });
+      return;
+    }
+
+    const tokenVerification = utilisateur.genererTokenVerificationEmail();
+    await utilisateur.save({ validateBeforeSave: false });
+
+    try {
+      await envoyerEmailVerification(utilisateur.email, utilisateur.prenom, tokenVerification);
+    } catch {
+      throw new ErreurAPI('Impossible d\'envoyer l\'email. Réessayez plus tard.', 500);
+    }
+
+    res.status(200).json({ succes: true, message: messageSucces });
   } catch (error) {
     next(error);
   }

@@ -5,6 +5,8 @@ import {
   connexion,
   moi,
   callbackOAuth,
+  verifierEmail,
+  renvoyerVerification,
 } from '../controllers/authController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
@@ -31,6 +33,18 @@ router.post('/connexion', connexion);
  * Récupérer les informations de l'utilisateur connecté
  */
 router.get('/moi', verifierJwt, moi);
+
+/**
+ * POST /api/auth/verify-email
+ * Vérifier l'adresse email via token
+ */
+router.post('/verify-email', verifierEmail);
+
+/**
+ * POST /api/auth/resend-verification
+ * Renvoyer l'email de vérification
+ */
+router.post('/resend-verification', renvoyerVerification);
 
 // ============================================
 // ROUTES OAUTH - GOOGLE
