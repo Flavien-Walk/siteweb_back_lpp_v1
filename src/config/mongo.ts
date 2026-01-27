@@ -16,6 +16,28 @@ export const connecterMongo = async (): Promise<void> => {
 
     console.log(`✅ MongoDB connecté: ${connexion.connection.host}`);
 
+    // Nettoyage de l'ancien index composé provider+providerId (sparse)
+    // qui causait des erreurs 11000 pour les comptes locaux sans providerId
+    try {
+      const collection = connexion.connection.db?.collection('utilisateurs');
+      if (collection) {
+        const indexes = await collection.indexes();
+        const ancienIndex = indexes.find(
+          (idx: any) =>
+            idx.key?.provider === 1 &&
+            idx.key?.providerId === 1 &&
+            idx.sparse === true
+        );
+        if (ancienIndex && ancienIndex.name) {
+          await collection.dropIndex(ancienIndex.name);
+          console.log('✅ Ancien index sparse provider+providerId supprimé');
+        }
+      }
+    } catch (errIndex) {
+      // Pas grave si l'index n'existe pas ou est déjà supprimé
+      console.log('ℹ️ Nettoyage index:', (errIndex as Error).message);
+    }
+
     // Gestion des événements de connexion
     mongoose.connection.on('error', (err) => {
       console.error('❌ Erreur MongoDB:', err);

@@ -35,6 +35,8 @@ export const gestionErreurs = (
 
   // Erreur de duplication MongoDB (email déjà existant)
   if (err.code === 11000) {
+    const mongoErr = err as any;
+    console.error('[ERREUR 11000] Duplicate key:', JSON.stringify(mongoErr.keyValue), 'keyPattern:', JSON.stringify(mongoErr.keyPattern));
     res.status(409).json({
       succes: false,
       message: 'Cette adresse email est déjà utilisée.',

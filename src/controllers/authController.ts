@@ -17,8 +17,12 @@ export const inscription = async (
     // Valider les données d'entrée
     const donnees = schemaInscription.parse(req.body);
 
+    console.log('[INSCRIPTION] Email reçu:', donnees.email);
+
     // Vérifier si l'email existe déjà
     const utilisateurExistant = await Utilisateur.findOne({ email: donnees.email });
+    console.log('[INSCRIPTION] Utilisateur existant:', utilisateurExistant ? `OUI (id=${utilisateurExistant._id}, provider=${utilisateurExistant.provider})` : 'NON');
+
     if (utilisateurExistant) {
       if (utilisateurExistant.provider !== 'local') {
         throw new ErreurAPI(
@@ -30,6 +34,7 @@ export const inscription = async (
     }
 
     // Créer le nouvel utilisateur
+    console.log('[INSCRIPTION] Création du compte...');
     const utilisateur = await Utilisateur.create({
       prenom: donnees.prenom,
       nom: donnees.nom,
@@ -38,6 +43,7 @@ export const inscription = async (
       cguAcceptees: donnees.cguAcceptees,
       provider: 'local',
     });
+    console.log('[INSCRIPTION] Compte créé avec succès, id:', utilisateur._id);
 
     // Générer le token JWT
     const token = genererToken(utilisateur);

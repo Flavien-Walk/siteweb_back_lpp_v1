@@ -85,8 +85,14 @@ const utilisateurSchema = new Schema<IUtilisateur>(
   }
 );
 
-// Index composé pour OAuth
-utilisateurSchema.index({ provider: 1, providerId: 1 }, { unique: true, sparse: true });
+// Index composé pour OAuth — uniquement pour les documents qui ONT un providerId
+utilisateurSchema.index(
+  { provider: 1, providerId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { providerId: { $exists: true, $ne: null } },
+  }
+);
 
 // Middleware pre-save pour hasher le mot de passe
 utilisateurSchema.pre('save', async function (next) {
