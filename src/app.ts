@@ -118,6 +118,22 @@ export const creerApp = (): Application => {
   });
 
   // Route de diagnostic temporaire (à supprimer après debug)
+  app.get('/api/debug/jwt', (_req, res) => {
+    try {
+      const jwt = require('jsonwebtoken');
+      const secret = process.env.JWT_SECRET;
+      const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+      if (!secret) {
+        res.json({ erreur: 'JWT_SECRET non défini', envKeys: Object.keys(process.env).filter(k => k.startsWith('JWT')) });
+        return;
+      }
+      const token = jwt.sign({ test: true }, secret, { expiresIn });
+      res.json({ ok: true, secretLength: secret.length, expiresIn, tokenPreview: token.substring(0, 20) + '...' });
+    } catch (err) {
+      res.json({ erreur: String(err) });
+    }
+  });
+
   app.get('/api/debug/indexes', async (_req, res) => {
     try {
       const db = mongoose.connection.db;
