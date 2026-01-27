@@ -3,7 +3,6 @@
    Accueil Page Styles
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import './variables.css';
 
 /* === Global Reset & Base === */
@@ -34,6 +33,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+button,
+a,
+input[type="submit"] {
+  touch-action: manipulation;
 }
 
 /* === Focus Styles (Accessibility) === */
@@ -75,6 +82,7 @@ a:focus-visible {
   justify-content: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-6);
+  min-height: 44px;
   font-family: var(--font-sans);
   font-size: var(--text-base);
   font-weight: 600;
@@ -138,8 +146,14 @@ a:focus-visible {
 
 /* === Section Styles === */
 .section {
-  padding: var(--space-20) 0;
+  padding: var(--space-12) 0;
   position: relative;
+}
+
+@media (min-width: 640px) {
+  .section {
+    padding: var(--space-20) 0;
+  }
 }
 
 @media (min-width: 768px) {
@@ -164,11 +178,18 @@ a:focus-visible {
 }
 
 .section-subtitle {
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   color: var(--muted);
   text-align: center;
   max-width: 600px;
-  margin: 0 auto var(--space-12);
+  margin: 0 auto var(--space-8);
+}
+
+@media (min-width: 640px) {
+  .section-subtitle {
+    font-size: var(--text-lg);
+    margin: 0 auto var(--space-12);
+  }
 }
 
 /* ============================================
@@ -362,15 +383,21 @@ a:focus-visible {
    HERO
    ============================================ */
 .hero {
-  min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  padding: calc(var(--header-height) + var(--space-16)) var(--space-4) var(--space-16);
+  padding: calc(var(--header-height) + var(--space-8)) var(--space-4) var(--space-12);
   position: relative;
   overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .hero {
+    padding: calc(var(--header-height) + var(--space-16)) var(--space-4) var(--space-16);
+  }
 }
 
 .hero::before {
@@ -391,12 +418,21 @@ a:focus-visible {
   top: 20%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 600px;
-  height: 600px;
+  width: 300px;
+  height: 300px;
   background: var(--gradient-glow);
-  filter: blur(100px);
-  opacity: 0.5;
+  filter: blur(80px);
+  opacity: 0.4;
   pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .hero::after {
+    width: 600px;
+    height: 600px;
+    filter: blur(100px);
+    opacity: 0.5;
+  }
 }
 
 .hero-content {
@@ -438,12 +474,19 @@ a:focus-visible {
 }
 
 .hero-title {
-  font-size: var(--text-4xl);
+  font-size: var(--text-3xl);
   font-weight: 800;
   color: var(--text-heading);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-5);
+}
+
+@media (min-width: 400px) {
+  .hero-title {
+    font-size: var(--text-4xl);
+    margin-bottom: var(--space-6);
+  }
 }
 
 @media (min-width: 768px) {
@@ -505,13 +548,19 @@ a:focus-visible {
   bottom: var(--space-8);
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
   color: var(--muted-soft);
   font-size: var(--text-xs);
   animation: bounce 2s infinite;
+}
+
+@media (min-height: 700px) and (min-width: 640px) {
+  .scroll-indicator {
+    display: flex;
+  }
 }
 
 @keyframes bounce {
@@ -775,9 +824,25 @@ a:focus-visible {
 
 .fonctionnement-tabs {
   display: flex;
-  justify-content: center;
-  gap: var(--space-4);
+  justify-content: flex-start;
+  gap: var(--space-3);
   margin-bottom: var(--space-12);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: var(--space-2);
+}
+
+.fonctionnement-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .fonctionnement-tabs {
+    justify-content: center;
+    overflow-x: visible;
+    gap: var(--space-4);
+  }
 }
 
 .tab-btn {
@@ -786,10 +851,18 @@ a:focus-visible {
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   color: var(--muted);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-base);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .tab-btn {
+    font-size: var(--text-base);
+  }
 }
 
 .tab-btn:hover {

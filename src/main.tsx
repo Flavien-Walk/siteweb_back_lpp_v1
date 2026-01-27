@@ -1,24 +1,27 @@
-import { StrictMode } from 'react';
+import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Accueil from './pages/Accueil';
-import Connexion from './pages/Connexion';
-import Inscription from './pages/Inscription';
-import Espace from './pages/Espace';
-import CallbackOAuth from './pages/CallbackOAuth';
+
+const Connexion = lazy(() => import('./pages/Connexion'));
+const Inscription = lazy(() => import('./pages/Inscription'));
+const Espace = lazy(() => import('./pages/Espace'));
+const CallbackOAuth = lazy(() => import('./pages/CallbackOAuth'));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Accueil />} />
-          <Route path="/connexion" element={<Connexion />} />
-          <Route path="/inscription" element={<Inscription />} />
-          <Route path="/espace" element={<Espace />} />
-          <Route path="/auth/callback" element={<CallbackOAuth />} />
-        </Routes>
+        <Suspense fallback={<div style={{ minHeight: '100vh' }} />}>
+          <Routes>
+            <Route path="/" element={<Accueil />} />
+            <Route path="/connexion" element={<Connexion />} />
+            <Route path="/inscription" element={<Inscription />} />
+            <Route path="/espace" element={<Espace />} />
+            <Route path="/auth/callback" element={<CallbackOAuth />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

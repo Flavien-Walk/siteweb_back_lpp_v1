@@ -21,24 +21,28 @@ const AnimatedNumber = ({ value, inView }: { value: string; inView: boolean }) =
 
     const targetNum = parseFloat(numericPart.replace(',', '.'));
     const duration = 2000;
-    const steps = 60;
-    const increment = targetNum / steps;
-    let current = 0;
+    let startTime: number | null = null;
+    let rafId: number;
 
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= targetNum) {
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const eased = 1 - (1 - progress) * (1 - progress);
+      const current = eased * targetNum;
+
+      if (progress >= 1) {
         setDisplayValue(numericPart);
-        clearInterval(timer);
       } else {
         const formatted = numericPart.includes(',') || numericPart.includes('.')
           ? current.toFixed(1).replace('.', ',')
           : Math.floor(current).toString();
         setDisplayValue(formatted);
+        rafId = requestAnimationFrame(animate);
       }
-    }, duration / steps);
+    };
 
-    return () => clearInterval(timer);
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
   }, [inView, numericPart]);
 
   return (
