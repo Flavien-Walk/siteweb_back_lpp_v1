@@ -5,6 +5,10 @@ import rateLimit from 'express-rate-limit';
 import passport from 'passport';
 
 import authRoutes from './routes/authRoutes.js';
+import projetRoutes from './routes/projetRoutes.js';
+import feedRoutes from './routes/feedRoutes.js';
+import evenementRoutes from './routes/evenementRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
 
@@ -120,6 +124,12 @@ export const creerApp = (): Application => {
 
   // Routes d'authentification
   app.use('/api/auth', authRoutes);
+
+  // Routes métier
+  app.use('/api/projets', projetRoutes);
+  app.use('/api/feed', feedRoutes);
+  app.use('/api/evenements', evenementRoutes);
+  app.use('/api/notifications', notificationRoutes);
 
   // ============================================
   // GESTION DES ERREURS
