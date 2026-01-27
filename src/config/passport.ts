@@ -36,11 +36,12 @@ export const configurerPassport = (): void => {
             if (email) {
               utilisateur = await Utilisateur.findOne({ email });
               if (utilisateur) {
-                // Lier le compte Google à l'utilisateur existant
-                utilisateur.provider = 'google';
-                utilisateur.providerId = profile.id;
+                // Lier le compte Google sans écraser le provider local
+                if (!utilisateur.providerId) {
+                  utilisateur.providerId = profile.id;
+                }
                 utilisateur.emailVerifie = true;
-                if (profile.photos?.[0]?.value) {
+                if (profile.photos?.[0]?.value && !utilisateur.avatar) {
                   utilisateur.avatar = profile.photos[0].value;
                 }
                 await utilisateur.save();
@@ -101,10 +102,11 @@ export const configurerPassport = (): void => {
             if (email) {
               utilisateur = await Utilisateur.findOne({ email });
               if (utilisateur) {
-                utilisateur.provider = 'facebook';
-                utilisateur.providerId = profile.id;
+                if (!utilisateur.providerId) {
+                  utilisateur.providerId = profile.id;
+                }
                 utilisateur.emailVerifie = true;
-                if (profile.photos?.[0]?.value) {
+                if (profile.photos?.[0]?.value && !utilisateur.avatar) {
                   utilisateur.avatar = profile.photos[0].value;
                 }
                 await utilisateur.save();
@@ -185,8 +187,9 @@ export const configurerPassport = (): void => {
                 if (email) {
                   utilisateur = await Utilisateur.findOne({ email });
                   if (utilisateur) {
-                    utilisateur.provider = 'apple';
-                    utilisateur.providerId = appleId;
+                    if (!utilisateur.providerId) {
+                      utilisateur.providerId = appleId;
+                    }
                     utilisateur.emailVerifie = true;
                     await utilisateur.save();
                     return done(null, utilisateur);

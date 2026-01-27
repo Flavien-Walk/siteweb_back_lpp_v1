@@ -20,6 +20,12 @@ export const inscription = async (
     // Vérifier si l'email existe déjà
     const utilisateurExistant = await Utilisateur.findOne({ email: donnees.email });
     if (utilisateurExistant) {
+      if (utilisateurExistant.provider !== 'local') {
+        throw new ErreurAPI(
+          `Un compte existe déjà avec cet email via ${utilisateurExistant.provider}. Veuillez vous connecter avec ${utilisateurExistant.provider} ou utiliser un autre email.`,
+          409
+        );
+      }
       throw new ErreurAPI('Cette adresse email est déjà utilisée.', 409);
     }
 
@@ -80,8 +86,8 @@ export const connexion = async (
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
-    // Vérifier si l'utilisateur utilise OAuth
-    if (utilisateur.provider !== 'local') {
+    // Vérifier si l'utilisateur a un mot de passe (compte local ou lié)
+    if (!utilisateur.motDePasse) {
       throw new ErreurAPI(
         `Ce compte utilise la connexion ${utilisateur.provider}. Veuillez utiliser ce mode de connexion.`,
         400
