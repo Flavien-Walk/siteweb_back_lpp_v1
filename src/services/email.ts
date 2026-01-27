@@ -1,19 +1,6 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-const creerTransport = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
-};
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
  * Envoie l'email de vérification avec un lien cliquable
@@ -67,14 +54,16 @@ export const envoyerEmailVerification = async (
 </body>
 </html>`;
 
-  const transport = creerTransport();
-
-  const info = await transport.sendMail({
-    from: `"La Première Pierre" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+  const { data, error } = await resend.emails.send({
+    from: `La Première Pierre <${process.env.RESEND_FROM || 'noreply@resend.dev'}>`,
     to: email,
     subject: 'Vérifie ton adresse email — La Première Pierre',
     html,
   });
 
-  console.log(`[EMAIL] Vérification envoyée à ${email} — messageId: ${info.messageId}`);
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  console.log(`[EMAIL] Vérification envoyée à ${email} — id: ${data?.id}`);
 };
