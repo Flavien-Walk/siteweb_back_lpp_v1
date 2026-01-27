@@ -83,7 +83,7 @@ export const configurerPassport = (): void => {
           clientID: process.env.FACEBOOK_APP_ID,
           clientSecret: process.env.FACEBOOK_APP_SECRET,
           callbackURL: process.env.FACEBOOK_CALLBACK_URL || '/api/auth/facebook/callback',
-          profileFields: ['id', 'emails', 'name', 'picture.type(large)'],
+          profileFields: ['id', 'displayName', 'name', 'picture.type(large)'],
         },
         async (accessToken, refreshToken, profile, done) => {
           try {
@@ -97,32 +97,16 @@ export const configurerPassport = (): void => {
               return done(null, utilisateur);
             }
 
-            // Vérifier si un utilisateur existe avec cet email
-            const email = profile.emails?.[0]?.value;
-            if (email) {
-              utilisateur = await Utilisateur.findOne({ email });
-              if (utilisateur) {
-                if (!utilisateur.providerId) {
-                  utilisateur.providerId = profile.id;
-                }
-                utilisateur.emailVerifie = true;
-                if (profile.photos?.[0]?.value && !utilisateur.avatar) {
-                  utilisateur.avatar = profile.photos[0].value;
-                }
-                await utilisateur.save();
-                return done(null, utilisateur);
-              }
-            }
-
-            // Créer un nouvel utilisateur
+            // Facebook ne fournit pas l'email sans permission avancée
+            // Créer un nouvel utilisateur avec email temporaire
             const nouvelUtilisateur = await Utilisateur.create({
-              prenom: profile.name?.givenName || 'Utilisateur',
-              nom: profile.name?.familyName || 'Facebook',
-              email: email || `facebook_${profile.id}@lpp.temp`,
+              prenom: profile.name?.givenName || profile.displayName?.split(' ')[0] || 'Utilisateur',
+              nom: profile.name?.familyName || profile.displayName?.split(' ').slice(1).join(' ') || 'Facebook',
+              email: `facebook_${profile.id}@lpp.temp`,
               provider: 'facebook',
               providerId: profile.id,
               avatar: profile.photos?.[0]?.value,
-              emailVerifie: true,
+              emailVerifie: false,
               cguAcceptees: true,
             });
 
