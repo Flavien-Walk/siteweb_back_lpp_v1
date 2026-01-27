@@ -347,16 +347,33 @@ a:focus-visible {
   border-color: var(--border-hover);
 }
 
+/* === Mobile Menu Overlay === */
+.mobile-menu-overlay {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: var(--z-sticky);
+}
+
 /* === Mobile Menu === */
 .mobile-menu {
   position: fixed;
   top: var(--header-height);
   left: 0;
   right: 0;
+  bottom: 0;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   padding: var(--space-6);
-  z-index: var(--z-sticky);
+  z-index: calc(var(--z-sticky) + 1);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .mobile-menu a {

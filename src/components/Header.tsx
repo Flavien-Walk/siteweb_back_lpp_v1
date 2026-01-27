@@ -24,6 +24,16 @@ const Header = () => {
     setIsMobileMenuOpen(false);
   }, [location]);
 
+  // Bloquer le scroll quand le menu mobile est ouvert
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobileMenuOpen]);
+
   const navLinks = [
     { href: '#projets', label: 'Projets' },
     { href: '#fonctionnement', label: 'Comment ça marche' },
@@ -98,60 +108,71 @@ const Header = () => {
 
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.nav
-            id="mobile-menu"
-            className="mobile-menu"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            aria-label="Navigation mobile"
-          >
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={location.pathname === '/' ? link.href : `/${link.href}`}
-                onClick={(e) => handleAnchorClick(e, link.href)}
-              >
-                {link.label}
-              </a>
-            ))}
-            <div className="mobile-menu-cta">
-              {chargement ? (
-                <span style={{ opacity: 0.5, textAlign: 'center', display: 'block' }}>
-                  Chargement...
-                </span>
-              ) : estConnecte ? (
-                <Link
-                  to="/espace"
-                  className="btn btn-primary"
-                  style={{ width: '100%' }}
-                  onClick={closeMobileMenu}
+          <>
+            <motion.div
+              className="mobile-menu-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={closeMobileMenu}
+              aria-hidden="true"
+            />
+            <motion.nav
+              id="mobile-menu"
+              className="mobile-menu"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              aria-label="Navigation mobile"
+            >
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={location.pathname === '/' ? link.href : `/${link.href}`}
+                  onClick={(e) => handleAnchorClick(e, link.href)}
                 >
-                  Mon espace
-                </Link>
-              ) : (
-                <>
+                  {link.label}
+                </a>
+              ))}
+              <div className="mobile-menu-cta">
+                {chargement ? (
+                  <span style={{ opacity: 0.5, textAlign: 'center', display: 'block' }}>
+                    Chargement...
+                  </span>
+                ) : estConnecte ? (
                   <Link
-                    to="/connexion"
-                    className="btn btn-secondary"
-                    style={{ width: '100%', marginBottom: '12px' }}
-                    onClick={closeMobileMenu}
-                  >
-                    Connexion
-                  </Link>
-                  <Link
-                    to="/inscription"
+                    to="/espace"
                     className="btn btn-primary"
                     style={{ width: '100%' }}
                     onClick={closeMobileMenu}
                   >
-                    Créer un compte
+                    Mon espace
                   </Link>
-                </>
-              )}
-            </div>
-          </motion.nav>
+                ) : (
+                  <>
+                    <Link
+                      to="/connexion"
+                      className="btn btn-secondary"
+                      style={{ width: '100%', marginBottom: '12px' }}
+                      onClick={closeMobileMenu}
+                    >
+                      Connexion
+                    </Link>
+                    <Link
+                      to="/inscription"
+                      className="btn btn-primary"
+                      style={{ width: '100%' }}
+                      onClick={closeMobileMenu}
+                    >
+                      Créer un compte
+                    </Link>
+                  </>
+                )}
+              </div>
+            </motion.nav>
+          </>
         )}
       </AnimatePresence>
     </header>
