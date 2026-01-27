@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import passport from 'passport';
-import mongoose from 'mongoose';
 
 import authRoutes from './routes/authRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
@@ -115,40 +114,6 @@ export const creerApp = (): Application => {
       message: 'API La Première Pierre opérationnelle',
       timestamp: new Date().toISOString(),
     });
-  });
-
-  // Route de diagnostic temporaire (à supprimer après debug)
-  app.get('/api/debug/jwt', (_req, res) => {
-    try {
-      const jwt = require('jsonwebtoken');
-      const secret = process.env.JWT_SECRET;
-      const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
-      if (!secret) {
-        res.json({ erreur: 'JWT_SECRET non défini', envKeys: Object.keys(process.env).filter(k => k.startsWith('JWT')) });
-        return;
-      }
-      const token = jwt.sign({ test: true }, secret, { expiresIn });
-      res.json({ ok: true, secretLength: secret.length, expiresIn, tokenPreview: token.substring(0, 20) + '...' });
-    } catch (err) {
-      res.json({ erreur: String(err) });
-    }
-  });
-
-  app.get('/api/debug/indexes', async (_req, res) => {
-    try {
-      const db = mongoose.connection.db;
-      if (!db) {
-        res.status(500).json({ erreur: 'DB non connectée' });
-        return;
-      }
-      const collection = db.collection('utilisateurs');
-      const indexes = await collection.indexes();
-      const count = await collection.countDocuments();
-      const users = await collection.find({}, { projection: { email: 1, provider: 1, providerId: 1 } }).limit(20).toArray();
-      res.json({ indexes, totalUtilisateurs: count, utilisateurs: users });
-    } catch (err) {
-      res.status(500).json({ erreur: String(err) });
-    }
   });
 
   // Routes d'authentification
