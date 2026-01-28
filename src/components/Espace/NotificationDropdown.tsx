@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   HiBell,
@@ -9,8 +10,14 @@ import {
   HiHeart,
   HiUserAdd,
   HiChevronRight,
+  HiX,
 } from 'react-icons/hi';
-import { getNotifications, marquerLue, type Notification } from '../../services/notifications';
+import {
+  getNotifications,
+  marquerLue,
+  supprimerNotification,
+  type Notification,
+} from '../../services/notifications';
 import { MOCK_NOTIFICATIONS } from '../../data/mockData';
 
 interface Props {
@@ -27,6 +34,7 @@ const typeConfig: Record<string, { icon: React.ElementType; color: string; bg: s
 };
 
 const NotificationDropdown = ({ onVoirTout }: Props) => {
+  const navigate = useNavigate();
   const [ouvert, setOuvert] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [nonLues, setNonLues] = useState(0);
@@ -66,6 +74,26 @@ const NotificationDropdown = ({ onVoirTout }: Props) => {
       );
       setNonLues((prev) => Math.max(0, prev - 1));
     }
+    // Rediriger si lien
+    if (notif.lien) {
+      setOuvert(false);
+      if (notif.lien.startsWith('http')) {
+        window.open(notif.lien, '_blank');
+      } else {
+        navigate(notif.lien);
+      }
+    }
+  };
+
+  const handleSupprimer = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const notif = notifications.find((n) => n._id === id);
+    // Optimistic update
+    setNotifications((prev) => prev.filter((n) => n._id !== id));
+    if (notif && !notif.lue) {
+      setNonLues((prev) => Math.max(0, prev - 1));
+    }
+    await supprimerNotification(id);
   };
 
   const formatDate = (dateStr: string) => {
@@ -124,30 +152,48 @@ const NotificationDropdown = ({ onVoirTout }: Props) => {
                   <span>Aucune notification</span>
                 </div>
               ) : (
-                notifications.map((notif) => {
-                  const config = typeConfig[notif.type] || { icon: HiBell, color: '#7C5CFF', bg: 'rgba(124, 92, 255, 0.15)' };
-                  const Icon = config.icon;
+                <AnimatePresence mode="popLayout">
+                  {notifications.map((notif) => {
+                    const config = typeConfig[notif.type] || { icon: HiBell, color: '#7C5CFF', bg: 'rgba(124, 92, 255, 0.15)' };
+                    const Icon = config.icon;
 
-                  return (
-                    <div
-                      key={notif._id}
-                      className={`notif-dropdown-item ${!notif.lue ? 'unread' : ''}`}
-                      onClick={() => handleClick(notif)}
-                    >
-                      <div
-                        className="notif-dropdown-item-icon"
-                        style={{ backgroundColor: config.bg, color: config.color }}
+                    return (
+                      <motion.div
+                        key={notif._id}
+                        className={`notif-dropdown-item ${!notif.lue ? 'unread' : ''}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 50, height: 0 }}
+                        transition={{ duration: 0.15 }}
+                        layout
                       >
-                        <Icon />
-                      </div>
-                      <div className="notif-dropdown-item-content">
-                        <span className="notif-dropdown-item-title">{notif.titre}</span>
-                        <span className="notif-dropdown-item-time">{formatDate(notif.dateCreation)}</span>
-                      </div>
-                      {!notif.lue && <span className="notif-dropdown-item-dot" />}
-                    </div>
-                  );
-                })
+                        <div
+                          className="notif-dropdown-item-main"
+                          onClick={() => handleClick(notif)}
+                        >
+                          <div
+                            className="notif-dropdown-item-icon"
+                            style={{ backgroundColor: config.bg, color: config.color }}
+                          >
+                            <Icon />
+                          </div>
+                          <div className="notif-dropdown-item-content">
+                            <span className="notif-dropdown-item-title">{notif.titre}</span>
+                            <span className="notif-dropdown-item-time">{formatDate(notif.dateCreation)}</span>
+                          </div>
+                          {!notif.lue && <span className="notif-dropdown-item-dot" />}
+                        </div>
+                        <button
+                          className="notif-dropdown-item-delete"
+                          onClick={(e) => handleSupprimer(notif._id, e)}
+                          aria-label="Supprimer"
+                        >
+                          <HiX />
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               )}
             </div>
 
