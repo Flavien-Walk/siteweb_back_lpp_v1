@@ -1,152 +1,2723 @@
 /**
- * Écran d'accueil - Page principale après connexion
+ * Ecran d'accueil - Reseau Social LPP
+ * Decouverte de startups et communaute
  */
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Animated,
+  RefreshControl,
+  Image,
+  TextInput,
+  Dimensions,
+  Modal,
+  Share,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Bouton } from '../../src/composants';
-import { useAuth } from '../../src/contextes/AuthContexte';
-import { couleurs, espacements, typographie, rayons } from '../../src/constantes/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { espacements, rayons } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
+import { getUtilisateurLocal, Utilisateur } from '../../src/services/auth';
+import {
+  Publication,
+  Commentaire as CommentaireAPI,
+  getPublications,
+  creerPublication,
+  toggleLikePublication,
+  getCommentaires,
+  ajouterCommentaire,
+  toggleLikeCommentaire,
+} from '../../src/services/publications';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Types
+type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages';
+
+interface Story {
+  id: string;
+  nom: string;
+  avatar: string;
+  nouveau: boolean;
+}
+
+interface Post {
+  id: string;
+  auteur: string;
+  avatar: string;
+  contenu: string;
+  image?: string;
+  likes: number;
+  commentaires: number;
+  timestamp: string;
+  verifie: boolean;
+  type: 'startup' | 'membre';
+}
+
+interface Startup {
+  id: string;
+  nom: string;
+  ville: string;
+  description: string;
+  tags: string[];
+  image: string;
+  abonnes: number;
+  posts: number;
+}
+
+interface Live {
+  id: string;
+  titre: string;
+  startup: string;
+  datetime: string;
+  interesse: number;
+  enDirect: boolean;
+  viewers?: number;
+  image: string;
+}
+
+interface Message {
+  id: string;
+  expediteur: string;
+  avatar: string;
+  dernier: string;
+  date: string;
+  nonLu: boolean;
+}
+
+interface Commentaire {
+  id: string;
+  auteur: string;
+  avatar: string;
+  contenu: string;
+  timestamp: string;
+  likes: number;
+  reponses?: Commentaire[];
+  reponseA?: string; // ID du commentaire parent
+}
+
+// Donnees mock commentaires par post
+const MOCK_COMMENTAIRES: Record<string, Commentaire[]> = {
+  '1': [
+    {
+      id: 'c1',
+      auteur: 'Sophie Martin',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+      contenu: 'Felicitations ! C\'est une super nouvelle pour l\'environnement !',
+      timestamp: 'Il y a 1h',
+      likes: 12,
+      reponses: [
+        { id: 'r1', auteur: 'GreenTech Lyon', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150', contenu: 'Merci Sophie ! On est tres fiers du chemin parcouru.', timestamp: 'Il y a 45min', likes: 5, reponseA: 'c1' },
+        { id: 'r2', auteur: 'Marc Durand', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', contenu: 'Totalement d\'accord avec toi !', timestamp: 'Il y a 30min', likes: 2, reponseA: 'c1' },
+      ],
+    },
+    { id: 'c2', auteur: 'Thomas Dubois', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', contenu: 'Impressionnant le chemin parcouru depuis le debut !', timestamp: 'Il y a 1h30', likes: 8 },
+    {
+      id: 'c3',
+      auteur: 'Claire Bernard',
+      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
+      contenu: 'On aimerait en savoir plus sur votre solution. Un webinar prevu ?',
+      timestamp: 'Il y a 2h',
+      likes: 5,
+      reponses: [
+        { id: 'r3', auteur: 'GreenTech Lyon', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150', contenu: 'Oui Claire ! On prepare un live pour la semaine prochaine. Reste connectee !', timestamp: 'Il y a 1h45', likes: 8, reponseA: 'c3' },
+      ],
+    },
+  ],
+  '2': [
+    {
+      id: 'c4',
+      auteur: 'Lucas Petit',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      contenu: 'Oui j\'ai teste, c\'est vraiment top ! Je recommande.',
+      timestamp: 'Il y a 2h',
+      likes: 15,
+      reponses: [
+        { id: 'r4', auteur: 'Marie Dupont', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', contenu: 'Merci pour ton retour Lucas ! Tu as commande quoi ?', timestamp: 'Il y a 1h30', likes: 3, reponseA: 'c4' },
+      ],
+    },
+    { id: 'c5', auteur: 'Emma Leroy', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', contenu: 'Je vais aller voir leur page, ca a l\'air prometteur !', timestamp: 'Il y a 3h', likes: 4 },
+  ],
+  '3': [
+    { id: 'c6', auteur: 'Antoine Moreau', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150', contenu: 'Je serai present ! Hate de voir ca en action.', timestamp: 'Il y a 4h', likes: 22 },
+    {
+      id: 'c7',
+      auteur: 'Julie Roux',
+      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+      contenu: 'L\'IA dans le medical, c\'est l\'avenir. Bravo pour votre travail !',
+      timestamp: 'Il y a 5h',
+      likes: 18,
+      reponses: [
+        { id: 'r5', auteur: 'MedIA Diagnostics', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150', contenu: 'Merci Julie ! Notre equipe travaille dur pour revolutionner le diagnostic.', timestamp: 'Il y a 4h30', likes: 12, reponseA: 'c7' },
+      ],
+    },
+    { id: 'c8', auteur: 'Pierre Blanc', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150', contenu: 'Est-ce que ca sera disponible en replay ?', timestamp: 'Il y a 5h30', likes: 7 },
+  ],
+};
+
+// Donnees mock
+const MOCK_STORIES: Story[] = [
+  { id: '1', nom: 'GreenTech', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&h=150&fit=crop', nouveau: true },
+  { id: '2', nom: 'MedIA', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150&h=150&fit=crop', nouveau: true },
+  { id: '3', nom: 'FinFlow', avatar: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=150&h=150&fit=crop', nouveau: false },
+  { id: '4', nom: 'BioFood', avatar: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=150&h=150&fit=crop', nouveau: false },
+  { id: '5', nom: 'TechLab', avatar: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=150&h=150&fit=crop', nouveau: true },
+];
+
+const MOCK_POSTS: Post[] = [
+  {
+    id: '1',
+    auteur: 'GreenTech Lyon',
+    avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&h=150&fit=crop',
+    contenu: 'On vient de passer un cap majeur ! Notre solution de recyclage intelligent est maintenant deployee dans 50 entreprises. Merci a toute la communaute pour votre soutien !',
+    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop',
+    likes: 234,
+    commentaires: 45,
+    timestamp: 'Il y a 2h',
+    verifie: true,
+    type: 'startup',
+  },
+  {
+    id: '2',
+    auteur: 'Marie Dupont',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop',
+    contenu: 'Je viens de decouvrir FoodLab sur LPP, leur concept de cuisine durable est vraiment innovant ! Quelqu\'un a deja teste leurs produits ?',
+    likes: 89,
+    commentaires: 23,
+    timestamp: 'Il y a 4h',
+    verifie: false,
+    type: 'membre',
+  },
+  {
+    id: '3',
+    auteur: 'MedIA Diagnostics',
+    avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150&h=150&fit=crop',
+    contenu: 'LIVE demain a 18h : on vous presente notre nouvelle IA de diagnostic en avant-premiere. Venez poser vos questions a notre equipe R&D !',
+    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&h=400&fit=crop',
+    likes: 156,
+    commentaires: 38,
+    timestamp: 'Il y a 6h',
+    verifie: true,
+    type: 'startup',
+  },
+];
+
+const MOCK_STARTUPS: Startup[] = [
+  {
+    id: '1',
+    nom: 'GreenTech Lyon',
+    ville: 'Lyon',
+    description: 'Solutions de recyclage intelligent pour les entreprises',
+    tags: ['CleanTech', 'B2B', 'Impact'],
+    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
+    abonnes: 1247,
+    posts: 89,
+  },
+  {
+    id: '2',
+    nom: 'FoodLab Marseille',
+    ville: 'Marseille',
+    description: 'Alimentation durable et locale pour tous',
+    tags: ['FoodTech', 'B2C', 'Local'],
+    image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=400&h=300&fit=crop',
+    abonnes: 856,
+    posts: 42,
+  },
+  {
+    id: '3',
+    nom: 'MedIA Diagnostics',
+    ville: 'Paris',
+    description: 'IA au service du diagnostic medical',
+    tags: ['HealthTech', 'IA', 'Sante'],
+    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=300&fit=crop',
+    abonnes: 2103,
+    posts: 156,
+  },
+];
+
+const MOCK_LIVES: Live[] = [
+  {
+    id: '1',
+    titre: 'AMA : Decouvrez notre equipe',
+    startup: 'GreenTech Lyon',
+    datetime: 'En direct',
+    interesse: 342,
+    enDirect: true,
+    viewers: 1247,
+    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=500&h=300&fit=crop',
+  },
+  {
+    id: '2',
+    titre: 'Backstage : Notre labo R&D',
+    startup: 'MedIA Diagnostics',
+    datetime: 'Demain, 18h00',
+    interesse: 189,
+    enDirect: false,
+    image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=500&h=300&fit=crop',
+  },
+];
+
+const MOCK_MESSAGES: Message[] = [
+  { id: '1', expediteur: 'GreenTech Lyon', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150', dernier: 'Merci pour votre interet !', date: 'Il y a 1h', nonLu: true },
+  { id: '2', expediteur: 'Thomas Martin', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', dernier: 'Tu as vu leur dernier post ?', date: 'Il y a 3h', nonLu: true },
+  { id: '3', expediteur: 'FoodLab Marseille', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150', dernier: 'On organise un event bientot...', date: 'Hier', nonLu: false },
+];
+
+const TRENDING_STARTUPS = [
+  { id: '1', nom: 'GreenTech Lyon', secteur: 'CleanTech', nouveauxAbonnes: 124 },
+  { id: '2', nom: 'MedIA Diagnostics', secteur: 'HealthTech', nouveauxAbonnes: 98 },
+  { id: '3', nom: 'FinFlow Systems', secteur: 'FinTech', nouveauxAbonnes: 76 },
+];
 
 export default function Accueil() {
-  const { utilisateur, deconnexion } = useAuth();
+  const { couleurs } = useTheme();
+  const styles = createStyles(couleurs);
 
-  const handleDeconnexion = async () => {
-    await deconnexion();
-    router.replace('/(auth)/connexion');
+  const [utilisateur, setUtilisateur] = useState<Utilisateur | null>(null);
+  const [rafraichissement, setRafraichissement] = useState(false);
+  const [ongletActif, setOngletActif] = useState<OngletActif>('feed');
+  const [recherche, setRecherche] = useState('');
+  const [fabOuvert, setFabOuvert] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Publications API
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [chargement, setChargement] = useState(true);
+  const [modalCreerPost, setModalCreerPost] = useState(false);
+  const [nouveauPostContenu, setNouveauPostContenu] = useState('');
+  const [creationEnCours, setCreationEnCours] = useState(false);
+
+  // Animations FAB
+  const fabRotation = useRef(new Animated.Value(0)).current;
+  const fabScale = useRef(new Animated.Value(1)).current;
+  const menuOpacity = useRef(new Animated.Value(0)).current;
+  const menuTranslateY = useRef(new Animated.Value(20)).current;
+  const action1Anim = useRef(new Animated.Value(0)).current;
+  const action2Anim = useRef(new Animated.Value(0)).current;
+  const action3Anim = useRef(new Animated.Value(0)).current;
+  const action4Anim = useRef(new Animated.Value(0)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  const onglets: { key: OngletActif; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { key: 'feed', label: 'Feed', icon: 'home-outline' },
+    { key: 'decouvrir', label: 'Decouvrir', icon: 'compass-outline' },
+    { key: 'live', label: 'Live', icon: 'radio-outline' },
+    { key: 'messages', label: 'Messages', icon: 'chatbubbles-outline' },
+  ];
+
+  useEffect(() => {
+    chargerDonnees();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const chargerDonnees = async () => {
+    await Promise.all([
+      chargerUtilisateur(),
+      chargerPublications(),
+    ]);
+  };
+
+  const chargerUtilisateur = async () => {
+    const user = await getUtilisateurLocal();
+    setUtilisateur(user);
+  };
+
+  const chargerPublications = async () => {
+    try {
+      setChargement(true);
+      const reponse = await getPublications(1, 20);
+      if (reponse.succes && reponse.data) {
+        setPublications(reponse.data.publications);
+      }
+    } catch (error) {
+      console.error('Erreur chargement publications:', error);
+    } finally {
+      setChargement(false);
+    }
+  };
+
+  const handleRafraichissement = async () => {
+    setRafraichissement(true);
+    await chargerDonnees();
+    setRafraichissement(false);
+  };
+
+  const handleCreerPost = async () => {
+    if (!nouveauPostContenu.trim() || creationEnCours) return;
+
+    try {
+      setCreationEnCours(true);
+      const reponse = await creerPublication(nouveauPostContenu.trim());
+      if (reponse.succes && reponse.data) {
+        setPublications(prev => [reponse.data!.publication, ...prev]);
+        setNouveauPostContenu('');
+        setModalCreerPost(false);
+        Alert.alert('Succes', 'Publication creee !');
+      } else {
+        Alert.alert('Erreur', reponse.message || 'Impossible de creer la publication');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Une erreur est survenue');
+    } finally {
+      setCreationEnCours(false);
+    }
+  };
+
+  const handleProfil = () => {
+    router.push('/(app)/profil');
+  };
+
+  const getInitiales = () => {
+    if (!utilisateur) return 'U';
+    return `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase();
+  };
+
+  const unreadMessages = MOCK_MESSAGES.filter(m => m.nonLu).length;
+
+  // ============ COMPOSANTS ============
+
+  const StoryItem = ({ story }: { story: Story }) => (
+    <Pressable style={styles.storyItem}>
+      <View style={[styles.storyRing, story.nouveau && styles.storyRingActive]}>
+        <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
+      </View>
+      <Text style={styles.storyNom} numberOfLines={1}>{story.nom}</Text>
+    </Pressable>
+  );
+
+  const PostCard = ({ post }: { post: Post }) => {
+    const [liked, setLiked] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+    const [newComment, setNewComment] = useState('');
+    const [localComments, setLocalComments] = useState<Commentaire[]>(MOCK_COMMENTAIRES[post.id] || []);
+    const [likesComments, setLikesComments] = useState<Record<string, boolean>>({});
+    const [replyingTo, setReplyingTo] = useState<{ id: string; auteur: string } | null>(null);
+    const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+
+    const handleShare = async () => {
+      try {
+        await Share.share({
+          message: `Decouvre ce post de ${post.auteur} sur LPP !\n\n"${post.contenu.substring(0, 100)}${post.contenu.length > 100 ? '...' : ''}"\n\nTelecharge LPP pour suivre les startups innovantes !`,
+          title: `Post de ${post.auteur}`,
+        });
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de partager ce contenu');
+      }
+    };
+
+    const handleAddComment = () => {
+      if (!newComment.trim()) return;
+
+      const nouveauCommentaire: Commentaire = {
+        id: `new_${Date.now()}`,
+        auteur: utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        contenu: newComment.trim(),
+        timestamp: 'A l\'instant',
+        likes: 0,
+        reponseA: replyingTo?.id,
+      };
+
+      if (replyingTo) {
+        // Ajouter comme reponse
+        setLocalComments(prev => prev.map(c => {
+          if (c.id === replyingTo.id) {
+            return {
+              ...c,
+              reponses: [...(c.reponses || []), nouveauCommentaire],
+            };
+          }
+          return c;
+        }));
+        setExpandedReplies(prev => ({ ...prev, [replyingTo.id]: true }));
+      } else {
+        // Ajouter comme nouveau commentaire
+        setLocalComments([nouveauCommentaire, ...localComments]);
+      }
+
+      setNewComment('');
+      setReplyingTo(null);
+    };
+
+    const handleReply = (commentId: string, auteur: string) => {
+      setReplyingTo({ id: commentId, auteur });
+    };
+
+    const cancelReply = () => {
+      setReplyingTo(null);
+      setNewComment('');
+    };
+
+    const toggleReplies = (commentId: string) => {
+      setExpandedReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
+    };
+
+    const handleLikeComment = (commentId: string) => {
+      setLikesComments(prev => ({
+        ...prev,
+        [commentId]: !prev[commentId],
+      }));
+    };
+
+    return (
+      <View style={styles.postCard}>
+        <View style={styles.postHeader}>
+          <Image source={{ uri: post.avatar }} style={styles.postAvatar} />
+          <View style={styles.postAuteurContainer}>
+            <View style={styles.postAuteurRow}>
+              <Text style={styles.postAuteur}>{post.auteur}</Text>
+              {post.verifie && (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark" size={10} color={couleurs.blanc} />
+                </View>
+              )}
+              {post.type === 'startup' && (
+                <View style={styles.startupBadge}>
+                  <Text style={styles.startupBadgeText}>Startup</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.postTimestamp}>{post.timestamp}</Text>
+          </View>
+          <Pressable style={styles.postMore}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
+          </Pressable>
+        </View>
+        <Text style={styles.postContenu}>{post.contenu}</Text>
+        {post.image && (
+          <Image source={{ uri: post.image }} style={styles.postImage} />
+        )}
+        <View style={styles.postStats}>
+          <Text style={styles.postStatText}>{post.likes + (liked ? 1 : 0)} j'aime</Text>
+          <Pressable onPress={() => setShowComments(!showComments)}>
+            <Text style={styles.postStatText}>{localComments.length} commentaires</Text>
+          </Pressable>
+        </View>
+        <View style={styles.postActions}>
+          <Pressable style={styles.postAction} onPress={() => setLiked(!liked)}>
+            <Ionicons
+              name={liked ? 'heart' : 'heart-outline'}
+              size={22}
+              color={liked ? couleurs.erreur : couleurs.texteSecondaire}
+            />
+            <Text style={[styles.postActionText, liked && { color: couleurs.erreur }]}>J'aime</Text>
+          </Pressable>
+          <Pressable style={styles.postAction} onPress={() => setShowComments(!showComments)}>
+            <Ionicons
+              name={showComments ? 'chatbubble' : 'chatbubble-outline'}
+              size={22}
+              color={showComments ? couleurs.primaire : couleurs.texteSecondaire}
+            />
+            <Text style={[styles.postActionText, showComments && { color: couleurs.primaire }]}>Commenter</Text>
+          </Pressable>
+          <Pressable style={styles.postAction} onPress={handleShare}>
+            <Ionicons name="share-outline" size={22} color={couleurs.texteSecondaire} />
+            <Text style={styles.postActionText}>Partager</Text>
+          </Pressable>
+        </View>
+
+        {/* Section commentaires */}
+        {showComments && (
+          <View style={styles.commentsSection}>
+            {/* Badge reponse */}
+            {replyingTo && (
+              <View style={styles.replyingToBanner}>
+                <View style={styles.replyingToContent}>
+                  <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
+                  <Text style={styles.replyingToText}>
+                    Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
+                  </Text>
+                </View>
+                <Pressable onPress={cancelReply} style={styles.cancelReplyBtn}>
+                  <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
+                </Pressable>
+              </View>
+            )}
+
+            {/* Input nouveau commentaire */}
+            <View style={styles.commentInputContainer}>
+              <View style={styles.commentInputAvatar}>
+                <Text style={styles.commentInputAvatarText}>
+                  {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
+                </Text>
+              </View>
+              <TextInput
+                style={styles.commentInput}
+                placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
+                placeholderTextColor={couleurs.texteSecondaire}
+                value={newComment}
+                onChangeText={setNewComment}
+                multiline
+                maxLength={500}
+              />
+              <Pressable
+                style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
+                onPress={handleAddComment}
+                disabled={!newComment.trim()}
+              >
+                <Ionicons
+                  name="send"
+                  size={18}
+                  color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire}
+                />
+              </Pressable>
+            </View>
+
+            {/* Liste des commentaires */}
+            {localComments.map((comment) => (
+              <View key={comment.id}>
+                {/* Commentaire principal */}
+                <View style={styles.commentItem}>
+                  <Image source={{ uri: comment.avatar }} style={styles.commentAvatar} />
+                  <View style={styles.commentContent}>
+                    <View style={styles.commentBubble}>
+                      <Text style={styles.commentAuteur}>{comment.auteur}</Text>
+                      <Text style={styles.commentTexte}>{comment.contenu}</Text>
+                    </View>
+                    <View style={styles.commentMeta}>
+                      <Text style={styles.commentTime}>{comment.timestamp}</Text>
+                      <Pressable
+                        style={styles.commentLikeBtn}
+                        onPress={() => handleLikeComment(comment.id)}
+                      >
+                        <Ionicons
+                          name={likesComments[comment.id] ? 'heart' : 'heart-outline'}
+                          size={14}
+                          color={likesComments[comment.id] ? couleurs.erreur : couleurs.texteSecondaire}
+                        />
+                        <Text style={[
+                          styles.commentLikeText,
+                          likesComments[comment.id] && { color: couleurs.erreur }
+                        ]}>
+                          {comment.likes + (likesComments[comment.id] ? 1 : 0)}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.commentReplyBtn}
+                        onPress={() => handleReply(comment.id, comment.auteur)}
+                      >
+                        <Text style={[
+                          styles.commentReplyText,
+                          replyingTo?.id === comment.id && { color: couleurs.primaire }
+                        ]}>Repondre</Text>
+                      </Pressable>
+                    </View>
+
+                    {/* Bouton voir les reponses */}
+                    {comment.reponses && comment.reponses.length > 0 && (
+                      <Pressable
+                        style={styles.viewRepliesBtn}
+                        onPress={() => toggleReplies(comment.id)}
+                      >
+                        <Ionicons
+                          name={expandedReplies[comment.id] ? 'chevron-up' : 'chevron-down'}
+                          size={14}
+                          color={couleurs.primaire}
+                        />
+                        <Text style={styles.viewRepliesText}>
+                          {expandedReplies[comment.id]
+                            ? 'Masquer les reponses'
+                            : `Voir ${comment.reponses.length} reponse${comment.reponses.length > 1 ? 's' : ''}`}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+
+                {/* Reponses */}
+                {expandedReplies[comment.id] && comment.reponses && comment.reponses.map((reponse) => (
+                  <View key={reponse.id} style={styles.replyItem}>
+                    <View style={styles.replyLine} />
+                    <Image source={{ uri: reponse.avatar }} style={styles.replyAvatar} />
+                    <View style={styles.commentContent}>
+                      <View style={styles.replyBubble}>
+                        <Text style={styles.commentAuteur}>{reponse.auteur}</Text>
+                        <Text style={styles.commentTexte}>{reponse.contenu}</Text>
+                      </View>
+                      <View style={styles.commentMeta}>
+                        <Text style={styles.commentTime}>{reponse.timestamp}</Text>
+                        <Pressable
+                          style={styles.commentLikeBtn}
+                          onPress={() => handleLikeComment(reponse.id)}
+                        >
+                          <Ionicons
+                            name={likesComments[reponse.id] ? 'heart' : 'heart-outline'}
+                            size={12}
+                            color={likesComments[reponse.id] ? couleurs.erreur : couleurs.texteSecondaire}
+                          />
+                          <Text style={[
+                            styles.commentLikeText,
+                            likesComments[reponse.id] && { color: couleurs.erreur }
+                          ]}>
+                            {reponse.likes + (likesComments[reponse.id] ? 1 : 0)}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ))}
+
+            {localComments.length === 0 && (
+              <View style={styles.noComments}>
+                <Ionicons name="chatbubbles-outline" size={32} color={couleurs.texteSecondaire} />
+                <Text style={styles.noCommentsText}>Soyez le premier a commenter !</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // ============ PUBLICATION CARD (API) ============
+  const PublicationCard = ({ publication, onUpdate }: { publication: Publication; onUpdate: (pub: Publication) => void }) => {
+    const [liked, setLiked] = useState(publication.aLike);
+    const [nbLikes, setNbLikes] = useState(publication.nbLikes);
+    const [showComments, setShowComments] = useState(false);
+    const [commentaires, setCommentaires] = useState<CommentaireAPI[]>([]);
+    const [chargementCommentaires, setChargementCommentaires] = useState(false);
+    const [newComment, setNewComment] = useState('');
+    const [replyingTo, setReplyingTo] = useState<{ id: string; auteur: string } | null>(null);
+    const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+
+    const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
+    const avatarUrl = publication.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${publication.auteur._id}&backgroundColor=6366f1`;
+
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+
+      if (minutes < 1) return 'A l\'instant';
+      if (minutes < 60) return `Il y a ${minutes}min`;
+      if (hours < 24) return `Il y a ${hours}h`;
+      if (days < 7) return `Il y a ${days}j`;
+      return date.toLocaleDateString('fr-FR');
+    };
+
+    const handleLike = async () => {
+      try {
+        const newLiked = !liked;
+        setLiked(newLiked);
+        setNbLikes(prev => newLiked ? prev + 1 : prev - 1);
+
+        const reponse = await toggleLikePublication(publication._id);
+        if (reponse.succes && reponse.data) {
+          setLiked(reponse.data.aLike);
+          setNbLikes(reponse.data.nbLikes);
+        }
+      } catch (error) {
+        setLiked(!liked);
+        setNbLikes(publication.nbLikes);
+      }
+    };
+
+    const chargerCommentaires = async () => {
+      try {
+        setChargementCommentaires(true);
+        const reponse = await getCommentaires(publication._id);
+        if (reponse.succes && reponse.data) {
+          setCommentaires(reponse.data.commentaires);
+        }
+      } catch (error) {
+        console.error('Erreur chargement commentaires:', error);
+      } finally {
+        setChargementCommentaires(false);
+      }
+    };
+
+    const handleToggleComments = () => {
+      if (!showComments) {
+        chargerCommentaires();
+      }
+      setShowComments(!showComments);
+    };
+
+    const handleAddComment = async () => {
+      if (!newComment.trim()) return;
+
+      try {
+        const reponse = await ajouterCommentaire(publication._id, newComment.trim(), replyingTo?.id);
+        if (reponse.succes && reponse.data) {
+          if (replyingTo) {
+            setCommentaires(prev => prev.map(c => {
+              if (c._id === replyingTo.id) {
+                return { ...c, reponses: [...(c.reponses || []), reponse.data!.commentaire] };
+              }
+              return c;
+            }));
+            setExpandedReplies(prev => ({ ...prev, [replyingTo.id]: true }));
+          } else {
+            setCommentaires(prev => [reponse.data!.commentaire, ...prev]);
+          }
+          setNewComment('');
+          setReplyingTo(null);
+          onUpdate({ ...publication, nbCommentaires: publication.nbCommentaires + 1 });
+        }
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible d\'ajouter le commentaire');
+      }
+    };
+
+    const handleLikeComment = async (commentId: string) => {
+      try {
+        const reponse = await toggleLikeCommentaire(publication._id, commentId);
+        if (reponse.succes && reponse.data) {
+          setCommentaires(prev => prev.map(c => {
+            if (c._id === commentId) {
+              return { ...c, aLike: reponse.data!.aLike, nbLikes: reponse.data!.nbLikes };
+            }
+            if (c.reponses) {
+              return {
+                ...c,
+                reponses: c.reponses.map(r => r._id === commentId ? { ...r, aLike: reponse.data!.aLike, nbLikes: reponse.data!.nbLikes } : r),
+              };
+            }
+            return c;
+          }));
+        }
+      } catch (error) {
+        console.error('Erreur like commentaire:', error);
+      }
+    };
+
+    const handleShare = async () => {
+      try {
+        await Share.share({
+          message: `Decouvre ce post de ${auteurNom} sur LPP !\n\n"${publication.contenu.substring(0, 100)}${publication.contenu.length > 100 ? '...' : ''}"\n\nTelecharge LPP pour suivre les startups innovantes !`,
+          title: `Post de ${auteurNom}`,
+        });
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de partager ce contenu');
+      }
+    };
+
+    return (
+      <View style={styles.postCard}>
+        <View style={styles.postHeader}>
+          <Image source={{ uri: avatarUrl }} style={styles.postAvatar} />
+          <View style={styles.postAuteurContainer}>
+            <View style={styles.postAuteurRow}>
+              <Text style={styles.postAuteur}>{auteurNom}</Text>
+              {publication.auteurType === 'Projet' && (
+                <View style={styles.startupBadge}>
+                  <Text style={styles.startupBadgeText}>Startup</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.postTimestamp}>{formatDate(publication.dateCreation)}</Text>
+          </View>
+          <Pressable style={styles.postMore}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
+          </Pressable>
+        </View>
+        <Text style={styles.postContenu}>{publication.contenu}</Text>
+        {publication.media && (
+          <Image source={{ uri: publication.media }} style={styles.postImage} />
+        )}
+        <View style={styles.postStats}>
+          <Text style={styles.postStatText}>{nbLikes} j'aime</Text>
+          <Pressable onPress={handleToggleComments}>
+            <Text style={styles.postStatText}>{publication.nbCommentaires} commentaires</Text>
+          </Pressable>
+        </View>
+        <View style={styles.postActions}>
+          <Pressable style={styles.postAction} onPress={handleLike}>
+            <Ionicons
+              name={liked ? 'heart' : 'heart-outline'}
+              size={22}
+              color={liked ? couleurs.erreur : couleurs.texteSecondaire}
+            />
+            <Text style={[styles.postActionText, liked && { color: couleurs.erreur }]}>J'aime</Text>
+          </Pressable>
+          <Pressable style={styles.postAction} onPress={handleToggleComments}>
+            <Ionicons
+              name={showComments ? 'chatbubble' : 'chatbubble-outline'}
+              size={22}
+              color={showComments ? couleurs.primaire : couleurs.texteSecondaire}
+            />
+            <Text style={[styles.postActionText, showComments && { color: couleurs.primaire }]}>Commenter</Text>
+          </Pressable>
+          <Pressable style={styles.postAction} onPress={handleShare}>
+            <Ionicons name="share-outline" size={22} color={couleurs.texteSecondaire} />
+            <Text style={styles.postActionText}>Partager</Text>
+          </Pressable>
+        </View>
+
+        {showComments && (
+          <View style={styles.commentsSection}>
+            {replyingTo && (
+              <View style={styles.replyingToBanner}>
+                <View style={styles.replyingToContent}>
+                  <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
+                  <Text style={styles.replyingToText}>
+                    Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
+                  </Text>
+                </View>
+                <Pressable onPress={() => { setReplyingTo(null); setNewComment(''); }} style={styles.cancelReplyBtn}>
+                  <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
+                </Pressable>
+              </View>
+            )}
+
+            <View style={styles.commentInputContainer}>
+              <View style={styles.commentInputAvatar}>
+                <Text style={styles.commentInputAvatarText}>
+                  {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
+                </Text>
+              </View>
+              <TextInput
+                style={styles.commentInput}
+                placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
+                placeholderTextColor={couleurs.texteSecondaire}
+                value={newComment}
+                onChangeText={setNewComment}
+                multiline
+                maxLength={500}
+              />
+              <Pressable
+                style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
+                onPress={handleAddComment}
+                disabled={!newComment.trim()}
+              >
+                <Ionicons
+                  name="send"
+                  size={18}
+                  color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire}
+                />
+              </Pressable>
+            </View>
+
+            {chargementCommentaires ? (
+              <View style={styles.noComments}>
+                <Text style={styles.noCommentsText}>Chargement...</Text>
+              </View>
+            ) : commentaires.length === 0 ? (
+              <View style={styles.noComments}>
+                <Ionicons name="chatbubbles-outline" size={32} color={couleurs.texteSecondaire} />
+                <Text style={styles.noCommentsText}>Soyez le premier a commenter !</Text>
+              </View>
+            ) : (
+              commentaires.map((comment) => {
+                const commentAuteur = `${comment.auteur.prenom} ${comment.auteur.nom}`;
+                const commentAvatar = comment.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${comment.auteur._id}&backgroundColor=10b981`;
+                return (
+                  <View key={comment._id}>
+                    <View style={styles.commentItem}>
+                      <Image source={{ uri: commentAvatar }} style={styles.commentAvatar} />
+                      <View style={styles.commentContent}>
+                        <View style={styles.commentBubble}>
+                          <Text style={styles.commentAuteur}>{commentAuteur}</Text>
+                          <Text style={styles.commentTexte}>{comment.contenu}</Text>
+                        </View>
+                        <View style={styles.commentMeta}>
+                          <Text style={styles.commentTime}>{formatDate(comment.dateCreation)}</Text>
+                          <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(comment._id)}>
+                            <Ionicons
+                              name={comment.aLike ? 'heart' : 'heart-outline'}
+                              size={14}
+                              color={comment.aLike ? couleurs.erreur : couleurs.texteSecondaire}
+                            />
+                            <Text style={[styles.commentLikeText, comment.aLike && { color: couleurs.erreur }]}>
+                              {comment.nbLikes}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.commentReplyBtn}
+                            onPress={() => setReplyingTo({ id: comment._id, auteur: commentAuteur })}
+                          >
+                            <Text style={styles.commentReplyText}>Repondre</Text>
+                          </Pressable>
+                        </View>
+                        {comment.reponses && comment.reponses.length > 0 && (
+                          <Pressable
+                            style={styles.viewRepliesBtn}
+                            onPress={() => setExpandedReplies(prev => ({ ...prev, [comment._id]: !prev[comment._id] }))}
+                          >
+                            <Ionicons
+                              name={expandedReplies[comment._id] ? 'chevron-up' : 'chevron-down'}
+                              size={14}
+                              color={couleurs.primaire}
+                            />
+                            <Text style={styles.viewRepliesText}>
+                              {expandedReplies[comment._id] ? 'Masquer' : `Voir ${comment.reponses.length} reponse${comment.reponses.length > 1 ? 's' : ''}`}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                    {expandedReplies[comment._id] && comment.reponses?.map((reponse) => {
+                      const repAuteur = `${reponse.auteur.prenom} ${reponse.auteur.nom}`;
+                      const repAvatar = reponse.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${reponse.auteur._id}&backgroundColor=f59e0b`;
+                      return (
+                        <View key={reponse._id} style={styles.replyItem}>
+                          <View style={styles.replyLine} />
+                          <Image source={{ uri: repAvatar }} style={styles.replyAvatar} />
+                          <View style={styles.commentContent}>
+                            <View style={styles.replyBubble}>
+                              <Text style={styles.commentAuteur}>{repAuteur}</Text>
+                              <Text style={styles.commentTexte}>{reponse.contenu}</Text>
+                            </View>
+                            <View style={styles.commentMeta}>
+                              <Text style={styles.commentTime}>{formatDate(reponse.dateCreation)}</Text>
+                              <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(reponse._id)}>
+                                <Ionicons
+                                  name={reponse.aLike ? 'heart' : 'heart-outline'}
+                                  size={12}
+                                  color={reponse.aLike ? couleurs.erreur : couleurs.texteSecondaire}
+                                />
+                                <Text style={[styles.commentLikeText, reponse.aLike && { color: couleurs.erreur }]}>
+                                  {reponse.nbLikes}
+                                </Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const StartupCard = ({ startup }: { startup: Startup }) => {
+    const [suivi, setSuivi] = useState(false);
+    return (
+      <View style={styles.startupCard}>
+        <Image source={{ uri: startup.image }} style={styles.startupImage} />
+        <View style={styles.startupContent}>
+          <View style={styles.startupHeader}>
+            <View>
+              <Text style={styles.startupNom}>{startup.nom}</Text>
+              <View style={styles.startupLocation}>
+                <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
+                <Text style={styles.startupVille}>{startup.ville}</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={styles.startupDescription} numberOfLines={2}>{startup.description}</Text>
+          <View style={styles.startupTags}>
+            {startup.tags.map((tag, i) => (
+              <View key={i} style={styles.startupTag}>
+                <Text style={styles.startupTagText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.startupStats}>
+            <View style={styles.startupStat}>
+              <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
+              <Text style={styles.startupStatText}>{startup.abonnes} abonnes</Text>
+            </View>
+            <View style={styles.startupStat}>
+              <Ionicons name="document-text-outline" size={14} color={couleurs.texteSecondaire} />
+              <Text style={styles.startupStatText}>{startup.posts} posts</Text>
+            </View>
+          </View>
+          <View style={styles.startupActions}>
+            <Pressable
+              style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi]}
+              onPress={() => setSuivi(!suivi)}
+            >
+              <Ionicons
+                name={suivi ? 'checkmark' : 'add'}
+                size={18}
+                color={suivi ? couleurs.primaire : couleurs.blanc}
+              />
+              <Text style={[styles.startupBtnPrimaryText, suivi && styles.startupBtnSuiviText]}>
+                {suivi ? 'Suivi' : 'Suivre'}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.startupBtnSecondary}>
+              <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const LiveCard = ({ live }: { live: Live }) => (
+    <Pressable style={styles.liveCard}>
+      <Image source={{ uri: live.image }} style={styles.liveImage} />
+      <View style={styles.liveOverlay}>
+        {live.enDirect ? (
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveBadgeText}>LIVE</Text>
+          </View>
+        ) : (
+          <View style={styles.liveUpcoming}>
+            <Text style={styles.liveUpcomingText}>A venir</Text>
+          </View>
+        )}
+        {live.enDirect && live.viewers && (
+          <View style={styles.liveViewers}>
+            <Ionicons name="eye" size={14} color={couleurs.blanc} />
+            <Text style={styles.liveViewersText}>{live.viewers}</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.liveContent}>
+        <Text style={styles.liveTitre} numberOfLines={2}>{live.titre}</Text>
+        <Text style={styles.liveStartup}>{live.startup}</Text>
+        <View style={styles.liveDetails}>
+          <View style={styles.liveDetail}>
+            <Ionicons name="calendar-outline" size={14} color={couleurs.texteSecondaire} />
+            <Text style={styles.liveDetailText}>{live.datetime}</Text>
+          </View>
+          <View style={styles.liveDetail}>
+            <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
+            <Text style={styles.liveDetailText}>{live.interesse} interesses</Text>
+          </View>
+        </View>
+        <Pressable style={[styles.liveBtn, live.enDirect && styles.liveBtnActive]}>
+          <Text style={[styles.liveBtnText, live.enDirect && styles.liveBtnTextActive]}>
+            {live.enDirect ? 'Rejoindre' : 'Me rappeler'}
+          </Text>
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+
+  const MessageRow = ({ message }: { message: Message }) => (
+    <Pressable style={[styles.messageRow, message.nonLu && styles.messageRowUnread]}>
+      <Image source={{ uri: message.avatar }} style={styles.messageAvatar} />
+      <View style={styles.messageContent}>
+        <Text style={[styles.messageExpediteur, message.nonLu && styles.messageExpediteurUnread]}>
+          {message.expediteur}
+        </Text>
+        <Text style={styles.messageDernier} numberOfLines={1}>{message.dernier}</Text>
+      </View>
+      <View style={styles.messageMeta}>
+        <Text style={styles.messageDate}>{message.date}</Text>
+        {message.nonLu && <View style={styles.messageUnreadDot} />}
+      </View>
+    </Pressable>
+  );
+
+  const TrendingItem = ({ item, rank }: { item: typeof TRENDING_STARTUPS[0]; rank: number }) => (
+    <Pressable style={styles.trendingItem}>
+      <View style={[styles.trendingRank, rank <= 3 && styles.trendingRankTop]}>
+        <Text style={[styles.trendingRankText, rank <= 3 && styles.trendingRankTextTop]}>{rank}</Text>
+      </View>
+      <View style={styles.trendingInfo}>
+        <Text style={styles.trendingNom}>{item.nom}</Text>
+        <Text style={styles.trendingSecteur}>{item.secteur}</Text>
+      </View>
+      <View style={styles.trendingChange}>
+        <Ionicons name="trending-up" size={14} color={couleurs.succes} />
+        <Text style={styles.trendingChangeValue}>+{item.nouveauxAbonnes}</Text>
+      </View>
+    </Pressable>
+  );
+
+  // ============ SECTIONS ============
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher startups, membres..."
+          placeholderTextColor={couleurs.texteSecondaire}
+          value={recherche}
+          onChangeText={setRecherche}
+        />
+      </View>
+      <Pressable style={styles.notifButton}>
+        <Ionicons name="notifications-outline" size={24} color={couleurs.texte} />
+      </Pressable>
+      <Pressable style={styles.avatar} onPress={handleProfil}>
+        <Text style={styles.avatarTexte}>{getInitiales()}</Text>
+      </Pressable>
+    </View>
+  );
+
+  const renderNavigation = () => (
+    <View style={styles.navigation}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navContent}>
+        {onglets.map((onglet) => (
+          <Pressable
+            key={onglet.key}
+            style={[styles.navTab, ongletActif === onglet.key && styles.navTabActive]}
+            onPress={() => setOngletActif(onglet.key)}
+          >
+            <Ionicons
+              name={onglet.icon}
+              size={18}
+              color={ongletActif === onglet.key ? couleurs.primaire : couleurs.texteSecondaire}
+            />
+            <Text style={[styles.navTabText, ongletActif === onglet.key && styles.navTabTextActive]}>
+              {onglet.label}
+            </Text>
+            {onglet.key === 'messages' && unreadMessages > 0 && (
+              <View style={styles.navBadge}>
+                <Text style={styles.navBadgeText}>{unreadMessages}</Text>
+              </View>
+            )}
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  const renderStories = () => (
+    <View style={styles.storiesSection}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesScroll}>
+        <Pressable style={styles.storyItemAdd}>
+          <View style={styles.storyAddIcon}>
+            <Ionicons name="add" size={24} color={couleurs.primaire} />
+          </View>
+          <Text style={styles.storyNom}>Votre story</Text>
+        </Pressable>
+        {MOCK_STORIES.map((story) => (
+          <StoryItem key={story.id} story={story} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  const renderTrending = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View>
+          <Text style={styles.sectionTitle}>Tendances</Text>
+          <Text style={styles.sectionSubtitle}>Startups populaires cette semaine</Text>
+        </View>
+        <Pressable style={styles.sectionAction}>
+          <Text style={styles.sectionActionText}>Voir tout</Text>
+          <Ionicons name="arrow-forward" size={16} color={couleurs.texteSecondaire} />
+        </Pressable>
+      </View>
+      {TRENDING_STARTUPS.map((item, index) => (
+        <TrendingItem key={item.id} item={item} rank={index + 1} />
+      ))}
+    </View>
+  );
+
+  const handleUpdatePublication = (updatedPub: Publication) => {
+    setPublications(prev => prev.map(p => p._id === updatedPub._id ? updatedPub : p));
+  };
+
+  const renderFeedContent = () => (
+    <>
+      {renderStories()}
+      {renderTrending()}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Fil d'actualite</Text>
+        {chargement ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Chargement des publications...</Text>
+          </View>
+        ) : publications.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="newspaper-outline" size={48} color={couleurs.texteSecondaire} />
+            <Text style={styles.emptyText}>Aucune publication pour le moment</Text>
+            <Text style={styles.emptySubtext}>Soyez le premier a publier !</Text>
+          </View>
+        ) : (
+          publications.map((publication) => (
+            <PublicationCard
+              key={publication._id}
+              publication={publication}
+              onUpdate={handleUpdatePublication}
+            />
+          ))
+        )}
+      </View>
+    </>
+  );
+
+  const renderDecouvrirContent = () => (
+    <>
+      <View style={styles.heroSection}>
+        <LinearGradient
+          colors={[couleurs.primaireDark, '#0F172A']}
+          style={styles.heroCard}
+        >
+          <View style={styles.heroBadge}>
+            <Ionicons name="sparkles" size={14} color={couleurs.secondaire} />
+            <Text style={styles.heroBadgeText}>Nouveautes</Text>
+          </View>
+          <Text style={styles.heroTitle}>Decouvrez les startups de demain</Text>
+          <Text style={styles.heroSubtitle}>
+            Explorez les projets innovants, suivez leur actualite et echangez avec les fondateurs.
+          </Text>
+          <View style={styles.heroStats}>
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>127</Text>
+              <Text style={styles.heroStatLabel}>Startups</Text>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>2.4K</Text>
+              <Text style={styles.heroStatLabel}>Membres</Text>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>15</Text>
+              <Text style={styles.heroStatLabel}>Secteurs</Text>
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Startups a decouvrir</Text>
+        </View>
+        {MOCK_STARTUPS.map((startup) => (
+          <StartupCard key={startup.id} startup={startup} />
+        ))}
+      </View>
+    </>
+  );
+
+  const renderLiveContent = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View>
+          <Text style={styles.sectionTitle}>En direct & A venir</Text>
+          <Text style={styles.sectionSubtitle}>Rencontrez les equipes en live</Text>
+        </View>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+        {MOCK_LIVES.map((live) => (
+          <LiveCard key={live.id} live={live} />
+        ))}
+      </ScrollView>
+      <View style={styles.liveInfo}>
+        <Ionicons name="information-circle-outline" size={20} color={couleurs.texteSecondaire} />
+        <Text style={styles.liveInfoText}>
+          Les lives vous permettent de decouvrir les startups et de poser vos questions directement aux fondateurs.
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderMessagesContent = () => (
+    <View style={styles.section}>
+      <View style={styles.messagesCard}>
+        <View style={styles.messagesHeader}>
+          <Text style={styles.messagesHeaderTitle}>Conversations</Text>
+          <Pressable style={styles.messagesNewBtn}>
+            <Ionicons name="create-outline" size={20} color={couleurs.primaire} />
+          </Pressable>
+        </View>
+        <View style={styles.messagesList}>
+          {MOCK_MESSAGES.map((message) => (
+            <MessageRow key={message.id} message={message} />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (ongletActif) {
+      case 'feed': return renderFeedContent();
+      case 'decouvrir': return renderDecouvrirContent();
+      case 'live': return renderLiveContent();
+      case 'messages': return renderMessagesContent();
+      default: return renderFeedContent();
+    }
+  };
+
+  // Actions FAB
+  const FAB_ACTIONS = [
+    { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
+    { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => Alert.alert('Go Live', 'Bientot disponible !') },
+    { id: 3, icon: 'camera-outline' as const, label: 'Story', color: '#10B981', action: () => Alert.alert('Story', 'Bientot disponible !') },
+    { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => Alert.alert('Startup', 'Bientot disponible !') },
+  ];
+
+  const toggleFab = () => {
+    const toValue = fabOuvert ? 0 : 1;
+
+    // Animation du bouton principal
+    Animated.parallel([
+      Animated.spring(fabRotation, {
+        toValue: fabOuvert ? 0 : 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }),
+      Animated.spring(fabScale, {
+        toValue: fabOuvert ? 1 : 0.9,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 10,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: fabOuvert ? 0 : 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(menuOpacity, {
+        toValue: toValue,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(menuTranslateY, {
+        toValue: fabOuvert ? 20 : 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+    ]).start();
+
+    // Animation des actions avec delai cascade
+    const actionAnims = [action1Anim, action2Anim, action3Anim, action4Anim];
+    actionAnims.forEach((anim, index) => {
+      Animated.spring(anim, {
+        toValue: toValue,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+        delay: fabOuvert ? 0 : index * 50,
+      }).start();
+    });
+
+    setFabOuvert(!fabOuvert);
+  };
+
+  const handleFabAction = (action: () => void) => {
+    toggleFab();
+    setTimeout(action, 200);
+  };
+
+  const fabRotationInterpolate = fabRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '45deg'],
+  });
+
+  const renderFAB = () => {
+    const actionAnims = [action1Anim, action2Anim, action3Anim, action4Anim];
+
+    return (
+      <>
+        {/* Backdrop */}
+        {fabOuvert && (
+          <Animated.View
+            style={[styles.fabBackdrop, { opacity: backdropOpacity }]}
+          >
+            <Pressable style={StyleSheet.absoluteFill} onPress={toggleFab} />
+          </Animated.View>
+        )}
+
+        {/* Menu Actions */}
+        <Animated.View
+          style={[
+            styles.fabMenu,
+            {
+              opacity: menuOpacity,
+              transform: [{ translateY: menuTranslateY }],
+            },
+          ]}
+          pointerEvents={fabOuvert ? 'auto' : 'none'}
+        >
+          {FAB_ACTIONS.map((item, index) => (
+            <Animated.View
+              key={item.id}
+              style={[
+                styles.fabActionContainer,
+                {
+                  opacity: actionAnims[index],
+                  transform: [
+                    {
+                      scale: actionAnims[index].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.5, 1],
+                      }),
+                    },
+                    {
+                      translateY: actionAnims[index].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.fabActionLabel}>{item.label}</Text>
+              <Pressable
+                style={[styles.fabAction, { backgroundColor: item.color }]}
+                onPress={() => handleFabAction(item.action)}
+              >
+                <Ionicons name={item.icon} size={22} color={couleurs.blanc} />
+              </Pressable>
+            </Animated.View>
+          ))}
+        </Animated.View>
+
+        {/* Bouton principal FAB */}
+        <Pressable style={styles.fab} onPress={toggleFab}>
+          <Animated.View
+            style={[
+              styles.fabGradientWrapper,
+              {
+                transform: [
+                  { scale: fabScale },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={fabOuvert ? ['#EF4444', '#DC2626'] : [...couleurs.gradientPrimaire]}
+              style={styles.fabGradient}
+            >
+              <Animated.View style={{ transform: [{ rotate: fabRotationInterpolate }] }}>
+                <Ionicons name="add" size={28} color={couleurs.blanc} />
+              </Animated.View>
+            </LinearGradient>
+          </Animated.View>
+        </Pressable>
+      </>
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <LinearGradient
-            colors={[...couleurs.gradientPrimaire]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoContainer}
-          >
-            <Text style={styles.logoTexte}>LPP</Text>
-          </LinearGradient>
-        </View>
+      <LinearGradient
+        colors={[couleurs.fond, couleurs.fondSecondaire, couleurs.fond]}
+        style={StyleSheet.absoluteFill}
+      />
 
-        {/* Contenu principal */}
-        <View style={styles.main}>
-          <Text style={styles.titre}>Accueil</Text>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        {renderHeader()}
+        {renderNavigation()}
 
-          <View style={styles.card}>
-            <Text style={styles.bienvenue}>
-              Bienvenue{utilisateur?.prenom ? `, ${utilisateur.prenom}` : ''} !
-            </Text>
-            <Text style={styles.description}>
-              Tu es maintenant connecté à La Première Pierre.
-            </Text>
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={rafraichissement}
+              onRefresh={handleRafraichissement}
+              tintColor={couleurs.primaire}
+            />
+          }
+        >
+          {renderTabContent()}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerLogo}>LPP</Text>
+            <Text style={styles.footerText}>La Premiere Pierre</Text>
+            <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
           </View>
+        </ScrollView>
+      </Animated.View>
 
-          {/* Indicateur de succès */}
-          <View style={styles.successBadge}>
-            <Text style={styles.successIcon}>✓</Text>
-            <Text style={styles.successText}>Connexion réussie</Text>
+      {renderFAB()}
+
+      {/* Modal creer publication */}
+      <Modal
+        visible={modalCreerPost}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModalCreerPost(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nouvelle publication</Text>
+              <Pressable onPress={() => setModalCreerPost(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={24} color={couleurs.texte} />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.modalAuthor}>
+                <View style={styles.modalAuthorAvatar}>
+                  <Text style={styles.modalAuthorAvatarText}>
+                    {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
+                  </Text>
+                </View>
+                <Text style={styles.modalAuthorName}>
+                  {utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous'}
+                </Text>
+              </View>
+
+              <TextInput
+                style={styles.modalTextInput}
+                placeholder="Quoi de neuf ? Partagez vos idees..."
+                placeholderTextColor={couleurs.texteSecondaire}
+                value={nouveauPostContenu}
+                onChangeText={setNouveauPostContenu}
+                multiline
+                maxLength={5000}
+                autoFocus
+              />
+
+              <Text style={styles.modalCharCount}>
+                {nouveauPostContenu.length}/5000
+              </Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <Pressable
+                style={[
+                  styles.modalPublishBtn,
+                  (!nouveauPostContenu.trim() || creationEnCours) && styles.modalPublishBtnDisabled,
+                ]}
+                onPress={handleCreerPost}
+                disabled={!nouveauPostContenu.trim() || creationEnCours}
+              >
+                {creationEnCours ? (
+                  <Text style={styles.modalPublishBtnText}>Publication...</Text>
+                ) : (
+                  <>
+                    <Ionicons name="send" size={18} color={couleurs.blanc} />
+                    <Text style={styles.modalPublishBtnText}>Publier</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
           </View>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Bouton
-            titre="Se déconnecter"
-            onPress={handleDeconnexion}
-            variante="outline"
-            taille="lg"
-          />
-        </View>
-      </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,
   },
   content: {
     flex: 1,
-    paddingHorizontal: espacements.xl,
   },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+
+  // Header
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: espacements.xl,
-    paddingBottom: espacements.lg,
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.md,
+    gap: espacements.md,
   },
-  logoContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: rayons.lg,
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    gap: espacements.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: couleurs.texte,
+  },
+  notifButton: {
+    width: 44,
+    height: 44,
+    borderRadius: rayons.md,
+    backgroundColor: couleurs.fondSecondaire,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoTexte: {
-    fontSize: typographie.tailles.lg,
-    fontWeight: typographie.poids.extrabold,
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: rayons.full,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarTexte: {
+    fontSize: 16,
+    fontWeight: '700',
     color: couleurs.blanc,
   },
-  main: {
-    flex: 1,
+
+  // Navigation
+  navigation: {
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  navContent: {
+    paddingHorizontal: espacements.lg,
+    gap: espacements.sm,
+  },
+  navTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.md,
+    gap: espacements.xs,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  navTabActive: {
+    borderBottomColor: couleurs.primaire,
+  },
+  navTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: couleurs.texteSecondaire,
+  },
+  navTabTextActive: {
+    color: couleurs.primaire,
+    fontWeight: '600',
+  },
+  navBadge: {
+    backgroundColor: couleurs.erreur,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
+    marginLeft: espacements.xs,
   },
-  titre: {
-    fontSize: typographie.tailles.display,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.texte,
-    marginBottom: espacements.xxl,
+  navBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: couleurs.blanc,
   },
-  card: {
-    backgroundColor: couleurs.fondCard,
-    borderRadius: rayons.xl,
-    padding: espacements.xl,
-    width: '100%',
+
+  // Stories
+  storiesSection: {
+    paddingVertical: espacements.md,
+  },
+  storiesScroll: {
+    paddingHorizontal: espacements.lg,
+    gap: espacements.md,
+  },
+  storyItem: {
     alignItems: 'center',
-    borderWidth: 1,
+    width: 70,
+  },
+  storyItemAdd: {
+    alignItems: 'center',
+    width: 70,
+  },
+  storyAddIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: couleurs.primaire,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espacements.xs,
+  },
+  storyRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    padding: 2,
+    borderWidth: 2,
     borderColor: couleurs.bordure,
+    marginBottom: espacements.xs,
   },
-  bienvenue: {
-    fontSize: typographie.tailles.xl,
-    fontWeight: typographie.poids.semibold,
-    color: couleurs.texte,
-    marginBottom: espacements.sm,
-    textAlign: 'center',
+  storyRingActive: {
+    borderColor: couleurs.primaire,
   },
-  description: {
-    fontSize: typographie.tailles.base,
+  storyAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+  },
+  storyNom: {
+    fontSize: 11,
     color: couleurs.texteSecondaire,
     textAlign: 'center',
   },
-  successBadge: {
+
+  // Section
+  section: {
+    paddingHorizontal: espacements.lg,
+    marginBottom: espacements.xl,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: espacements.lg,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: couleurs.texte,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: espacements.xs,
+  },
+  sectionAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: couleurs.succesLight,
+    gap: espacements.xs,
+  },
+  sectionActionText: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+  },
+
+  // Trending
+  trendingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    marginBottom: espacements.sm,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  trendingRank: {
+    width: 28,
+    height: 28,
+    borderRadius: rayons.sm,
+    backgroundColor: couleurs.fondTertiaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: espacements.md,
+  },
+  trendingRankTop: {
+    backgroundColor: couleurs.primaire,
+  },
+  trendingRankText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: couleurs.texteSecondaire,
+  },
+  trendingRankTextTop: {
+    color: couleurs.blanc,
+  },
+  trendingInfo: {
+    flex: 1,
+  },
+  trendingNom: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  trendingSecteur: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+  trendingChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+  },
+  trendingChangeValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: couleurs.succes,
+  },
+
+  // Post
+  postCard: {
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    marginBottom: espacements.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    overflow: 'hidden',
+  },
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: espacements.md,
+  },
+  postAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: espacements.md,
+  },
+  postAuteurContainer: {
+    flex: 1,
+  },
+  postAuteurRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    flexWrap: 'wrap',
+  },
+  postAuteur: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  verifiedBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startupBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 2,
+    borderRadius: rayons.sm,
+  },
+  startupBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: couleurs.primaire,
+  },
+  postTimestamp: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  postMore: {
+    padding: espacements.sm,
+  },
+  postContenu: {
+    fontSize: 14,
+    color: couleurs.texte,
+    lineHeight: 20,
+    paddingHorizontal: espacements.md,
+    marginBottom: espacements.md,
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+  },
+  postStats: {
+    flexDirection: 'row',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    gap: espacements.lg,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+  },
+  postStatText: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+  postActions: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+  },
+  postAction: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: espacements.md,
-    paddingHorizontal: espacements.lg,
-    borderRadius: rayons.full,
-    marginTop: espacements.xxl,
+    gap: espacements.xs,
+  },
+  postActionText: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+  },
+
+  // Comments Section
+  commentsSection: {
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+    padding: espacements.md,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: espacements.sm,
+    marginBottom: espacements.md,
+  },
+  commentInputAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentInputAvatarText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: couleurs.blanc,
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: couleurs.fondTertiaire,
+    borderRadius: rayons.lg,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    fontSize: 14,
+    color: couleurs.texte,
+    maxHeight: 100,
+  },
+  commentSendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentSendBtnDisabled: {
+    backgroundColor: couleurs.fondTertiaire,
+  },
+  commentItem: {
+    flexDirection: 'row',
+    gap: espacements.sm,
+    marginBottom: espacements.md,
+  },
+  commentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentBubble: {
+    backgroundColor: couleurs.fondTertiaire,
+    borderRadius: rayons.lg,
+    padding: espacements.sm,
+    paddingHorizontal: espacements.md,
+  },
+  commentAuteur: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: couleurs.texte,
+    marginBottom: 2,
+  },
+  commentTexte: {
+    fontSize: 13,
+    color: couleurs.texte,
+    lineHeight: 18,
+  },
+  commentMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.md,
+    marginTop: espacements.xs,
+    paddingHorizontal: espacements.sm,
+  },
+  commentTime: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
+  },
+  commentLikeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  commentLikeText: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
+  },
+  commentReplyBtn: {
+    paddingVertical: 2,
+  },
+  commentReplyText: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
+    fontWeight: '600',
+  },
+  noComments: {
+    alignItems: 'center',
+    paddingVertical: espacements.lg,
     gap: espacements.sm,
   },
-  successIcon: {
-    fontSize: typographie.tailles.lg,
-    color: couleurs.succes,
-    fontWeight: typographie.poids.bold,
+  noCommentsText: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
   },
-  successText: {
-    fontSize: typographie.tailles.sm,
-    color: couleurs.succes,
-    fontWeight: typographie.poids.medium,
+
+  // Hero
+  heroSection: {
+    paddingHorizontal: espacements.lg,
+    marginBottom: espacements.lg,
   },
+  heroCard: {
+    borderRadius: rayons.xl,
+    padding: espacements.xl,
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.full,
+    marginBottom: espacements.md,
+  },
+  heroBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: couleurs.secondaire,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: couleurs.blanc,
+    marginBottom: espacements.sm,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    lineHeight: 20,
+    marginBottom: espacements.lg,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingTop: espacements.lg,
+  },
+  heroStat: {
+    alignItems: 'center',
+  },
+  heroStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: couleurs.blanc,
+  },
+  heroStatLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: espacements.xs,
+  },
+  heroStatDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+
+  // Startup Card
+  startupCard: {
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    marginBottom: espacements.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    overflow: 'hidden',
+  },
+  startupImage: {
+    width: '100%',
+    height: 140,
+  },
+  startupContent: {
+    padding: espacements.lg,
+  },
+  startupHeader: {
+    marginBottom: espacements.sm,
+  },
+  startupNom: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: couleurs.texte,
+  },
+  startupLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    marginTop: espacements.xs,
+  },
+  startupVille: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+  startupDescription: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    lineHeight: 18,
+    marginBottom: espacements.sm,
+  },
+  startupTags: {
+    flexDirection: 'row',
+    gap: espacements.xs,
+    marginBottom: espacements.md,
+    flexWrap: 'wrap',
+  },
+  startupTag: {
+    backgroundColor: couleurs.fondTertiaire,
+    paddingHorizontal: espacements.sm,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.sm,
+  },
+  startupTagText: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
+  },
+  startupStats: {
+    flexDirection: 'row',
+    gap: espacements.lg,
+    marginBottom: espacements.md,
+  },
+  startupStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+  },
+  startupStatText: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+  startupActions: {
+    flexDirection: 'row',
+    gap: espacements.md,
+  },
+  startupBtnPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: couleurs.primaire,
+    paddingVertical: espacements.md,
+    borderRadius: rayons.md,
+    gap: espacements.xs,
+  },
+  startupBtnSuivi: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: couleurs.primaire,
+  },
+  startupBtnPrimaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.blanc,
+  },
+  startupBtnSuiviText: {
+    color: couleurs.primaire,
+  },
+  startupBtnSecondary: {
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    borderRadius: rayons.md,
+  },
+
+  // Live
+  horizontalScroll: {
+    gap: espacements.md,
+  },
+  liveCard: {
+    width: 260,
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    overflow: 'hidden',
+  },
+  liveImage: {
+    width: '100%',
+    height: 140,
+  },
+  liveOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: espacements.sm,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    backgroundColor: couleurs.erreur,
+    paddingHorizontal: espacements.sm,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.sm,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: couleurs.blanc,
+  },
+  liveBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: couleurs.blanc,
+  },
+  liveUpcoming: {
+    backgroundColor: couleurs.fondTertiaire,
+    paddingHorizontal: espacements.sm,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.sm,
+  },
+  liveUpcomingText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+  },
+  liveViewers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: espacements.sm,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.sm,
+  },
+  liveViewersText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: couleurs.blanc,
+  },
+  liveContent: {
+    padding: espacements.md,
+  },
+  liveTitre: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.texte,
+    marginBottom: espacements.xs,
+  },
+  liveStartup: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+    marginBottom: espacements.sm,
+  },
+  liveDetails: {
+    flexDirection: 'row',
+    gap: espacements.md,
+    marginBottom: espacements.md,
+  },
+  liveDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+  },
+  liveDetailText: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
+  },
+  liveBtn: {
+    alignItems: 'center',
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  liveBtnActive: {
+    backgroundColor: couleurs.primaire,
+    borderColor: couleurs.primaire,
+  },
+  liveBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  liveBtnTextActive: {
+    color: couleurs.blanc,
+  },
+  liveInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: espacements.sm,
+    backgroundColor: couleurs.fondSecondaire,
+    padding: espacements.md,
+    borderRadius: rayons.md,
+    marginTop: espacements.lg,
+  },
+  liveInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+    lineHeight: 18,
+  },
+
+  // Messages
+  messagesCard: {
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    overflow: 'hidden',
+  },
+  messagesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: espacements.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  messagesHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  messagesNewBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: rayons.md,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messagesList: {
+    padding: espacements.sm,
+  },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: espacements.md,
+    borderRadius: rayons.md,
+  },
+  messageRowUnread: {
+    backgroundColor: 'rgba(99, 102, 241, 0.05)',
+  },
+  messageAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: espacements.md,
+  },
+  messageContent: {
+    flex: 1,
+  },
+  messageExpediteur: {
+    fontSize: 14,
+    color: couleurs.texte,
+  },
+  messageExpediteurUnread: {
+    fontWeight: '600',
+  },
+  messageDernier: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  messageMeta: {
+    alignItems: 'flex-end',
+  },
+  messageDate: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
+  },
+  messageUnreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: couleurs.primaire,
+    marginTop: espacements.xs,
+  },
+
+  // Footer
   footer: {
+    alignItems: 'center',
     paddingVertical: espacements.xxl,
+    paddingHorizontal: espacements.lg,
+  },
+  footerLogo: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: couleurs.primaire,
+    marginBottom: espacements.xs,
+  },
+  footerText: {
+    fontSize: 14,
+    color: couleurs.texte,
+    marginBottom: espacements.xs,
+  },
+  footerSubtext: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+
+  // FAB
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    zIndex: 100,
+  },
+  fabGradientWrapper: {
+    borderRadius: 28,
+    shadowColor: couleurs.primaire,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 90,
+  },
+  fabMenu: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    zIndex: 95,
+    alignItems: 'flex-end',
+    gap: espacements.md,
+  },
+  fabActionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.md,
+  },
+  fabAction: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  fabActionLabel: {
+    backgroundColor: couleurs.fondSecondaire,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+    fontSize: 13,
+    fontWeight: '600',
+    color: couleurs.texte,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+
+  // Reply styles
+  replyingToBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+    marginBottom: espacements.md,
+  },
+  replyingToContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+  },
+  replyingToText: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+  },
+  replyingToName: {
+    fontWeight: '600',
+    color: couleurs.primaire,
+  },
+  cancelReplyBtn: {
+    padding: espacements.xs,
+  },
+  viewRepliesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    marginTop: espacements.sm,
+    paddingHorizontal: espacements.sm,
+  },
+  viewRepliesText: {
+    fontSize: 12,
+    color: couleurs.primaire,
+    fontWeight: '500',
+  },
+  replyItem: {
+    flexDirection: 'row',
+    gap: espacements.sm,
+    marginLeft: 20,
+    marginBottom: espacements.sm,
+    paddingLeft: espacements.md,
+  },
+  replyLine: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 16,
+    width: 2,
+    backgroundColor: couleurs.bordure,
+    borderRadius: 1,
+  },
+  replyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  replyBubble: {
+    backgroundColor: 'rgba(99, 102, 241, 0.05)',
+    borderRadius: rayons.lg,
+    padding: espacements.sm,
+    paddingHorizontal: espacements.md,
+    borderLeftWidth: 2,
+    borderLeftColor: couleurs.primaire,
+  },
+
+  // Loading & Empty states
+  loadingContainer: {
+    padding: espacements.xxl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+  },
+  emptyContainer: {
+    padding: espacements.xxl,
+    alignItems: 'center',
+    gap: espacements.md,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+  },
+
+  // Modal creer publication
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: couleurs.fond,
+    borderTopLeftRadius: rayons.xl,
+    borderTopRightRadius: rayons.xl,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: espacements.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: couleurs.texte,
+  },
+  modalCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: couleurs.fondSecondaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: {
+    padding: espacements.lg,
+  },
+  modalAuthor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.md,
+    marginBottom: espacements.lg,
+  },
+  modalAuthorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalAuthorAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: couleurs.blanc,
+  },
+  modalAuthorName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  modalTextInput: {
+    fontSize: 16,
+    color: couleurs.texte,
+    minHeight: 150,
+    textAlignVertical: 'top',
+    lineHeight: 24,
+  },
+  modalCharCount: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+    textAlign: 'right',
+    marginTop: espacements.sm,
+  },
+  modalFooter: {
+    padding: espacements.lg,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+  },
+  modalPublishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: couleurs.primaire,
+    paddingVertical: espacements.md,
+    borderRadius: rayons.md,
+    gap: espacements.sm,
+  },
+  modalPublishBtnDisabled: {
+    backgroundColor: couleurs.fondTertiaire,
+  },
+  modalPublishBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: couleurs.blanc,
   },
 });
