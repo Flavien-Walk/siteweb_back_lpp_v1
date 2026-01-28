@@ -118,7 +118,7 @@ const Header = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.25 }}
               onClick={closeMobileMenu}
               aria-hidden="true"
             />
@@ -128,28 +128,40 @@ const Header = () => {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'tween', duration: 0.3 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               aria-label="Navigation mobile"
             >
-              {navLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={location.pathname === '/' ? link.href : `/${link.href}`}
-                  onClick={(e) => handleAnchorClick(e, link.href)}
+              <div className="mobile-menu-header">
+                <span className="mobile-menu-title">Menu</span>
+                <button
+                  className="mobile-menu-close"
+                  onClick={closeMobileMenu}
+                  aria-label="Fermer le menu"
                 >
-                  {link.label}
-                </a>
-              ))}
+                  <HiX size={28} />
+                </button>
+              </div>
+
+              <div className="mobile-menu-links">
+                {navLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={location.pathname === '/' ? link.href : `/${link.href}`}
+                    onClick={(e) => handleAnchorClick(e, link.href)}
+                    className="mobile-menu-link"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+
               <div className="mobile-menu-cta">
                 {chargement ? (
-                  <span style={{ opacity: 0.5, textAlign: 'center', display: 'block' }}>
-                    Chargement...
-                  </span>
+                  <span className="mobile-menu-loading">Chargement...</span>
                 ) : estConnecte ? (
                   <Link
                     to="/espace"
-                    className="btn btn-primary"
-                    style={{ width: '100%' }}
+                    className="btn btn-primary mobile-menu-btn-cta"
                     onClick={closeMobileMenu}
                   >
                     Mon espace
@@ -158,22 +170,24 @@ const Header = () => {
                   <>
                     <Link
                       to="/connexion"
-                      className="btn btn-secondary"
-                      style={{ width: '100%', marginBottom: '12px' }}
+                      className="btn btn-secondary mobile-menu-btn-cta"
                       onClick={closeMobileMenu}
                     >
                       Connexion
                     </Link>
                     <Link
                       to="/inscription"
-                      className="btn btn-primary"
-                      style={{ width: '100%' }}
+                      className="btn btn-primary mobile-menu-btn-cta"
                       onClick={closeMobileMenu}
                     >
                       Créer un compte
                     </Link>
                   </>
                 )}
+              </div>
+
+              <div className="mobile-menu-footer">
+                <span>La Première Pierre</span>
               </div>
             </motion.nav>
           </>
