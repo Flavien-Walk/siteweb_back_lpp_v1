@@ -7,6 +7,7 @@ export interface ICommentaire extends Document {
   contenu: string;
   likes: mongoose.Types.ObjectId[];
   reponseA?: mongoose.Types.ObjectId; // Commentaire parent (pour les réponses)
+  modifie: boolean; // Indique si le commentaire a été modifié
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -38,6 +39,10 @@ const commentaireSchema = new Schema<ICommentaire>(
       type: Schema.Types.ObjectId,
       ref: 'Commentaire',
       default: null,
+    },
+    modifie: {
+      type: Boolean,
+      default: false,
     },
   },
   {

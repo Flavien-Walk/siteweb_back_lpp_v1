@@ -408,6 +408,72 @@ export const ajouterCommentaire = async (
   }
 };
 
+// Schéma pour modifier un commentaire
+const schemaModifierCommentaire = z.object({
+  contenu: z
+    .string()
+    .min(1, 'Le contenu est requis')
+    .max(1000, 'Le commentaire ne peut pas dépasser 1000 caractères')
+    .trim(),
+});
+
+/**
+ * PATCH /api/publications/:pubId/commentaires/:comId
+ * Modifier un commentaire (auteur uniquement)
+ */
+export const modifierCommentaire = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { pubId, comId } = req.params;
+    const donnees = schemaModifierCommentaire.parse(req.body);
+    const userId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(pubId) || !mongoose.Types.ObjectId.isValid(comId)) {
+      throw new ErreurAPI('ID invalide.', 400);
+    }
+
+    const commentaire = await Commentaire.findById(comId);
+    if (!commentaire) {
+      throw new ErreurAPI('Commentaire non trouvé.', 404);
+    }
+
+    if (commentaire.publication.toString() !== pubId) {
+      throw new ErreurAPI("Ce commentaire n'appartient pas à cette publication.", 400);
+    }
+
+    // Vérifier que l'utilisateur est l'auteur
+    if (commentaire.auteur.toString() !== userId.toString()) {
+      throw new ErreurAPI('Vous ne pouvez modifier que vos propres commentaires.', 403);
+    }
+
+    // Mettre à jour le commentaire
+    commentaire.contenu = donnees.contenu;
+    commentaire.modifie = true;
+    await commentaire.save();
+
+    // Récupérer avec les infos de l'auteur
+    const commentaireComplet = await Commentaire.findById(comId)
+      .populate('auteur', 'prenom nom avatar');
+
+    res.json({
+      succes: true,
+      message: 'Commentaire modifié avec succès.',
+      data: {
+        commentaire: {
+          ...commentaireComplet!.toObject(),
+          aLike: commentaire.likes.some((lid) => lid.toString() === userId.toString()),
+          nbLikes: commentaire.likes.length,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * DELETE /api/publications/:pubId/commentaires/:comId
  * Supprimer un commentaire

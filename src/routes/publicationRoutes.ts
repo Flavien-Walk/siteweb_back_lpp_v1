@@ -7,6 +7,7 @@ import {
   toggleLikePublication,
   getCommentaires,
   ajouterCommentaire,
+  modifierCommentaire,
   supprimerCommentaire,
   toggleLikeCommentaire,
 } from '../controllers/publicationController.js';
@@ -55,6 +56,12 @@ router.get('/:id/commentaires', chargerUtilisateurOptionnel, getCommentaires);
  * Ajouter un commentaire
  */
 router.post('/:id/commentaires', verifierJwt, ajouterCommentaire);
+
+/**
+ * PATCH /api/publications/:pubId/commentaires/:comId
+ * Modifier un commentaire (auteur uniquement)
+ */
+router.patch('/:pubId/commentaires/:comId', verifierJwt, modifierCommentaire);
 
 /**
  * DELETE /api/publications/:pubId/commentaires/:comId
