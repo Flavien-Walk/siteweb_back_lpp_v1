@@ -5,8 +5,6 @@ import {
   connexion,
   moi,
   callbackOAuth,
-  verifierEmail,
-  renvoyerVerification,
 } from '../controllers/authController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
@@ -30,21 +28,9 @@ router.post('/connexion', connexion);
 
 /**
  * GET /api/auth/moi
- * Récupérer les informations de l'utilisateur connecté
+ * Recuperer les informations de l'utilisateur connecte
  */
 router.get('/moi', verifierJwt, moi);
-
-/**
- * POST /api/auth/verify-email
- * Vérifier l'adresse email via token
- */
-router.post('/verify-email', verifierEmail);
-
-/**
- * POST /api/auth/resend-verification
- * Renvoyer l'email de vérification
- */
-router.post('/resend-verification', renvoyerVerification);
 
 // ============================================
 // ROUTES OAUTH - GOOGLE
@@ -64,7 +50,7 @@ router.get(
 
 /**
  * GET /api/auth/google/callback
- * Callback après authentification Google
+ * Callback apres authentification Google
  */
 router.get(
   '/google/callback',
@@ -93,7 +79,7 @@ router.get(
 
 /**
  * GET /api/auth/facebook/callback
- * Callback après authentification Facebook
+ * Callback apres authentification Facebook
  */
 router.get(
   '/facebook/callback',
@@ -122,7 +108,7 @@ router.get(
 
 /**
  * POST /api/auth/apple/callback
- * Callback après authentification Apple (Apple utilise POST)
+ * Callback apres authentification Apple (Apple utilise POST)
  */
 router.post(
   '/apple/callback',

@@ -1,6 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 
 // Types pour les providers OAuth
 export type ProviderOAuth = 'local' | 'google' | 'facebook' | 'apple';
@@ -15,32 +14,28 @@ export interface IUtilisateur extends Document {
   provider: ProviderOAuth;
   providerId?: string;
   avatar?: string;
-  emailVerifie: boolean;
-  emailVerificationToken?: string;
-  emailVerificationExpires?: Date;
   cguAcceptees: boolean;
   dateCreation: Date;
   dateMiseAJour: Date;
   comparerMotDePasse(motDePasseCandidat: string): Promise<boolean>;
-  genererTokenVerificationEmail(): string;
 }
 
-// Schéma Mongoose
+// Schema Mongoose
 const utilisateurSchema = new Schema<IUtilisateur>(
   {
     prenom: {
       type: String,
-      required: [true, 'Le prénom est requis'],
+      required: [true, 'Le prenom est requis'],
       trim: true,
-      minlength: [2, 'Le prénom doit contenir au moins 2 caractères'],
-      maxlength: [50, 'Le prénom ne peut pas dépasser 50 caractères'],
+      minlength: [2, 'Le prenom doit contenir au moins 2 caracteres'],
+      maxlength: [50, 'Le prenom ne peut pas depasser 50 caracteres'],
     },
     nom: {
       type: String,
       required: [true, 'Le nom est requis'],
       trim: true,
-      minlength: [2, 'Le nom doit contenir au moins 2 caractères'],
-      maxlength: [50, 'Le nom ne peut pas dépasser 50 caractères'],
+      minlength: [2, 'Le nom doit contenir au moins 2 caracteres'],
+      maxlength: [50, 'Le nom ne peut pas depasser 50 caracteres'],
     },
     email: {
       type: String,
@@ -55,8 +50,8 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     },
     motDePasse: {
       type: String,
-      minlength: [8, 'Le mot de passe doit contenir au moins 8 caractères'],
-      select: false, // Ne pas inclure par défaut dans les requêtes
+      minlength: [8, 'Le mot de passe doit contenir au moins 8 caracteres'],
+      select: false, // Ne pas inclure par defaut dans les requetes
     },
     provider: {
       type: String,
@@ -70,18 +65,6 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     avatar: {
       type: String,
       default: null,
-    },
-    emailVerifie: {
-      type: Boolean,
-      default: false,
-    },
-    emailVerificationToken: {
-      type: String,
-      select: false,
-    },
-    emailVerificationExpires: {
-      type: Date,
-      select: false,
     },
     cguAcceptees: {
       type: Boolean,
@@ -97,7 +80,7 @@ const utilisateurSchema = new Schema<IUtilisateur>(
   }
 );
 
-// Index composé pour OAuth — uniquement pour les documents qui ONT un providerId
+// Index compose pour OAuth — uniquement pour les documents qui ONT un providerId
 utilisateurSchema.index(
   { provider: 1, providerId: 1 },
   {
@@ -108,7 +91,7 @@ utilisateurSchema.index(
 
 // Middleware pre-save pour hasher le mot de passe
 utilisateurSchema.pre('save', async function (next) {
-  // Ne hasher que si le mot de passe a été modifié
+  // Ne hasher que si le mot de passe a ete modifie
   if (!this.isModified('motDePasse') || !this.motDePasse) {
     return next();
   }
@@ -122,7 +105,7 @@ utilisateurSchema.pre('save', async function (next) {
   }
 });
 
-// Méthode pour comparer les mots de passe
+// Methode pour comparer les mots de passe
 utilisateurSchema.methods.comparerMotDePasse = async function (
   motDePasseCandidat: string
 ): Promise<boolean> {
@@ -130,21 +113,10 @@ utilisateurSchema.methods.comparerMotDePasse = async function (
   return bcrypt.compare(motDePasseCandidat, this.motDePasse);
 };
 
-// Méthode pour générer un token de vérification email
-utilisateurSchema.methods.genererTokenVerificationEmail = function (): string {
-  const token = crypto.randomBytes(32).toString('hex');
-  // Stocker le hash du token (sécurité : le token brut n'est jamais en DB)
-  this.emailVerificationToken = crypto.createHash('sha256').update(token).digest('hex');
-  this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
-  return token;
-};
-
-// Méthode pour transformer en JSON (retirer le mot de passe)
+// Methode pour transformer en JSON (retirer le mot de passe)
 utilisateurSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.motDePasse;
-  delete obj.emailVerificationToken;
-  delete obj.emailVerificationExpires;
   return obj;
 };
 

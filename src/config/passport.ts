@@ -40,7 +40,6 @@ export const configurerPassport = (): void => {
                 if (!utilisateur.providerId) {
                   utilisateur.providerId = profile.id;
                 }
-                utilisateur.emailVerifie = true;
                 if (profile.photos?.[0]?.value && !utilisateur.avatar) {
                   utilisateur.avatar = profile.photos[0].value;
                 }
@@ -57,7 +56,6 @@ export const configurerPassport = (): void => {
               provider: 'google',
               providerId: profile.id,
               avatar: profile.photos?.[0]?.value,
-              emailVerifie: true,
               cguAcceptees: true,
             });
 
@@ -106,7 +104,6 @@ export const configurerPassport = (): void => {
               provider: 'facebook',
               providerId: profile.id,
               avatar: profile.photos?.[0]?.value,
-              emailVerifie: false,
               cguAcceptees: true,
             });
 
@@ -173,9 +170,8 @@ export const configurerPassport = (): void => {
                   if (utilisateur) {
                     if (!utilisateur.providerId) {
                       utilisateur.providerId = appleId;
+                      await utilisateur.save();
                     }
-                    utilisateur.emailVerifie = true;
-                    await utilisateur.save();
                     return done(null, utilisateur);
                   }
                 }
@@ -186,7 +182,6 @@ export const configurerPassport = (): void => {
                   email: email || `apple_${appleId}@lpp.temp`,
                   provider: 'apple',
                   providerId: appleId,
-                  emailVerifie: true,
                   cguAcceptees: true,
                 });
 

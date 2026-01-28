@@ -95,7 +95,6 @@ export const modifierProfil = async (
           email: utilisateur.email,
           avatar: utilisateur.avatar,
           provider: utilisateur.provider,
-          emailVerifie: utilisateur.emailVerifie,
         },
       },
     });
