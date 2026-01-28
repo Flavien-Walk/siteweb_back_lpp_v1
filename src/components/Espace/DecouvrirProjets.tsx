@@ -3,6 +3,7 @@ import { HiSearch, HiViewGrid, HiMap } from 'react-icons/hi';
 import CarteProjet from './CarteProjet';
 import CarteInteractive from './CarteInteractive';
 import { getProjets, suivreProjet, type Projet } from '../../services/projets';
+import { MOCK_PROJETS } from '../../data/mockData';
 import { useAuth } from '../../contexts/AuthContext';
 
 const CATEGORIES = [
@@ -45,8 +46,20 @@ const DecouvrirProjets = () => {
     if (recherche) params.q = recherche;
 
     const res = await getProjets(params);
-    if (res.succes && res.data) {
+    if (res.succes && res.data && res.data.projets.length > 0) {
       setProjets(res.data.projets);
+    } else {
+      // Fallback mock data
+      let mock = [...MOCK_PROJETS];
+      if (categorie) mock = mock.filter((p) => p.categorie === categorie);
+      if (maturite) mock = mock.filter((p) => p.maturite === maturite);
+      if (recherche) {
+        const q = recherche.toLowerCase();
+        mock = mock.filter(
+          (p) => p.nom.toLowerCase().includes(q) || p.pitch.toLowerCase().includes(q)
+        );
+      }
+      setProjets(mock);
     }
     setChargement(false);
   };
@@ -69,11 +82,23 @@ const DecouvrirProjets = () => {
           return { ...p, followers };
         })
       );
+    } else {
+      // Toggle local
+      setProjets((prev) =>
+        prev.map((p) => {
+          if (p._id !== id) return p;
+          const uid = utilisateur?.id || 'local';
+          const suivi = p.followers.includes(uid);
+          return { ...p, followers: suivi ? p.followers.filter((f) => f !== uid) : [...p.followers, uid] };
+        })
+      );
     }
   };
 
-  const estSuivi = (projet: Projet) =>
-    utilisateur ? projet.followers.includes(utilisateur.id) : false;
+  const estSuivi = (projet: Projet) => {
+    const uid = utilisateur?.id || 'local';
+    return projet.followers.includes(uid);
+  };
 
   return (
     <div className="decouvrir">
@@ -108,23 +133,11 @@ const DecouvrirProjets = () => {
             className="decouvrir-recherche-input"
           />
         </div>
-        <select
-          value={categorie}
-          onChange={(e) => setCategorie(e.target.value)}
-          className="decouvrir-select"
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
+        <select value={categorie} onChange={(e) => setCategorie(e.target.value)} className="decouvrir-select">
+          {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
-        <select
-          value={maturite}
-          onChange={(e) => setMaturite(e.target.value)}
-          className="decouvrir-select"
-        >
-          {MATURITES.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
+        <select value={maturite} onChange={(e) => setMaturite(e.target.value)} className="decouvrir-select">
+          {MATURITES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
       </form>
 

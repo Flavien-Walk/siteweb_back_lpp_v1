@@ -125,10 +125,10 @@ const Header = () => {
             <motion.nav
               id="mobile-menu"
               className="mobile-menu"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween', duration: 0.3 }}
               aria-label="Navigation mobile"
             >
               {navLinks.map((link) => (

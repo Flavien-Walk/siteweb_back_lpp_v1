@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiBell } from 'react-icons/hi';
 import { getNotifications, marquerLue, type Notification } from '../../services/notifications';
+import { MOCK_NOTIFICATIONS } from '../../data/mockData';
 
 interface Props {
   onVoirTout: () => void;
@@ -37,9 +38,13 @@ const NotificationDropdown = ({ onVoirTout }: Props) => {
 
   const charger = async () => {
     const res = await getNotifications({ limit: '8' });
-    if (res.succes && res.data) {
+    if (res.succes && res.data && res.data.notifications.length > 0) {
       setNotifications(res.data.notifications);
       setNonLues(res.data.nonLues);
+    } else {
+      const mock = MOCK_NOTIFICATIONS.slice(0, 8);
+      setNotifications(mock);
+      setNonLues(mock.filter((n) => !n.lue).length);
     }
   };
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { HiFolder } from 'react-icons/hi';
 import CarteProjet from './CarteProjet';
 import { getMesProjets, suivreProjet, type Projet } from '../../services/projets';
+import { MOCK_PROJETS } from '../../data/mockData';
 import { useAuth } from '../../contexts/AuthContext';
 
 const MesProjets = () => {
@@ -16,8 +17,10 @@ const MesProjets = () => {
   const charger = async () => {
     setChargement(true);
     const res = await getMesProjets();
-    if (res.succes && res.data) {
+    if (res.succes && res.data && res.data.projets.length > 0) {
       setProjets(res.data.projets);
+    } else {
+      setProjets(MOCK_PROJETS.slice(0, 4));
     }
     setChargement(false);
   };

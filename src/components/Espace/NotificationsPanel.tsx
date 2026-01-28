@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { HiBell, HiCheck } from 'react-icons/hi';
 import { getNotifications, marquerLue, marquerToutLu, type Notification } from '../../services/notifications';
+import { MOCK_NOTIFICATIONS } from '../../data/mockData';
 
 const iconType: Record<string, string> = {
   'projet-update': '📊',
@@ -22,9 +23,12 @@ const NotificationsPanel = () => {
   const charger = async () => {
     setChargement(true);
     const res = await getNotifications();
-    if (res.succes && res.data) {
+    if (res.succes && res.data && res.data.notifications.length > 0) {
       setNotifications(res.data.notifications);
       setNonLues(res.data.nonLues);
+    } else {
+      setNotifications(MOCK_NOTIFICATIONS);
+      setNonLues(MOCK_NOTIFICATIONS.filter((n) => !n.lue).length);
     }
     setChargement(false);
   };

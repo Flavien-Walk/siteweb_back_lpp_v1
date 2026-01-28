@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiBell } from 'react-icons/hi';
 import { getNotifications, marquerLue, type Notification } from '../../services/notifications';
+import { MOCK_NOTIFICATIONS } from '../../data/mockData';
 
 const iconType: Record<string, string> = {
   'projet-update': '📊',
@@ -34,9 +35,13 @@ const HeaderNotificationBell = () => {
 
   const charger = async () => {
     const res = await getNotifications({ limit: '5' });
-    if (res.succes && res.data) {
+    if (res.succes && res.data && res.data.notifications.length > 0) {
       setNotifications(res.data.notifications);
       setNonLues(res.data.nonLues);
+    } else {
+      const mock = MOCK_NOTIFICATIONS.slice(0, 5);
+      setNotifications(mock);
+      setNonLues(mock.filter((n) => !n.lue).length);
     }
   };
 

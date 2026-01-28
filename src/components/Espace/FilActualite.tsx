@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { HiHeart, HiOutlineHeart, HiNewspaper } from 'react-icons/hi';
+import { HiOutlineHeart, HiNewspaper } from 'react-icons/hi';
 import { getFeed, type Publication } from '../../services/feed';
+import { MOCK_PUBLICATIONS } from '../../data/mockData';
 
 const FILTRES = [
   { value: '', label: 'Tout' },
@@ -37,22 +38,24 @@ const FilActualite = () => {
     const params: Record<string, string> = {};
     if (filtre) params.type = filtre;
     const res = await getFeed(params);
-    if (res.succes && res.data) {
+    if (res.succes && res.data && res.data.publications.length > 0) {
       setPublications(res.data.publications);
+    } else {
+      let mock = [...MOCK_PUBLICATIONS];
+      if (filtre === 'annonces') mock = mock.filter((p) => p.type === 'annonce');
+      setPublications(mock);
     }
     setChargement(false);
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const heures = Math.floor(diff / (1000 * 60 * 60));
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const heures = Math.floor(diff / 3600000);
     if (heures < 1) return 'À l\'instant';
     if (heures < 24) return `Il y a ${heures}h`;
     const jours = Math.floor(heures / 24);
     if (jours < 7) return `Il y a ${jours}j`;
-    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   };
 
   return (
@@ -92,23 +95,14 @@ const FilActualite = () => {
               <div className="fil-actu-carte-header">
                 <div className="fil-actu-auteur">
                   <div className="fil-actu-avatar">
-                    {'prenom' in pub.auteur
-                      ? pub.auteur.prenom.charAt(0)
-                      : pub.auteur.nom.charAt(0)}
+                    {pub.auteur.nom.charAt(0)}
                   </div>
                   <div>
-                    <span className="fil-actu-nom">
-                      {'prenom' in pub.auteur
-                        ? `${pub.auteur.prenom} ${pub.auteur.nom}`
-                        : pub.auteur.nom}
-                    </span>
+                    <span className="fil-actu-nom">{pub.auteur.nom}</span>
                     <span className="fil-actu-date">{formatDate(pub.dateCreation)}</span>
                   </div>
                 </div>
-                <span
-                  className="fil-actu-type"
-                  style={{ color: couleurType[pub.type] }}
-                >
+                <span className="fil-actu-type" style={{ color: couleurType[pub.type] }}>
                   {labelType[pub.type]}
                 </span>
               </div>

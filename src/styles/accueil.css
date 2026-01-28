@@ -350,38 +350,41 @@ a:focus-visible {
 /* === Mobile Menu Overlay === */
 .mobile-menu-overlay {
   position: fixed;
-  top: var(--header-height);
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  z-index: var(--z-sticky);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 999;
 }
 
-/* === Mobile Menu === */
+/* === Mobile Menu — Side Panel === */
 .mobile-menu {
   position: fixed;
-  top: var(--header-height);
-  left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
+  width: 300px;
+  max-width: 85vw;
   background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
-  padding: var(--space-6);
-  z-index: calc(var(--z-sticky) + 1);
+  border-left: 1px solid var(--border);
+  padding: calc(var(--header-height) + var(--space-4)) var(--space-6) var(--space-6);
+  z-index: 1000;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  box-shadow: -4px 0 30px rgba(0, 0, 0, 0.4);
 }
 
 .mobile-menu a {
   display: block;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-3);
   color: var(--text);
   text-decoration: none;
   font-weight: 500;
+  font-size: 1.1rem;
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
 }
@@ -391,7 +394,7 @@ a:focus-visible {
 }
 
 .mobile-menu-cta {
-  margin-top: var(--space-4);
+  margin-top: auto;
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
 }
