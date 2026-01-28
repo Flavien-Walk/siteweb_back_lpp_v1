@@ -201,7 +201,7 @@ a:focus-visible {
   left: 0;
   right: 0;
   height: var(--header-height);
-  z-index: var(--z-sticky);
+  z-index: 10000;
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   border-bottom: 1px solid var(--glass-border);
