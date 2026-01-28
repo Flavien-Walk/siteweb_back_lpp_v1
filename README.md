@@ -1,118 +1,112 @@
-# La Première Pierre (LPP)
+# La Première Pierre - Backend API
 
-Plateforme connectant les jeunes investisseurs (18-25 ans) aux startups et projets locaux.
+Backend Node.js/Express pour l'authentification de La Première Pierre.
 
-## Structure du projet
+## Fonctionnalités
 
-```
-CELSE/
-├── src/                    # Frontend React
-│   ├── assets/            # Images, logos
-│   ├── components/        # Composants React
-│   │   └── Auth/         # Composants authentification
-│   ├── pages/            # Pages de l'application
-│   ├── services/         # Services API
-│   └── styles/           # Fichiers CSS
-├── backend/               # Backend Node.js/Express
-│   └── src/
-│       ├── config/       # Configuration (MongoDB, Passport)
-│       ├── controllers/  # Contrôleurs
-│       ├── middlewares/  # Middlewares (JWT, erreurs)
-│       ├── models/       # Modèles Mongoose
-│       ├── routes/       # Routes API
-│       └── utils/        # Utilitaires
-└── README.md
-```
-
-## Prérequis
-
-- Node.js 18+
-- MongoDB (local ou Atlas)
-- npm ou yarn
+- ✅ Inscription/Connexion par email et mot de passe
+- ✅ Authentification JWT
+- ✅ OAuth Google
+- ✅ OAuth Facebook
+- ✅ OAuth Apple (nécessite compte Apple Developer)
+- ✅ Validation des données avec Zod
+- ✅ Sécurité (Helmet, CORS, Rate Limiting)
 
 ## Installation
 
-### 1. Cloner et installer les dépendances
-
 ```bash
-# Frontend
-npm install
-
-# Backend
 cd backend
 npm install
 ```
 
-### 2. Configuration des variables d'environnement
+## Configuration
 
-**Frontend** - Créer `.env` à la racine :
+1. Copier le fichier d'exemple :
 ```bash
 cp .env.example .env
 ```
 
-**Backend** - Créer `.env` dans `/backend` :
-```bash
-cd backend
-cp .env.example .env
-```
+2. Remplir les variables dans `.env` :
+   - `MONGODB_URI` : URL de votre base MongoDB
+   - `JWT_SECRET` : Clé secrète pour les tokens JWT
+   - Credentials OAuth (optionnel)
 
-Remplir les variables dans `backend/.env` :
-- `MONGODB_URI` : URL MongoDB (ex: `mongodb://localhost:27017/lpp`)
-- `JWT_SECRET` : Clé secrète pour les tokens
-- Credentials OAuth (optionnel)
+## Lancer le serveur
 
-## Lancer le projet
-
-### Terminal 1 - Backend
-```bash
-cd backend
-npm run dev
-```
-→ API disponible sur http://localhost:5000
-
-### Terminal 2 - Frontend
+### Développement
 ```bash
 npm run dev
 ```
-→ Site disponible sur http://localhost:5173
 
-## Pages disponibles
+### Production
+```bash
+npm run build
+npm start
+```
 
-| URL | Description |
-|-----|-------------|
-| `/` | Page d'accueil |
-| `/connexion` | Page de connexion |
-| `/inscription` | Page d'inscription |
+## Endpoints API
 
-## API Endpoints
+### Authentification
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
-| POST | `/api/auth/inscription` | Créer un compte |
-| POST | `/api/auth/connexion` | Se connecter |
-| GET | `/api/auth/moi` | Profil utilisateur (JWT) |
-| GET | `/api/auth/google` | OAuth Google |
-| GET | `/api/auth/facebook` | OAuth Facebook |
-| GET | `/api/auth/apple` | OAuth Apple |
+| POST | `/api/auth/inscription` | Inscription |
+| POST | `/api/auth/connexion` | Connexion |
+| GET | `/api/auth/moi` | Profil utilisateur (JWT requis) |
 
-## Technologies
+### OAuth
 
-**Frontend**
-- React 19
-- TypeScript
-- Framer Motion
-- Vite
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/auth/google` | Connexion Google |
+| GET | `/api/auth/google/callback` | Callback Google |
+| GET | `/api/auth/facebook` | Connexion Facebook |
+| GET | `/api/auth/facebook/callback` | Callback Facebook |
+| GET | `/api/auth/apple` | Connexion Apple |
+| POST | `/api/auth/apple/callback` | Callback Apple |
 
-**Backend**
-- Node.js
-- Express
-- MongoDB / Mongoose
-- Passport.js (OAuth)
-- JWT
-- Zod (validation)
+### Santé
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/sante` | Vérifier l'état de l'API |
+
+## Structure
+
+```
+backend/
+├── src/
+│   ├── config/
+│   │   ├── mongo.ts      # Connexion MongoDB
+│   │   └── passport.ts   # Stratégies OAuth
+│   ├── controllers/
+│   │   └── authController.ts
+│   ├── middlewares/
+│   │   ├── verifierJwt.ts
+│   │   └── gestionErreurs.ts
+│   ├── models/
+│   │   └── Utilisateur.ts
+│   ├── routes/
+│   │   └── authRoutes.ts
+│   ├── utils/
+│   │   ├── tokens.ts
+│   │   └── validation.ts
+│   ├── app.ts
+│   └── server.ts
+├── .env.example
+├── package.json
+├── tsconfig.json
+└── README.md
+```
 
 ## Notes OAuth
 
-- **Google** : [console.cloud.google.com](https://console.cloud.google.com/)
-- **Facebook** : [developers.facebook.com](https://developers.facebook.com/)
-- **Apple** : Nécessite un compte Apple Developer ($99/an)
+### Google
+Créez vos credentials sur [Google Cloud Console](https://console.cloud.google.com/)
+
+### Facebook
+Créez votre app sur [Facebook Developers](https://developers.facebook.com/)
+
+### Apple
+⚠️ Nécessite un compte [Apple Developer](https://developer.apple.com/) ($99/an)
+Le code est fonctionnel mais dépend de vos credentials Apple réels.
