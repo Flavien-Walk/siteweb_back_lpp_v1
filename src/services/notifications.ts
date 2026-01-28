@@ -2,7 +2,7 @@ import api from './api';
 
 export interface Notification {
   _id: string;
-  type: 'projet-update' | 'annonce' | 'live-rappel' | 'interaction';
+  type: 'projet-update' | 'annonce' | 'live-rappel' | 'interaction' | 'like' | 'follow';
   titre: string;
   message: string;
   lien?: string;
@@ -26,3 +26,9 @@ export const marquerLue = (id: string) =>
 
 export const marquerToutLu = () =>
   api.patch<void>('/notifications/lire-tout', {}, true);
+
+export const supprimerNotification = (id: string) =>
+  api.delete<void>(`/notifications/${id}`, true);
+
+export const supprimerToutesNotifications = () =>
+  api.delete<void>('/notifications/toutes', true);

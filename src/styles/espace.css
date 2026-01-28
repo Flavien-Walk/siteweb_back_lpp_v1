@@ -64,6 +64,7 @@
   height: 36px;
   border-radius: var(--radius-full);
   background: var(--gradient-primary);
+  border: 2px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -71,6 +72,14 @@
   font-weight: 600;
   font-size: var(--text-sm);
   color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.espace-avatar-header:hover {
+  border-color: var(--primary);
+  transform: scale(1.05);
+  box-shadow: 0 0 12px var(--primary-glow);
 }
 
 .espace-avatar-header img {
@@ -895,6 +904,240 @@
   margin-top: var(--space-6);
 }
 
+/* Section header avec bouton edit */
+.parametres-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.parametres-section-header .parametres-section-titre {
+  margin-bottom: 0;
+}
+
+.parametres-edit-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.parametres-edit-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(124, 92, 255, 0.1);
+}
+
+/* Provider badge */
+.parametres-provider-badge {
+  display: inline-flex;
+  padding: var(--space-1) var(--space-3);
+  background: rgba(124, 92, 255, 0.15);
+  color: var(--primary);
+  font-size: var(--text-xs) !important;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  text-transform: capitalize;
+}
+
+/* Messages */
+.parametres-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.parametres-message svg {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.parametres-message-erreur {
+  background: rgba(255, 77, 109, 0.1);
+  border: 1px solid rgba(255, 77, 109, 0.3);
+  color: var(--danger);
+}
+
+.parametres-message-succes {
+  background: rgba(0, 214, 143, 0.1);
+  border: 1px solid rgba(0, 214, 143, 0.3);
+  color: var(--success);
+}
+
+/* Formulaires */
+.parametres-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.parametres-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.parametres-form-group label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.parametres-form-group input {
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--text-base);
+  transition: all var(--transition-fast);
+}
+
+.parametres-form-group input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15);
+}
+
+.parametres-form-group input::placeholder {
+  color: var(--muted-soft);
+}
+
+.parametres-form-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.parametres-form-actions .btn {
+  flex: 1;
+}
+
+/* Bouton supprimer compte */
+.parametres-delete-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: 1px solid rgba(255, 77, 109, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.parametres-delete-btn:hover {
+  background: rgba(255, 77, 109, 0.1);
+  border-color: var(--danger);
+}
+
+/* Modal */
+.parametres-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: var(--z-modal);
+}
+
+.parametres-modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.parametres-modal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.parametres-modal-header h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.parametres-modal-icon-danger {
+  font-size: 1.5rem;
+  color: var(--danger);
+}
+
+.parametres-modal-content {
+  padding: var(--space-5);
+}
+
+.parametres-modal-warning {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-bottom: var(--space-4);
+  line-height: var(--leading-relaxed);
+}
+
+.parametres-modal-warning strong {
+  color: var(--danger);
+}
+
+.parametres-modal-error {
+  font-size: var(--text-sm);
+  color: var(--danger);
+  margin-top: var(--space-3);
+}
+
+.parametres-modal-actions {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+.parametres-modal-actions .btn {
+  flex: 1;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #e63950;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ============================================
    NOTIFICATIONS - Panel Principal
    ============================================ */
@@ -1152,6 +1395,114 @@
   background: var(--primary);
   border-radius: 50%;
   box-shadow: 0 0 8px var(--primary-glow);
+}
+
+/* Swipe hint mobile */
+.notif-swipe-hint {
+  font-size: var(--text-xs);
+  color: var(--muted-soft);
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+
+/* Card wrapper for swipe */
+.notif-card-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+}
+
+.notif-card-wrapper:last-child {
+  margin-bottom: 0;
+}
+
+/* Delete background */
+.notif-card-delete-bg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--danger);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.notif-card-delete-bg svg {
+  font-size: 1.25rem;
+}
+
+/* Card clickable */
+.notif-card-clickable {
+  cursor: pointer;
+}
+
+.notif-card-clickable:hover {
+  border-color: var(--primary);
+}
+
+/* Card actions container */
+.notif-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+/* Chevron for clickable cards */
+.notif-card-chevron {
+  font-size: 1.25rem;
+  color: var(--muted-soft);
+  transition: transform var(--transition-fast);
+}
+
+.notif-card:hover .notif-card-chevron {
+  transform: translateX(2px);
+  color: var(--primary);
+}
+
+/* Delete button (desktop) */
+.notif-card-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--muted-soft);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  opacity: 0;
+}
+
+.notif-card:hover .notif-card-delete-btn {
+  opacity: 1;
+}
+
+.notif-card-delete-btn:hover {
+  color: var(--danger);
+  background: rgba(255, 77, 109, 0.1);
+  border-color: rgba(255, 77, 109, 0.3);
+}
+
+.notif-card-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .notif-card-delete-btn {
+    display: none;
+  }
 }
 
 /* ============================================

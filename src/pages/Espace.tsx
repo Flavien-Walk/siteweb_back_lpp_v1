@@ -69,13 +69,17 @@ const Espace = () => {
         </div>
         <div className="espace-header-droite">
           <NotificationDropdown onVoirTout={() => setOngletActif('notifications')} />
-          <div className="espace-avatar-header">
+          <button
+            className="espace-avatar-header"
+            onClick={() => setOngletActif('parametres')}
+            aria-label="Mon profil"
+          >
             {utilisateur?.avatar ? (
               <img src={utilisateur.avatar} alt="" />
             ) : (
               <span>{utilisateur?.prenom?.charAt(0) || 'U'}</span>
             )}
-          </div>
+          </button>
         </div>
       </header>
 
