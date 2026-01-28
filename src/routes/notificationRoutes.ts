@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { mesNotifications, marquerLue, marquerToutLu } from '../controllers/notificationController.js';
+import {
+  mesNotifications,
+  marquerLue,
+  marquerToutLu,
+  supprimerNotification,
+  supprimerToutesNotifications,
+} from '../controllers/notificationController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
 const router = Router();
@@ -20,9 +26,21 @@ router.get('/', mesNotifications);
 router.patch('/lire-tout', marquerToutLu);
 
 /**
+ * DELETE /api/notifications/toutes
+ * Supprimer toutes les notifications (doit être avant /:id)
+ */
+router.delete('/toutes', supprimerToutesNotifications);
+
+/**
  * PATCH /api/notifications/:id/lue
  * Marquer une notification comme lue
  */
 router.patch('/:id/lue', marquerLue);
+
+/**
+ * DELETE /api/notifications/:id
+ * Supprimer une notification
+ */
+router.delete('/:id', supprimerNotification);
 
 export default router;

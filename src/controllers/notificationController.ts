@@ -83,3 +83,41 @@ export const marquerToutLu = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };
+
+/**
+ * DELETE /api/notifications/:id
+ * Supprimer une notification
+ */
+export const supprimerNotification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const notification = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      destinataire: req.utilisateur!._id,
+    });
+
+    if (!notification) {
+      res.status(404).json({ succes: false, message: 'Notification non trouvée.' });
+      return;
+    }
+
+    res.json({ succes: true, message: 'Notification supprimée.' });
+  } catch (error) {
+    console.error('Erreur supprimerNotification:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * DELETE /api/notifications
+ * Supprimer toutes les notifications
+ */
+export const supprimerToutesNotifications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await Notification.deleteMany({ destinataire: req.utilisateur!._id });
+
+    res.json({ succes: true, message: 'Toutes les notifications ont été supprimées.' });
+  } catch (error) {
+    console.error('Erreur supprimerToutesNotifications:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
