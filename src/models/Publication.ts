@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export type TypePublication = 'annonce' | 'update' | 'editorial' | 'live-extrait';
+export type TypePublication = 'post' | 'annonce' | 'update' | 'editorial' | 'live-extrait';
 
 export interface IPublication extends Document {
   _id: mongoose.Types.ObjectId;
@@ -11,7 +11,9 @@ export interface IPublication extends Document {
   media?: string;
   projet?: mongoose.Types.ObjectId;
   likes: mongoose.Types.ObjectId[];
+  nbCommentaires: number;
   dateCreation: Date;
+  dateMiseAJour: Date;
 }
 
 const publicationSchema = new Schema<IPublication>(
@@ -28,8 +30,8 @@ const publicationSchema = new Schema<IPublication>(
     },
     type: {
       type: String,
-      enum: ['annonce', 'update', 'editorial', 'live-extrait'],
-      required: true,
+      enum: ['post', 'annonce', 'update', 'editorial', 'live-extrait'],
+      default: 'post',
     },
     contenu: {
       type: String,
@@ -47,6 +49,10 @@ const publicationSchema = new Schema<IPublication>(
       type: Schema.Types.ObjectId,
       ref: 'Utilisateur',
     }],
+    nbCommentaires: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: {

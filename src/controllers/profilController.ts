@@ -2,7 +2,25 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
+import Publication from '../models/Publication.js';
+import Commentaire from '../models/Commentaire.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
+
+// Avatars par défaut (abstraits/géométriques, pas de visages)
+export const AVATARS_DEFAUT = [
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp1&backgroundColor=6366f1',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp2&backgroundColor=10b981',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp3&backgroundColor=f59e0b',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp4&backgroundColor=ef4444',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp5&backgroundColor=8b5cf6',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp6&backgroundColor=06b6d4',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp7&backgroundColor=ec4899',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp8&backgroundColor=84cc16',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp1&backgroundColor=6366f1',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp2&backgroundColor=10b981',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp3&backgroundColor=f59e0b',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp4&backgroundColor=ef4444',
+];
 
 // Schéma de validation pour la mise à jour du profil
 const schemaModifierProfil = z.object({
@@ -195,4 +213,76 @@ export const supprimerCompte = async (
   } catch (error) {
     next(error);
   }
+};
+
+// Schéma pour l'avatar
+const schemaModifierAvatar = z.object({
+  avatar: z.string().url('URL avatar invalide').nullable(),
+});
+
+/**
+ * GET /api/profil/avatars
+ * Liste des avatars par défaut disponibles
+ */
+export const getAvatarsDefaut = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  res.json({
+    succes: true,
+    data: {
+      avatars: AVATARS_DEFAUT,
+    },
+  });
+};
+
+/**
+ * PATCH /api/profil/avatar
+ * Modifier l'avatar de l'utilisateur
+ */
+export const modifierAvatar = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const donnees = schemaModifierAvatar.parse(req.body);
+    const userId = req.utilisateur!._id;
+
+    const utilisateur = await Utilisateur.findByIdAndUpdate(
+      userId,
+      { avatar: donnees.avatar },
+      { new: true }
+    );
+
+    if (!utilisateur) {
+      throw new ErreurAPI('Utilisateur non trouvé.', 404);
+    }
+
+    res.json({
+      succes: true,
+      message: 'Avatar mis à jour avec succès.',
+      data: {
+        utilisateur: {
+          id: utilisateur._id,
+          prenom: utilisateur.prenom,
+          nom: utilisateur.nom,
+          email: utilisateur.email,
+          avatar: utilisateur.avatar,
+          provider: utilisateur.provider,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Générer un avatar par défaut basé sur l'ID utilisateur
+ */
+export const genererAvatarDefaut = (userId: string): string => {
+  // Utilise le hash de l'ID pour choisir un avatar de façon déterministe
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return AVATARS_DEFAUT[hash % AVATARS_DEFAUT.length];
 };

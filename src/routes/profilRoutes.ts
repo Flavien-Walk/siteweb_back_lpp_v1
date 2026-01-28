@@ -3,12 +3,20 @@ import {
   modifierProfil,
   changerMotDePasse,
   supprimerCompte,
+  getAvatarsDefaut,
+  modifierAvatar,
 } from '../controllers/profilController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
 const router = Router();
 
-// Toutes les routes nécessitent l'authentification
+/**
+ * GET /api/profil/avatars
+ * Liste des avatars par défaut (accessible sans auth)
+ */
+router.get('/avatars', getAvatarsDefaut);
+
+// Routes protégées
 router.use(verifierJwt);
 
 /**
@@ -22,6 +30,12 @@ router.patch('/', modifierProfil);
  * Changer le mot de passe
  */
 router.patch('/mot-de-passe', changerMotDePasse);
+
+/**
+ * PATCH /api/profil/avatar
+ * Modifier l'avatar
+ */
+router.patch('/avatar', modifierAvatar);
 
 /**
  * DELETE /api/profil
