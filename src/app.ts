@@ -11,6 +11,8 @@ import evenementRoutes from './routes/evenementRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import profilRoutes from './routes/profilRoutes.js';
 import publicationRoutes from './routes/publicationRoutes.js';
+import messagerieRoutes from './routes/messagerieRoutes.js';
+import utilisateurRoutes from './routes/utilisateurRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
 
@@ -132,6 +134,8 @@ export const creerApp = (): Application => {
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/profil', profilRoutes);
   app.use('/api/publications', publicationRoutes);
+  app.use('/api/messagerie', messagerieRoutes);
+  app.use('/api/utilisateurs', utilisateurRoutes);
 
   // ============================================
   // GESTION DES ERREURS
