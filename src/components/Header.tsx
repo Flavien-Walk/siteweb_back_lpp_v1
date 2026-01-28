@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { HiMenu, HiX } from 'react-icons/hi';
+import { HiHome, HiLightBulb, HiUserGroup, HiShieldCheck, HiUser } from 'react-icons/hi';
 import { useAuth } from '../contexts/AuthContext';
 import HeaderNotificationBell from './Espace/HeaderNotificationBell';
 import logoLpp from '../assets/logo-lpp.svg';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { estConnecte, chargement } = useAuth();
   const location = useLocation();
 
@@ -20,21 +18,6 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fermer le menu mobile quand on change de page
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location]);
-
-  // Bloquer le scroll quand le menu mobile est ouvert
-  useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [isMobileMenuOpen]);
-
   const navLinks = [
     { href: '#projets', label: 'Projets' },
     { href: '#fonctionnement', label: 'Comment ça marche' },
@@ -42,12 +25,21 @@ const Header = () => {
     { href: '#securite', label: 'Sécurité' },
   ];
 
-  const closeMobileMenu = () => setIsMobileMenuOpen(false);
+  // Liens pour la navbar mobile en bas
+  const mobileNavLinks = [
+    { href: '#hero', label: 'Accueil', icon: HiHome },
+    { href: '#projets', label: 'Projets', icon: HiLightBulb },
+    { href: '#communaute', label: 'Communauté', icon: HiUserGroup },
+    { href: '#securite', label: 'Sécurité', icon: HiShieldCheck },
+    { href: estConnecte ? '/espace' : '/connexion', label: estConnecte ? 'Espace' : 'Compte', icon: HiUser, isRoute: true },
+  ];
 
   // Gérer les liens d'ancrage sur la page d'accueil
-  const handleAnchorClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  const handleAnchorClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string, isRoute?: boolean) => {
+    if (isRoute) return; // Laisser React Router gérer les routes
+
     if (location.pathname !== '/') {
-      // Si on n'est pas sur la page d'accueil, on laisse le lien normal
+      // Si on n'est pas sur la page d'accueil, naviguer vers accueil + ancre
       return;
     }
     e.preventDefault();
@@ -55,145 +47,88 @@ const Header = () => {
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
     }
-    closeMobileMenu();
   };
 
   return (
-    <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
-      <div className="header-container">
-        <Link to="/" className="header-logo" aria-label="La Première Pierre - Accueil">
-          <img src={logoLpp} alt="La Première Pierre" width={40} height={40} />
-          <span>La Première Pierre</span>
-        </Link>
+    <>
+      <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
+        <div className="header-container">
+          <Link to="/" className="header-logo" aria-label="La Première Pierre - Accueil">
+            <img src={logoLpp} alt="La Première Pierre" width={40} height={40} />
+            <span>La Première Pierre</span>
+          </Link>
 
-        <nav className="header-nav" aria-label="Navigation principale">
-          {navLinks.map((link) => (
+          <nav className="header-nav" aria-label="Navigation principale">
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={location.pathname === '/' ? link.href : `/${link.href}`}
+                onClick={(e) => handleAnchorClick(e, link.href)}
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="header-actions">
+            {chargement ? (
+              <span className="header-link" style={{ opacity: 0.5 }}>Chargement...</span>
+            ) : estConnecte ? (
+              <>
+                <HeaderNotificationBell />
+                <Link to="/espace" className="btn btn-primary header-cta">
+                  Mon espace
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/connexion" className="header-link">
+                  Connexion
+                </Link>
+                <Link to="/inscription" className="btn btn-primary header-cta">
+                  Créer un compte
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Bottom Navigation - visible uniquement sur mobile */}
+      <nav className="mobile-bottom-nav" aria-label="Navigation mobile">
+        {mobileNavLinks.map((link) => {
+          const Icon = link.icon;
+          const isActive = link.isRoute
+            ? location.pathname === link.href
+            : location.hash === link.href || (link.href === '#hero' && !location.hash);
+
+          if (link.isRoute) {
+            return (
+              <Link
+                key={link.href}
+                to={link.href}
+                className={`mobile-bottom-nav-item ${isActive ? 'active' : ''}`}
+              >
+                <Icon className="mobile-bottom-nav-icon" />
+                <span>{link.label}</span>
+              </Link>
+            );
+          }
+
+          return (
             <a
               key={link.href}
               href={location.pathname === '/' ? link.href : `/${link.href}`}
               onClick={(e) => handleAnchorClick(e, link.href)}
+              className={`mobile-bottom-nav-item ${isActive ? 'active' : ''}`}
             >
-              {link.label}
+              <Icon className="mobile-bottom-nav-icon" />
+              <span>{link.label}</span>
             </a>
-          ))}
-        </nav>
-
-        <div className="header-actions">
-          {chargement ? (
-            <span className="header-link" style={{ opacity: 0.5 }}>Chargement...</span>
-          ) : estConnecte ? (
-            <>
-              <HeaderNotificationBell />
-              <Link to="/espace" className="btn btn-primary header-cta">
-                Mon espace
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link to="/connexion" className="header-link">
-                Connexion
-              </Link>
-              <Link to="/inscription" className="btn btn-primary header-cta">
-                Créer un compte
-              </Link>
-            </>
-          )}
-          <button
-            className="mobile-menu-btn"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-expanded={isMobileMenuOpen}
-            aria-controls="mobile-menu"
-            aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-          >
-            {isMobileMenuOpen ? <HiX size={24} /> : <HiMenu size={24} />}
-          </button>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <>
-            <motion.div
-              className="mobile-menu-overlay"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              onClick={closeMobileMenu}
-              aria-hidden="true"
-            />
-            <motion.nav
-              id="mobile-menu"
-              className="mobile-menu"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              aria-label="Navigation mobile"
-            >
-              <div className="mobile-menu-header">
-                <span className="mobile-menu-title">Menu</span>
-                <button
-                  className="mobile-menu-close"
-                  onClick={closeMobileMenu}
-                  aria-label="Fermer le menu"
-                >
-                  <HiX size={28} />
-                </button>
-              </div>
-
-              <div className="mobile-menu-links">
-                {navLinks.map((link) => (
-                  <a
-                    key={link.href}
-                    href={location.pathname === '/' ? link.href : `/${link.href}`}
-                    onClick={(e) => handleAnchorClick(e, link.href)}
-                    className="mobile-menu-link"
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-
-              <div className="mobile-menu-cta">
-                {chargement ? (
-                  <span className="mobile-menu-loading">Chargement...</span>
-                ) : estConnecte ? (
-                  <Link
-                    to="/espace"
-                    className="btn btn-primary mobile-menu-btn-cta"
-                    onClick={closeMobileMenu}
-                  >
-                    Mon espace
-                  </Link>
-                ) : (
-                  <>
-                    <Link
-                      to="/connexion"
-                      className="btn btn-secondary mobile-menu-btn-cta"
-                      onClick={closeMobileMenu}
-                    >
-                      Connexion
-                    </Link>
-                    <Link
-                      to="/inscription"
-                      className="btn btn-primary mobile-menu-btn-cta"
-                      onClick={closeMobileMenu}
-                    >
-                      Créer un compte
-                    </Link>
-                  </>
-                )}
-              </div>
-
-              <div className="mobile-menu-footer">
-                <span>La Première Pierre</span>
-              </div>
-            </motion.nav>
-          </>
-        )}
-      </AnimatePresence>
-    </header>
+          );
+        })}
+      </nav>
+    </>
   );
 };
 
