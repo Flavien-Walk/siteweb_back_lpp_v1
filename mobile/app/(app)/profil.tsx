@@ -132,7 +132,7 @@ export default function Profil() {
           style: 'destructive',
           onPress: async () => {
             await deconnexion();
-            router.replace('/(auth)/bienvenue');
+            router.replace('/(auth)/connexion');
           },
         },
       ]
@@ -219,7 +219,7 @@ export default function Profil() {
 
             if (reponse.succes) {
               await deconnexion();
-              router.replace('/(auth)/bienvenue');
+              router.replace('/(auth)/connexion');
             } else {
               afficherMessage('erreur', reponse.message || 'Erreur lors de la suppression');
             }

@@ -4,10 +4,12 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:clear": "expo start --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "tunnel": "expo start --tunnel"
+    "tunnel": "expo start --tunnel",
+    "clean": "expo start --clear && rm -rf node_modules/.cache"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

@@ -84,6 +84,17 @@ export const requeteAPI = async <T>(
 
     clearTimeout(timeoutId);
 
+    // Vérifier si la réponse est du JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const texte = await response.text();
+      console.warn(`Réponse non-JSON de ${endpoint}:`, texte.substring(0, 100));
+      return {
+        succes: false,
+        message: response.status === 404 ? 'Ressource non trouvée' : 'Erreur serveur',
+      };
+    }
+
     const data: ReponseAPI<T> = await response.json();
 
     // Gérer les erreurs HTTP
@@ -106,7 +117,10 @@ export const requeteAPI = async <T>(
       };
     }
 
-    console.error('Erreur API:', error);
+    // Ne pas logger les erreurs de parsing JSON (déjà gérées)
+    if (!(error instanceof SyntaxError)) {
+      console.error('Erreur API:', error);
+    }
     return {
       succes: false,
       message: 'Impossible de contacter le serveur. Vérifie ta connexion.',
