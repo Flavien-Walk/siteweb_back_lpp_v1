@@ -67,6 +67,99 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Types
 type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages';
 
+interface Startup {
+  id: string;
+  nom: string;
+  ville: string;
+  description: string;
+  tags: string[];
+  image: string;
+  abonnes: number;
+  posts: number;
+}
+
+interface Live {
+  id: string;
+  titre: string;
+  startup: string;
+  datetime: string;
+  interesse: number;
+  enDirect: boolean;
+  viewers?: number;
+  image: string;
+}
+
+interface TrendingStartup {
+  id: string;
+  nom: string;
+  secteur: string;
+  nouveauxAbonnes: number;
+}
+
+// Donnees mock pour Tendances
+const TRENDING_STARTUPS: TrendingStartup[] = [
+  { id: '1', nom: 'GreenTech Lyon', secteur: 'CleanTech', nouveauxAbonnes: 124 },
+  { id: '2', nom: 'MedIA Diagnostics', secteur: 'HealthTech', nouveauxAbonnes: 98 },
+  { id: '3', nom: 'FinFlow Systems', secteur: 'FinTech', nouveauxAbonnes: 76 },
+];
+
+// Donnees mock pour Decouvrir
+const MOCK_STARTUPS: Startup[] = [
+  {
+    id: '1',
+    nom: 'GreenTech Lyon',
+    ville: 'Lyon',
+    description: 'Solutions de recyclage intelligent pour les entreprises',
+    tags: ['CleanTech', 'B2B', 'Impact'],
+    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
+    abonnes: 1247,
+    posts: 89,
+  },
+  {
+    id: '2',
+    nom: 'FoodLab Marseille',
+    ville: 'Marseille',
+    description: 'Alimentation durable et locale pour tous',
+    tags: ['FoodTech', 'B2C', 'Local'],
+    image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=400&h=300&fit=crop',
+    abonnes: 856,
+    posts: 42,
+  },
+  {
+    id: '3',
+    nom: 'MedIA Diagnostics',
+    ville: 'Paris',
+    description: 'IA au service du diagnostic medical',
+    tags: ['HealthTech', 'IA', 'Sante'],
+    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=300&fit=crop',
+    abonnes: 2103,
+    posts: 156,
+  },
+];
+
+// Donnees mock pour Lives
+const MOCK_LIVES: Live[] = [
+  {
+    id: '1',
+    titre: 'AMA : Decouvrez notre equipe',
+    startup: 'GreenTech Lyon',
+    datetime: 'En direct',
+    interesse: 342,
+    enDirect: true,
+    viewers: 1247,
+    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=500&h=300&fit=crop',
+  },
+  {
+    id: '2',
+    titre: 'Backstage : Notre labo R&D',
+    startup: 'MedIA Diagnostics',
+    datetime: 'Demain, 18h00',
+    interesse: 189,
+    enDirect: false,
+    image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=500&h=300&fit=crop',
+  },
+];
+
 export default function Accueil() {
   const { couleurs } = useTheme();
   const { utilisateur, needsStatut, refreshUser } = useUser();
@@ -428,7 +521,8 @@ export default function Accueil() {
           setNewComment('');
           setReplyingTo(null);
           setNbComments(prev => prev + 1);
-          onUpdate({ ...publication, aLike: liked, nbLikes, nbCommentaires: nbComments + 1 });
+          // Note: Ne pas appeler onUpdate ici pour eviter de fermer la section commentaires
+          // Le compteur local est mis a jour et sera synchronise au prochain chargement
         }
       } catch (error) {
         Alert.alert('Erreur', 'Impossible d\'ajouter le commentaire');
@@ -779,6 +873,9 @@ export default function Accueil() {
                 onChangeText={setNewComment}
                 multiline
                 maxLength={500}
+                blurOnSubmit={false}
+                returnKeyType="send"
+                onSubmitEditing={handleAddComment}
               />
               <Pressable
                 style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
@@ -1028,29 +1125,24 @@ export default function Accueil() {
     );
   };
 
-  const StartupCard = ({ projet }: { projet: Projet }) => {
+  const StartupCard = ({ startup }: { startup: Startup }) => {
+    const [suivi, setSuivi] = useState(false);
     return (
       <View style={styles.startupCard}>
-        {projet.image ? (
-          <Image source={{ uri: projet.image }} style={styles.startupImage} />
-        ) : (
-          <View style={[styles.startupImage, { backgroundColor: couleurs.primaire, justifyContent: 'center', alignItems: 'center' }]}>
-            <Text style={{ color: couleurs.blanc, fontSize: 24, fontWeight: 'bold' }}>{projet.nom.substring(0, 2)}</Text>
-          </View>
-        )}
+        <Image source={{ uri: startup.image }} style={styles.startupImage} />
         <View style={styles.startupContent}>
           <View style={styles.startupHeader}>
             <View>
-              <Text style={styles.startupNom}>{projet.nom}</Text>
+              <Text style={styles.startupNom}>{startup.nom}</Text>
               <View style={styles.startupLocation}>
                 <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
-                <Text style={styles.startupVille}>{projet.localisation.ville}</Text>
+                <Text style={styles.startupVille}>{startup.ville}</Text>
               </View>
             </View>
           </View>
-          <Text style={styles.startupDescription} numberOfLines={2}>{projet.pitch}</Text>
+          <Text style={styles.startupDescription} numberOfLines={2}>{startup.description}</Text>
           <View style={styles.startupTags}>
-            {projet.tags.slice(0, 3).map((tag, i) => (
+            {startup.tags.map((tag, i) => (
               <View key={i} style={styles.startupTag}>
                 <Text style={styles.startupTagText}>{tag}</Text>
               </View>
@@ -1059,25 +1151,25 @@ export default function Accueil() {
           <View style={styles.startupStats}>
             <View style={styles.startupStat}>
               <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{projet.nbFollowers} abonnes</Text>
+              <Text style={styles.startupStatText}>{startup.abonnes} abonnes</Text>
             </View>
             <View style={styles.startupStat}>
-              <Ionicons name="trending-up" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{projet.progression}% complete</Text>
+              <Ionicons name="document-text-outline" size={14} color={couleurs.texteSecondaire} />
+              <Text style={styles.startupStatText}>{startup.posts} posts</Text>
             </View>
           </View>
           <View style={styles.startupActions}>
             <Pressable
-              style={[styles.startupBtnPrimary, projet.estSuivi && styles.startupBtnSuivi]}
-              onPress={() => handleSuivreProjet(projet._id)}
+              style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi]}
+              onPress={() => setSuivi(!suivi)}
             >
               <Ionicons
-                name={projet.estSuivi ? 'checkmark' : 'add'}
+                name={suivi ? 'checkmark' : 'add'}
                 size={18}
-                color={projet.estSuivi ? couleurs.primaire : couleurs.blanc}
+                color={suivi ? couleurs.primaire : couleurs.blanc}
               />
-              <Text style={[styles.startupBtnPrimaryText, projet.estSuivi && styles.startupBtnSuiviText]}>
-                {projet.estSuivi ? 'Suivi' : 'Suivre'}
+              <Text style={[styles.startupBtnPrimaryText, suivi && styles.startupBtnSuiviText]}>
+                {suivi ? 'Suivi' : 'Suivre'}
               </Text>
             </Pressable>
             <Pressable style={styles.startupBtnSecondary}>
@@ -1089,63 +1181,50 @@ export default function Accueil() {
     );
   };
 
-  const formatEvenementDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    if (date < now) return 'Termine';
-    const diff = date.getTime() - now.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours < 1) return 'En direct';
-    if (hours < 24) return `Dans ${hours}h`;
-    const days = Math.floor(hours / 24);
-    return `Dans ${days} jour${days > 1 ? 's' : ''}`;
-  };
-
-  const LiveCard = ({ evenement }: { evenement: Evenement }) => {
-    const estEnDirect = evenement.statut === 'en-cours';
-    const projetNom = evenement.projet?.nom || 'LPP';
-
-    return (
-      <Pressable style={styles.liveCard}>
-        <View style={[styles.liveImage, { backgroundColor: couleurs.primaireDark, justifyContent: 'center', alignItems: 'center' }]}>
-          <Ionicons name={evenement.type === 'live' ? 'videocam' : 'play-circle'} size={40} color={couleurs.blanc} />
-        </View>
-        <View style={styles.liveOverlay}>
-          {estEnDirect ? (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeText}>LIVE</Text>
-            </View>
-          ) : (
-            <View style={styles.liveUpcoming}>
-              <Text style={styles.liveUpcomingText}>{evenement.statut === 'a-venir' ? 'A venir' : 'Replay'}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.liveContent}>
-          <Text style={styles.liveTitre} numberOfLines={2}>{evenement.titre}</Text>
-          <Text style={styles.liveStartup}>{projetNom}</Text>
-          <View style={styles.liveDetails}>
-            <View style={styles.liveDetail}>
-              <Ionicons name="calendar-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.liveDetailText}>{formatEvenementDate(evenement.date)}</Text>
-            </View>
-            <View style={styles.liveDetail}>
-              <Ionicons name="time-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.liveDetailText}>{evenement.duree} min</Text>
-            </View>
+  const LiveCard = ({ live }: { live: Live }) => (
+    <Pressable style={styles.liveCard}>
+      <Image source={{ uri: live.image }} style={styles.liveImage} />
+      <View style={styles.liveOverlay}>
+        {live.enDirect ? (
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveBadgeText}>LIVE</Text>
           </View>
-          <Pressable style={[styles.liveBtn, estEnDirect && styles.liveBtnActive]}>
-            <Text style={[styles.liveBtnText, estEnDirect && styles.liveBtnTextActive]}>
-              {estEnDirect ? 'Rejoindre' : evenement.statut === 'termine' ? 'Voir replay' : 'Me rappeler'}
-            </Text>
-          </Pressable>
+        ) : (
+          <View style={styles.liveUpcoming}>
+            <Text style={styles.liveUpcomingText}>A venir</Text>
+          </View>
+        )}
+        {live.enDirect && live.viewers && (
+          <View style={styles.liveViewers}>
+            <Ionicons name="eye" size={14} color={couleurs.blanc} />
+            <Text style={styles.liveViewersText}>{live.viewers}</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.liveContent}>
+        <Text style={styles.liveTitre} numberOfLines={2}>{live.titre}</Text>
+        <Text style={styles.liveStartup}>{live.startup}</Text>
+        <View style={styles.liveDetails}>
+          <View style={styles.liveDetail}>
+            <Ionicons name="calendar-outline" size={14} color={couleurs.texteSecondaire} />
+            <Text style={styles.liveDetailText}>{live.datetime}</Text>
+          </View>
+          <View style={styles.liveDetail}>
+            <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
+            <Text style={styles.liveDetailText}>{live.interesse} interesses</Text>
+          </View>
         </View>
-      </Pressable>
-    );
-  };
+        <Pressable style={[styles.liveBtn, live.enDirect && styles.liveBtnActive]}>
+          <Text style={[styles.liveBtnText, live.enDirect && styles.liveBtnTextActive]}>
+            {live.enDirect ? 'Rejoindre' : 'Me rappeler'}
+          </Text>
+        </Pressable>
+      </View>
+    </Pressable>
+  );
 
-  const TrendingItem = ({ item, rank }: { item: Projet; rank: number }) => (
+  const TrendingItem = ({ item, rank }: { item: TrendingStartup; rank: number }) => (
     <Pressable style={styles.trendingItem}>
       <View style={[styles.trendingRank, rank <= 3 && styles.trendingRankTop]}>
         <Text style={[styles.trendingRankText, rank <= 3 && styles.trendingRankTextTop]}>{rank}</Text>
@@ -1156,7 +1235,7 @@ export default function Accueil() {
       </View>
       <View style={styles.trendingChange}>
         <Ionicons name="trending-up" size={14} color={couleurs.succes} />
-        <Text style={styles.trendingChangeValue}>+{item.nbFollowers}</Text>
+        <Text style={styles.trendingChangeValue}>+{item.nouveauxAbonnes}</Text>
       </View>
     </Pressable>
   );
@@ -1225,6 +1304,15 @@ export default function Accueil() {
     </View>
   );
 
+  // Stories mock data
+  const MOCK_STORIES = [
+    { id: '1', nom: 'GreenTech', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&h=150&fit=crop', nouveau: true },
+    { id: '2', nom: 'MedIA', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150&h=150&fit=crop', nouveau: true },
+    { id: '3', nom: 'FinFlow', avatar: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=150&h=150&fit=crop', nouveau: false },
+    { id: '4', nom: 'BioFood', avatar: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=150&h=150&fit=crop', nouveau: false },
+    { id: '5', nom: 'TechLab', avatar: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=150&h=150&fit=crop', nouveau: true },
+  ];
+
   const renderStories = () => (
     <View style={styles.storiesSection}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesScroll}>
@@ -1234,18 +1322,12 @@ export default function Accueil() {
           </View>
           <Text style={styles.storyNom}>Votre story</Text>
         </Pressable>
-        {projets.slice(0, 5).map((projet) => (
-          <Pressable key={projet._id} style={styles.storyItem}>
-            <View style={[styles.storyBorder, projet.estSuivi && styles.storyBorderActive]}>
-              {projet.image ? (
-                <Image source={{ uri: projet.image }} style={styles.storyAvatar} />
-              ) : (
-                <View style={[styles.storyAvatar, { backgroundColor: couleurs.primaire, justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={{ color: couleurs.blanc, fontWeight: 'bold' }}>{projet.nom.substring(0, 2)}</Text>
-                </View>
-              )}
+        {MOCK_STORIES.map((story) => (
+          <Pressable key={story.id} style={styles.storyItem}>
+            <View style={[styles.storyBorder, story.nouveau && styles.storyBorderActive]}>
+              <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
             </View>
-            <Text style={styles.storyNom} numberOfLines={1}>{projet.nom.split(' ')[0]}</Text>
+            <Text style={styles.storyNom} numberOfLines={1}>{story.nom}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -1264,8 +1346,8 @@ export default function Accueil() {
           <Ionicons name="arrow-forward" size={16} color={couleurs.texteSecondaire} />
         </Pressable>
       </View>
-      {projets.slice(0, 3).map((item, index) => (
-        <TrendingItem key={item._id} item={item} rank={index + 1} />
+      {TRENDING_STARTUPS.map((item, index) => (
+        <TrendingItem key={item.id} item={item} rank={index + 1} />
       ))}
     </View>
   );
@@ -1325,17 +1407,17 @@ export default function Accueil() {
           </Text>
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{projets.length}</Text>
+              <Text style={styles.heroStatValue}>127</Text>
               <Text style={styles.heroStatLabel}>Startups</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{evenements.length}</Text>
-              <Text style={styles.heroStatLabel}>Events</Text>
+              <Text style={styles.heroStatValue}>2.4K</Text>
+              <Text style={styles.heroStatLabel}>Membres</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{new Set(projets.map(p => p.secteur)).size}</Text>
+              <Text style={styles.heroStatValue}>15</Text>
               <Text style={styles.heroStatLabel}>Secteurs</Text>
             </View>
           </View>
@@ -1346,20 +1428,9 @@ export default function Accueil() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Startups a decouvrir</Text>
         </View>
-        {chargementProjets ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Chargement des projets...</Text>
-          </View>
-        ) : projets.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="rocket-outline" size={48} color={couleurs.texteSecondaire} />
-            <Text style={styles.emptyText}>Aucun projet pour le moment</Text>
-          </View>
-        ) : (
-          projets.map((projet) => (
-            <StartupCard key={projet._id} projet={projet} />
-          ))
-        )}
+        {MOCK_STARTUPS.map((startup) => (
+          <StartupCard key={startup.id} startup={startup} />
+        ))}
       </View>
     </>
   );
@@ -1372,23 +1443,11 @@ export default function Accueil() {
           <Text style={styles.sectionSubtitle}>Rencontrez les equipes en live</Text>
         </View>
       </View>
-      {chargementEvenements ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Chargement des evenements...</Text>
-        </View>
-      ) : evenements.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="videocam-outline" size={48} color={couleurs.texteSecondaire} />
-          <Text style={styles.emptyText}>Aucun evenement programme</Text>
-          <Text style={styles.emptySubtext}>Les lives seront bientot disponibles !</Text>
-        </View>
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-          {evenements.map((evenement) => (
-            <LiveCard key={evenement._id} evenement={evenement} />
-          ))}
-        </ScrollView>
-      )}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+        {MOCK_LIVES.map((live) => (
+          <LiveCard key={live.id} live={live} />
+        ))}
+      </ScrollView>
       <View style={styles.liveInfo}>
         <Ionicons name="information-circle-outline" size={20} color={couleurs.texteSecondaire} />
         <Text style={styles.liveInfoText}>
