@@ -6,8 +6,8 @@
 // En développement, utiliser l'IP locale de la machine
 // En production, utiliser l'URL de déploiement
 export const API_URL = __DEV__
-  ? 'https://lpp-back-api.onrender.com/api' // URL de prod (fonctionne aussi en dev via tunnel)
-  : 'https://lpp-back-api.onrender.com/api';
+  ? 'https://siteweb-back-lpp-v1.onrender.com/api'
+  : 'https://siteweb-back-lpp-v1.onrender.com/api';
 
 // Clés de stockage
 export const STORAGE_KEYS = {
