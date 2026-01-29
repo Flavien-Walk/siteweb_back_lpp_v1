@@ -328,9 +328,9 @@ export default function ConversationScreen() {
                 <Text>
                   {' '}
                   <Ionicons
-                    name={item.lecteurs.length > 1 ? 'checkmark-done' : 'checkmark'}
+                    name={(item.lecteurs?.length || 0) > 1 ? 'checkmark-done' : 'checkmark'}
                     size={12}
-                    color={item.lecteurs.length > 1 ? couleurs.secondaire : couleurs.blanc}
+                    color={(item.lecteurs?.length || 0) > 1 ? couleurs.secondaire : couleurs.blanc}
                   />
                 </Text>
               )}
