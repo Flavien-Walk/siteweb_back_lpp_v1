@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import Utilisateur from '../models/Utilisateur.js';
+import Notification from '../models/Notification.js';
 
 /**
  * GET /api/utilisateurs/recherche
@@ -50,7 +51,7 @@ export const rechercherUtilisateurs = async (
         },
       ],
     })
-      .select('prenom nom avatar')
+      .select('prenom nom avatar role statut')
       .limit(limitNum);
 
     res.json({
@@ -61,6 +62,8 @@ export const rechercherUtilisateurs = async (
           prenom: u.prenom,
           nom: u.nom,
           avatar: u.avatar,
+          role: u.role,
+          statut: u.statut,
         })),
       },
     });
@@ -84,7 +87,7 @@ export const getUtilisateur = async (
     const userId = req.utilisateur?._id;
 
     const utilisateur = await Utilisateur.findById(id)
-      .select('prenom nom avatar statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation');
+      .select('prenom nom avatar role statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation');
 
     if (!utilisateur) {
       res.status(404).json({
@@ -114,6 +117,7 @@ export const getUtilisateur = async (
           prenom: utilisateur.prenom,
           nom: utilisateur.nom,
           avatar: utilisateur.avatar,
+          role: utilisateur.role,
           statut: utilisateur.statut,
           dateInscription: utilisateur.dateCreation,
           nbAmis: utilisateur.amis?.length || 0,
@@ -187,6 +191,21 @@ export const envoyerDemandeAmi = async (
 
       await Promise.all([utilisateur.save(), cible.save()]);
 
+      // Créer une notification pour la cible (sa demande a été acceptée)
+      await Notification.create({
+        destinataire: cible._id,
+        type: 'ami_accepte',
+        titre: 'Demande d\'ami acceptée',
+        message: `${utilisateur.prenom} ${utilisateur.nom} a accepté votre demande d'ami.`,
+        lien: `/profil/${utilisateur._id}`,
+        data: {
+          userId: utilisateur._id.toString(),
+          userNom: utilisateur.nom,
+          userPrenom: utilisateur.prenom,
+          userAvatar: utilisateur.avatar || null,
+        },
+      });
+
       res.json({ succes: true, message: 'Vous êtes maintenant amis !' });
       return;
     }
@@ -196,6 +215,21 @@ export const envoyerDemandeAmi = async (
     cible.demandesAmisRecues = [...(cible.demandesAmisRecues || []), userId];
 
     await Promise.all([utilisateur.save(), cible.save()]);
+
+    // Créer une notification pour le destinataire
+    await Notification.create({
+      destinataire: cible._id,
+      type: 'demande_ami',
+      titre: 'Nouvelle demande d\'ami',
+      message: `${utilisateur.prenom} ${utilisateur.nom} vous a envoyé une demande d'ami.`,
+      lien: `/profil/${utilisateur._id}`,
+      data: {
+        userId: utilisateur._id.toString(),
+        userNom: utilisateur.nom,
+        userPrenom: utilisateur.prenom,
+        userAvatar: utilisateur.avatar || null,
+      },
+    });
 
     res.json({ succes: true, message: 'Demande d\'ami envoyée.' });
   } catch (error) {
@@ -292,6 +326,21 @@ export const accepterDemandeAmi = async (
     );
 
     await Promise.all([utilisateur.save(), demandeur.save()]);
+
+    // Créer une notification pour le demandeur (sa demande a été acceptée)
+    await Notification.create({
+      destinataire: demandeur._id,
+      type: 'ami_accepte',
+      titre: 'Demande d\'ami acceptée',
+      message: `${utilisateur.prenom} ${utilisateur.nom} a accepté votre demande d'ami.`,
+      lien: `/profil/${utilisateur._id}`,
+      data: {
+        userId: utilisateur._id.toString(),
+        userNom: utilisateur.nom,
+        userPrenom: utilisateur.prenom,
+        userAvatar: utilisateur.avatar || null,
+      },
+    });
 
     res.json({ succes: true, message: 'Demande acceptée. Vous êtes maintenant amis !' });
   } catch (error) {

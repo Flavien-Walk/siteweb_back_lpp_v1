@@ -1,6 +1,21 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export type TypeNotification = 'projet-update' | 'annonce' | 'live-rappel' | 'interaction';
+export type TypeNotification =
+  | 'projet-update'
+  | 'annonce'
+  | 'live-rappel'
+  | 'interaction'
+  | 'demande_ami'
+  | 'ami_accepte';
+
+export interface INotificationData {
+  userId?: string;
+  userNom?: string;
+  userPrenom?: string;
+  userAvatar?: string;
+  projetId?: string;
+  projetNom?: string;
+}
 
 export interface INotification extends Document {
   _id: mongoose.Types.ObjectId;
@@ -9,6 +24,7 @@ export interface INotification extends Document {
   titre: string;
   message: string;
   lien?: string;
+  data?: INotificationData;
   lue: boolean;
   dateCreation: Date;
 }
@@ -22,7 +38,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte'],
       required: true,
     },
     titre: {
@@ -37,6 +53,17 @@ const notificationSchema = new Schema<INotification>(
     },
     lien: {
       type: String,
+    },
+    data: {
+      type: {
+        userId: String,
+        userNom: String,
+        userPrenom: String,
+        userAvatar: String,
+        projetId: String,
+        projetNom: String,
+      },
+      default: null,
     },
     lue: {
       type: Boolean,
