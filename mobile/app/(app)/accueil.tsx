@@ -52,246 +52,20 @@ import {
   envoyerMessage,
   rechercherUtilisateurs,
 } from '../../src/services/messagerie';
+import {
+  Projet,
+  getProjets,
+  toggleSuivreProjet,
+} from '../../src/services/projets';
+import {
+  Evenement,
+  getEvenements,
+} from '../../src/services/evenements';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Types
 type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages';
-
-interface Story {
-  id: string;
-  nom: string;
-  avatar: string;
-  nouveau: boolean;
-}
-
-interface Post {
-  id: string;
-  auteur: string;
-  avatar: string;
-  contenu: string;
-  image?: string;
-  likes: number;
-  commentaires: number;
-  timestamp: string;
-  verifie: boolean;
-  type: 'startup' | 'membre';
-}
-
-interface Startup {
-  id: string;
-  nom: string;
-  ville: string;
-  description: string;
-  tags: string[];
-  image: string;
-  abonnes: number;
-  posts: number;
-}
-
-interface Live {
-  id: string;
-  titre: string;
-  startup: string;
-  datetime: string;
-  interesse: number;
-  enDirect: boolean;
-  viewers?: number;
-  image: string;
-}
-
-interface Message {
-  id: string;
-  expediteur: string;
-  avatar: string;
-  dernier: string;
-  date: string;
-  nonLu: boolean;
-}
-
-interface Commentaire {
-  id: string;
-  auteur: string;
-  avatar: string;
-  contenu: string;
-  timestamp: string;
-  likes: number;
-  reponses?: Commentaire[];
-  reponseA?: string; // ID du commentaire parent
-}
-
-// Donnees mock commentaires par post
-const MOCK_COMMENTAIRES: Record<string, Commentaire[]> = {
-  '1': [
-    {
-      id: 'c1',
-      auteur: 'Sophie Martin',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      contenu: 'Felicitations ! C\'est une super nouvelle pour l\'environnement !',
-      timestamp: 'Il y a 1h',
-      likes: 12,
-      reponses: [
-        { id: 'r1', auteur: 'GreenTech Lyon', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150', contenu: 'Merci Sophie ! On est tres fiers du chemin parcouru.', timestamp: 'Il y a 45min', likes: 5, reponseA: 'c1' },
-        { id: 'r2', auteur: 'Marc Durand', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', contenu: 'Totalement d\'accord avec toi !', timestamp: 'Il y a 30min', likes: 2, reponseA: 'c1' },
-      ],
-    },
-    { id: 'c2', auteur: 'Thomas Dubois', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', contenu: 'Impressionnant le chemin parcouru depuis le debut !', timestamp: 'Il y a 1h30', likes: 8 },
-    {
-      id: 'c3',
-      auteur: 'Claire Bernard',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
-      contenu: 'On aimerait en savoir plus sur votre solution. Un webinar prevu ?',
-      timestamp: 'Il y a 2h',
-      likes: 5,
-      reponses: [
-        { id: 'r3', auteur: 'GreenTech Lyon', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150', contenu: 'Oui Claire ! On prepare un live pour la semaine prochaine. Reste connectee !', timestamp: 'Il y a 1h45', likes: 8, reponseA: 'c3' },
-      ],
-    },
-  ],
-  '2': [
-    {
-      id: 'c4',
-      auteur: 'Lucas Petit',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      contenu: 'Oui j\'ai teste, c\'est vraiment top ! Je recommande.',
-      timestamp: 'Il y a 2h',
-      likes: 15,
-      reponses: [
-        { id: 'r4', auteur: 'Marie Dupont', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', contenu: 'Merci pour ton retour Lucas ! Tu as commande quoi ?', timestamp: 'Il y a 1h30', likes: 3, reponseA: 'c4' },
-      ],
-    },
-    { id: 'c5', auteur: 'Emma Leroy', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', contenu: 'Je vais aller voir leur page, ca a l\'air prometteur !', timestamp: 'Il y a 3h', likes: 4 },
-  ],
-  '3': [
-    { id: 'c6', auteur: 'Antoine Moreau', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150', contenu: 'Je serai present ! Hate de voir ca en action.', timestamp: 'Il y a 4h', likes: 22 },
-    {
-      id: 'c7',
-      auteur: 'Julie Roux',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
-      contenu: 'L\'IA dans le medical, c\'est l\'avenir. Bravo pour votre travail !',
-      timestamp: 'Il y a 5h',
-      likes: 18,
-      reponses: [
-        { id: 'r5', auteur: 'MedIA Diagnostics', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150', contenu: 'Merci Julie ! Notre equipe travaille dur pour revolutionner le diagnostic.', timestamp: 'Il y a 4h30', likes: 12, reponseA: 'c7' },
-      ],
-    },
-    { id: 'c8', auteur: 'Pierre Blanc', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150', contenu: 'Est-ce que ca sera disponible en replay ?', timestamp: 'Il y a 5h30', likes: 7 },
-  ],
-};
-
-// Donnees mock
-const MOCK_STORIES: Story[] = [
-  { id: '1', nom: 'GreenTech', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&h=150&fit=crop', nouveau: true },
-  { id: '2', nom: 'MedIA', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150&h=150&fit=crop', nouveau: true },
-  { id: '3', nom: 'FinFlow', avatar: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=150&h=150&fit=crop', nouveau: false },
-  { id: '4', nom: 'BioFood', avatar: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=150&h=150&fit=crop', nouveau: false },
-  { id: '5', nom: 'TechLab', avatar: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=150&h=150&fit=crop', nouveau: true },
-];
-
-const MOCK_POSTS: Post[] = [
-  {
-    id: '1',
-    auteur: 'GreenTech Lyon',
-    avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&h=150&fit=crop',
-    contenu: 'On vient de passer un cap majeur ! Notre solution de recyclage intelligent est maintenant deployee dans 50 entreprises. Merci a toute la communaute pour votre soutien !',
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop',
-    likes: 234,
-    commentaires: 45,
-    timestamp: 'Il y a 2h',
-    verifie: true,
-    type: 'startup',
-  },
-  {
-    id: '2',
-    auteur: 'Marie Dupont',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop',
-    contenu: 'Je viens de decouvrir FoodLab sur LPP, leur concept de cuisine durable est vraiment innovant ! Quelqu\'un a deja teste leurs produits ?',
-    likes: 89,
-    commentaires: 23,
-    timestamp: 'Il y a 4h',
-    verifie: false,
-    type: 'membre',
-  },
-  {
-    id: '3',
-    auteur: 'MedIA Diagnostics',
-    avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150&h=150&fit=crop',
-    contenu: 'LIVE demain a 18h : on vous presente notre nouvelle IA de diagnostic en avant-premiere. Venez poser vos questions a notre equipe R&D !',
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&h=400&fit=crop',
-    likes: 156,
-    commentaires: 38,
-    timestamp: 'Il y a 6h',
-    verifie: true,
-    type: 'startup',
-  },
-];
-
-const MOCK_STARTUPS: Startup[] = [
-  {
-    id: '1',
-    nom: 'GreenTech Lyon',
-    ville: 'Lyon',
-    description: 'Solutions de recyclage intelligent pour les entreprises',
-    tags: ['CleanTech', 'B2B', 'Impact'],
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
-    abonnes: 1247,
-    posts: 89,
-  },
-  {
-    id: '2',
-    nom: 'FoodLab Marseille',
-    ville: 'Marseille',
-    description: 'Alimentation durable et locale pour tous',
-    tags: ['FoodTech', 'B2C', 'Local'],
-    image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=400&h=300&fit=crop',
-    abonnes: 856,
-    posts: 42,
-  },
-  {
-    id: '3',
-    nom: 'MedIA Diagnostics',
-    ville: 'Paris',
-    description: 'IA au service du diagnostic medical',
-    tags: ['HealthTech', 'IA', 'Sante'],
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=300&fit=crop',
-    abonnes: 2103,
-    posts: 156,
-  },
-];
-
-const MOCK_LIVES: Live[] = [
-  {
-    id: '1',
-    titre: 'AMA : Decouvrez notre equipe',
-    startup: 'GreenTech Lyon',
-    datetime: 'En direct',
-    interesse: 342,
-    enDirect: true,
-    viewers: 1247,
-    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=500&h=300&fit=crop',
-  },
-  {
-    id: '2',
-    titre: 'Backstage : Notre labo R&D',
-    startup: 'MedIA Diagnostics',
-    datetime: 'Demain, 18h00',
-    interesse: 189,
-    enDirect: false,
-    image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=500&h=300&fit=crop',
-  },
-];
-
-const MOCK_MESSAGES: Message[] = [
-  { id: '1', expediteur: 'GreenTech Lyon', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150', dernier: 'Merci pour votre interet !', date: 'Il y a 1h', nonLu: true },
-  { id: '2', expediteur: 'Thomas Martin', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', dernier: 'Tu as vu leur dernier post ?', date: 'Il y a 3h', nonLu: true },
-  { id: '3', expediteur: 'FoodLab Marseille', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150', dernier: 'On organise un event bientot...', date: 'Hier', nonLu: false },
-];
-
-const TRENDING_STARTUPS = [
-  { id: '1', nom: 'GreenTech Lyon', secteur: 'CleanTech', nouveauxAbonnes: 124 },
-  { id: '2', nom: 'MedIA Diagnostics', secteur: 'HealthTech', nouveauxAbonnes: 98 },
-  { id: '3', nom: 'FinFlow Systems', secteur: 'FinTech', nouveauxAbonnes: 76 },
-];
 
 export default function Accueil() {
   const { couleurs } = useTheme();
@@ -324,6 +98,14 @@ export default function Accueil() {
   const [conversationActive, setConversationActive] = useState<{ userId: string; participant: UtilisateurAPI } | null>(null);
   const [messagesConversation, setMessagesConversation] = useState<MessageAPI[]>([]);
   const [chargementMessages, setChargementMessages] = useState(false);
+
+  // Projets (startups) API
+  const [projets, setProjets] = useState<Projet[]>([]);
+  const [chargementProjets, setChargementProjets] = useState(false);
+
+  // Evenements (lives) API
+  const [evenements, setEvenements] = useState<Evenement[]>([]);
+  const [chargementEvenements, setChargementEvenements] = useState(false);
 
   // Animations FAB
   const fabRotation = useRef(new Animated.Value(0)).current;
@@ -363,6 +145,8 @@ export default function Accueil() {
     await Promise.all([
       chargerPublications(),
       chargerConversations(),
+      chargerProjets(),
+      chargerEvenements(),
     ]);
   };
 
@@ -388,6 +172,49 @@ export default function Accueil() {
       }
     } catch (error) {
       console.error('Erreur chargement conversations:', error);
+    }
+  };
+
+  const chargerProjets = async () => {
+    try {
+      setChargementProjets(true);
+      const reponse = await getProjets({ limit: 10 });
+      if (reponse.succes && reponse.data) {
+        setProjets(reponse.data.projets);
+      }
+    } catch (error) {
+      console.error('Erreur chargement projets:', error);
+    } finally {
+      setChargementProjets(false);
+    }
+  };
+
+  const chargerEvenements = async () => {
+    try {
+      setChargementEvenements(true);
+      const reponse = await getEvenements({ limit: 10 });
+      if (reponse.succes && reponse.data) {
+        setEvenements(reponse.data.evenements);
+      }
+    } catch (error) {
+      console.error('Erreur chargement evenements:', error);
+    } finally {
+      setChargementEvenements(false);
+    }
+  };
+
+  const handleSuivreProjet = async (projetId: string) => {
+    try {
+      const reponse = await toggleSuivreProjet(projetId);
+      if (reponse.succes && reponse.data) {
+        setProjets(prev => prev.map(p =>
+          p._id === projetId
+            ? { ...p, estSuivi: reponse.data!.estSuivi, nbFollowers: reponse.data!.nbFollowers }
+            : p
+        ));
+      }
+    } catch (error) {
+      console.error('Erreur suivre projet:', error);
     }
   };
 
@@ -495,304 +322,8 @@ export default function Accueil() {
 
   // ============ COMPOSANTS ============
 
-  const StoryItem = ({ story }: { story: Story }) => (
-    <Pressable style={styles.storyItem}>
-      <View style={[styles.storyRing, story.nouveau && styles.storyRingActive]}>
-        <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
-      </View>
-      <Text style={styles.storyNom} numberOfLines={1}>{story.nom}</Text>
-    </Pressable>
-  );
-
-  const PostCard = ({ post }: { post: Post }) => {
-    const [liked, setLiked] = useState(false);
-    const [showComments, setShowComments] = useState(false);
-    const [newComment, setNewComment] = useState('');
-    const [localComments, setLocalComments] = useState<Commentaire[]>(MOCK_COMMENTAIRES[post.id] || []);
-    const [likesComments, setLikesComments] = useState<Record<string, boolean>>({});
-    const [replyingTo, setReplyingTo] = useState<{ id: string; auteur: string } | null>(null);
-    const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
-
-    const handleShare = async () => {
-      try {
-        await Share.share({
-          message: `Decouvre ce post de ${post.auteur} sur LPP !\n\n"${post.contenu.substring(0, 100)}${post.contenu.length > 100 ? '...' : ''}"\n\nTelecharge LPP pour suivre les startups innovantes !`,
-          title: `Post de ${post.auteur}`,
-        });
-      } catch (error) {
-        Alert.alert('Erreur', 'Impossible de partager ce contenu');
-      }
-    };
-
-    const handleAddComment = () => {
-      if (!newComment.trim()) return;
-
-      const nouveauCommentaire: Commentaire = {
-        id: `new_${Date.now()}`,
-        auteur: utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        contenu: newComment.trim(),
-        timestamp: 'A l\'instant',
-        likes: 0,
-        reponseA: replyingTo?.id,
-      };
-
-      if (replyingTo) {
-        // Ajouter comme reponse
-        setLocalComments(prev => prev.map(c => {
-          if (c.id === replyingTo.id) {
-            return {
-              ...c,
-              reponses: [...(c.reponses || []), nouveauCommentaire],
-            };
-          }
-          return c;
-        }));
-        setExpandedReplies(prev => ({ ...prev, [replyingTo.id]: true }));
-      } else {
-        // Ajouter comme nouveau commentaire
-        setLocalComments([nouveauCommentaire, ...localComments]);
-      }
-
-      setNewComment('');
-      setReplyingTo(null);
-    };
-
-    const handleReply = (commentId: string, auteur: string) => {
-      setReplyingTo({ id: commentId, auteur });
-    };
-
-    const cancelReply = () => {
-      setReplyingTo(null);
-      setNewComment('');
-    };
-
-    const toggleReplies = (commentId: string) => {
-      setExpandedReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
-    };
-
-    const handleLikeComment = (commentId: string) => {
-      setLikesComments(prev => ({
-        ...prev,
-        [commentId]: !prev[commentId],
-      }));
-    };
-
-    return (
-      <View style={styles.postCard}>
-        <View style={styles.postHeader}>
-          <Image source={{ uri: post.avatar }} style={styles.postAvatar} />
-          <View style={styles.postAuteurContainer}>
-            <View style={styles.postAuteurRow}>
-              <Text style={styles.postAuteur}>{post.auteur}</Text>
-              {post.verifie && (
-                <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark" size={10} color={couleurs.blanc} />
-                </View>
-              )}
-              {post.type === 'startup' && (
-                <View style={styles.startupBadge}>
-                  <Text style={styles.startupBadgeText}>Startup</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.postTimestamp}>{post.timestamp}</Text>
-          </View>
-          <Pressable style={styles.postMore}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
-          </Pressable>
-        </View>
-        <Text style={styles.postContenu}>{post.contenu}</Text>
-        {post.image && (
-          <Image source={{ uri: post.image }} style={styles.postImage} />
-        )}
-        <View style={styles.postStats}>
-          <Text style={styles.postStatText}>{post.likes + (liked ? 1 : 0)} j'aime</Text>
-          <Pressable onPress={() => setShowComments(!showComments)}>
-            <Text style={styles.postStatText}>{localComments.length} commentaires</Text>
-          </Pressable>
-        </View>
-        <View style={styles.postActions}>
-          <Pressable style={styles.postAction} onPress={() => setLiked(!liked)}>
-            <Ionicons
-              name={liked ? 'heart' : 'heart-outline'}
-              size={22}
-              color={liked ? couleurs.erreur : couleurs.texteSecondaire}
-            />
-            <Text style={[styles.postActionText, liked && { color: couleurs.erreur }]}>J'aime</Text>
-          </Pressable>
-          <Pressable style={styles.postAction} onPress={() => setShowComments(!showComments)}>
-            <Ionicons
-              name={showComments ? 'chatbubble' : 'chatbubble-outline'}
-              size={22}
-              color={showComments ? couleurs.primaire : couleurs.texteSecondaire}
-            />
-            <Text style={[styles.postActionText, showComments && { color: couleurs.primaire }]}>Commenter</Text>
-          </Pressable>
-          <Pressable style={styles.postAction} onPress={handleShare}>
-            <Ionicons name="share-outline" size={22} color={couleurs.texteSecondaire} />
-            <Text style={styles.postActionText}>Partager</Text>
-          </Pressable>
-        </View>
-
-        {/* Section commentaires */}
-        {showComments && (
-          <View style={styles.commentsSection}>
-            {/* Badge reponse */}
-            {replyingTo && (
-              <View style={styles.replyingToBanner}>
-                <View style={styles.replyingToContent}>
-                  <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
-                  <Text style={styles.replyingToText}>
-                    Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
-                  </Text>
-                </View>
-                <Pressable onPress={cancelReply} style={styles.cancelReplyBtn}>
-                  <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
-                </Pressable>
-              </View>
-            )}
-
-            {/* Input nouveau commentaire */}
-            <View style={styles.commentInputContainer}>
-              {utilisateur?.avatar ? (
-                <Image source={{ uri: utilisateur.avatar }} style={styles.commentInputAvatarImage} />
-              ) : (
-                <View style={styles.commentInputAvatar}>
-                  <Text style={styles.commentInputAvatarText}>
-                    {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
-                  </Text>
-                </View>
-              )}
-              <TextInput
-                style={styles.commentInput}
-                placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
-                placeholderTextColor={couleurs.texteSecondaire}
-                value={newComment}
-                onChangeText={setNewComment}
-                multiline
-                maxLength={500}
-              />
-              <Pressable
-                style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
-                onPress={handleAddComment}
-                disabled={!newComment.trim()}
-              >
-                <Ionicons
-                  name="send"
-                  size={18}
-                  color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire}
-                />
-              </Pressable>
-            </View>
-
-            {/* Liste des commentaires */}
-            {localComments.map((comment) => (
-              <View key={comment.id}>
-                {/* Commentaire principal */}
-                <View style={styles.commentItem}>
-                  <Image source={{ uri: comment.avatar }} style={styles.commentAvatar} />
-                  <View style={styles.commentContent}>
-                    <View style={styles.commentBubble}>
-                      <Text style={styles.commentAuteur}>{comment.auteur}</Text>
-                      <Text style={styles.commentTexte}>{comment.contenu}</Text>
-                    </View>
-                    <View style={styles.commentMeta}>
-                      <Text style={styles.commentTime}>{comment.timestamp}</Text>
-                      <Pressable
-                        style={styles.commentLikeBtn}
-                        onPress={() => handleLikeComment(comment.id)}
-                      >
-                        <Ionicons
-                          name={likesComments[comment.id] ? 'heart' : 'heart-outline'}
-                          size={14}
-                          color={likesComments[comment.id] ? couleurs.erreur : couleurs.texteSecondaire}
-                        />
-                        <Text style={[
-                          styles.commentLikeText,
-                          likesComments[comment.id] && { color: couleurs.erreur }
-                        ]}>
-                          {comment.likes + (likesComments[comment.id] ? 1 : 0)}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        style={styles.commentReplyBtn}
-                        onPress={() => handleReply(comment.id, comment.auteur)}
-                      >
-                        <Text style={[
-                          styles.commentReplyText,
-                          replyingTo?.id === comment.id && { color: couleurs.primaire }
-                        ]}>Repondre</Text>
-                      </Pressable>
-                    </View>
-
-                    {/* Bouton voir les reponses */}
-                    {comment.reponses && comment.reponses.length > 0 && (
-                      <Pressable
-                        style={styles.viewRepliesBtn}
-                        onPress={() => toggleReplies(comment.id)}
-                      >
-                        <Ionicons
-                          name={expandedReplies[comment.id] ? 'chevron-up' : 'chevron-down'}
-                          size={14}
-                          color={couleurs.primaire}
-                        />
-                        <Text style={styles.viewRepliesText}>
-                          {expandedReplies[comment.id]
-                            ? 'Masquer les reponses'
-                            : `Voir ${comment.reponses.length} reponse${comment.reponses.length > 1 ? 's' : ''}`}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-
-                {/* Reponses */}
-                {expandedReplies[comment.id] && comment.reponses && comment.reponses.map((reponse) => (
-                  <View key={reponse.id} style={styles.replyItem}>
-                    <View style={styles.replyLine} />
-                    <Image source={{ uri: reponse.avatar }} style={styles.replyAvatar} />
-                    <View style={styles.commentContent}>
-                      <View style={styles.replyBubble}>
-                        <Text style={styles.commentAuteur}>{reponse.auteur}</Text>
-                        <Text style={styles.commentTexte}>{reponse.contenu}</Text>
-                      </View>
-                      <View style={styles.commentMeta}>
-                        <Text style={styles.commentTime}>{reponse.timestamp}</Text>
-                        <Pressable
-                          style={styles.commentLikeBtn}
-                          onPress={() => handleLikeComment(reponse.id)}
-                        >
-                          <Ionicons
-                            name={likesComments[reponse.id] ? 'heart' : 'heart-outline'}
-                            size={12}
-                            color={likesComments[reponse.id] ? couleurs.erreur : couleurs.texteSecondaire}
-                          />
-                          <Text style={[
-                            styles.commentLikeText,
-                            likesComments[reponse.id] && { color: couleurs.erreur }
-                          ]}>
-                            {reponse.likes + (likesComments[reponse.id] ? 1 : 0)}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ))}
-
-            {localComments.length === 0 && (
-              <View style={styles.noComments}>
-                <Ionicons name="chatbubbles-outline" size={32} color={couleurs.texteSecondaire} />
-                <Text style={styles.noCommentsText}>Soyez le premier a commenter !</Text>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-    );
-  };
+  // Note: Les anciens composants PostCard et StoryItem ont ete supprimes
+  // car ils utilisaient des donnees mock. PublicationCard utilise l'API.
 
   // ============ PUBLICATION CARD (API) ============
   const PublicationCard = ({ publication, onUpdate, onDelete }: { publication: Publication; onUpdate: (pub: Publication) => void; onDelete: (id: string) => void }) => {
@@ -1497,24 +1028,29 @@ export default function Accueil() {
     );
   };
 
-  const StartupCard = ({ startup }: { startup: Startup }) => {
-    const [suivi, setSuivi] = useState(false);
+  const StartupCard = ({ projet }: { projet: Projet }) => {
     return (
       <View style={styles.startupCard}>
-        <Image source={{ uri: startup.image }} style={styles.startupImage} />
+        {projet.image ? (
+          <Image source={{ uri: projet.image }} style={styles.startupImage} />
+        ) : (
+          <View style={[styles.startupImage, { backgroundColor: couleurs.primaire, justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={{ color: couleurs.blanc, fontSize: 24, fontWeight: 'bold' }}>{projet.nom.substring(0, 2)}</Text>
+          </View>
+        )}
         <View style={styles.startupContent}>
           <View style={styles.startupHeader}>
             <View>
-              <Text style={styles.startupNom}>{startup.nom}</Text>
+              <Text style={styles.startupNom}>{projet.nom}</Text>
               <View style={styles.startupLocation}>
                 <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
-                <Text style={styles.startupVille}>{startup.ville}</Text>
+                <Text style={styles.startupVille}>{projet.localisation.ville}</Text>
               </View>
             </View>
           </View>
-          <Text style={styles.startupDescription} numberOfLines={2}>{startup.description}</Text>
+          <Text style={styles.startupDescription} numberOfLines={2}>{projet.pitch}</Text>
           <View style={styles.startupTags}>
-            {startup.tags.map((tag, i) => (
+            {projet.tags.slice(0, 3).map((tag, i) => (
               <View key={i} style={styles.startupTag}>
                 <Text style={styles.startupTagText}>{tag}</Text>
               </View>
@@ -1523,25 +1059,25 @@ export default function Accueil() {
           <View style={styles.startupStats}>
             <View style={styles.startupStat}>
               <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{startup.abonnes} abonnes</Text>
+              <Text style={styles.startupStatText}>{projet.nbFollowers} abonnes</Text>
             </View>
             <View style={styles.startupStat}>
-              <Ionicons name="document-text-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{startup.posts} posts</Text>
+              <Ionicons name="trending-up" size={14} color={couleurs.texteSecondaire} />
+              <Text style={styles.startupStatText}>{projet.progression}% complete</Text>
             </View>
           </View>
           <View style={styles.startupActions}>
             <Pressable
-              style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi]}
-              onPress={() => setSuivi(!suivi)}
+              style={[styles.startupBtnPrimary, projet.estSuivi && styles.startupBtnSuivi]}
+              onPress={() => handleSuivreProjet(projet._id)}
             >
               <Ionicons
-                name={suivi ? 'checkmark' : 'add'}
+                name={projet.estSuivi ? 'checkmark' : 'add'}
                 size={18}
-                color={suivi ? couleurs.primaire : couleurs.blanc}
+                color={projet.estSuivi ? couleurs.primaire : couleurs.blanc}
               />
-              <Text style={[styles.startupBtnPrimaryText, suivi && styles.startupBtnSuiviText]}>
-                {suivi ? 'Suivi' : 'Suivre'}
+              <Text style={[styles.startupBtnPrimaryText, projet.estSuivi && styles.startupBtnSuiviText]}>
+                {projet.estSuivi ? 'Suivi' : 'Suivre'}
               </Text>
             </Pressable>
             <Pressable style={styles.startupBtnSecondary}>
@@ -1553,66 +1089,63 @@ export default function Accueil() {
     );
   };
 
-  const LiveCard = ({ live }: { live: Live }) => (
-    <Pressable style={styles.liveCard}>
-      <Image source={{ uri: live.image }} style={styles.liveImage} />
-      <View style={styles.liveOverlay}>
-        {live.enDirect ? (
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveBadgeText}>LIVE</Text>
-          </View>
-        ) : (
-          <View style={styles.liveUpcoming}>
-            <Text style={styles.liveUpcomingText}>A venir</Text>
-          </View>
-        )}
-        {live.enDirect && live.viewers && (
-          <View style={styles.liveViewers}>
-            <Ionicons name="eye" size={14} color={couleurs.blanc} />
-            <Text style={styles.liveViewersText}>{live.viewers}</Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.liveContent}>
-        <Text style={styles.liveTitre} numberOfLines={2}>{live.titre}</Text>
-        <Text style={styles.liveStartup}>{live.startup}</Text>
-        <View style={styles.liveDetails}>
-          <View style={styles.liveDetail}>
-            <Ionicons name="calendar-outline" size={14} color={couleurs.texteSecondaire} />
-            <Text style={styles.liveDetailText}>{live.datetime}</Text>
-          </View>
-          <View style={styles.liveDetail}>
-            <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-            <Text style={styles.liveDetailText}>{live.interesse} interesses</Text>
-          </View>
+  const formatEvenementDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    if (date < now) return 'Termine';
+    const diff = date.getTime() - now.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours < 1) return 'En direct';
+    if (hours < 24) return `Dans ${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `Dans ${days} jour${days > 1 ? 's' : ''}`;
+  };
+
+  const LiveCard = ({ evenement }: { evenement: Evenement }) => {
+    const estEnDirect = evenement.statut === 'en-cours';
+    const projetNom = evenement.projet?.nom || 'LPP';
+
+    return (
+      <Pressable style={styles.liveCard}>
+        <View style={[styles.liveImage, { backgroundColor: couleurs.primaireDark, justifyContent: 'center', alignItems: 'center' }]}>
+          <Ionicons name={evenement.type === 'live' ? 'videocam' : 'play-circle'} size={40} color={couleurs.blanc} />
         </View>
-        <Pressable style={[styles.liveBtn, live.enDirect && styles.liveBtnActive]}>
-          <Text style={[styles.liveBtnText, live.enDirect && styles.liveBtnTextActive]}>
-            {live.enDirect ? 'Rejoindre' : 'Me rappeler'}
-          </Text>
-        </Pressable>
-      </View>
-    </Pressable>
-  );
+        <View style={styles.liveOverlay}>
+          {estEnDirect ? (
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveBadgeText}>LIVE</Text>
+            </View>
+          ) : (
+            <View style={styles.liveUpcoming}>
+              <Text style={styles.liveUpcomingText}>{evenement.statut === 'a-venir' ? 'A venir' : 'Replay'}</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.liveContent}>
+          <Text style={styles.liveTitre} numberOfLines={2}>{evenement.titre}</Text>
+          <Text style={styles.liveStartup}>{projetNom}</Text>
+          <View style={styles.liveDetails}>
+            <View style={styles.liveDetail}>
+              <Ionicons name="calendar-outline" size={14} color={couleurs.texteSecondaire} />
+              <Text style={styles.liveDetailText}>{formatEvenementDate(evenement.date)}</Text>
+            </View>
+            <View style={styles.liveDetail}>
+              <Ionicons name="time-outline" size={14} color={couleurs.texteSecondaire} />
+              <Text style={styles.liveDetailText}>{evenement.duree} min</Text>
+            </View>
+          </View>
+          <Pressable style={[styles.liveBtn, estEnDirect && styles.liveBtnActive]}>
+            <Text style={[styles.liveBtnText, estEnDirect && styles.liveBtnTextActive]}>
+              {estEnDirect ? 'Rejoindre' : evenement.statut === 'termine' ? 'Voir replay' : 'Me rappeler'}
+            </Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    );
+  };
 
-  const MessageRow = ({ message }: { message: Message }) => (
-    <Pressable style={[styles.messageRow, message.nonLu && styles.messageRowUnread]}>
-      <Image source={{ uri: message.avatar }} style={styles.messageAvatar} />
-      <View style={styles.messageContent}>
-        <Text style={[styles.messageExpediteur, message.nonLu && styles.messageExpediteurUnread]}>
-          {message.expediteur}
-        </Text>
-        <Text style={styles.messageDernier} numberOfLines={1}>{message.dernier}</Text>
-      </View>
-      <View style={styles.messageMeta}>
-        <Text style={styles.messageDate}>{message.date}</Text>
-        {message.nonLu && <View style={styles.messageUnreadDot} />}
-      </View>
-    </Pressable>
-  );
-
-  const TrendingItem = ({ item, rank }: { item: typeof TRENDING_STARTUPS[0]; rank: number }) => (
+  const TrendingItem = ({ item, rank }: { item: Projet; rank: number }) => (
     <Pressable style={styles.trendingItem}>
       <View style={[styles.trendingRank, rank <= 3 && styles.trendingRankTop]}>
         <Text style={[styles.trendingRankText, rank <= 3 && styles.trendingRankTextTop]}>{rank}</Text>
@@ -1623,7 +1156,7 @@ export default function Accueil() {
       </View>
       <View style={styles.trendingChange}>
         <Ionicons name="trending-up" size={14} color={couleurs.succes} />
-        <Text style={styles.trendingChangeValue}>+{item.nouveauxAbonnes}</Text>
+        <Text style={styles.trendingChangeValue}>+{item.nbFollowers}</Text>
       </View>
     </Pressable>
   );
@@ -1701,8 +1234,19 @@ export default function Accueil() {
           </View>
           <Text style={styles.storyNom}>Votre story</Text>
         </Pressable>
-        {MOCK_STORIES.map((story) => (
-          <StoryItem key={story.id} story={story} />
+        {projets.slice(0, 5).map((projet) => (
+          <Pressable key={projet._id} style={styles.storyItem}>
+            <View style={[styles.storyBorder, projet.estSuivi && styles.storyBorderActive]}>
+              {projet.image ? (
+                <Image source={{ uri: projet.image }} style={styles.storyAvatar} />
+              ) : (
+                <View style={[styles.storyAvatar, { backgroundColor: couleurs.primaire, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ color: couleurs.blanc, fontWeight: 'bold' }}>{projet.nom.substring(0, 2)}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.storyNom} numberOfLines={1}>{projet.nom.split(' ')[0]}</Text>
+          </Pressable>
         ))}
       </ScrollView>
     </View>
@@ -1715,13 +1259,13 @@ export default function Accueil() {
           <Text style={styles.sectionTitle}>Tendances</Text>
           <Text style={styles.sectionSubtitle}>Startups populaires cette semaine</Text>
         </View>
-        <Pressable style={styles.sectionAction}>
+        <Pressable style={styles.sectionAction} onPress={() => setOngletActif('decouvrir')}>
           <Text style={styles.sectionActionText}>Voir tout</Text>
           <Ionicons name="arrow-forward" size={16} color={couleurs.texteSecondaire} />
         </Pressable>
       </View>
-      {TRENDING_STARTUPS.map((item, index) => (
-        <TrendingItem key={item.id} item={item} rank={index + 1} />
+      {projets.slice(0, 3).map((item, index) => (
+        <TrendingItem key={item._id} item={item} rank={index + 1} />
       ))}
     </View>
   );
@@ -1781,17 +1325,17 @@ export default function Accueil() {
           </Text>
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>127</Text>
+              <Text style={styles.heroStatValue}>{projets.length}</Text>
               <Text style={styles.heroStatLabel}>Startups</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>2.4K</Text>
-              <Text style={styles.heroStatLabel}>Membres</Text>
+              <Text style={styles.heroStatValue}>{evenements.length}</Text>
+              <Text style={styles.heroStatLabel}>Events</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>15</Text>
+              <Text style={styles.heroStatValue}>{new Set(projets.map(p => p.secteur)).size}</Text>
               <Text style={styles.heroStatLabel}>Secteurs</Text>
             </View>
           </View>
@@ -1802,9 +1346,20 @@ export default function Accueil() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Startups a decouvrir</Text>
         </View>
-        {MOCK_STARTUPS.map((startup) => (
-          <StartupCard key={startup.id} startup={startup} />
-        ))}
+        {chargementProjets ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Chargement des projets...</Text>
+          </View>
+        ) : projets.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="rocket-outline" size={48} color={couleurs.texteSecondaire} />
+            <Text style={styles.emptyText}>Aucun projet pour le moment</Text>
+          </View>
+        ) : (
+          projets.map((projet) => (
+            <StartupCard key={projet._id} projet={projet} />
+          ))
+        )}
       </View>
     </>
   );
@@ -1817,11 +1372,23 @@ export default function Accueil() {
           <Text style={styles.sectionSubtitle}>Rencontrez les equipes en live</Text>
         </View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-        {MOCK_LIVES.map((live) => (
-          <LiveCard key={live.id} live={live} />
-        ))}
-      </ScrollView>
+      {chargementEvenements ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Chargement des evenements...</Text>
+        </View>
+      ) : evenements.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="videocam-outline" size={48} color={couleurs.texteSecondaire} />
+          <Text style={styles.emptyText}>Aucun evenement programme</Text>
+          <Text style={styles.emptySubtext}>Les lives seront bientot disponibles !</Text>
+        </View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+          {evenements.map((evenement) => (
+            <LiveCard key={evenement._id} evenement={evenement} />
+          ))}
+        </ScrollView>
+      )}
       <View style={styles.liveInfo}>
         <Ionicons name="information-circle-outline" size={20} color={couleurs.texteSecondaire} />
         <Text style={styles.liveInfoText}>
