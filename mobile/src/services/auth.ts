@@ -7,12 +7,15 @@ import api, { setToken, removeToken, getToken, ReponseAPI } from './api';
 import { STORAGE_KEYS } from '../constantes/config';
 
 // Types
+export type Role = 'user' | 'admin';
+
 export interface Utilisateur {
   id: string;
   prenom: string;
   nom: string;
   email: string;
   avatar?: string;
+  role: Role;
   provider: 'local' | 'google' | 'facebook' | 'apple';
   emailVerifie: boolean;
 }

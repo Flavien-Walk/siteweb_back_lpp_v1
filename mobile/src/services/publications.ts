@@ -6,11 +6,14 @@
 import api, { ReponseAPI } from './api';
 
 // Types
+export type Role = 'user' | 'admin';
+
 export interface Auteur {
   _id: string;
   prenom: string;
   nom: string;
   avatar?: string;
+  role?: Role;
 }
 
 export interface Publication {

@@ -817,7 +817,7 @@ export default function Accueil() {
     const [notification, setNotification] = useState<{ type: 'succes' | 'erreur'; message: string } | null>(null);
 
     const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
-    const avatarUrl = publication.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${publication.auteur._id}&backgroundColor=6366f1`;
+    const avatarUrl = publication.auteur.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${publication.auteur._id}&backgroundColor=6366f1&size=128`;
 
     const formatDate = (dateStr: string) => {
       const date = new Date(dateStr);
@@ -1001,6 +1001,14 @@ export default function Accueil() {
       return utilisateur && utilisateur.id === publication.auteur._id;
     };
 
+    const isAdmin = () => {
+      return utilisateur && utilisateur.role === 'admin';
+    };
+
+    const canEditDelete = () => {
+      return isMyPost() || isAdmin();
+    };
+
     const showNotification = (type: 'succes' | 'erreur', message: string) => {
       setNotification({ type, message });
       setTimeout(() => setNotification(null), 3000);
@@ -1061,7 +1069,7 @@ export default function Accueil() {
       }
     };
 
-    const userAvatarUrl = utilisateur?.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${utilisateur?.id || 'default'}&backgroundColor=6366f1`;
+    const userAvatarUrl = utilisateur?.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${utilisateur?.id || 'default'}&backgroundColor=6366f1&size=128`;
 
     return (
       <View style={styles.postCard}>
@@ -1084,6 +1092,12 @@ export default function Accueil() {
           <View style={styles.postAuteurContainer}>
             <View style={styles.postAuteurRow}>
               <Text style={styles.postAuteur}>{auteurNom}</Text>
+              {publication.auteur.role === 'admin' && (
+                <View style={styles.adminBadge}>
+                  <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                  <Text style={styles.adminBadgeText}>Admin LPP</Text>
+                </View>
+              )}
               {publication.auteurType === 'Projet' && (
                 <View style={styles.startupBadge}>
                   <Text style={styles.startupBadgeText}>Startup</Text>
@@ -1092,7 +1106,7 @@ export default function Accueil() {
             </View>
             <Text style={styles.postTimestamp}>{formatDate(publication.dateCreation)}</Text>
           </View>
-          {isMyPost() && (
+          {canEditDelete() && (
             <Pressable style={styles.postMore} onPress={() => setShowPostMenu(!showPostMenu)}>
               <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
             </Pressable>
@@ -1100,7 +1114,7 @@ export default function Accueil() {
         </View>
 
         {/* Menu contextuel pour modifier/supprimer */}
-        {showPostMenu && isMyPost() && (
+        {showPostMenu && canEditDelete() && (
           <View style={styles.postMenu}>
             <Pressable
               style={styles.postMenuItem}
@@ -1238,7 +1252,9 @@ export default function Accueil() {
             ) : (
               commentaires.map((comment) => {
                 const commentAuteur = `${comment.auteur.prenom} ${comment.auteur.nom}`;
-                const commentAvatar = comment.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${comment.auteur._id}&backgroundColor=10b981`;
+                const commentAvatar = comment.auteur.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${comment.auteur._id}&backgroundColor=10b981&size=128`;
+                const commentIsAdmin = comment.auteur.role === 'admin';
+                const canEditDeleteComment = isMyComment(comment.auteur._id) || isAdmin();
                 const isEditing = editingComment === comment._id;
                 return (
                   <View key={comment._id}>
@@ -1272,8 +1288,16 @@ export default function Accueil() {
                           <>
                             <View style={styles.commentBubble}>
                               <View style={styles.commentBubbleHeader}>
-                                <Text style={styles.commentAuteur}>{commentAuteur}</Text>
-                                {isMyComment(comment.auteur._id) && (
+                                <View style={styles.commentAuteurRow}>
+                                  <Text style={styles.commentAuteur}>{commentAuteur}</Text>
+                                  {commentIsAdmin && (
+                                    <View style={styles.adminBadgeSmall}>
+                                      <Ionicons name="shield-checkmark" size={10} color="#fff" />
+                                      <Text style={styles.adminBadgeSmallText}>Admin</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                {canEditDeleteComment && (
                                   <View style={styles.commentActionsMenu}>
                                     <Pressable
                                       style={styles.commentActionBtn}
@@ -1335,8 +1359,10 @@ export default function Accueil() {
                     </View>
                     {expandedReplies[comment._id] && comment.reponses?.map((reponse) => {
                       const repAuteur = `${reponse.auteur.prenom} ${reponse.auteur.nom}`;
-                      const repAvatar = reponse.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${reponse.auteur._id}&backgroundColor=f59e0b`;
+                      const repAvatar = reponse.auteur.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${reponse.auteur._id}&backgroundColor=f59e0b&size=128`;
                       const isEditingReply = editingComment === reponse._id;
+                      const replyIsAdmin = reponse.auteur.role === 'admin';
+                      const canEditDeleteReply = isMyComment(reponse.auteur._id) || isAdmin();
                       return (
                         <View key={reponse._id} style={styles.replyItem}>
                           <View style={styles.replyLine} />
@@ -1369,8 +1395,16 @@ export default function Accueil() {
                               <>
                                 <View style={styles.replyBubble}>
                                   <View style={styles.commentBubbleHeader}>
-                                    <Text style={styles.commentAuteur}>{repAuteur}</Text>
-                                    {isMyComment(reponse.auteur._id) && (
+                                    <View style={styles.commentAuteurRow}>
+                                      <Text style={styles.commentAuteur}>{repAuteur}</Text>
+                                      {replyIsAdmin && (
+                                        <View style={styles.adminBadgeSmall}>
+                                          <Ionicons name="shield-checkmark" size={10} color="#fff" />
+                                          <Text style={styles.adminBadgeSmallText}>Admin</Text>
+                                        </View>
+                                      )}
+                                    </View>
+                                    {canEditDeleteReply && (
                                       <View style={styles.commentActionsMenu}>
                                         <Pressable
                                           style={styles.commentActionBtn}
@@ -1759,7 +1793,7 @@ export default function Accueil() {
               </Pressable>
               <View style={styles.conversationHeaderInfo}>
                 <Image
-                  source={{ uri: conversationActive.participant.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                  source={{ uri: conversationActive.participant.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
                   style={styles.conversationHeaderAvatar}
                 />
                 <Text style={styles.messagesHeaderTitle}>
@@ -1852,7 +1886,7 @@ export default function Accueil() {
                   onPress={() => handleOuvrirConversation(conv)}
                 >
                   <Image
-                    source={{ uri: conv.participant.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                    source={{ uri: conv.participant.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
                     style={styles.messageAvatar}
                   />
                   <View style={styles.messageContent}>
@@ -1926,7 +1960,7 @@ export default function Accueil() {
                         onPress={() => setDestinataireSelectionne(user)}
                       >
                         <Image
-                          source={{ uri: user.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                          source={{ uri: user.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
                           style={styles.searchResultAvatar}
                         />
                         <Text style={styles.searchResultName}>{user.prenom} {user.nom}</Text>
@@ -1941,7 +1975,7 @@ export default function Accueil() {
                 <>
                   <View style={styles.selectedDestinataireContainer}>
                     <Image
-                      source={{ uri: destinataireSelectionne.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                      source={{ uri: destinataireSelectionne.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
                       style={styles.selectedDestinataireAvatar}
                     />
                     <Text style={styles.selectedDestinataireName}>
@@ -2539,6 +2573,40 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: couleurs.primaire,
+  },
+  adminBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dc2626',
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 2,
+    borderRadius: rayons.sm,
+    gap: 4,
+  },
+  adminBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  adminBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: rayons.xs,
+    gap: 2,
+    marginLeft: 4,
+  },
+  adminBadgeSmallText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  commentAuteurRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
   postTimestamp: {
     fontSize: 12,
