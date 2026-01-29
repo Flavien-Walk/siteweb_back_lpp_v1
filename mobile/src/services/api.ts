@@ -130,8 +130,8 @@ export const api = {
   patch: <T>(endpoint: string, body: unknown = {}, avecAuth = false) =>
     requeteAPI<T>(endpoint, { method: 'PATCH', body, avecAuth }),
 
-  delete: <T>(endpoint: string, avecAuth = false) =>
-    requeteAPI<T>(endpoint, { method: 'DELETE', avecAuth }),
+  delete: <T>(endpoint: string, avecAuth = false, body?: unknown) =>
+    requeteAPI<T>(endpoint, { method: 'DELETE', avecAuth, body }),
 };
 
 export default api;

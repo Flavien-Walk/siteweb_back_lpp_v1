@@ -17,6 +17,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Modal,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -31,6 +33,8 @@ import {
   modifierProfil,
   modifierMotDePasse,
   supprimerCompte,
+  getAvatarsDefaut,
+  modifierAvatar,
 } from '../../src/services/auth';
 
 type Section = 'profil' | 'apparence' | 'securite' | 'confidentialite';
@@ -57,6 +61,11 @@ export default function Profil() {
   const [motDePasseSuppression, setMotDePasseSuppression] = useState('');
   const [confirmationSuppression, setConfirmationSuppression] = useState('');
 
+  // Avatar
+  const [modalAvatar, setModalAvatar] = useState(false);
+  const [avatarsDefaut, setAvatarsDefaut] = useState<string[]>([]);
+  const [chargementAvatar, setChargementAvatar] = useState(false);
+
   useEffect(() => {
     chargerUtilisateur();
   }, []);
@@ -68,6 +77,42 @@ export default function Profil() {
       setPrenom(user.prenom);
       setNom(user.nom);
       setEmail(user.email);
+    }
+  };
+
+  const chargerAvatars = async () => {
+    try {
+      const reponse = await getAvatarsDefaut();
+      if (reponse.succes && reponse.data) {
+        setAvatarsDefaut(reponse.data.avatars);
+      }
+    } catch (error) {
+      console.error('Erreur chargement avatars:', error);
+    }
+  };
+
+  const handleChangerAvatar = async (avatar: string | null) => {
+    try {
+      setChargementAvatar(true);
+      const reponse = await modifierAvatar(avatar);
+      if (reponse.succes && reponse.data) {
+        setUtilisateur(reponse.data.utilisateur);
+        setModalAvatar(false);
+        afficherMessage('succes', 'Avatar mis a jour !');
+      } else {
+        afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
+      }
+    } catch (error) {
+      afficherMessage('erreur', 'Une erreur est survenue');
+    } finally {
+      setChargementAvatar(false);
+    }
+  };
+
+  const handleOuvrirModalAvatar = async () => {
+    setModalAvatar(true);
+    if (avatarsDefaut.length === 0) {
+      await chargerAvatars();
     }
   };
 
@@ -576,9 +621,18 @@ export default function Profil() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {/* Avatar et infos */}
           <View style={styles.profileHeader}>
-            <View style={styles.avatarLarge}>
-              <Text style={styles.avatarLargeText}>{getInitiales()}</Text>
-            </View>
+            <Pressable style={styles.avatarContainer} onPress={handleOuvrirModalAvatar}>
+              {utilisateur?.avatar ? (
+                <Image source={{ uri: utilisateur.avatar }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarLarge}>
+                  <Text style={styles.avatarLargeText}>{getInitiales()}</Text>
+                </View>
+              )}
+              <View style={styles.avatarEditBadge}>
+                <Ionicons name="camera" size={14} color={couleurs.blanc} />
+              </View>
+            </Pressable>
             <Text style={styles.profileName}>
               {utilisateur?.prenom} {utilisateur?.nom}
             </Text>
@@ -598,6 +652,64 @@ export default function Profil() {
             {renderSectionContent()}
           </View>
         </ScrollView>
+
+        {/* Modal selection avatar */}
+        <Modal
+          visible={modalAvatar}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setModalAvatar(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Choisir un avatar</Text>
+                <Pressable onPress={() => setModalAvatar(false)}>
+                  <Ionicons name="close" size={24} color={couleurs.texte} />
+                </Pressable>
+              </View>
+
+              {chargementAvatar ? (
+                <View style={styles.modalLoading}>
+                  <ActivityIndicator size="large" color={couleurs.primaire} />
+                  <Text style={styles.modalLoadingText}>Mise a jour...</Text>
+                </View>
+              ) : (
+                <>
+                  <ScrollView contentContainerStyle={styles.avatarGrid}>
+                    {/* Option pour supprimer l'avatar */}
+                    <Pressable
+                      style={[
+                        styles.avatarOption,
+                        !utilisateur?.avatar && styles.avatarOptionSelected,
+                      ]}
+                      onPress={() => handleChangerAvatar(null)}
+                    >
+                      <View style={styles.avatarOptionInitiales}>
+                        <Text style={styles.avatarOptionInitialesText}>{getInitiales()}</Text>
+                      </View>
+                      <Text style={styles.avatarOptionLabel}>Initiales</Text>
+                    </Pressable>
+
+                    {/* Avatars par defaut */}
+                    {avatarsDefaut.map((avatar, index) => (
+                      <Pressable
+                        key={index}
+                        style={[
+                          styles.avatarOption,
+                          utilisateur?.avatar === avatar && styles.avatarOptionSelected,
+                        ]}
+                        onPress={() => handleChangerAvatar(avatar)}
+                      >
+                        <Image source={{ uri: avatar }} style={styles.avatarOptionImage} />
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -693,6 +805,28 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: couleurs.blanc,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: espacements.md,
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: couleurs.fond,
   },
   profileName: {
     fontSize: 20,
@@ -1017,5 +1151,84 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     color: couleurs.texteSecondaire,
     lineHeight: 18,
     marginBottom: espacements.lg,
+  },
+
+  // Modal Avatar
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: couleurs.fondSecondaire,
+    borderTopLeftRadius: rayons.xl,
+    borderTopRightRadius: rayons.xl,
+    paddingHorizontal: espacements.lg,
+    paddingBottom: espacements.xxl,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: espacements.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+    marginBottom: espacements.md,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  modalLoading: {
+    alignItems: 'center',
+    paddingVertical: espacements.xxl,
+    gap: espacements.md,
+  },
+  modalLoadingText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: espacements.md,
+    paddingVertical: espacements.md,
+  },
+  avatarOption: {
+    alignItems: 'center',
+    gap: espacements.xs,
+    padding: espacements.sm,
+    borderRadius: rayons.md,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  avatarOptionSelected: {
+    borderColor: couleurs.primaire,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+  },
+  avatarOptionImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  avatarOptionInitiales: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarOptionInitialesText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: couleurs.blanc,
+  },
+  avatarOptionLabel: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
   },
 });

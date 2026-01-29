@@ -38,6 +38,15 @@ import {
   ajouterCommentaire,
   toggleLikeCommentaire,
 } from '../../src/services/publications';
+import {
+  Conversation,
+  Message as MessageAPI,
+  Utilisateur as UtilisateurAPI,
+  getConversations,
+  getMessages,
+  envoyerMessage,
+  rechercherUtilisateurs,
+} from '../../src/services/messagerie';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -298,6 +307,19 @@ export default function Accueil() {
   const [nouveauPostContenu, setNouveauPostContenu] = useState('');
   const [creationEnCours, setCreationEnCours] = useState(false);
 
+  // Messagerie
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [rechercheMessage, setRechercheMessage] = useState('');
+  const [modalNouvelleConversation, setModalNouvelleConversation] = useState(false);
+  const [destinataireRecherche, setDestinataireRecherche] = useState('');
+  const [resultatsRecherche, setResultatsRecherche] = useState<UtilisateurAPI[]>([]);
+  const [messageContenu, setMessageContenu] = useState('');
+  const [destinataireSelectionne, setDestinataireSelectionne] = useState<UtilisateurAPI | null>(null);
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [conversationActive, setConversationActive] = useState<{ userId: string; participant: UtilisateurAPI } | null>(null);
+  const [messagesConversation, setMessagesConversation] = useState<MessageAPI[]>([]);
+  const [chargementMessages, setChargementMessages] = useState(false);
+
   // Animations FAB
   const fabRotation = useRef(new Animated.Value(0)).current;
   const fabScale = useRef(new Animated.Value(1)).current;
@@ -329,6 +351,7 @@ export default function Accueil() {
     await Promise.all([
       chargerUtilisateur(),
       chargerPublications(),
+      chargerConversations(),
     ]);
   };
 
@@ -348,6 +371,88 @@ export default function Accueil() {
       console.error('Erreur chargement publications:', error);
     } finally {
       setChargement(false);
+    }
+  };
+
+  const chargerConversations = async () => {
+    try {
+      const reponse = await getConversations();
+      if (reponse.succes && reponse.data) {
+        setConversations(reponse.data.conversations);
+      }
+    } catch (error) {
+      console.error('Erreur chargement conversations:', error);
+    }
+  };
+
+  const handleRechercheDestinataire = async (texte: string) => {
+    setDestinataireRecherche(texte);
+    if (texte.length < 2) {
+      setResultatsRecherche([]);
+      return;
+    }
+    try {
+      const reponse = await rechercherUtilisateurs(texte);
+      if (reponse.succes && reponse.data) {
+        setResultatsRecherche(reponse.data.utilisateurs);
+      }
+    } catch (error) {
+      console.error('Erreur recherche utilisateurs:', error);
+    }
+  };
+
+  const handleEnvoyerMessage = async () => {
+    if (!destinataireSelectionne || !messageContenu.trim() || envoiEnCours) return;
+
+    try {
+      setEnvoiEnCours(true);
+      const reponse = await envoyerMessage(destinataireSelectionne._id, messageContenu.trim());
+      if (reponse.succes) {
+        setMessageContenu('');
+        setDestinataireSelectionne(null);
+        setDestinataireRecherche('');
+        setModalNouvelleConversation(false);
+        await chargerConversations();
+        Alert.alert('Succes', 'Message envoye !');
+      } else {
+        Alert.alert('Erreur', reponse.message || 'Impossible d\'envoyer le message');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Une erreur est survenue');
+    } finally {
+      setEnvoiEnCours(false);
+    }
+  };
+
+  const handleOuvrirConversation = async (conv: Conversation) => {
+    setConversationActive({ userId: conv.participant._id, participant: conv.participant });
+    setChargementMessages(true);
+    try {
+      const reponse = await getMessages(conv.participant._id);
+      if (reponse.succes && reponse.data) {
+        setMessagesConversation(reponse.data.messages);
+      }
+    } catch (error) {
+      console.error('Erreur chargement messages:', error);
+    } finally {
+      setChargementMessages(false);
+    }
+  };
+
+  const handleEnvoyerMessageConversation = async () => {
+    if (!conversationActive || !messageContenu.trim() || envoiEnCours) return;
+
+    try {
+      setEnvoiEnCours(true);
+      const reponse = await envoyerMessage(conversationActive.userId, messageContenu.trim());
+      if (reponse.succes && reponse.data) {
+        setMessagesConversation(prev => [...prev, reponse.data!.message]);
+        setMessageContenu('');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible d\'envoyer le message');
+    } finally {
+      setEnvoiEnCours(false);
     }
   };
 
@@ -387,7 +492,7 @@ export default function Accueil() {
     return `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase();
   };
 
-  const unreadMessages = MOCK_MESSAGES.filter(m => m.nonLu).length;
+  const unreadMessages = conversations.reduce((total, conv) => total + conv.messagesNonLus, 0);
 
   // ============ COMPOSANTS ============
 
@@ -1321,23 +1426,241 @@ export default function Accueil() {
     </View>
   );
 
-  const renderMessagesContent = () => (
-    <View style={styles.section}>
-      <View style={styles.messagesCard}>
-        <View style={styles.messagesHeader}>
-          <Text style={styles.messagesHeaderTitle}>Conversations</Text>
-          <Pressable style={styles.messagesNewBtn}>
-            <Ionicons name="create-outline" size={20} color={couleurs.primaire} />
-          </Pressable>
+  const renderMessagesContent = () => {
+    const conversationsFiltrees = conversations.filter(conv =>
+      rechercheMessage.length < 2 ||
+      `${conv.participant.prenom} ${conv.participant.nom}`.toLowerCase().includes(rechercheMessage.toLowerCase())
+    );
+
+    // Vue conversation active
+    if (conversationActive) {
+      return (
+        <View style={styles.section}>
+          <View style={styles.messagesCard}>
+            <View style={styles.messagesHeader}>
+              <Pressable onPress={() => { setConversationActive(null); setMessagesConversation([]); }}>
+                <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
+              </Pressable>
+              <View style={styles.conversationHeaderInfo}>
+                <Image
+                  source={{ uri: conversationActive.participant.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                  style={styles.conversationHeaderAvatar}
+                />
+                <Text style={styles.messagesHeaderTitle}>
+                  {conversationActive.participant.prenom} {conversationActive.participant.nom}
+                </Text>
+              </View>
+              <View style={{ width: 24 }} />
+            </View>
+            <ScrollView style={styles.messagesConversation} contentContainerStyle={{ paddingVertical: espacements.md }}>
+              {chargementMessages ? (
+                <Text style={styles.chargementText}>Chargement...</Text>
+              ) : messagesConversation.length === 0 ? (
+                <Text style={styles.messagesEmptyText}>Aucun message. Commencez la conversation !</Text>
+              ) : (
+                messagesConversation.map((msg) => (
+                  <View key={msg._id} style={[styles.messageBubble, msg.estMoi ? styles.messageBubbleMoi : styles.messageBubbleAutre]}>
+                    <Text style={[styles.messageBubbleText, msg.estMoi && styles.messageBubbleTextMoi]}>{msg.contenu}</Text>
+                    <Text style={[styles.messageBubbleTime, msg.estMoi && styles.messageBubbleTimeMoi]}>
+                      {new Date(msg.dateCreation).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            <View style={styles.messageInputContainer}>
+              <TextInput
+                style={styles.messageInput}
+                placeholder="Votre message..."
+                placeholderTextColor={couleurs.texteSecondaire}
+                value={messageContenu}
+                onChangeText={setMessageContenu}
+                multiline
+              />
+              <Pressable
+                style={[styles.sendButton, (!messageContenu.trim() || envoiEnCours) && styles.sendButtonDisabled]}
+                onPress={handleEnvoyerMessageConversation}
+                disabled={!messageContenu.trim() || envoiEnCours}
+              >
+                <Ionicons name="send" size={20} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
         </View>
-        <View style={styles.messagesList}>
-          {MOCK_MESSAGES.map((message) => (
-            <MessageRow key={message.id} message={message} />
-          ))}
+      );
+    }
+
+    return (
+      <View style={styles.section}>
+        <View style={styles.messagesCard}>
+          <View style={styles.messagesHeader}>
+            <Text style={styles.messagesHeaderTitle}>Conversations</Text>
+            <Pressable style={styles.messagesNewBtn} onPress={() => setModalNouvelleConversation(true)}>
+              <Ionicons name="create-outline" size={20} color={couleurs.primaire} />
+            </Pressable>
+          </View>
+
+          {/* Barre de recherche */}
+          <View style={styles.messagesSearchContainer}>
+            <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
+            <TextInput
+              style={styles.messagesSearchInput}
+              placeholder="Rechercher une conversation..."
+              placeholderTextColor={couleurs.texteSecondaire}
+              value={rechercheMessage}
+              onChangeText={setRechercheMessage}
+            />
+            {rechercheMessage.length > 0 && (
+              <Pressable onPress={() => setRechercheMessage('')}>
+                <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.messagesList}>
+            {conversationsFiltrees.length === 0 ? (
+              <View style={styles.emptyMessages}>
+                <Ionicons name="chatbubbles-outline" size={48} color={couleurs.texteSecondaire} />
+                <Text style={styles.emptyMessagesText}>
+                  {rechercheMessage.length > 0 ? 'Aucune conversation trouvee' : 'Aucune conversation'}
+                </Text>
+                <Pressable style={styles.startConversationBtn} onPress={() => setModalNouvelleConversation(true)}>
+                  <Text style={styles.startConversationBtnText}>Demarrer une conversation</Text>
+                </Pressable>
+              </View>
+            ) : (
+              conversationsFiltrees.map((conv) => (
+                <Pressable
+                  key={conv._id}
+                  style={[styles.messageRow, conv.messagesNonLus > 0 && styles.messageRowUnread]}
+                  onPress={() => handleOuvrirConversation(conv)}
+                >
+                  <Image
+                    source={{ uri: conv.participant.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                    style={styles.messageAvatar}
+                  />
+                  <View style={styles.messageContent}>
+                    <Text style={[styles.messageExpediteur, conv.messagesNonLus > 0 && styles.messageExpediteurUnread]}>
+                      {conv.participant.prenom} {conv.participant.nom}
+                    </Text>
+                    <Text style={styles.messageDernier} numberOfLines={1}>
+                      {conv.dernierMessage?.contenu || 'Aucun message'}
+                    </Text>
+                  </View>
+                  <View style={styles.messageMeta}>
+                    <Text style={styles.messageDate}>
+                      {conv.dernierMessage ? new Date(conv.dernierMessage.dateCreation).toLocaleDateString('fr-FR') : ''}
+                    </Text>
+                    {conv.messagesNonLus > 0 && (
+                      <View style={styles.messageUnreadBadge}>
+                        <Text style={styles.messageUnreadBadgeText}>{conv.messagesNonLus}</Text>
+                      </View>
+                    )}
+                  </View>
+                </Pressable>
+              ))
+            )}
+          </View>
         </View>
+
+        {/* Modal nouvelle conversation */}
+        <Modal
+          visible={modalNouvelleConversation}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setModalNouvelleConversation(false);
+            setDestinataireSelectionne(null);
+            setDestinataireRecherche('');
+            setMessageContenu('');
+          }}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Nouvelle conversation</Text>
+                <Pressable onPress={() => {
+                  setModalNouvelleConversation(false);
+                  setDestinataireSelectionne(null);
+                  setDestinataireRecherche('');
+                  setMessageContenu('');
+                }}>
+                  <Ionicons name="close" size={24} color={couleurs.texte} />
+                </Pressable>
+              </View>
+
+              {!destinataireSelectionne ? (
+                <>
+                  <View style={styles.modalSearchContainer}>
+                    <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
+                    <TextInput
+                      style={styles.modalSearchInput}
+                      placeholder="Rechercher un utilisateur..."
+                      placeholderTextColor={couleurs.texteSecondaire}
+                      value={destinataireRecherche}
+                      onChangeText={handleRechercheDestinataire}
+                      autoFocus
+                    />
+                  </View>
+                  <ScrollView style={styles.searchResults}>
+                    {resultatsRecherche.map((user) => (
+                      <Pressable
+                        key={user._id}
+                        style={styles.searchResultItem}
+                        onPress={() => setDestinataireSelectionne(user)}
+                      >
+                        <Image
+                          source={{ uri: user.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                          style={styles.searchResultAvatar}
+                        />
+                        <Text style={styles.searchResultName}>{user.prenom} {user.nom}</Text>
+                      </Pressable>
+                    ))}
+                    {destinataireRecherche.length >= 2 && resultatsRecherche.length === 0 && (
+                      <Text style={styles.noResultsText}>Aucun utilisateur trouve</Text>
+                    )}
+                  </ScrollView>
+                </>
+              ) : (
+                <>
+                  <View style={styles.selectedDestinataireContainer}>
+                    <Image
+                      source={{ uri: destinataireSelectionne.avatar || 'https://api.dicebear.com/7.x/shapes/svg?seed=default' }}
+                      style={styles.selectedDestinataireAvatar}
+                    />
+                    <Text style={styles.selectedDestinataireName}>
+                      {destinataireSelectionne.prenom} {destinataireSelectionne.nom}
+                    </Text>
+                    <Pressable onPress={() => setDestinataireSelectionne(null)}>
+                      <Ionicons name="close-circle" size={20} color={couleurs.texteSecondaire} />
+                    </Pressable>
+                  </View>
+                  <TextInput
+                    style={styles.modalMessageInput}
+                    placeholder="Votre message..."
+                    placeholderTextColor={couleurs.texteSecondaire}
+                    value={messageContenu}
+                    onChangeText={setMessageContenu}
+                    multiline
+                    numberOfLines={4}
+                  />
+                  <Pressable
+                    style={[styles.sendMessageBtn, (!messageContenu.trim() || envoiEnCours) && styles.sendMessageBtnDisabled]}
+                    onPress={handleEnvoyerMessage}
+                    disabled={!messageContenu.trim() || envoiEnCours}
+                  >
+                    <Text style={styles.sendMessageBtnText}>
+                      {envoiEnCours ? 'Envoi...' : 'Envoyer'}
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderTabContent = () => {
     switch (ongletActif) {
@@ -2441,6 +2764,236 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     borderRadius: 4,
     backgroundColor: couleurs.primaire,
     marginTop: espacements.xs,
+  },
+  messageUnreadBadge: {
+    backgroundColor: couleurs.primaire,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    marginTop: espacements.xs,
+  },
+  messageUnreadBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: couleurs.blanc,
+  },
+  messagesSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondTertiaire,
+    borderRadius: rayons.md,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    marginHorizontal: espacements.md,
+    marginBottom: espacements.sm,
+    gap: espacements.sm,
+  },
+  messagesSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: couleurs.texte,
+    padding: 0,
+  },
+  emptyMessages: {
+    alignItems: 'center',
+    paddingVertical: espacements.xxl,
+    gap: espacements.md,
+  },
+  emptyMessagesText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+  },
+  messagesEmptyText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+    paddingVertical: espacements.lg,
+  },
+  chargementText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+    paddingVertical: espacements.lg,
+  },
+  startConversationBtn: {
+    backgroundColor: couleurs.primaire,
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+  },
+  startConversationBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.blanc,
+  },
+  conversationHeaderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  conversationHeaderAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  messagesConversation: {
+    flex: 1,
+    maxHeight: 400,
+  },
+  messageBubble: {
+    maxWidth: '80%',
+    padding: espacements.md,
+    borderRadius: rayons.lg,
+    marginBottom: espacements.sm,
+    marginHorizontal: espacements.md,
+  },
+  messageBubbleMoi: {
+    alignSelf: 'flex-end',
+    backgroundColor: couleurs.primaire,
+    borderBottomRightRadius: 4,
+  },
+  messageBubbleAutre: {
+    alignSelf: 'flex-start',
+    backgroundColor: couleurs.fondTertiaire,
+    borderBottomLeftRadius: 4,
+  },
+  messageBubbleText: {
+    fontSize: 14,
+    color: couleurs.texte,
+    lineHeight: 20,
+  },
+  messageBubbleTextMoi: {
+    color: couleurs.blanc,
+  },
+  messageBubbleTime: {
+    fontSize: 10,
+    color: couleurs.texteSecondaire,
+    marginTop: espacements.xs,
+    alignSelf: 'flex-end',
+  },
+  messageBubbleTimeMoi: {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  messageInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: espacements.md,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+    gap: espacements.sm,
+  },
+  messageInput: {
+    flex: 1,
+    backgroundColor: couleurs.fondTertiaire,
+    borderRadius: rayons.lg,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    fontSize: 14,
+    color: couleurs.texte,
+    maxHeight: 100,
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: couleurs.fondTertiaire,
+  },
+  modalSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondTertiaire,
+    borderRadius: rayons.md,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    marginBottom: espacements.md,
+    gap: espacements.sm,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: couleurs.texte,
+    padding: 0,
+  },
+  searchResults: {
+    maxHeight: 300,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: espacements.md,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+    gap: espacements.md,
+  },
+  searchResultAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  searchResultName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: couleurs.texte,
+  },
+  noResultsText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+    paddingVertical: espacements.lg,
+  },
+  selectedDestinataireContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondTertiaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    marginBottom: espacements.md,
+    gap: espacements.sm,
+  },
+  selectedDestinataireAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  selectedDestinataireName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: couleurs.texte,
+  },
+  modalMessageInput: {
+    backgroundColor: couleurs.fondTertiaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    fontSize: 14,
+    color: couleurs.texte,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: espacements.md,
+  },
+  sendMessageBtn: {
+    backgroundColor: couleurs.primaire,
+    borderRadius: rayons.md,
+    paddingVertical: espacements.md,
+    alignItems: 'center',
+  },
+  sendMessageBtnDisabled: {
+    backgroundColor: couleurs.fondTertiaire,
+  },
+  sendMessageBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.blanc,
   },
 
   // Footer

@@ -111,4 +111,81 @@ export const estConnecte = async (): Promise<boolean> => {
   return !!token;
 };
 
+/**
+ * Modifier le profil de l'utilisateur
+ */
+export const modifierProfil = async (
+  donnees: { prenom?: string; nom?: string; email?: string }
+): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
+  const reponse = await api.patch<{ utilisateur: Utilisateur }>('/profil', donnees, true);
+
+  if (reponse.succes && reponse.data) {
+    // Mettre à jour l'utilisateur en local
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.UTILISATEUR,
+      JSON.stringify(reponse.data.utilisateur)
+    );
+  }
+
+  return reponse;
+};
+
+/**
+ * Changer le mot de passe
+ */
+export const modifierMotDePasse = async (
+  motDePasseActuel: string,
+  nouveauMotDePasse: string
+): Promise<ReponseAPI<void>> => {
+  return api.patch<void>('/profil/mot-de-passe', {
+    motDePasseActuel,
+    nouveauMotDePasse,
+    confirmationMotDePasse: nouveauMotDePasse,
+  }, true);
+};
+
+/**
+ * Supprimer le compte
+ */
+export const supprimerCompte = async (
+  motDePasse: string
+): Promise<ReponseAPI<void>> => {
+  const reponse = await api.delete<void>('/profil', true, {
+    motDePasse,
+    confirmation: 'SUPPRIMER MON COMPTE',
+  });
+
+  if (reponse.succes) {
+    await deconnexion();
+  }
+
+  return reponse;
+};
+
+/**
+ * Récupérer les avatars par défaut
+ */
+export const getAvatarsDefaut = async (): Promise<ReponseAPI<{ avatars: string[] }>> => {
+  return api.get<{ avatars: string[] }>('/profil/avatars', false);
+};
+
+/**
+ * Modifier l'avatar
+ */
+export const modifierAvatar = async (
+  avatar: string | null
+): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
+  const reponse = await api.patch<{ utilisateur: Utilisateur }>('/profil/avatar', { avatar }, true);
+
+  if (reponse.succes && reponse.data) {
+    // Mettre à jour l'utilisateur en local
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.UTILISATEUR,
+      JSON.stringify(reponse.data.utilisateur)
+    );
+  }
+
+  return reponse;
+};
+
 export { getToken };
