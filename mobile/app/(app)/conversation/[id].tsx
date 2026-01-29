@@ -377,8 +377,8 @@ export default function ConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -417,6 +417,8 @@ export default function ConversationScreen() {
         renderItem={renderMessage}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.messagesContainer}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => {
           if (messages.length > 0) {
