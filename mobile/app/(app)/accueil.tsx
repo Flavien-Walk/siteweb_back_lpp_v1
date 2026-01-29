@@ -39,6 +39,8 @@ import {
   toggleLikeCommentaire,
   supprimerCommentaire,
   modifierCommentaire,
+  supprimerPublication,
+  modifierPublication,
 } from '../../src/services/publications';
 import {
   Conversation,
@@ -658,11 +660,15 @@ export default function Accueil() {
 
             {/* Input nouveau commentaire */}
             <View style={styles.commentInputContainer}>
-              <View style={styles.commentInputAvatar}>
-                <Text style={styles.commentInputAvatarText}>
-                  {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
-                </Text>
-              </View>
+              {utilisateur?.avatar ? (
+                <Image source={{ uri: utilisateur.avatar }} style={styles.commentInputAvatarImage} />
+              ) : (
+                <View style={styles.commentInputAvatar}>
+                  <Text style={styles.commentInputAvatarText}>
+                    {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
+                  </Text>
+                </View>
+              )}
               <TextInput
                 style={styles.commentInput}
                 placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
@@ -794,7 +800,7 @@ export default function Accueil() {
   };
 
   // ============ PUBLICATION CARD (API) ============
-  const PublicationCard = ({ publication, onUpdate }: { publication: Publication; onUpdate: (pub: Publication) => void }) => {
+  const PublicationCard = ({ publication, onUpdate, onDelete }: { publication: Publication; onUpdate: (pub: Publication) => void; onDelete: (id: string) => void }) => {
     const [liked, setLiked] = useState(publication.aLike);
     const [nbLikes, setNbLikes] = useState(publication.nbLikes);
     const [showComments, setShowComments] = useState(false);
@@ -805,6 +811,10 @@ export default function Accueil() {
     const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
     const [editingComment, setEditingComment] = useState<string | null>(null);
     const [editingContent, setEditingContent] = useState('');
+    const [editingPost, setEditingPost] = useState(false);
+    const [editingPostContent, setEditingPostContent] = useState(publication.contenu);
+    const [showPostMenu, setShowPostMenu] = useState(false);
+    const [notification, setNotification] = useState<{ type: 'succes' | 'erreur'; message: string } | null>(null);
 
     const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
     const avatarUrl = publication.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${publication.auteur._id}&backgroundColor=6366f1`;
@@ -987,6 +997,59 @@ export default function Accueil() {
       return utilisateur && utilisateur.id === auteurId;
     };
 
+    const isMyPost = () => {
+      return utilisateur && utilisateur.id === publication.auteur._id;
+    };
+
+    const showNotification = (type: 'succes' | 'erreur', message: string) => {
+      setNotification({ type, message });
+      setTimeout(() => setNotification(null), 3000);
+    };
+
+    const handleEditPost = async () => {
+      if (!editingPostContent.trim()) return;
+      try {
+        const reponse = await modifierPublication(publication._id, editingPostContent.trim());
+        if (reponse.succes && reponse.data) {
+          onUpdate(reponse.data.publication);
+          setEditingPost(false);
+          showNotification('succes', 'Publication modifiee avec succes');
+        } else {
+          showNotification('erreur', reponse.message || 'Erreur lors de la modification');
+        }
+      } catch (error) {
+        showNotification('erreur', 'Impossible de modifier la publication');
+      }
+    };
+
+    const handleDeletePost = () => {
+      setShowPostMenu(false);
+      Alert.alert(
+        'Supprimer la publication',
+        'Voulez-vous vraiment supprimer cette publication ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Supprimer',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const reponse = await supprimerPublication(publication._id);
+                if (reponse.succes) {
+                  onDelete(publication._id);
+                  showNotification('succes', 'Publication supprimee');
+                } else {
+                  showNotification('erreur', reponse.message || 'Erreur lors de la suppression');
+                }
+              } catch (error) {
+                showNotification('erreur', 'Impossible de supprimer la publication');
+              }
+            },
+          },
+        ]
+      );
+    };
+
     const handleShare = async () => {
       try {
         await Share.share({
@@ -994,12 +1057,28 @@ export default function Accueil() {
           title: `Post de ${auteurNom}`,
         });
       } catch (error) {
-        Alert.alert('Erreur', 'Impossible de partager ce contenu');
+        showNotification('erreur', 'Impossible de partager ce contenu');
       }
     };
 
+    const userAvatarUrl = utilisateur?.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${utilisateur?.id || 'default'}&backgroundColor=6366f1`;
+
     return (
       <View style={styles.postCard}>
+        {/* Notification banner */}
+        {notification && (
+          <View style={[styles.notificationBanner, notification.type === 'succes' ? styles.notificationSucces : styles.notificationErreur]}>
+            <Ionicons
+              name={notification.type === 'succes' ? 'checkmark-circle' : 'alert-circle'}
+              size={18}
+              color={notification.type === 'succes' ? '#10b981' : '#ef4444'}
+            />
+            <Text style={[styles.notificationText, notification.type === 'succes' ? styles.notificationTextSucces : styles.notificationTextErreur]}>
+              {notification.message}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.postHeader}>
           <Image source={{ uri: avatarUrl }} style={styles.postAvatar} />
           <View style={styles.postAuteurContainer}>
@@ -1013,11 +1092,60 @@ export default function Accueil() {
             </View>
             <Text style={styles.postTimestamp}>{formatDate(publication.dateCreation)}</Text>
           </View>
-          <Pressable style={styles.postMore}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
-          </Pressable>
+          {isMyPost() && (
+            <Pressable style={styles.postMore} onPress={() => setShowPostMenu(!showPostMenu)}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
+            </Pressable>
+          )}
         </View>
-        <Text style={styles.postContenu}>{publication.contenu}</Text>
+
+        {/* Menu contextuel pour modifier/supprimer */}
+        {showPostMenu && isMyPost() && (
+          <View style={styles.postMenu}>
+            <Pressable
+              style={styles.postMenuItem}
+              onPress={() => {
+                setShowPostMenu(false);
+                setEditingPost(true);
+              }}
+            >
+              <Ionicons name="pencil" size={18} color={couleurs.primaire} />
+              <Text style={styles.postMenuItemText}>Modifier</Text>
+            </Pressable>
+            <Pressable style={styles.postMenuItem} onPress={handleDeletePost}>
+              <Ionicons name="trash-outline" size={18} color={couleurs.erreur} />
+              <Text style={[styles.postMenuItemText, { color: couleurs.erreur }]}>Supprimer</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Mode edition du post */}
+        {editingPost ? (
+          <View style={styles.editPostContainer}>
+            <TextInput
+              style={styles.editPostInput}
+              value={editingPostContent}
+              onChangeText={setEditingPostContent}
+              multiline
+              maxLength={5000}
+              autoFocus
+            />
+            <View style={styles.editPostActions}>
+              <Pressable style={styles.editCancelBtn} onPress={() => { setEditingPost(false); setEditingPostContent(publication.contenu); }}>
+                <Text style={styles.editCancelText}>Annuler</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.editSaveBtn, !editingPostContent.trim() && styles.editSaveBtnDisabled]}
+                onPress={handleEditPost}
+                disabled={!editingPostContent.trim()}
+              >
+                <Text style={styles.editSaveText}>Enregistrer</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.postContenu}>{publication.contenu}</Text>
+        )}
         {publication.media && (
           <Image source={{ uri: publication.media }} style={styles.postImage} />
         )}
@@ -1067,11 +1195,15 @@ export default function Accueil() {
             )}
 
             <View style={styles.commentInputContainer}>
-              <View style={styles.commentInputAvatar}>
-                <Text style={styles.commentInputAvatarText}>
-                  {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
-                </Text>
-              </View>
+              {utilisateur?.avatar ? (
+                <Image source={{ uri: utilisateur.avatar }} style={styles.commentInputAvatarImage} />
+              ) : (
+                <View style={styles.commentInputAvatar}>
+                  <Text style={styles.commentInputAvatarText}>
+                    {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
+                  </Text>
+                </View>
+              )}
               <TextInput
                 style={styles.commentInput}
                 placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
@@ -1509,6 +1641,10 @@ export default function Accueil() {
     setPublications(prev => prev.map(p => p._id === updatedPub._id ? updatedPub : p));
   };
 
+  const handleDeletePublication = (id: string) => {
+    setPublications(prev => prev.filter(p => p._id !== id));
+  };
+
   const renderFeedContent = () => (
     <>
       {renderStories()}
@@ -1531,6 +1667,7 @@ export default function Accueil() {
               key={publication._id}
               publication={publication}
               onUpdate={handleUpdatePublication}
+              onDelete={handleDeletePublication}
             />
           ))
         )}
@@ -2625,6 +2762,89 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 12,
     color: couleurs.blanc,
     fontWeight: '600',
+  },
+
+  // Notification banner
+  notificationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+    marginBottom: espacements.sm,
+    gap: espacements.sm,
+  },
+  notificationSucces: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  notificationErreur: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  notificationText: {
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
+  },
+  notificationTextSucces: {
+    color: '#10b981',
+  },
+  notificationTextErreur: {
+    color: '#ef4444',
+  },
+
+  // Post menu
+  postMenu: {
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    marginBottom: espacements.sm,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    overflow: 'hidden',
+  },
+  postMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    gap: espacements.sm,
+  },
+  postMenuItemText: {
+    fontSize: 14,
+    color: couleurs.texte,
+  },
+
+  // Edit post
+  editPostContainer: {
+    marginBottom: espacements.md,
+  },
+  editPostInput: {
+    backgroundColor: couleurs.fond,
+    borderWidth: 1,
+    borderColor: couleurs.primaire,
+    borderRadius: rayons.md,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.md,
+    fontSize: 14,
+    color: couleurs.texte,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  editPostActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: espacements.sm,
+    marginTop: espacements.sm,
+  },
+
+  // Comment input avatar image
+  commentInputAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
 
   // Hero

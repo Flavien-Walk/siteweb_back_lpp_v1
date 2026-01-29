@@ -89,6 +89,16 @@ export const supprimerPublication = async (
 };
 
 /**
+ * Modifier une publication
+ */
+export const modifierPublication = async (
+  id: string,
+  contenu: string
+): Promise<ReponseAPI<{ publication: Publication }>> => {
+  return api.patch(`/publications/${id}`, { contenu }, true);
+};
+
+/**
  * Liker/unliker une publication
  */
 export const toggleLikePublication = async (

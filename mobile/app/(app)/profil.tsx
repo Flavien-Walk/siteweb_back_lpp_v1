@@ -24,6 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import {
@@ -113,6 +114,45 @@ export default function Profil() {
     setModalAvatar(true);
     if (avatarsDefaut.length === 0) {
       await chargerAvatars();
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      // Demander la permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        afficherMessage('erreur', 'Permission d\'acces a la galerie requise');
+        return;
+      }
+
+      // Ouvrir la galerie
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        setChargementAvatar(true);
+        // Pour l'instant, utiliser l'URI locale comme avatar
+        // Note: En production, il faudrait uploader l'image sur un serveur
+        const imageUri = result.assets[0].uri;
+        const reponse = await modifierAvatar(imageUri);
+        if (reponse.succes && reponse.data) {
+          setUtilisateur(reponse.data.utilisateur);
+          setModalAvatar(false);
+          afficherMessage('succes', 'Photo de profil mise a jour !');
+        } else {
+          afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
+        }
+        setChargementAvatar(false);
+      }
+    } catch (error) {
+      afficherMessage('erreur', 'Erreur lors de la selection de l\'image');
+      setChargementAvatar(false);
     }
   };
 
@@ -676,6 +716,14 @@ export default function Profil() {
                 </View>
               ) : (
                 <>
+                  {/* Bouton pour choisir depuis la galerie */}
+                  <Pressable style={styles.galleryButton} onPress={handlePickImage}>
+                    <Ionicons name="images-outline" size={24} color={couleurs.primaire} />
+                    <Text style={styles.galleryButtonText}>Choisir depuis la galerie</Text>
+                  </Pressable>
+
+                  <Text style={styles.avatarSectionTitle}>Ou choisissez un avatar</Text>
+
                   <ScrollView contentContainerStyle={styles.avatarGrid}>
                     {/* Option pour supprimer l'avatar */}
                     <Pressable
@@ -1230,5 +1278,30 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   avatarOptionLabel: {
     fontSize: 12,
     color: couleurs.texteSecondaire,
+  },
+  galleryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: couleurs.fond,
+    borderWidth: 2,
+    borderColor: couleurs.primaire,
+    borderStyle: 'dashed',
+    borderRadius: rayons.lg,
+    paddingVertical: espacements.lg,
+    marginBottom: espacements.lg,
+    gap: espacements.sm,
+  },
+  galleryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: couleurs.primaire,
+  },
+  avatarSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+    marginBottom: espacements.md,
+    textAlign: 'center',
   },
 });
