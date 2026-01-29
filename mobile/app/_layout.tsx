@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/contextes/AuthContexte';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
+import { UserProvider } from '../src/contexts/UserContext';
 
 // Composant interne qui utilise le theme
 function AppContent() {
@@ -34,7 +35,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <AppContent />
+            <UserProvider>
+              <AppContent />
+            </UserProvider>
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>

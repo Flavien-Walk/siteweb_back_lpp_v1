@@ -8,6 +8,7 @@ import { STORAGE_KEYS } from '../constantes/config';
 
 // Types
 export type Role = 'user' | 'admin';
+export type StatutUtilisateur = 'visiteur' | 'entrepreneur';
 
 export interface Utilisateur {
   id: string;
@@ -16,6 +17,7 @@ export interface Utilisateur {
   email: string;
   avatar?: string;
   role: Role;
+  statut?: StatutUtilisateur;
   provider: 'local' | 'google' | 'facebook' | 'apple';
   emailVerifie: boolean;
 }
@@ -189,6 +191,35 @@ export const modifierAvatar = async (
   }
 
   return reponse;
+};
+
+/**
+ * Modifier le statut de l'utilisateur (visiteur ou entrepreneur)
+ */
+export const modifierStatut = async (
+  statut: StatutUtilisateur
+): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
+  const reponse = await api.patch<{ utilisateur: Utilisateur }>('/profil/statut', { statut }, true);
+
+  if (reponse.succes && reponse.data) {
+    // Mettre à jour l'utilisateur en local
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.UTILISATEUR,
+      JSON.stringify(reponse.data.utilisateur)
+    );
+  }
+
+  return reponse;
+};
+
+/**
+ * Mettre à jour l'utilisateur local (pour synchronisation)
+ */
+export const setUtilisateurLocal = async (utilisateur: Utilisateur): Promise<void> => {
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.UTILISATEUR,
+    JSON.stringify(utilisateur)
+  );
 };
 
 export { getToken };

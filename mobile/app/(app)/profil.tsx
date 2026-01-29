@@ -27,22 +27,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useUser } from '../../src/contexts/UserContext';
 import {
-  deconnexion,
-  getUtilisateurLocal,
   Utilisateur,
   modifierProfil,
   modifierMotDePasse,
   supprimerCompte,
   getAvatarsDefaut,
   modifierAvatar,
+  modifierStatut,
+  StatutUtilisateur,
 } from '../../src/services/auth';
 
 type Section = 'profil' | 'apparence' | 'securite' | 'confidentialite';
 
 export default function Profil() {
   const { couleurs, mode, toggleTheme, isDark } = useTheme();
-  const [utilisateur, setUtilisateur] = useState<Utilisateur | null>(null);
+  const { utilisateur, updateUser, logout } = useUser();
   const [sectionActive, setSectionActive] = useState<Section>('profil');
   const [chargement, setChargement] = useState(false);
   const [message, setMessage] = useState<{ type: 'succes' | 'erreur'; texte: string } | null>(null);
@@ -68,18 +69,12 @@ export default function Profil() {
   const [chargementAvatar, setChargementAvatar] = useState(false);
 
   useEffect(() => {
-    chargerUtilisateur();
-  }, []);
-
-  const chargerUtilisateur = async () => {
-    const user = await getUtilisateurLocal();
-    if (user) {
-      setUtilisateur(user);
-      setPrenom(user.prenom);
-      setNom(user.nom);
-      setEmail(user.email);
+    if (utilisateur) {
+      setPrenom(utilisateur.prenom);
+      setNom(utilisateur.nom);
+      setEmail(utilisateur.email);
     }
-  };
+  }, [utilisateur]);
 
   const chargerAvatars = async () => {
     try {
@@ -97,7 +92,7 @@ export default function Profil() {
       setChargementAvatar(true);
       const reponse = await modifierAvatar(avatar);
       if (reponse.succes && reponse.data) {
-        setUtilisateur(reponse.data.utilisateur);
+        updateUser(reponse.data.utilisateur);
         setModalAvatar(false);
         afficherMessage('succes', 'Avatar mis a jour !');
       } else {
@@ -142,7 +137,7 @@ export default function Profil() {
         const imageUri = result.assets[0].uri;
         const reponse = await modifierAvatar(imageUri);
         if (reponse.succes && reponse.data) {
-          setUtilisateur(reponse.data.utilisateur);
+          updateUser(reponse.data.utilisateur);
           setModalAvatar(false);
           afficherMessage('succes', 'Photo de profil mise a jour !');
         } else {
@@ -171,7 +166,7 @@ export default function Profil() {
           text: 'Deconnecter',
           style: 'destructive',
           onPress: async () => {
-            await deconnexion();
+            await logout();
             router.replace('/(auth)/connexion');
           },
         },
@@ -258,7 +253,7 @@ export default function Profil() {
             setChargement(false);
 
             if (reponse.succes) {
-              await deconnexion();
+              await logout();
               router.replace('/(auth)/connexion');
             } else {
               afficherMessage('erreur', reponse.message || 'Erreur lors de la suppression');

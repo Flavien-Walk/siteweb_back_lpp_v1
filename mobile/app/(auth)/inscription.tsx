@@ -93,7 +93,8 @@ export default function Inscription() {
 
       if (reponse.succes && reponse.data) {
         setUtilisateur(reponse.data.utilisateur);
-        router.replace('/(app)/accueil');
+        // Rediriger vers le choix du statut apres inscription
+        router.replace('/(app)/choix-statut');
       } else {
         setErreur(reponse.message || 'Erreur lors de l\'inscription');
         if (reponse.erreurs) {

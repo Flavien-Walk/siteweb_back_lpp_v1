@@ -7,6 +7,7 @@ import api, { ReponseAPI } from './api';
 
 // Types
 export type Role = 'user' | 'admin';
+export type StatutUtilisateur = 'visiteur' | 'entrepreneur';
 
 export interface Auteur {
   _id: string;
@@ -14,6 +15,7 @@ export interface Auteur {
   nom: string;
   avatar?: string;
   role?: Role;
+  statut?: StatutUtilisateur;
 }
 
 export interface Publication {

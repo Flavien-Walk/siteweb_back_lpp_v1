@@ -27,7 +27,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
-import { getUtilisateurLocal, Utilisateur } from '../../src/services/auth';
+import { useUser } from '../../src/contexts/UserContext';
+import { Utilisateur } from '../../src/services/auth';
 import {
   Publication,
   Commentaire as CommentaireAPI,
@@ -294,9 +295,9 @@ const TRENDING_STARTUPS = [
 
 export default function Accueil() {
   const { couleurs } = useTheme();
+  const { utilisateur, needsStatut, refreshUser } = useUser();
   const styles = createStyles(couleurs);
 
-  const [utilisateur, setUtilisateur] = useState<Utilisateur | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [ongletActif, setOngletActif] = useState<OngletActif>('feed');
   const [recherche, setRecherche] = useState('');
@@ -342,6 +343,13 @@ export default function Accueil() {
     { key: 'messages', label: 'Messages', icon: 'chatbubbles-outline' },
   ];
 
+  // Rediriger vers le choix de statut si necessaire
+  useEffect(() => {
+    if (needsStatut) {
+      router.replace('/(app)/choix-statut');
+    }
+  }, [needsStatut]);
+
   useEffect(() => {
     chargerDonnees();
     Animated.timing(fadeAnim, {
@@ -353,15 +361,9 @@ export default function Accueil() {
 
   const chargerDonnees = async () => {
     await Promise.all([
-      chargerUtilisateur(),
       chargerPublications(),
       chargerConversations(),
     ]);
-  };
-
-  const chargerUtilisateur = async () => {
-    const user = await getUtilisateurLocal();
-    setUtilisateur(user);
   };
 
   const chargerPublications = async () => {
@@ -1098,6 +1100,21 @@ export default function Accueil() {
                   <Text style={styles.adminBadgeText}>Admin LPP</Text>
                 </View>
               )}
+              {publication.auteur.role !== 'admin' && publication.auteur.statut && (
+                <View style={[
+                  styles.statutBadge,
+                  publication.auteur.statut === 'entrepreneur' && styles.statutBadgeEntrepreneur
+                ]}>
+                  <Ionicons
+                    name={publication.auteur.statut === 'entrepreneur' ? 'rocket' : 'compass'}
+                    size={10}
+                    color="#fff"
+                  />
+                  <Text style={styles.statutBadgeText}>
+                    {publication.auteur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
+                  </Text>
+                </View>
+              )}
               {publication.auteurType === 'Projet' && (
                 <View style={styles.startupBadge}>
                   <Text style={styles.startupBadgeText}>Startup</Text>
@@ -1296,6 +1313,16 @@ export default function Accueil() {
                                       <Text style={styles.adminBadgeSmallText}>Admin</Text>
                                     </View>
                                   )}
+                                  {!commentIsAdmin && comment.auteur.statut && (
+                                    <View style={[
+                                      styles.statutBadgeSmall,
+                                      comment.auteur.statut === 'entrepreneur' && styles.statutBadgeSmallEntrepreneur
+                                    ]}>
+                                      <Text style={styles.statutBadgeSmallText}>
+                                        {comment.auteur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
+                                      </Text>
+                                    </View>
+                                  )}
                                 </View>
                                 {canEditDeleteComment && (
                                   <View style={styles.commentActionsMenu}>
@@ -1401,6 +1428,16 @@ export default function Accueil() {
                                         <View style={styles.adminBadgeSmall}>
                                           <Ionicons name="shield-checkmark" size={10} color="#fff" />
                                           <Text style={styles.adminBadgeSmallText}>Admin</Text>
+                                        </View>
+                                      )}
+                                      {!replyIsAdmin && reponse.auteur.statut && (
+                                        <View style={[
+                                          styles.statutBadgeSmall,
+                                          reponse.auteur.statut === 'entrepreneur' && styles.statutBadgeSmallEntrepreneur
+                                        ]}>
+                                          <Text style={styles.statutBadgeSmallText}>
+                                            {reponse.auteur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
+                                          </Text>
                                         </View>
                                       )}
                                     </View>
@@ -2601,6 +2638,38 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   adminBadgeSmallText: {
     fontSize: 8,
     fontWeight: '700',
+    color: '#fff',
+  },
+  statutBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B981',
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 2,
+    borderRadius: rayons.sm,
+    gap: 4,
+  },
+  statutBadgeEntrepreneur: {
+    backgroundColor: '#F59E0B',
+  },
+  statutBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  statutBadgeSmall: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: rayons.xs,
+    marginLeft: 4,
+  },
+  statutBadgeSmallEntrepreneur: {
+    backgroundColor: '#F59E0B',
+  },
+  statutBadgeSmallText: {
+    fontSize: 8,
+    fontWeight: '600',
     color: '#fff',
   },
   commentAuteurRow: {
