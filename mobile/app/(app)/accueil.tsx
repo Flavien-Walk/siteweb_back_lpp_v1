@@ -412,7 +412,7 @@ export default function Accueil() {
 
     try {
       setEnvoiEnCours(true);
-      const reponse = await envoyerMessage(destinataireSelectionne._id, messageContenu.trim());
+      const reponse = await envoyerMessage(messageContenu.trim(), { destinataireId: destinataireSelectionne._id });
       if (reponse.succes) {
         setMessageContenu('');
         setDestinataireSelectionne(null);
@@ -431,18 +431,11 @@ export default function Accueil() {
   };
 
   const handleOuvrirConversation = async (conv: Conversation) => {
-    setConversationActive({ userId: conv.participant._id, participant: conv.participant });
-    setChargementMessages(true);
-    try {
-      const reponse = await getMessages(conv.participant._id);
-      if (reponse.succes && reponse.data) {
-        setMessagesConversation(reponse.data.messages);
-      }
-    } catch (error) {
-      console.error('Erreur chargement messages:', error);
-    } finally {
-      setChargementMessages(false);
-    }
+    // Rediriger vers le nouvel ecran de conversation
+    router.push({
+      pathname: '/(app)/conversation/[id]',
+      params: { id: conv._id },
+    });
   };
 
   const handleEnvoyerMessageConversation = async () => {
@@ -450,7 +443,7 @@ export default function Accueil() {
 
     try {
       setEnvoiEnCours(true);
-      const reponse = await envoyerMessage(conversationActive.userId, messageContenu.trim());
+      const reponse = await envoyerMessage(messageContenu.trim(), { destinataireId: conversationActive.userId });
       if (reponse.succes && reponse.data) {
         setMessagesConversation(prev => [...prev, reponse.data!.message]);
         setMessageContenu('');
@@ -1650,6 +1643,15 @@ export default function Accueil() {
     </View>
   );
 
+  const handleOngletPress = (key: OngletActif) => {
+    if (key === 'messages') {
+      // Ouvrir l'ecran de messagerie full screen
+      router.push('/(app)/messages');
+    } else {
+      setOngletActif(key);
+    }
+  };
+
   const renderNavigation = () => (
     <View style={styles.navigation}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navContent}>
@@ -1657,7 +1659,7 @@ export default function Accueil() {
           <Pressable
             key={onglet.key}
             style={[styles.navTab, ongletActif === onglet.key && styles.navTabActive]}
-            onPress={() => setOngletActif(onglet.key)}
+            onPress={() => handleOngletPress(onglet.key)}
           >
             <Ionicons
               name={onglet.icon}
@@ -1820,7 +1822,7 @@ export default function Accueil() {
   const renderMessagesContent = () => {
     const conversationsFiltrees = conversations.filter(conv =>
       rechercheMessage.length < 2 ||
-      `${conv.participant.prenom} ${conv.participant.nom}`.toLowerCase().includes(rechercheMessage.toLowerCase())
+      (conv.participant && `${conv.participant.prenom} ${conv.participant.nom}`.toLowerCase().includes(rechercheMessage.toLowerCase()))
     );
 
     // Vue conversation active
@@ -1927,12 +1929,12 @@ export default function Accueil() {
                   onPress={() => handleOuvrirConversation(conv)}
                 >
                   <Image
-                    source={{ uri: conv.participant.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
+                    source={{ uri: conv.participant?.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
                     style={styles.messageAvatar}
                   />
                   <View style={styles.messageContent}>
                     <Text style={[styles.messageExpediteur, conv.messagesNonLus > 0 && styles.messageExpediteurUnread]}>
-                      {conv.participant.prenom} {conv.participant.nom}
+                      {conv.estGroupe ? conv.nomGroupe : `${conv.participant?.prenom || ''} ${conv.participant?.nom || ''}`}
                     </Text>
                     <Text style={styles.messageDernier} numberOfLines={1}>
                       {conv.dernierMessage?.contenu || 'Aucun message'}

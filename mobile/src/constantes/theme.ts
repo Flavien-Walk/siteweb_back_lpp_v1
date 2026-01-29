@@ -61,6 +61,7 @@ export const espacements = {
 };
 
 export const rayons = {
+  xs: 4,
   sm: 8,
   md: 12,
   lg: 16,

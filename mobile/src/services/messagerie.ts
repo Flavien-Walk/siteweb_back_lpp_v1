@@ -1,6 +1,6 @@
 /**
  * Service Messagerie - La Première Pierre Mobile
- * Gestion des conversations et messages
+ * Gestion des conversations, groupes et messages
  */
 
 import { api, ReponseAPI } from './api';
@@ -13,25 +13,34 @@ export interface Utilisateur {
   avatar?: string;
 }
 
+export type TypeMessage = 'texte' | 'image' | 'systeme';
+
 export interface Message {
   _id: string;
   expediteur: Utilisateur;
+  type: TypeMessage;
   contenu: string;
-  lu: boolean;
+  estLu: boolean;
+  lecteurs: string[];
   dateCreation: string;
   estMoi: boolean;
 }
 
 export interface Conversation {
   _id: string;
-  participant: Utilisateur;
+  estGroupe: boolean;
+  nomGroupe?: string;
+  imageGroupe?: string;
+  participant?: Utilisateur; // Pour les conversations privées
+  participants?: Utilisateur[]; // Pour les groupes
   dernierMessage?: {
     contenu: string;
     expediteur: string;
     dateCreation: string;
-    lu: boolean;
+    type: TypeMessage;
   };
   messagesNonLus: number;
+  estMuet: boolean;
   dateMiseAJour: string;
 }
 
@@ -40,7 +49,13 @@ interface ConversationsResponse {
 }
 
 interface MessagesResponse {
-  participant: Utilisateur;
+  conversation: {
+    _id: string;
+    estGroupe: boolean;
+    nomGroupe?: string;
+    imageGroupe?: string;
+    participants: Utilisateur[];
+  };
   messages: Message[];
   pagination: {
     page: number;
@@ -63,6 +78,15 @@ interface RechercheUtilisateursResponse {
   utilisateurs: Utilisateur[];
 }
 
+interface ConversationPriveeResponse {
+  conversation: Conversation;
+  participant: Utilisateur;
+}
+
+interface GroupeResponse {
+  groupe: Conversation;
+}
+
 /**
  * Récupérer la liste des conversations
  */
@@ -71,29 +95,34 @@ export const getConversations = async (): Promise<ReponseAPI<ConversationsRespon
 };
 
 /**
- * Récupérer les messages d'une conversation avec un utilisateur
+ * Récupérer les messages d'une conversation
  */
 export const getMessages = async (
-  userId: string,
+  conversationId: string,
   page = 1,
   limit = 50
 ): Promise<ReponseAPI<MessagesResponse>> => {
   return api.get<MessagesResponse>(
-    `/messagerie/conversations/${userId}?page=${page}&limit=${limit}`,
+    `/messagerie/conversations/${conversationId}?page=${page}&limit=${limit}`,
     true
   );
 };
 
 /**
- * Envoyer un message
+ * Envoyer un message dans une conversation ou à un nouveau destinataire
  */
 export const envoyerMessage = async (
-  destinataireId: string,
-  contenu: string
+  contenu: string,
+  options: { conversationId?: string; destinataireId?: string; type?: TypeMessage }
 ): Promise<ReponseAPI<EnvoyerMessageResponse>> => {
   return api.post<EnvoyerMessageResponse>(
     '/messagerie/envoyer',
-    { destinataireId, contenu },
+    {
+      contenu,
+      conversationId: options.conversationId,
+      destinataireId: options.destinataireId,
+      type: options.type || 'texte',
+    },
     true
   );
 };
@@ -108,6 +137,19 @@ export const marquerConversationLue = async (
 };
 
 /**
+ * Toggle sourdine d'une conversation
+ */
+export const toggleMuetConversation = async (
+  conversationId: string
+): Promise<ReponseAPI<{ estMuet: boolean }>> => {
+  return api.patch<{ estMuet: boolean }>(
+    `/messagerie/conversations/${conversationId}/muet`,
+    {},
+    true
+  );
+};
+
+/**
  * Récupérer le nombre de messages non lus
  */
 export const getNombreNonLus = async (): Promise<ReponseAPI<NonLusResponse>> => {
@@ -115,14 +157,83 @@ export const getNombreNonLus = async (): Promise<ReponseAPI<NonLusResponse>> => 
 };
 
 /**
- * Rechercher des utilisateurs par nom/prénom
+ * Obtenir ou créer une conversation privée avec un utilisateur
+ */
+export const getOuCreerConversationPrivee = async (
+  userId: string
+): Promise<ReponseAPI<ConversationPriveeResponse>> => {
+  return api.get<ConversationPriveeResponse>(
+    `/messagerie/conversation-privee/${userId}`,
+    true
+  );
+};
+
+/**
+ * Rechercher des utilisateurs pour nouvelle conversation
  */
 export const rechercherUtilisateurs = async (
-  recherche: string,
-  limit = 10
+  recherche: string
 ): Promise<ReponseAPI<RechercheUtilisateursResponse>> => {
   return api.get<RechercheUtilisateursResponse>(
-    `/utilisateurs/recherche?q=${encodeURIComponent(recherche)}&limit=${limit}`,
+    `/messagerie/rechercher-utilisateurs?q=${encodeURIComponent(recherche)}`,
+    true
+  );
+};
+
+// ===== Groupes =====
+
+/**
+ * Créer un groupe
+ */
+export const creerGroupe = async (
+  nom: string,
+  participantsIds: string[],
+  imageGroupe?: string
+): Promise<ReponseAPI<GroupeResponse>> => {
+  return api.post<GroupeResponse>(
+    '/messagerie/groupes',
+    { nom, participants: participantsIds, imageGroupe },
+    true
+  );
+};
+
+/**
+ * Modifier un groupe
+ */
+export const modifierGroupe = async (
+  groupeId: string,
+  donnees: { nom?: string; imageGroupe?: string | null }
+): Promise<ReponseAPI<GroupeResponse>> => {
+  return api.patch<GroupeResponse>(
+    `/messagerie/groupes/${groupeId}`,
+    donnees,
+    true
+  );
+};
+
+/**
+ * Ajouter des participants à un groupe
+ */
+export const ajouterParticipantsGroupe = async (
+  groupeId: string,
+  participantsIds: string[]
+): Promise<ReponseAPI<{ participantsAjoutes: number }>> => {
+  return api.post<{ participantsAjoutes: number }>(
+    `/messagerie/groupes/${groupeId}/participants`,
+    { participants: participantsIds },
+    true
+  );
+};
+
+/**
+ * Retirer un participant ou quitter un groupe
+ */
+export const retirerParticipantGroupe = async (
+  groupeId: string,
+  participantId: string
+): Promise<ReponseAPI<void>> => {
+  return api.delete<void>(
+    `/messagerie/groupes/${groupeId}/participants/${participantId}`,
     true
   );
 };
