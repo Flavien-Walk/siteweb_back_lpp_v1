@@ -4,6 +4,9 @@ import bcrypt from 'bcryptjs';
 // Types pour les providers OAuth
 export type ProviderOAuth = 'local' | 'google' | 'facebook' | 'apple';
 
+// Types pour les rôles
+export type Role = 'user' | 'admin';
+
 // Interface pour le document Utilisateur
 export interface IUtilisateur extends Document {
   _id: mongoose.Types.ObjectId;
@@ -14,10 +17,12 @@ export interface IUtilisateur extends Document {
   provider: ProviderOAuth;
   providerId?: string;
   avatar?: string;
+  role: Role;
   cguAcceptees: boolean;
   dateCreation: Date;
   dateMiseAJour: Date;
   comparerMotDePasse(motDePasseCandidat: string): Promise<boolean>;
+  isAdmin(): boolean;
 }
 
 // Schema Mongoose
@@ -66,6 +71,11 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       type: String,
       default: null,
     },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+    },
     cguAcceptees: {
       type: Boolean,
       required: [true, 'Vous devez accepter les CGU'],
@@ -111,6 +121,11 @@ utilisateurSchema.methods.comparerMotDePasse = async function (
 ): Promise<boolean> {
   if (!this.motDePasse) return false;
   return bcrypt.compare(motDePasseCandidat, this.motDePasse);
+};
+
+// Methode pour verifier si l'utilisateur est admin
+utilisateurSchema.methods.isAdmin = function (): boolean {
+  return this.role === 'admin';
 };
 
 // Methode pour transformer en JSON (retirer le mot de passe)

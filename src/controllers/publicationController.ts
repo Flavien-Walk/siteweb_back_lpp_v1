@@ -53,7 +53,7 @@ export const getPublications = async (
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar')
+        .populate('auteur', 'prenom nom avatar role')
         .populate('projet', 'nom image'),
       Publication.countDocuments(filtre),
     ]);
@@ -104,7 +104,7 @@ export const getPublication = async (
     }
 
     const publication = await Publication.findById(id)
-      .populate('auteur', 'prenom nom avatar')
+      .populate('auteur', 'prenom nom avatar role')
       .populate('projet', 'nom image');
 
     if (!publication) {
@@ -155,7 +155,7 @@ export const creerPublication = async (
 
     // Récupérer avec les infos de l'auteur
     const publicationComplete = await Publication.findById(publication._id)
-      .populate('auteur', 'prenom nom avatar');
+      .populate('auteur', 'prenom nom avatar role');
 
     res.status(201).json({
       succes: true,
@@ -196,8 +196,11 @@ export const supprimerPublication = async (
       throw new ErreurAPI('Publication non trouvée.', 404);
     }
 
-    // Vérifier que l'utilisateur est l'auteur
-    if (publication.auteur.toString() !== userId.toString()) {
+    // Vérifier que l'utilisateur est l'auteur ou admin
+    const isAuteur = publication.auteur.toString() === userId.toString();
+    const isAdmin = req.utilisateur!.role === 'admin';
+
+    if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez supprimer que vos propres publications.', 403);
     }
 
@@ -209,7 +212,7 @@ export const supprimerPublication = async (
 
     res.json({
       succes: true,
-      message: 'Publication supprimée avec succès.',
+      message: isAdmin && !isAuteur ? 'Publication supprimée par un administrateur.' : 'Publication supprimée avec succès.',
     });
   } catch (error) {
     next(error);
@@ -249,8 +252,11 @@ export const modifierPublication = async (
       throw new ErreurAPI('Publication non trouvée.', 404);
     }
 
-    // Vérifier que l'utilisateur est l'auteur
-    if (publication.auteur.toString() !== userId.toString()) {
+    // Vérifier que l'utilisateur est l'auteur ou admin
+    const isAuteur = publication.auteur.toString() === userId.toString();
+    const isAdmin = req.utilisateur!.role === 'admin';
+
+    if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez modifier que vos propres publications.', 403);
     }
 
@@ -260,7 +266,7 @@ export const modifierPublication = async (
 
     // Récupérer avec les infos de l'auteur
     const publicationComplete = await Publication.findById(id)
-      .populate('auteur', 'prenom nom avatar');
+      .populate('auteur', 'prenom nom avatar role');
 
     res.json({
       succes: true,
@@ -355,7 +361,7 @@ export const getCommentaires = async (
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar'),
+        .populate('auteur', 'prenom nom avatar role'),
       Commentaire.countDocuments({ publication: id, reponseA: null }),
     ]);
 
@@ -364,7 +370,7 @@ export const getCommentaires = async (
       commentaires.map(async (commentaire) => {
         const reponses = await Commentaire.find({ reponseA: commentaire._id })
           .sort({ dateCreation: 1 })
-          .populate('auteur', 'prenom nom avatar');
+          .populate('auteur', 'prenom nom avatar role');
 
         const commentaireObj = commentaire.toObject();
         return {
@@ -451,7 +457,7 @@ export const ajouterCommentaire = async (
 
     // Récupérer avec les infos de l'auteur
     const commentaireComplet = await Commentaire.findById(commentaire._id)
-      .populate('auteur', 'prenom nom avatar');
+      .populate('auteur', 'prenom nom avatar role');
 
     res.status(201).json({
       succes: true,
@@ -506,8 +512,11 @@ export const modifierCommentaire = async (
       throw new ErreurAPI("Ce commentaire n'appartient pas à cette publication.", 400);
     }
 
-    // Vérifier que l'utilisateur est l'auteur
-    if (commentaire.auteur.toString() !== userId.toString()) {
+    // Vérifier que l'utilisateur est l'auteur ou admin
+    const isAuteur = commentaire.auteur.toString() === userId.toString();
+    const isAdmin = req.utilisateur!.role === 'admin';
+
+    if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez modifier que vos propres commentaires.', 403);
     }
 
@@ -518,7 +527,7 @@ export const modifierCommentaire = async (
 
     // Récupérer avec les infos de l'auteur
     const commentaireComplet = await Commentaire.findById(comId)
-      .populate('auteur', 'prenom nom avatar');
+      .populate('auteur', 'prenom nom avatar role');
 
     res.json({
       succes: true,
@@ -562,8 +571,11 @@ export const supprimerCommentaire = async (
       throw new ErreurAPI('Ce commentaire n\'appartient pas à cette publication.', 400);
     }
 
-    // Vérifier que l'utilisateur est l'auteur
-    if (commentaire.auteur.toString() !== userId.toString()) {
+    // Vérifier que l'utilisateur est l'auteur ou admin
+    const isAuteur = commentaire.auteur.toString() === userId.toString();
+    const isAdmin = req.utilisateur!.role === 'admin';
+
+    if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez supprimer que vos propres commentaires.', 403);
     }
 

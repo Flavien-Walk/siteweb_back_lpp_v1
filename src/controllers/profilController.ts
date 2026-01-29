@@ -6,43 +6,44 @@ import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
-// Avatars par défaut (abstraits/géométriques, pas de visages)
+// Avatars par défaut (PNG format pour meilleure compatibilité React Native)
 export const AVATARS_DEFAUT = [
   // Shapes - formes géométriques colorées
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp1&backgroundColor=6366f1',
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp2&backgroundColor=10b981',
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp3&backgroundColor=f59e0b',
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp4&backgroundColor=ef4444',
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp5&backgroundColor=8b5cf6',
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp6&backgroundColor=06b6d4',
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp7&backgroundColor=ec4899',
-  'https://api.dicebear.com/7.x/shapes/svg?seed=lpp8&backgroundColor=84cc16',
+  'https://api.dicebear.com/7.x/shapes/png?seed=lpp1&backgroundColor=6366f1&size=128',
+  'https://api.dicebear.com/7.x/shapes/png?seed=lpp2&backgroundColor=10b981&size=128',
+  'https://api.dicebear.com/7.x/shapes/png?seed=lpp3&backgroundColor=f59e0b&size=128',
+  'https://api.dicebear.com/7.x/shapes/png?seed=lpp4&backgroundColor=ef4444&size=128',
+  'https://api.dicebear.com/7.x/shapes/png?seed=lpp5&backgroundColor=8b5cf6&size=128',
+  'https://api.dicebear.com/7.x/shapes/png?seed=lpp6&backgroundColor=06b6d4&size=128',
   // Identicon - motifs symétriques
-  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp1&backgroundColor=6366f1',
-  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp2&backgroundColor=10b981',
-  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp3&backgroundColor=f59e0b',
-  'https://api.dicebear.com/7.x/identicon/svg?seed=lpp4&backgroundColor=ef4444',
-  // Rings - anneaux colorés
-  'https://api.dicebear.com/7.x/rings/svg?seed=lpp1&backgroundColor=6366f1',
-  'https://api.dicebear.com/7.x/rings/svg?seed=lpp2&backgroundColor=10b981',
-  'https://api.dicebear.com/7.x/rings/svg?seed=lpp3&backgroundColor=f59e0b',
-  'https://api.dicebear.com/7.x/rings/svg?seed=lpp4&backgroundColor=8b5cf6',
-  // Thumbs - empreintes
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp1&backgroundColor=6366f1',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp2&backgroundColor=10b981',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp3&backgroundColor=f59e0b',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp4&backgroundColor=ec4899',
+  'https://api.dicebear.com/7.x/identicon/png?seed=lpp1&backgroundColor=6366f1&size=128',
+  'https://api.dicebear.com/7.x/identicon/png?seed=lpp2&backgroundColor=10b981&size=128',
+  'https://api.dicebear.com/7.x/identicon/png?seed=lpp3&backgroundColor=f59e0b&size=128',
+  'https://api.dicebear.com/7.x/identicon/png?seed=lpp4&backgroundColor=ef4444&size=128',
+  // Thumbs - empreintes sympas
+  'https://api.dicebear.com/7.x/thumbs/png?seed=lpp1&backgroundColor=6366f1&size=128',
+  'https://api.dicebear.com/7.x/thumbs/png?seed=lpp2&backgroundColor=10b981&size=128',
+  'https://api.dicebear.com/7.x/thumbs/png?seed=lpp3&backgroundColor=f59e0b&size=128',
+  'https://api.dicebear.com/7.x/thumbs/png?seed=lpp4&backgroundColor=ec4899&size=128',
   // Bottts - robots mignons
-  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp1&backgroundColor=6366f1',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp2&backgroundColor=10b981',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp3&backgroundColor=f59e0b',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp4&backgroundColor=ef4444',
-  // Pixel art
-  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp1&backgroundColor=6366f1',
-  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp2&backgroundColor=10b981',
-  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp3&backgroundColor=f59e0b',
-  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp4&backgroundColor=8b5cf6',
+  'https://api.dicebear.com/7.x/bottts/png?seed=lpp1&backgroundColor=6366f1&size=128',
+  'https://api.dicebear.com/7.x/bottts/png?seed=lpp2&backgroundColor=10b981&size=128',
+  'https://api.dicebear.com/7.x/bottts/png?seed=lpp3&backgroundColor=f59e0b&size=128',
+  'https://api.dicebear.com/7.x/bottts/png?seed=lpp4&backgroundColor=ef4444&size=128',
+  // Fun Emoji
+  'https://api.dicebear.com/7.x/fun-emoji/png?seed=lpp1&backgroundColor=6366f1&size=128',
+  'https://api.dicebear.com/7.x/fun-emoji/png?seed=lpp2&backgroundColor=10b981&size=128',
+  'https://api.dicebear.com/7.x/fun-emoji/png?seed=lpp3&backgroundColor=f59e0b&size=128',
+  'https://api.dicebear.com/7.x/fun-emoji/png?seed=lpp4&backgroundColor=ec4899&size=128',
+  // Lorelei neutral - personnages neutres
+  'https://api.dicebear.com/7.x/lorelei-neutral/png?seed=lpp1&backgroundColor=6366f1&size=128',
+  'https://api.dicebear.com/7.x/lorelei-neutral/png?seed=lpp2&backgroundColor=10b981&size=128',
+  'https://api.dicebear.com/7.x/lorelei-neutral/png?seed=lpp3&backgroundColor=f59e0b&size=128',
+  'https://api.dicebear.com/7.x/lorelei-neutral/png?seed=lpp4&backgroundColor=8b5cf6&size=128',
 ];
+
+// Avatar par défaut pour les nouveaux utilisateurs
+export const AVATAR_DEFAUT = 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128';
 
 // Schéma de validation pour la mise à jour du profil
 const schemaModifierProfil = z.object({
@@ -134,6 +135,7 @@ export const modifierProfil = async (
           nom: utilisateur.nom,
           email: utilisateur.email,
           avatar: utilisateur.avatar,
+          role: utilisateur.role,
           provider: utilisateur.provider,
         },
       },
@@ -291,6 +293,7 @@ export const modifierAvatar = async (
           nom: utilisateur.nom,
           email: utilisateur.email,
           avatar: utilisateur.avatar,
+          role: utilisateur.role,
           provider: utilisateur.provider,
         },
       },
