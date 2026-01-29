@@ -38,11 +38,7 @@ import {
 } from '../../src/services/messagerie';
 import {
   getMesAmis,
-  getDemandesAmis,
-  accepterDemandeAmi,
-  refuserDemandeAmi,
   ProfilUtilisateur,
-  DemandeAmi
 } from '../../src/services/utilisateurs';
 
 export default function Messages() {
@@ -72,10 +68,6 @@ export default function Messages() {
   const [mesAmis, setMesAmis] = useState<ProfilUtilisateur[]>([]);
   const [chargementAmis, setChargementAmis] = useState(false);
 
-  // Onglets Messages / Demandes
-  const [ongletActif, setOngletActif] = useState<'messages' | 'demandes'>('messages');
-  const [demandesAmis, setDemandesAmis] = useState<DemandeAmi[]>([]);
-  const [chargementDemandes, setChargementDemandes] = useState(false);
 
   // Extraire les contacts existants depuis les conversations
   const contactsExistants = React.useMemo(() => {
@@ -124,8 +116,6 @@ export default function Messages() {
 
   useEffect(() => {
     chargerConversations();
-    // Charger aussi le nombre de demandes pour le badge
-    chargerDemandesAmis();
   }, [chargerConversations]);
 
   // Polling pour mise à jour temps réel (toutes les 3 secondes)
@@ -192,59 +182,6 @@ export default function Messages() {
     setParticipantsSelectionnes([]);
     await chargerMesAmis();
   };
-
-  // Charger les demandes d'amis
-  const chargerDemandesAmis = async () => {
-    setChargementDemandes(true);
-    try {
-      const reponse = await getDemandesAmis();
-      if (reponse.succes && reponse.data) {
-        setDemandesAmis(reponse.data.demandes || []);
-      }
-    } catch (error) {
-      console.error('Erreur chargement demandes:', error);
-    } finally {
-      setChargementDemandes(false);
-    }
-  };
-
-  // Accepter une demande d'ami
-  const handleAccepterDemande = async (userId: string) => {
-    try {
-      const reponse = await accepterDemandeAmi(userId);
-      if (reponse.succes) {
-        // Retirer de la liste
-        setDemandesAmis(prev => prev.filter(d => d.expediteur._id !== userId));
-        Alert.alert('Succès', 'Demande acceptée ! Vous êtes maintenant amis.');
-      } else {
-        Alert.alert('Erreur', reponse.message || 'Impossible d\'accepter la demande');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible d\'accepter la demande');
-    }
-  };
-
-  // Refuser une demande d'ami
-  const handleRefuserDemande = async (userId: string) => {
-    try {
-      const reponse = await refuserDemandeAmi(userId);
-      if (reponse.succes) {
-        // Retirer de la liste
-        setDemandesAmis(prev => prev.filter(d => d.expediteur._id !== userId));
-      } else {
-        Alert.alert('Erreur', reponse.message || 'Impossible de refuser la demande');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de refuser la demande');
-    }
-  };
-
-  // Charger les demandes au changement d'onglet
-  useEffect(() => {
-    if (ongletActif === 'demandes') {
-      chargerDemandesAmis();
-    }
-  }, [ongletActif]);
 
   // Filtrer conversations par recherche
   const conversationsFiltrees = conversations.filter((conv) => {
@@ -532,34 +469,8 @@ export default function Messages() {
         </Pressable>
       </View>
 
-      {/* Onglets Messages / Demandes */}
-      <View style={styles.tabsContainer}>
-        <Pressable
-          style={[styles.tab, ongletActif === 'messages' && styles.tabActive]}
-          onPress={() => setOngletActif('messages')}
-        >
-          <Text style={[styles.tabText, ongletActif === 'messages' && styles.tabTextActive]}>
-            Messages
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, ongletActif === 'demandes' && styles.tabActive]}
-          onPress={() => setOngletActif('demandes')}
-        >
-          <Text style={[styles.tabText, ongletActif === 'demandes' && styles.tabTextActive]}>
-            Demandes
-          </Text>
-          {demandesAmis.length > 0 && (
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>{demandesAmis.length}</Text>
-            </View>
-          )}
-        </Pressable>
-      </View>
-
-      {/* Barre de recherche (seulement pour les messages) */}
-      {ongletActif === 'messages' && (
-        <View style={styles.searchContainer}>
+      {/* Barre de recherche */}
+      <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color={couleurs.texteMuted} />
           <TextInput
             style={styles.searchInput}
@@ -574,131 +485,41 @@ export default function Messages() {
             </Pressable>
           )}
         </View>
-      )}
 
-      {/* Contenu selon l'onglet actif */}
-      {ongletActif === 'messages' ? (
-        // Onglet Messages
-        chargement ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={couleurs.primaire} />
-          </View>
-        ) : conversationsFiltrees.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={64} color={couleurs.texteMuted} />
-            <Text style={styles.emptyText}>
-              {recherche.length > 0 ? 'Aucune conversation trouvée' : 'Aucune conversation'}
-            </Text>
-            <Pressable
-              style={styles.emptyButton}
-              onPress={() => setModalNouveauVisible(true)}
-            >
-              <Text style={styles.emptyButtonText}>Démarrer une conversation</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <FlatList
-            data={conversationsFiltrees}
-            renderItem={renderConversation}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={rafraichissement}
-                onRefresh={() => chargerConversations(true)}
-                tintColor={couleurs.primaire}
-                colors={[couleurs.primaire]}
-              />
-            }
-            showsVerticalScrollIndicator={false}
-          />
-        )
+      {/* Liste des conversations */}
+      {chargement ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={couleurs.primaire} />
+        </View>
+      ) : conversationsFiltrees.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="chatbubbles-outline" size={64} color={couleurs.texteMuted} />
+          <Text style={styles.emptyText}>
+            {recherche.length > 0 ? 'Aucune conversation trouvée' : 'Aucune conversation'}
+          </Text>
+          <Pressable
+            style={styles.emptyButton}
+            onPress={() => setModalNouveauVisible(true)}
+          >
+            <Text style={styles.emptyButtonText}>Démarrer une conversation</Text>
+          </Pressable>
+        </View>
       ) : (
-        // Onglet Demandes d'amis
-        chargementDemandes ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={couleurs.primaire} />
-          </View>
-        ) : demandesAmis.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={64} color={couleurs.texteMuted} />
-            <Text style={styles.emptyText}>Aucune demande d'ami</Text>
-            <Text style={styles.emptySubtext}>
-              Quand quelqu'un vous enverra une demande d'ami, elle apparaîtra ici.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={demandesAmis}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={chargementDemandes}
-                onRefresh={chargerDemandesAmis}
-                tintColor={couleurs.primaire}
-                colors={[couleurs.primaire]}
-              />
-            }
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <View style={styles.demandeItem}>
-                {/* Avatar */}
-                <Pressable
-                  style={styles.demandeAvatarContainer}
-                  onPress={() => {
-                    router.push({
-                      pathname: '/(app)/utilisateur/[id]',
-                      params: { id: item.expediteur._id },
-                    });
-                  }}
-                >
-                  <Avatar
-                    uri={item.expediteur.avatar}
-                    prenom={item.expediteur.prenom}
-                    nom={item.expediteur.nom}
-                    taille={56}
-                  />
-                </Pressable>
-
-                {/* Infos */}
-                <View style={styles.demandeInfo}>
-                  <Pressable
-                    onPress={() => {
-                      router.push({
-                        pathname: '/(app)/utilisateur/[id]',
-                        params: { id: item.expediteur._id },
-                      });
-                    }}
-                  >
-                    <Text style={styles.demandeNom}>
-                      {item.expediteur.prenom} {item.expediteur.nom}
-                    </Text>
-                  </Pressable>
-                  <Text style={styles.demandeDate}>
-                    Demande reçue {formatDate(item.dateCreation)}
-                  </Text>
-                </View>
-
-                {/* Actions */}
-                <View style={styles.demandeActions}>
-                  <Pressable
-                    style={styles.demandeAccepter}
-                    onPress={() => handleAccepterDemande(item.expediteur._id)}
-                  >
-                    <Ionicons name="checkmark" size={20} color={couleurs.blanc} />
-                  </Pressable>
-                  <Pressable
-                    style={styles.demandeRefuser}
-                    onPress={() => handleRefuserDemande(item.expediteur._id)}
-                  >
-                    <Ionicons name="close" size={20} color={couleurs.blanc} />
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          />
-        )
+        <FlatList
+          data={conversationsFiltrees}
+          renderItem={renderConversation}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={rafraichissement}
+              onRefresh={() => chargerConversations(true)}
+              tintColor={couleurs.primaire}
+              colors={[couleurs.primaire]}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
       )}
 
       {/* Modal nouvelle conversation */}
@@ -1005,48 +826,6 @@ const styles = StyleSheet.create({
   },
   headerAction: {
     padding: espacements.xs,
-  },
-  // Onglets
-  tabsContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: couleurs.bordure,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: espacements.md,
-    gap: espacements.xs,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: couleurs.primaire,
-  },
-  tabText: {
-    fontSize: typographie.tailles.base,
-    fontWeight: typographie.poids.medium,
-    color: couleurs.texteSecondaire,
-  },
-  tabTextActive: {
-    color: couleurs.primaire,
-    fontWeight: typographie.poids.semibold,
-  },
-  tabBadge: {
-    backgroundColor: couleurs.danger,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 5,
-  },
-  tabBadgeText: {
-    fontSize: typographie.tailles.xs,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -1414,69 +1193,5 @@ const styles = StyleSheet.create({
   checkBoxActive: {
     backgroundColor: couleurs.primaire,
     borderColor: couleurs.primaire,
-  },
-  // Demandes d'amis
-  demandeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: espacements.lg,
-    paddingVertical: espacements.md,
-    gap: espacements.md,
-    backgroundColor: couleurs.fond,
-    borderBottomWidth: 1,
-    borderBottomColor: couleurs.bordure,
-  },
-  demandeAvatarContainer: {
-    position: 'relative',
-  },
-  demandeAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  demandeAvatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  demandeAvatarInitiales: {
-    fontSize: typographie.tailles.lg,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
-  },
-  demandeInfo: {
-    flex: 1,
-  },
-  demandeNom: {
-    fontSize: typographie.tailles.base,
-    fontWeight: typographie.poids.semibold,
-    color: couleurs.texte,
-  },
-  demandeDate: {
-    fontSize: typographie.tailles.sm,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
-  },
-  demandeActions: {
-    flexDirection: 'row',
-    gap: espacements.sm,
-  },
-  demandeAccepter: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: couleurs.succes,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  demandeRefuser: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: couleurs.danger,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

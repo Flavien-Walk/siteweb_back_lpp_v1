@@ -61,6 +61,7 @@ import {
   Evenement,
   getEvenements,
 } from '../../src/services/evenements';
+import Avatar from '../../src/composants/Avatar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -444,7 +445,6 @@ export default function Accueil() {
     const [notification, setNotification] = useState<{ type: 'succes' | 'erreur'; message: string } | null>(null);
 
     const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
-    const avatarUrl = publication.auteur.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${publication.auteur._id}&backgroundColor=6366f1&size=128`;
 
     const formatDate = (dateStr: string) => {
       const date = new Date(dateStr);
@@ -720,7 +720,12 @@ export default function Accueil() {
         )}
 
         <View style={styles.postHeader}>
-          <Image source={{ uri: avatarUrl }} style={styles.postAvatar} />
+          <Avatar
+            uri={publication.auteur.avatar}
+            prenom={publication.auteur.prenom}
+            nom={publication.auteur.nom}
+            taille={44}
+          />
           <View style={styles.postAuteurContainer}>
             <View style={styles.postAuteurRow}>
               <Text style={styles.postAuteur}>{auteurNom}</Text>
@@ -856,15 +861,12 @@ export default function Accueil() {
             )}
 
             <View style={styles.commentInputContainer}>
-              {utilisateur?.avatar ? (
-                <Image source={{ uri: utilisateur.avatar }} style={styles.commentInputAvatarImage} />
-              ) : (
-                <View style={styles.commentInputAvatar}>
-                  <Text style={styles.commentInputAvatarText}>
-                    {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
-                  </Text>
-                </View>
-              )}
+              <Avatar
+                uri={utilisateur?.avatar}
+                prenom={utilisateur?.prenom}
+                nom={utilisateur?.nom}
+                taille={32}
+              />
               <TextInput
                 style={styles.commentInput}
                 placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
@@ -902,14 +904,18 @@ export default function Accueil() {
             ) : (
               commentaires.map((comment) => {
                 const commentAuteur = `${comment.auteur.prenom} ${comment.auteur.nom}`;
-                const commentAvatar = comment.auteur.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${comment.auteur._id}&backgroundColor=10b981&size=128`;
                 const commentIsAdmin = comment.auteur.role === 'admin';
                 const canEditDeleteComment = isMyComment(comment.auteur._id) || isAdmin();
                 const isEditing = editingComment === comment._id;
                 return (
                   <View key={comment._id}>
                     <View style={styles.commentItem}>
-                      <Image source={{ uri: commentAvatar }} style={styles.commentAvatar} />
+                      <Avatar
+                        uri={comment.auteur.avatar}
+                        prenom={comment.auteur.prenom}
+                        nom={comment.auteur.nom}
+                        taille={32}
+                      />
                       <View style={styles.commentContent}>
                         {isEditing ? (
                           <View style={styles.editCommentContainer}>
@@ -1019,14 +1025,18 @@ export default function Accueil() {
                     </View>
                     {expandedReplies[comment._id] && comment.reponses?.map((reponse) => {
                       const repAuteur = `${reponse.auteur.prenom} ${reponse.auteur.nom}`;
-                      const repAvatar = reponse.auteur.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${reponse.auteur._id}&backgroundColor=f59e0b&size=128`;
                       const isEditingReply = editingComment === reponse._id;
                       const replyIsAdmin = reponse.auteur.role === 'admin';
                       const canEditDeleteReply = isMyComment(reponse.auteur._id) || isAdmin();
                       return (
                         <View key={reponse._id} style={styles.replyItem}>
                           <View style={styles.replyLine} />
-                          <Image source={{ uri: repAvatar }} style={styles.replyAvatar} />
+                          <Avatar
+                            uri={reponse.auteur.avatar}
+                            prenom={reponse.auteur.prenom}
+                            nom={reponse.auteur.nom}
+                            taille={28}
+                          />
                           <View style={styles.commentContent}>
                             {isEditingReply ? (
                               <View style={styles.editCommentContainer}>
@@ -1258,11 +1268,12 @@ export default function Accueil() {
         <Ionicons name="notifications-outline" size={24} color={couleurs.texte} />
       </Pressable>
       <Pressable style={styles.avatar} onPress={handleProfil}>
-        {utilisateur?.avatar ? (
-          <Image source={{ uri: utilisateur.avatar }} style={styles.avatarImage} />
-        ) : (
-          <Text style={styles.avatarTexte}>{getInitiales()}</Text>
-        )}
+        <Avatar
+          uri={utilisateur?.avatar}
+          prenom={utilisateur?.prenom}
+          nom={utilisateur?.nom}
+          taille={36}
+        />
       </Pressable>
     </View>
   );
@@ -1640,9 +1651,11 @@ export default function Accueil() {
                         style={styles.searchResultItem}
                         onPress={() => setDestinataireSelectionne(user)}
                       >
-                        <Image
-                          source={{ uri: user.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
-                          style={styles.searchResultAvatar}
+                        <Avatar
+                          uri={user.avatar}
+                          prenom={user.prenom}
+                          nom={user.nom}
+                          taille={40}
                         />
                         <Text style={styles.searchResultName}>{user.prenom} {user.nom}</Text>
                       </Pressable>
@@ -1655,9 +1668,11 @@ export default function Accueil() {
               ) : (
                 <>
                   <View style={styles.selectedDestinataireContainer}>
-                    <Image
-                      source={{ uri: destinataireSelectionne.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
-                      style={styles.selectedDestinataireAvatar}
+                    <Avatar
+                      uri={destinataireSelectionne.avatar}
+                      prenom={destinataireSelectionne.prenom}
+                      nom={destinataireSelectionne.nom}
+                      taille={36}
                     />
                     <Text style={styles.selectedDestinataireName}>
                       {destinataireSelectionne.prenom} {destinataireSelectionne.nom}
@@ -1920,15 +1935,12 @@ export default function Accueil() {
 
             <View style={styles.modalBody}>
               <View style={styles.modalAuthor}>
-                {utilisateur?.avatar ? (
-                  <Image source={{ uri: utilisateur.avatar }} style={styles.modalAuthorAvatarImage} />
-                ) : (
-                  <View style={styles.modalAuthorAvatar}>
-                    <Text style={styles.modalAuthorAvatarText}>
-                      {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
-                    </Text>
-                  </View>
-                )}
+                <Avatar
+                  uri={utilisateur?.avatar}
+                  prenom={utilisateur?.prenom}
+                  nom={utilisateur?.nom}
+                  taille={40}
+                />
                 <Text style={styles.modalAuthorName}>
                   {utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous'}
                 </Text>

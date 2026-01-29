@@ -38,6 +38,7 @@ import {
   modifierStatut,
   StatutUtilisateur,
 } from '../../src/services/auth';
+import Avatar from '../../src/composants/Avatar';
 
 type Section = 'profil' | 'apparence' | 'securite' | 'confidentialite';
 
@@ -190,9 +191,9 @@ export default function Profil() {
     const reponse = await modifierProfil({ prenom, nom, email });
     setChargement(false);
 
-    if (reponse.succes) {
+    if (reponse.succes && reponse.data) {
       afficherMessage('succes', 'Profil mis a jour avec succes');
-      chargerUtilisateur();
+      updateUser(reponse.data.utilisateur);
     } else {
       afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
     }
@@ -657,13 +658,12 @@ export default function Profil() {
           {/* Avatar et infos */}
           <View style={styles.profileHeader}>
             <Pressable style={styles.avatarContainer} onPress={handleOuvrirModalAvatar}>
-              {utilisateur?.avatar ? (
-                <Image source={{ uri: utilisateur.avatar }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.avatarLarge}>
-                  <Text style={styles.avatarLargeText}>{getInitiales()}</Text>
-                </View>
-              )}
+              <Avatar
+                uri={utilisateur?.avatar}
+                prenom={utilisateur?.prenom}
+                nom={utilisateur?.nom}
+                taille={80}
+              />
               <View style={styles.avatarEditBadge}>
                 <Ionicons name="camera" size={14} color={couleurs.blanc} />
               </View>
