@@ -2226,31 +2226,38 @@ export default function Accueil() {
         style={StyleSheet.absoluteFill}
       />
 
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        {renderHeader()}
-        {renderNavigation()}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {renderHeader()}
+          {renderNavigation()}
 
-        <ScrollView
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={rafraichissement}
-              onRefresh={handleRafraichissement}
-              tintColor={couleurs.primaire}
-            />
-          }
-        >
-          {renderTabContent()}
+          <ScrollView
+            ref={scrollViewRef}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={rafraichissement}
+                onRefresh={handleRafraichissement}
+                tintColor={couleurs.primaire}
+              />
+            }
+          >
+            {renderTabContent()}
 
-          <View style={styles.footer}>
-            <Text style={styles.footerLogo}>LPP</Text>
-            <Text style={styles.footerText}>La Premiere Pierre</Text>
-            <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
-          </View>
-        </ScrollView>
-      </Animated.View>
+            <View style={styles.footer}>
+              <Text style={styles.footerLogo}>LPP</Text>
+              <Text style={styles.footerText}>La Premiere Pierre</Text>
+              <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
+            </View>
+          </ScrollView>
+        </Animated.View>
+      </KeyboardAvoidingView>
 
       {renderFAB()}
 
