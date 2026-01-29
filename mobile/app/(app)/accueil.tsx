@@ -37,6 +37,8 @@ import {
   getCommentaires,
   ajouterCommentaire,
   toggleLikeCommentaire,
+  supprimerCommentaire,
+  modifierCommentaire,
 } from '../../src/services/publications';
 import {
   Conversation,
@@ -801,6 +803,8 @@ export default function Accueil() {
     const [newComment, setNewComment] = useState('');
     const [replyingTo, setReplyingTo] = useState<{ id: string; auteur: string } | null>(null);
     const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+    const [editingComment, setEditingComment] = useState<string | null>(null);
+    const [editingContent, setEditingContent] = useState('');
 
     const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
     const avatarUrl = publication.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${publication.auteur._id}&backgroundColor=6366f1`;
@@ -904,6 +908,83 @@ export default function Accueil() {
       } catch (error) {
         console.error('Erreur like commentaire:', error);
       }
+    };
+
+    const handleEditComment = async (commentId: string) => {
+      if (!editingContent.trim()) return;
+      try {
+        const reponse = await modifierCommentaire(publication._id, commentId, editingContent.trim());
+        if (reponse.succes && reponse.data) {
+          setCommentaires(prev => prev.map(c => {
+            if (c._id === commentId) {
+              return { ...c, contenu: reponse.data!.commentaire.contenu, modifie: true };
+            }
+            if (c.reponses) {
+              return {
+                ...c,
+                reponses: c.reponses.map(r => r._id === commentId ? { ...r, contenu: reponse.data!.commentaire.contenu, modifie: true } : r),
+              };
+            }
+            return c;
+          }));
+          setEditingComment(null);
+          setEditingContent('');
+        } else {
+          Alert.alert('Erreur', reponse.message || 'Impossible de modifier le commentaire');
+        }
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de modifier le commentaire');
+      }
+    };
+
+    const handleDeleteComment = async (commentId: string, isReply = false, parentId?: string) => {
+      Alert.alert(
+        'Supprimer le commentaire',
+        'Voulez-vous vraiment supprimer ce commentaire ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Supprimer',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const reponse = await supprimerCommentaire(publication._id, commentId);
+                if (reponse.succes) {
+                  if (isReply && parentId) {
+                    setCommentaires(prev => prev.map(c => {
+                      if (c._id === parentId) {
+                        return { ...c, reponses: c.reponses?.filter(r => r._id !== commentId) };
+                      }
+                      return c;
+                    }));
+                  } else {
+                    setCommentaires(prev => prev.filter(c => c._id !== commentId));
+                  }
+                  onUpdate({ ...publication, nbCommentaires: Math.max(0, publication.nbCommentaires - 1) });
+                } else {
+                  Alert.alert('Erreur', reponse.message || 'Impossible de supprimer le commentaire');
+                }
+              } catch (error) {
+                Alert.alert('Erreur', 'Impossible de supprimer le commentaire');
+              }
+            },
+          },
+        ]
+      );
+    };
+
+    const startEditComment = (comment: CommentaireAPI) => {
+      setEditingComment(comment._id);
+      setEditingContent(comment.contenu);
+    };
+
+    const cancelEdit = () => {
+      setEditingComment(null);
+      setEditingContent('');
+    };
+
+    const isMyComment = (auteurId: string) => {
+      return utilisateur && utilisateur.id === auteurId;
     };
 
     const handleShare = async () => {
@@ -1026,34 +1107,83 @@ export default function Accueil() {
               commentaires.map((comment) => {
                 const commentAuteur = `${comment.auteur.prenom} ${comment.auteur.nom}`;
                 const commentAvatar = comment.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${comment.auteur._id}&backgroundColor=10b981`;
+                const isEditing = editingComment === comment._id;
                 return (
                   <View key={comment._id}>
                     <View style={styles.commentItem}>
                       <Image source={{ uri: commentAvatar }} style={styles.commentAvatar} />
                       <View style={styles.commentContent}>
-                        <View style={styles.commentBubble}>
-                          <Text style={styles.commentAuteur}>{commentAuteur}</Text>
-                          <Text style={styles.commentTexte}>{comment.contenu}</Text>
-                        </View>
-                        <View style={styles.commentMeta}>
-                          <Text style={styles.commentTime}>{formatDate(comment.dateCreation)}</Text>
-                          <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(comment._id)}>
-                            <Ionicons
-                              name={comment.aLike ? 'heart' : 'heart-outline'}
-                              size={14}
-                              color={comment.aLike ? couleurs.erreur : couleurs.texteSecondaire}
+                        {isEditing ? (
+                          <View style={styles.editCommentContainer}>
+                            <TextInput
+                              style={styles.editCommentInput}
+                              value={editingContent}
+                              onChangeText={setEditingContent}
+                              multiline
+                              maxLength={1000}
+                              autoFocus
                             />
-                            <Text style={[styles.commentLikeText, comment.aLike && { color: couleurs.erreur }]}>
-                              {comment.nbLikes}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={styles.commentReplyBtn}
-                            onPress={() => setReplyingTo({ id: comment._id, auteur: commentAuteur })}
-                          >
-                            <Text style={styles.commentReplyText}>Repondre</Text>
-                          </Pressable>
-                        </View>
+                            <View style={styles.editCommentActions}>
+                              <Pressable style={styles.editCancelBtn} onPress={cancelEdit}>
+                                <Text style={styles.editCancelText}>Annuler</Text>
+                              </Pressable>
+                              <Pressable
+                                style={[styles.editSaveBtn, !editingContent.trim() && styles.editSaveBtnDisabled]}
+                                onPress={() => handleEditComment(comment._id)}
+                                disabled={!editingContent.trim()}
+                              >
+                                <Text style={styles.editSaveText}>Enregistrer</Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        ) : (
+                          <>
+                            <View style={styles.commentBubble}>
+                              <View style={styles.commentBubbleHeader}>
+                                <Text style={styles.commentAuteur}>{commentAuteur}</Text>
+                                {isMyComment(comment.auteur._id) && (
+                                  <View style={styles.commentActionsMenu}>
+                                    <Pressable
+                                      style={styles.commentActionBtn}
+                                      onPress={() => startEditComment(comment)}
+                                    >
+                                      <Ionicons name="pencil" size={14} color={couleurs.texteSecondaire} />
+                                    </Pressable>
+                                    <Pressable
+                                      style={styles.commentActionBtn}
+                                      onPress={() => handleDeleteComment(comment._id)}
+                                    >
+                                      <Ionicons name="trash-outline" size={14} color={couleurs.erreur} />
+                                    </Pressable>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.commentTexte}>{comment.contenu}</Text>
+                            </View>
+                            <View style={styles.commentMeta}>
+                              <Text style={styles.commentTime}>{formatDate(comment.dateCreation)}</Text>
+                              {comment.modifie && (
+                                <Text style={styles.commentModified}>(modifie)</Text>
+                              )}
+                              <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(comment._id)}>
+                                <Ionicons
+                                  name={comment.aLike ? 'heart' : 'heart-outline'}
+                                  size={14}
+                                  color={comment.aLike ? couleurs.erreur : couleurs.texteSecondaire}
+                                />
+                                <Text style={[styles.commentLikeText, comment.aLike && { color: couleurs.erreur }]}>
+                                  {comment.nbLikes}
+                                </Text>
+                              </Pressable>
+                              <Pressable
+                                style={styles.commentReplyBtn}
+                                onPress={() => setReplyingTo({ id: comment._id, auteur: commentAuteur })}
+                              >
+                                <Text style={styles.commentReplyText}>Repondre</Text>
+                              </Pressable>
+                            </View>
+                          </>
+                        )}
                         {comment.reponses && comment.reponses.length > 0 && (
                           <Pressable
                             style={styles.viewRepliesBtn}
@@ -1074,28 +1204,77 @@ export default function Accueil() {
                     {expandedReplies[comment._id] && comment.reponses?.map((reponse) => {
                       const repAuteur = `${reponse.auteur.prenom} ${reponse.auteur.nom}`;
                       const repAvatar = reponse.auteur.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${reponse.auteur._id}&backgroundColor=f59e0b`;
+                      const isEditingReply = editingComment === reponse._id;
                       return (
                         <View key={reponse._id} style={styles.replyItem}>
                           <View style={styles.replyLine} />
                           <Image source={{ uri: repAvatar }} style={styles.replyAvatar} />
                           <View style={styles.commentContent}>
-                            <View style={styles.replyBubble}>
-                              <Text style={styles.commentAuteur}>{repAuteur}</Text>
-                              <Text style={styles.commentTexte}>{reponse.contenu}</Text>
-                            </View>
-                            <View style={styles.commentMeta}>
-                              <Text style={styles.commentTime}>{formatDate(reponse.dateCreation)}</Text>
-                              <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(reponse._id)}>
-                                <Ionicons
-                                  name={reponse.aLike ? 'heart' : 'heart-outline'}
-                                  size={12}
-                                  color={reponse.aLike ? couleurs.erreur : couleurs.texteSecondaire}
+                            {isEditingReply ? (
+                              <View style={styles.editCommentContainer}>
+                                <TextInput
+                                  style={styles.editCommentInput}
+                                  value={editingContent}
+                                  onChangeText={setEditingContent}
+                                  multiline
+                                  maxLength={1000}
+                                  autoFocus
                                 />
-                                <Text style={[styles.commentLikeText, reponse.aLike && { color: couleurs.erreur }]}>
-                                  {reponse.nbLikes}
-                                </Text>
-                              </Pressable>
-                            </View>
+                                <View style={styles.editCommentActions}>
+                                  <Pressable style={styles.editCancelBtn} onPress={cancelEdit}>
+                                    <Text style={styles.editCancelText}>Annuler</Text>
+                                  </Pressable>
+                                  <Pressable
+                                    style={[styles.editSaveBtn, !editingContent.trim() && styles.editSaveBtnDisabled]}
+                                    onPress={() => handleEditComment(reponse._id)}
+                                    disabled={!editingContent.trim()}
+                                  >
+                                    <Text style={styles.editSaveText}>Enregistrer</Text>
+                                  </Pressable>
+                                </View>
+                              </View>
+                            ) : (
+                              <>
+                                <View style={styles.replyBubble}>
+                                  <View style={styles.commentBubbleHeader}>
+                                    <Text style={styles.commentAuteur}>{repAuteur}</Text>
+                                    {isMyComment(reponse.auteur._id) && (
+                                      <View style={styles.commentActionsMenu}>
+                                        <Pressable
+                                          style={styles.commentActionBtn}
+                                          onPress={() => startEditComment(reponse)}
+                                        >
+                                          <Ionicons name="pencil" size={12} color={couleurs.texteSecondaire} />
+                                        </Pressable>
+                                        <Pressable
+                                          style={styles.commentActionBtn}
+                                          onPress={() => handleDeleteComment(reponse._id, true, comment._id)}
+                                        >
+                                          <Ionicons name="trash-outline" size={12} color={couleurs.erreur} />
+                                        </Pressable>
+                                      </View>
+                                    )}
+                                  </View>
+                                  <Text style={styles.commentTexte}>{reponse.contenu}</Text>
+                                </View>
+                                <View style={styles.commentMeta}>
+                                  <Text style={styles.commentTime}>{formatDate(reponse.dateCreation)}</Text>
+                                  {reponse.modifie && (
+                                    <Text style={styles.commentModified}>(modifie)</Text>
+                                  )}
+                                  <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(reponse._id)}>
+                                    <Ionicons
+                                      name={reponse.aLike ? 'heart' : 'heart-outline'}
+                                      size={12}
+                                      color={reponse.aLike ? couleurs.erreur : couleurs.texteSecondaire}
+                                    />
+                                    <Text style={[styles.commentLikeText, reponse.aLike && { color: couleurs.erreur }]}>
+                                      {reponse.nbLikes}
+                                    </Text>
+                                  </Pressable>
+                                </View>
+                              </>
+                            )}
                           </View>
                         </View>
                       );
@@ -2385,6 +2564,67 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   noCommentsText: {
     fontSize: 13,
     color: couleurs.texteSecondaire,
+  },
+  commentBubbleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  commentActionsMenu: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  commentActionBtn: {
+    padding: 4,
+  },
+  commentModified: {
+    fontSize: 10,
+    color: couleurs.texteSecondaire,
+    fontStyle: 'italic',
+    marginLeft: 4,
+  },
+  editCommentContainer: {
+    flex: 1,
+  },
+  editCommentInput: {
+    backgroundColor: couleurs.fond,
+    borderWidth: 1,
+    borderColor: couleurs.primaire,
+    borderRadius: rayons.md,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    fontSize: 13,
+    color: couleurs.texte,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  editCommentActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: espacements.sm,
+    marginTop: espacements.sm,
+  },
+  editCancelBtn: {
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.xs,
+  },
+  editCancelText: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+  editSaveBtn: {
+    backgroundColor: couleurs.primaire,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.sm,
+  },
+  editSaveBtnDisabled: {
+    opacity: 0.5,
+  },
+  editSaveText: {
+    fontSize: 12,
+    color: couleurs.blanc,
+    fontWeight: '600',
   },
 
   // Hero

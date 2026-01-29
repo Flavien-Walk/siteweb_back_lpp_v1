@@ -34,6 +34,7 @@ export interface Commentaire {
   aLike: boolean;
   reponseA?: string;
   reponses?: Commentaire[];
+  modifie?: boolean;
   dateCreation: string;
 }
 
@@ -132,6 +133,21 @@ export const supprimerCommentaire = async (
   commentaireId: string
 ): Promise<ReponseAPI<{ message: string }>> => {
   return api.delete(`/publications/${publicationId}/commentaires/${commentaireId}`, true);
+};
+
+/**
+ * Modifier un commentaire
+ */
+export const modifierCommentaire = async (
+  publicationId: string,
+  commentaireId: string,
+  contenu: string
+): Promise<ReponseAPI<{ commentaire: Commentaire }>> => {
+  return api.patch(
+    `/publications/${publicationId}/commentaires/${commentaireId}`,
+    { contenu },
+    true
+  );
 };
 
 /**
