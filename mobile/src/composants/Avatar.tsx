@@ -3,7 +3,7 @@
  * Compatible iOS et Android avec fallback sur erreur
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,13 @@ const Avatar: React.FC<AvatarProps> = ({
   gradientColors = [couleurs.primaire, couleurs.primaireDark],
 }) => {
   const [erreurImage, setErreurImage] = useState(false);
+  const [imageKey, setImageKey] = useState(0);
+
+  // Reset l'état d'erreur quand l'URI change
+  useEffect(() => {
+    setErreurImage(false);
+    setImageKey(prev => prev + 1);
+  }, [uri]);
 
   // Obtenir les initiales
   const premiereLettre = prenom && prenom.length > 0 ? prenom[0] : '';
@@ -49,8 +56,9 @@ const Avatar: React.FC<AvatarProps> = ({
 
   // Callback pour gérer les erreurs de chargement
   const handleError = useCallback(() => {
+    console.log('Avatar: Erreur chargement image:', uri);
     setErreurImage(true);
-  }, []);
+  }, [uri]);
 
   // Callback pour gérer le chargement réussi
   const handleLoad = useCallback(() => {
@@ -58,7 +66,7 @@ const Avatar: React.FC<AvatarProps> = ({
   }, []);
 
   // Vérifier si on doit afficher l'image
-  const afficherImage = uri && !erreurImage;
+  const afficherImage = uri && uri.length > 0 && !erreurImage;
 
   // Normaliser l'URL pour iOS (certaines URLs nécessitent des ajustements)
   const getImageUri = (): string => {
@@ -69,6 +77,17 @@ const Avatar: React.FC<AvatarProps> = ({
     // S'assurer que l'URL est en HTTPS pour iOS
     if (Platform.OS === 'ios' && uri.startsWith('http://')) {
       normalizedUri = uri.replace('http://', 'https://');
+    }
+
+    // Pour les URLs Google, ajouter des paramètres pour éviter les problèmes de cache
+    if (normalizedUri.includes('googleusercontent.com')) {
+      // Forcer une taille d'image appropriée
+      if (!normalizedUri.includes('=s')) {
+        normalizedUri = normalizedUri.replace(/=s\d+/, `=s${taille * 2}`);
+        if (!normalizedUri.includes('=s')) {
+          normalizedUri += `?sz=${taille * 2}`;
+        }
+      }
     }
 
     return normalizedUri;
@@ -91,9 +110,13 @@ const Avatar: React.FC<AvatarProps> = ({
     <View style={[containerStyle, style]}>
       {afficherImage ? (
         <Image
+          key={`avatar-${imageKey}`}
           source={{
             uri: getImageUri(),
-            cache: Platform.OS === 'ios' ? 'force-cache' : 'default',
+            cache: Platform.OS === 'ios' ? 'reload' : 'default',
+            headers: {
+              'Accept': 'image/*',
+            },
           }}
           style={[styles.image, imageStyle]}
           onError={handleError}
