@@ -798,6 +798,7 @@ export default function Accueil() {
   const PublicationCard = ({ publication, onUpdate, onDelete }: { publication: Publication; onUpdate: (pub: Publication) => void; onDelete: (id: string) => void }) => {
     const [liked, setLiked] = useState(publication.aLike);
     const [nbLikes, setNbLikes] = useState(publication.nbLikes);
+    const [nbComments, setNbComments] = useState(publication.nbCommentaires);
     const [showComments, setShowComments] = useState(false);
     const [commentaires, setCommentaires] = useState<CommentaireAPI[]>([]);
     const [chargementCommentaires, setChargementCommentaires] = useState(false);
@@ -807,6 +808,13 @@ export default function Accueil() {
     const [editingComment, setEditingComment] = useState<string | null>(null);
     const [editingContent, setEditingContent] = useState('');
     const [editingPost, setEditingPost] = useState(false);
+
+    // Synchroniser les états locaux avec les props
+    useEffect(() => {
+      setLiked(publication.aLike);
+      setNbLikes(publication.nbLikes);
+      setNbComments(publication.nbCommentaires);
+    }, [publication.aLike, publication.nbLikes, publication.nbCommentaires, publication._id]);
     const [editingPostContent, setEditingPostContent] = useState(publication.contenu);
     const [showPostMenu, setShowPostMenu] = useState(false);
     const [notification, setNotification] = useState<{ type: 'succes' | 'erreur'; message: string } | null>(null);
@@ -839,6 +847,8 @@ export default function Accueil() {
         if (reponse.succes && reponse.data) {
           setLiked(reponse.data.aLike);
           setNbLikes(reponse.data.nbLikes);
+          // Synchroniser l'état parent
+          onUpdate({ ...publication, aLike: reponse.data.aLike, nbLikes: reponse.data.nbLikes, nbCommentaires: nbComments });
         }
       } catch (error) {
         setLiked(!liked);
@@ -886,7 +896,8 @@ export default function Accueil() {
           }
           setNewComment('');
           setReplyingTo(null);
-          onUpdate({ ...publication, nbCommentaires: publication.nbCommentaires + 1 });
+          setNbComments(prev => prev + 1);
+          onUpdate({ ...publication, aLike: liked, nbLikes, nbCommentaires: nbComments + 1 });
         }
       } catch (error) {
         Alert.alert('Erreur', 'Impossible d\'ajouter le commentaire');
@@ -965,7 +976,8 @@ export default function Accueil() {
                   } else {
                     setCommentaires(prev => prev.filter(c => c._id !== commentId));
                   }
-                  onUpdate({ ...publication, nbCommentaires: Math.max(0, publication.nbCommentaires - 1) });
+                  setNbComments(prev => Math.max(0, prev - 1));
+                  onUpdate({ ...publication, aLike: liked, nbLikes, nbCommentaires: Math.max(0, nbComments - 1) });
                 } else {
                   Alert.alert('Erreur', reponse.message || 'Impossible de supprimer le commentaire');
                 }
@@ -1176,7 +1188,7 @@ export default function Accueil() {
         <View style={styles.postStats}>
           <Text style={styles.postStatText}>{nbLikes} j'aime</Text>
           <Pressable onPress={handleToggleComments}>
-            <Text style={styles.postStatText}>{publication.nbCommentaires} commentaires</Text>
+            <Text style={styles.postStatText}>{nbComments} commentaires</Text>
           </Pressable>
         </View>
         <View style={styles.postActions}>
