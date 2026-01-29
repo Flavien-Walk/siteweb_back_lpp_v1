@@ -27,12 +27,16 @@ export const dechiffrerMessage = (texteCrypte: string): string => {
   return decrypted;
 };
 
+// Types de messages
+export type TypeMessage = 'texte' | 'image' | 'systeme';
+
 export interface IMessage extends Document {
   _id: mongoose.Types.ObjectId;
+  conversation: mongoose.Types.ObjectId;
   expediteur: mongoose.Types.ObjectId;
-  destinataire: mongoose.Types.ObjectId;
-  contenuCrypte: string; // Contenu chiffré en base
-  lu: boolean;
+  type: TypeMessage;
+  contenuCrypte: string; // Contenu chiffré en base (texte ou URL image)
+  lecteurs: mongoose.Types.ObjectId[]; // Utilisateurs ayant lu le message
   dateCreation: Date;
   // Méthode virtuelle pour récupérer le contenu déchiffré
   contenu: string;
@@ -41,33 +45,44 @@ export interface IMessage extends Document {
 export interface IConversation extends Document {
   _id: mongoose.Types.ObjectId;
   participants: mongoose.Types.ObjectId[];
+  estGroupe: boolean;
+  nomGroupe?: string;
+  imageGroupe?: string;
+  createur?: mongoose.Types.ObjectId; // Pour les groupes
+  admins: mongoose.Types.ObjectId[]; // Admins du groupe
   dernierMessage?: mongoose.Types.ObjectId;
+  muetPar: mongoose.Types.ObjectId[]; // Utilisateurs ayant mis en sourdine
   dateMiseAJour: Date;
   dateCreation: Date;
 }
 
 const messageSchema = new Schema<IMessage>(
   {
+    conversation: {
+      type: Schema.Types.ObjectId,
+      ref: 'Conversation',
+      required: true,
+      index: true,
+    },
     expediteur: {
       type: Schema.Types.ObjectId,
       ref: 'Utilisateur',
       required: true,
       index: true,
     },
-    destinataire: {
-      type: Schema.Types.ObjectId,
-      ref: 'Utilisateur',
-      required: true,
-      index: true,
+    type: {
+      type: String,
+      enum: ['texte', 'image', 'systeme'],
+      default: 'texte',
     },
     contenuCrypte: {
       type: String,
       required: true,
     },
-    lu: {
-      type: Boolean,
-      default: false,
-    },
+    lecteurs: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    }],
   },
   {
     timestamps: {
@@ -88,9 +103,9 @@ messageSchema.virtual('contenu').get(function (this: IMessage) {
   }
 });
 
-// Index pour récupérer les messages entre deux utilisateurs
-messageSchema.index({ expediteur: 1, destinataire: 1, dateCreation: -1 });
-messageSchema.index({ destinataire: 1, lu: 1 });
+// Index pour récupérer les messages d'une conversation
+messageSchema.index({ conversation: 1, dateCreation: -1 });
+messageSchema.index({ expediteur: 1, dateCreation: -1 });
 
 const conversationSchema = new Schema<IConversation>(
   {
@@ -99,10 +114,33 @@ const conversationSchema = new Schema<IConversation>(
       ref: 'Utilisateur',
       required: true,
     }],
+    estGroupe: {
+      type: Boolean,
+      default: false,
+    },
+    nomGroupe: {
+      type: String,
+      maxlength: 100,
+    },
+    imageGroupe: {
+      type: String,
+    },
+    createur: {
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    },
+    admins: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    }],
     dernierMessage: {
       type: Schema.Types.ObjectId,
       ref: 'Message',
     },
+    muetPar: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    }],
     dateMiseAJour: {
       type: Date,
       default: Date.now,
@@ -118,6 +156,7 @@ const conversationSchema = new Schema<IConversation>(
 
 // Index pour trouver les conversations d'un utilisateur
 conversationSchema.index({ participants: 1, dateMiseAJour: -1 });
+conversationSchema.index({ estGroupe: 1 });
 
 export const Message = mongoose.model<IMessage>('Message', messageSchema);
 export const Conversation = mongoose.model<IConversation>('Conversation', conversationSchema);
