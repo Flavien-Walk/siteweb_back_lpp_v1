@@ -1335,7 +1335,7 @@ export default function Accueil() {
         </Pressable>
         {MOCK_STORIES.map((story) => (
           <Pressable key={story.id} style={styles.storyItem}>
-            <View style={[styles.storyBorder, story.nouveau && styles.storyBorderActive]}>
+            <View style={[styles.storyRing, story.nouveau && styles.storyRingActive]}>
               <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
             </View>
             <Text style={styles.storyNom} numberOfLines={1}>{story.nom}</Text>
