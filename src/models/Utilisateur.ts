@@ -23,6 +23,10 @@ export interface IUtilisateur extends Document {
   role: Role;
   statut?: StatutUtilisateur;
   cguAcceptees: boolean;
+  // Système d'amis
+  amis: mongoose.Types.ObjectId[];
+  demandesAmisRecues: mongoose.Types.ObjectId[];
+  demandesAmisEnvoyees: mongoose.Types.ObjectId[];
   dateCreation: Date;
   dateMiseAJour: Date;
   comparerMotDePasse(motDePasseCandidat: string): Promise<boolean>;
@@ -90,6 +94,19 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       required: [true, 'Vous devez accepter les CGU'],
       default: false,
     },
+    // Système d'amis
+    amis: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    }],
+    demandesAmisRecues: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    }],
+    demandesAmisEnvoyees: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    }],
   },
   {
     timestamps: {
