@@ -216,6 +216,68 @@ export const supprimerPublication = async (
   }
 };
 
+// Schéma pour modifier une publication
+const schemaModifierPublication = z.object({
+  contenu: z
+    .string()
+    .min(1, 'Le contenu est requis')
+    .max(5000, 'Le contenu ne peut pas dépasser 5000 caractères')
+    .trim(),
+});
+
+/**
+ * PATCH /api/publications/:id
+ * Modifier une publication (auteur uniquement)
+ */
+export const modifierPublication = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const donnees = schemaModifierPublication.parse(req.body);
+    const userId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ErreurAPI('ID de publication invalide.', 400);
+    }
+
+    const publication = await Publication.findById(id);
+
+    if (!publication) {
+      throw new ErreurAPI('Publication non trouvée.', 404);
+    }
+
+    // Vérifier que l'utilisateur est l'auteur
+    if (publication.auteur.toString() !== userId.toString()) {
+      throw new ErreurAPI('Vous ne pouvez modifier que vos propres publications.', 403);
+    }
+
+    // Mettre à jour le contenu
+    publication.contenu = donnees.contenu;
+    await publication.save();
+
+    // Récupérer avec les infos de l'auteur
+    const publicationComplete = await Publication.findById(id)
+      .populate('auteur', 'prenom nom avatar');
+
+    res.json({
+      succes: true,
+      message: 'Publication modifiée avec succès.',
+      data: {
+        publication: {
+          ...publicationComplete!.toObject(),
+          aLike: publication.likes.some((lid) => lid.toString() === userId.toString()),
+          nbLikes: publication.likes.length,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * POST /api/publications/:id/like
  * Liker/unliker une publication

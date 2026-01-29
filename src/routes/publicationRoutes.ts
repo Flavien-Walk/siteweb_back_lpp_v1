@@ -3,6 +3,7 @@ import {
   getPublications,
   getPublication,
   creerPublication,
+  modifierPublication,
   supprimerPublication,
   toggleLikePublication,
   getCommentaires,
@@ -32,6 +33,12 @@ router.get('/:id', chargerUtilisateurOptionnel, getPublication);
  * Créer une publication (auth requise)
  */
 router.post('/', verifierJwt, creerPublication);
+
+/**
+ * PATCH /api/publications/:id
+ * Modifier une publication (auth requise, auteur uniquement)
+ */
+router.patch('/:id', verifierJwt, modifierPublication);
 
 /**
  * DELETE /api/publications/:id

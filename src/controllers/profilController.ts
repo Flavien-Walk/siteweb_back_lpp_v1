@@ -8,6 +8,7 @@ import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
 // Avatars par défaut (abstraits/géométriques, pas de visages)
 export const AVATARS_DEFAUT = [
+  // Shapes - formes géométriques colorées
   'https://api.dicebear.com/7.x/shapes/svg?seed=lpp1&backgroundColor=6366f1',
   'https://api.dicebear.com/7.x/shapes/svg?seed=lpp2&backgroundColor=10b981',
   'https://api.dicebear.com/7.x/shapes/svg?seed=lpp3&backgroundColor=f59e0b',
@@ -16,10 +17,31 @@ export const AVATARS_DEFAUT = [
   'https://api.dicebear.com/7.x/shapes/svg?seed=lpp6&backgroundColor=06b6d4',
   'https://api.dicebear.com/7.x/shapes/svg?seed=lpp7&backgroundColor=ec4899',
   'https://api.dicebear.com/7.x/shapes/svg?seed=lpp8&backgroundColor=84cc16',
+  // Identicon - motifs symétriques
   'https://api.dicebear.com/7.x/identicon/svg?seed=lpp1&backgroundColor=6366f1',
   'https://api.dicebear.com/7.x/identicon/svg?seed=lpp2&backgroundColor=10b981',
   'https://api.dicebear.com/7.x/identicon/svg?seed=lpp3&backgroundColor=f59e0b',
   'https://api.dicebear.com/7.x/identicon/svg?seed=lpp4&backgroundColor=ef4444',
+  // Rings - anneaux colorés
+  'https://api.dicebear.com/7.x/rings/svg?seed=lpp1&backgroundColor=6366f1',
+  'https://api.dicebear.com/7.x/rings/svg?seed=lpp2&backgroundColor=10b981',
+  'https://api.dicebear.com/7.x/rings/svg?seed=lpp3&backgroundColor=f59e0b',
+  'https://api.dicebear.com/7.x/rings/svg?seed=lpp4&backgroundColor=8b5cf6',
+  // Thumbs - empreintes
+  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp1&backgroundColor=6366f1',
+  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp2&backgroundColor=10b981',
+  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp3&backgroundColor=f59e0b',
+  'https://api.dicebear.com/7.x/thumbs/svg?seed=lpp4&backgroundColor=ec4899',
+  // Bottts - robots mignons
+  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp1&backgroundColor=6366f1',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp2&backgroundColor=10b981',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp3&backgroundColor=f59e0b',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=lpp4&backgroundColor=ef4444',
+  // Pixel art
+  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp1&backgroundColor=6366f1',
+  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp2&backgroundColor=10b981',
+  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp3&backgroundColor=f59e0b',
+  'https://api.dicebear.com/7.x/pixel-art-neutral/svg?seed=lpp4&backgroundColor=8b5cf6',
 ];
 
 // Schéma de validation pour la mise à jour du profil
