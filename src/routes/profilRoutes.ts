@@ -5,6 +5,7 @@ import {
   supprimerCompte,
   getAvatarsDefaut,
   modifierAvatar,
+  modifierStatut,
 } from '../controllers/profilController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
@@ -36,6 +37,12 @@ router.patch('/mot-de-passe', changerMotDePasse);
  * Modifier l'avatar
  */
 router.patch('/avatar', modifierAvatar);
+
+/**
+ * PATCH /api/profil/statut
+ * Modifier le statut (visiteur ou entrepreneur)
+ */
+router.patch('/statut', modifierStatut);
 
 /**
  * DELETE /api/profil

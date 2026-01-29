@@ -136,6 +136,7 @@ export const modifierProfil = async (
           email: utilisateur.email,
           avatar: utilisateur.avatar,
           role: utilisateur.role,
+          statut: utilisateur.statut,
           provider: utilisateur.provider,
         },
       },
@@ -294,6 +295,56 @@ export const modifierAvatar = async (
           email: utilisateur.email,
           avatar: utilisateur.avatar,
           role: utilisateur.role,
+          statut: utilisateur.statut,
+          provider: utilisateur.provider,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Schéma pour le statut
+const schemaModifierStatut = z.object({
+  statut: z.enum(['visiteur', 'entrepreneur']),
+});
+
+/**
+ * PATCH /api/profil/statut
+ * Modifier le statut de l'utilisateur (visiteur ou entrepreneur)
+ */
+export const modifierStatut = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const donnees = schemaModifierStatut.parse(req.body);
+    const userId = req.utilisateur!._id;
+
+    const utilisateur = await Utilisateur.findByIdAndUpdate(
+      userId,
+      { statut: donnees.statut },
+      { new: true }
+    );
+
+    if (!utilisateur) {
+      throw new ErreurAPI('Utilisateur non trouvé.', 404);
+    }
+
+    res.json({
+      succes: true,
+      message: 'Statut mis à jour avec succès.',
+      data: {
+        utilisateur: {
+          id: utilisateur._id,
+          prenom: utilisateur.prenom,
+          nom: utilisateur.nom,
+          email: utilisateur.email,
+          avatar: utilisateur.avatar,
+          role: utilisateur.role,
+          statut: utilisateur.statut,
           provider: utilisateur.provider,
         },
       },

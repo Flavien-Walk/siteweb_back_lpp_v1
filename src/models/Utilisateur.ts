@@ -7,6 +7,9 @@ export type ProviderOAuth = 'local' | 'google' | 'facebook' | 'apple';
 // Types pour les rôles
 export type Role = 'user' | 'admin';
 
+// Types pour le statut utilisateur
+export type StatutUtilisateur = 'visiteur' | 'entrepreneur';
+
 // Interface pour le document Utilisateur
 export interface IUtilisateur extends Document {
   _id: mongoose.Types.ObjectId;
@@ -18,6 +21,7 @@ export interface IUtilisateur extends Document {
   providerId?: string;
   avatar?: string;
   role: Role;
+  statut?: StatutUtilisateur;
   cguAcceptees: boolean;
   dateCreation: Date;
   dateMiseAJour: Date;
@@ -75,6 +79,11 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       type: String,
       enum: ['user', 'admin'],
       default: 'user',
+    },
+    statut: {
+      type: String,
+      enum: ['visiteur', 'entrepreneur'],
+      default: null,
     },
     cguAcceptees: {
       type: Boolean,
