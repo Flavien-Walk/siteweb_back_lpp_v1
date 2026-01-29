@@ -1641,7 +1641,11 @@ export default function Accueil() {
         <Ionicons name="notifications-outline" size={24} color={couleurs.texte} />
       </Pressable>
       <Pressable style={styles.avatar} onPress={handleProfil}>
-        <Text style={styles.avatarTexte}>{getInitiales()}</Text>
+        {utilisateur?.avatar ? (
+          <Image source={{ uri: utilisateur.avatar }} style={styles.avatarImage} />
+        ) : (
+          <Text style={styles.avatarTexte}>{getInitiales()}</Text>
+        )}
       </Pressable>
     </View>
   );
@@ -2269,11 +2273,15 @@ export default function Accueil() {
 
             <View style={styles.modalBody}>
               <View style={styles.modalAuthor}>
-                <View style={styles.modalAuthorAvatar}>
-                  <Text style={styles.modalAuthorAvatarText}>
-                    {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
-                  </Text>
-                </View>
+                {utilisateur?.avatar ? (
+                  <Image source={{ uri: utilisateur.avatar }} style={styles.modalAuthorAvatarImage} />
+                ) : (
+                  <View style={styles.modalAuthorAvatar}>
+                    <Text style={styles.modalAuthorAvatarText}>
+                      {utilisateur ? `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase() : 'U'}
+                    </Text>
+                  </View>
+                )}
                 <Text style={styles.modalAuthorName}>
                   {utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous'}
                 </Text>
@@ -2371,6 +2379,12 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     backgroundColor: couleurs.primaire,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   avatarTexte: {
     fontSize: 16,
@@ -3824,6 +3838,11 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     backgroundColor: couleurs.primaire,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalAuthorAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   modalAuthorAvatarText: {
     fontSize: 16,
