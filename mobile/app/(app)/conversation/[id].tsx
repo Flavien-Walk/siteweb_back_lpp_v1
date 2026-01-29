@@ -1,5 +1,6 @@
 /**
- * Conversation - Écran de chat full screen style Instagram
+ * Conversation - Écran de chat style Instagram
+ * Avec édition de messages, photos de profil et temps réel
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -16,6 +17,7 @@ import {
   Platform,
   Alert,
   ActionSheetIOS,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,12 +27,15 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
+import { Avatar } from '../../../src/composants';
 import {
   getMessages,
   envoyerMessage,
   marquerConversationLue,
   toggleMuetConversation,
   retirerParticipantGroupe,
+  modifierMessage,
+  supprimerMessage,
   Message,
   Utilisateur,
 } from '../../../src/services/messagerie';
@@ -42,6 +47,9 @@ interface ConversationInfo {
   imageGroupe?: string;
   participants: Utilisateur[];
 }
+
+// Délai maximum pour éditer un message (15 minutes)
+const DELAI_EDITION_MS = 15 * 60 * 1000;
 
 export default function ConversationScreen() {
   const router = useRouter();
@@ -57,9 +65,18 @@ export default function ConversationScreen() {
   const [messageTexte, setMessageTexte] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
 
+  // Édition de message
+  const [messageEnEdition, setMessageEnEdition] = useState<Message | null>(null);
+  const [contenuEdition, setContenuEdition] = useState('');
+  const [modalEditionVisible, setModalEditionVisible] = useState(false);
+
   // Charger les messages
-  const chargerMessages = useCallback(async () => {
+  const chargerMessages = useCallback(async (silencieux = false) => {
     if (!id) return;
+
+    if (!silencieux) {
+      setChargement(true);
+    }
 
     try {
       const reponse = await getMessages(id);
@@ -71,7 +88,9 @@ export default function ConversationScreen() {
       }
     } catch (error) {
       console.error('Erreur chargement messages:', error);
-      Alert.alert('Erreur', 'Impossible de charger les messages');
+      if (!silencieux) {
+        Alert.alert('Erreur', 'Impossible de charger les messages');
+      }
     } finally {
       setChargement(false);
     }
@@ -81,16 +100,37 @@ export default function ConversationScreen() {
     chargerMessages();
   }, [chargerMessages]);
 
-  // Rafraîchir périodiquement (polling simple)
+  // Polling plus rapide (toutes les 2 secondes)
   useEffect(() => {
     const interval = setInterval(() => {
       if (!chargement && id) {
-        chargerMessages();
+        chargerMessages(true); // Silencieux
       }
-    }, 5000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [chargerMessages, chargement, id]);
+
+  // Vérifier si un message peut être édité (moins de 15 minutes)
+  const peutEditerMessage = (message: Message) => {
+    if (!message.estMoi) return false;
+    const dateCreation = new Date(message.dateCreation).getTime();
+    const maintenant = Date.now();
+    return (maintenant - dateCreation) < DELAI_EDITION_MS;
+  };
+
+  // Calculer le temps restant pour éditer
+  const getTempsRestantEdition = (message: Message) => {
+    const dateCreation = new Date(message.dateCreation).getTime();
+    const maintenant = Date.now();
+    const tempsEcoule = maintenant - dateCreation;
+    const tempsRestant = DELAI_EDITION_MS - tempsEcoule;
+
+    if (tempsRestant <= 0) return null;
+
+    const minutes = Math.floor(tempsRestant / 60000);
+    return `${minutes} min restantes`;
+  };
 
   // Envoyer un message
   const handleEnvoyer = async () => {
@@ -104,16 +144,121 @@ export default function ConversationScreen() {
       const reponse = await envoyerMessage(contenu, { conversationId: id });
       if (reponse.succes && reponse.data) {
         setMessages((prev) => [...prev, reponse.data!.message]);
-        // Scroll to bottom
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       }
     } catch (error) {
       Alert.alert('Erreur', "Impossible d'envoyer le message");
-      setMessageTexte(contenu); // Restaurer le message
+      setMessageTexte(contenu);
     } finally {
       setEnvoiEnCours(false);
+    }
+  };
+
+  // Ouvrir le modal d'édition
+  const ouvrirEdition = (message: Message) => {
+    if (!peutEditerMessage(message)) {
+      Alert.alert('Impossible', 'Ce message ne peut plus être modifié (délai de 15 minutes dépassé)');
+      return;
+    }
+    setMessageEnEdition(message);
+    setContenuEdition(message.contenu);
+    setModalEditionVisible(true);
+  };
+
+  // Sauvegarder l'édition
+  const sauvegarderEdition = async () => {
+    if (!messageEnEdition || !contenuEdition.trim() || !id) return;
+
+    try {
+      const reponse = await modifierMessage(id, messageEnEdition._id, contenuEdition.trim());
+      if (reponse.succes && reponse.data) {
+        setMessages(prev => prev.map(m =>
+          m._id === messageEnEdition._id
+            ? { ...m, contenu: contenuEdition.trim(), modifie: true }
+            : m
+        ));
+        setModalEditionVisible(false);
+        setMessageEnEdition(null);
+        setContenuEdition('');
+      } else {
+        Alert.alert('Erreur', reponse.message || 'Impossible de modifier le message');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de modifier le message');
+    }
+  };
+
+  // Supprimer un message pour tout le monde
+  const handleSupprimerMessage = async (message: Message) => {
+    if (!peutEditerMessage(message) || !id) return;
+
+    Alert.alert(
+      'Supprimer pour tous',
+      'Ce message sera supprimé pour tout le monde. Cette action est irréversible.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const reponse = await supprimerMessage(id, message._id);
+              if (reponse.succes) {
+                setMessages(prev => prev.filter(m => m._id !== message._id));
+              } else {
+                Alert.alert('Erreur', reponse.message || 'Impossible de supprimer le message');
+              }
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer le message');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Long press sur un message
+  const handleLongPressMessage = (message: Message) => {
+    if (!message.estMoi) return;
+
+    const peutModifier = peutEditerMessage(message);
+
+    if (Platform.OS === 'ios') {
+      const options = peutModifier
+        ? ['Modifier', 'Supprimer pour tous', 'Copier', 'Annuler']
+        : ['Copier', 'Annuler'];
+
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: options.length - 1,
+          destructiveButtonIndex: peutModifier ? 1 : undefined,
+        },
+        (buttonIndex) => {
+          if (peutModifier) {
+            if (buttonIndex === 0) ouvrirEdition(message);
+            if (buttonIndex === 1) handleSupprimerMessage(message);
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Options',
+        undefined,
+        peutModifier
+          ? [
+              { text: 'Modifier', onPress: () => ouvrirEdition(message) },
+              { text: 'Supprimer pour tous', style: 'destructive', onPress: () => handleSupprimerMessage(message) },
+              { text: 'Copier' },
+              { text: 'Annuler', style: 'cancel' },
+            ]
+          : [
+              { text: 'Copier' },
+              { text: 'Annuler', style: 'cancel' },
+            ]
+      );
     }
   };
 
@@ -126,7 +271,6 @@ export default function ConversationScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      // TODO: Upload image et envoyer comme message type 'image'
       Alert.alert('Info', "L'envoi d'images sera bientôt disponible !");
     }
   };
@@ -158,7 +302,14 @@ export default function ConversationScreen() {
             }
           } else {
             if (buttonIndex === 0) {
-              // TODO: Naviguer vers le profil
+              // Naviguer vers le profil
+              const autre = getAutreParticipant();
+              if (autre) {
+                router.push({
+                  pathname: '/(app)/utilisateur/[id]',
+                  params: { id: autre._id },
+                });
+              }
             } else if (buttonIndex === 1) {
               handleToggleMuet();
             }
@@ -184,6 +335,18 @@ export default function ConversationScreen() {
               { text: 'Annuler', style: 'cancel' },
             ]
           : [
+              {
+                text: 'Voir le profil',
+                onPress: () => {
+                  const autre = getAutreParticipant();
+                  if (autre) {
+                    router.push({
+                      pathname: '/(app)/utilisateur/[id]',
+                      params: { id: autre._id },
+                    });
+                  }
+                },
+              },
               { text: 'Mettre en sourdine', onPress: handleToggleMuet },
               { text: 'Annuler', style: 'cancel' },
             ]
@@ -266,10 +429,37 @@ export default function ConversationScreen() {
     return currentDate !== previousDate;
   };
 
+  // Obtenir l'avatar de l'autre personne (conversation privée)
+  const getAutreParticipant = () => {
+    if (!conversation || conversation.estGroupe) return null;
+    const userId = utilisateur?.id;
+    return conversation.participants.find((p) => p._id !== userId);
+  };
+
+  // Naviguer vers le profil de l'autre utilisateur
+  const naviguerVersProfil = () => {
+    if (!conversation) return;
+
+    if (conversation.estGroupe) {
+      // Pour les groupes, afficher les options
+      showOptions();
+    } else {
+      // Pour les conversations privées, aller au profil
+      const autre = getAutreParticipant();
+      if (autre) {
+        router.push({
+          pathname: '/(app)/utilisateur/[id]',
+          params: { id: autre._id },
+        });
+      }
+    }
+  };
+
   // Render message
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const estMoi = item.estMoi;
     const showSeparator = shouldShowDateSeparator(index);
+    const autreParticipant = getAutreParticipant();
 
     // Message système
     if (item.type === 'systeme') {
@@ -285,72 +475,89 @@ export default function ConversationScreen() {
       );
     }
 
+    // Déterminer si on affiche l'avatar (messages de l'autre personne)
+    const showAvatar = !estMoi;
+    const avatarUrl = conversation?.estGroupe ? item.expediteur.avatar : autreParticipant?.avatar;
+    const initiales = item.expediteur.prenom?.[0] || '?';
+
     return (
       <View>
         {showSeparator && (
           <Text style={styles.dateSeparator}>{formatDateSeparateur(item.dateCreation)}</Text>
         )}
-        <View style={[styles.messageRow, estMoi && styles.messageRowMoi]}>
-          {/* Avatar pour les messages des autres (groupes) */}
-          {!estMoi && conversation?.estGroupe && (
-            <View style={styles.messageAvatarContainer}>
-              {item.expediteur.avatar ? (
-                <Image source={{ uri: item.expediteur.avatar }} style={styles.messageAvatar} />
-              ) : (
-                <View style={styles.messageAvatarPlaceholder}>
-                  <Text style={styles.messageAvatarInitiales}>
-                    {item.expediteur.prenom?.[0]}
-                  </Text>
-                </View>
+        <Pressable
+          onLongPress={() => handleLongPressMessage(item)}
+          delayLongPress={500}
+        >
+          <View style={[styles.messageRow, estMoi && styles.messageRowMoi]}>
+            {/* Avatar pour les messages reçus */}
+            {showAvatar && (
+              <View style={styles.messageAvatarContainer}>
+                <Avatar
+                  uri={avatarUrl}
+                  prenom={item.expediteur.prenom}
+                  nom={item.expediteur.nom}
+                  taille={28}
+                />
+              </View>
+            )}
+
+            <View style={[styles.messageBubble, estMoi ? styles.messageBubbleMoi : styles.messageBubbleAutre]}>
+              {/* Nom de l'expéditeur (groupes uniquement) */}
+              {!estMoi && conversation?.estGroupe && (
+                <Text style={styles.messageAuteur}>{item.expediteur.prenom}</Text>
               )}
-            </View>
-          )}
 
-          <View style={[styles.messageBubble, estMoi ? styles.messageBubbleMoi : styles.messageBubbleAutre]}>
-            {/* Nom de l'expéditeur (groupes) */}
-            {!estMoi && conversation?.estGroupe && (
-              <Text style={styles.messageAuteur}>{item.expediteur.prenom}</Text>
-            )}
-
-            {/* Contenu */}
-            {item.type === 'image' ? (
-              <Image source={{ uri: item.contenu }} style={styles.messageImage} />
-            ) : (
-              <Text style={[styles.messageTexte, estMoi && styles.messageTexteMoi]}>
-                {item.contenu}
-              </Text>
-            )}
-
-            {/* Heure */}
-            <Text style={[styles.messageHeure, estMoi && styles.messageHeureMoi]}>
-              {formatHeure(item.dateCreation)}
-              {estMoi && (
-                <Text>
-                  {' '}
-                  <Ionicons
-                    name={(item.lecteurs?.length || 0) > 1 ? 'checkmark-done' : 'checkmark'}
-                    size={12}
-                    color={(item.lecteurs?.length || 0) > 1 ? couleurs.secondaire : couleurs.blanc}
-                  />
+              {/* Contenu */}
+              {item.type === 'image' ? (
+                <Image source={{ uri: item.contenu }} style={styles.messageImage} />
+              ) : (
+                <Text style={[styles.messageTexte, estMoi && styles.messageTexteMoi]}>
+                  {item.contenu}
                 </Text>
               )}
-            </Text>
+
+              {/* Heure + indicateurs */}
+              <View style={styles.messageFooter}>
+                {item.modifie && (
+                  <Text style={[styles.messageModifie, estMoi && styles.messageModifieMoi]}>
+                    modifié
+                  </Text>
+                )}
+                <Text style={[styles.messageHeure, estMoi && styles.messageHeureMoi]}>
+                  {formatHeure(item.dateCreation)}
+                </Text>
+                {estMoi && (
+                  <Ionicons
+                    name={(item.lecteurs?.length || 0) > 1 ? 'checkmark-done' : 'checkmark'}
+                    size={14}
+                    color={(item.lecteurs?.length || 0) > 1 ? couleurs.secondaire : 'rgba(255,255,255,0.7)'}
+                    style={styles.messageCheckmark}
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* Espace pour aligner les messages envoyés */}
+            {estMoi && <View style={styles.messageAvatarSpacer} />}
           </View>
-        </View>
+        </Pressable>
       </View>
     );
   };
 
   // Obtenir le nom et l'avatar de la conversation
   const getConversationDisplay = () => {
-    if (!conversation) return { nom: '', avatar: null, initiales: '' };
+    if (!conversation) return { nom: '', avatar: null, prenom: '', nomUtilisateur: '', sousTitre: undefined, estGroupe: false };
 
     if (conversation.estGroupe) {
       return {
         nom: conversation.nomGroupe || 'Groupe',
         avatar: conversation.imageGroupe,
-        initiales: conversation.nomGroupe?.substring(0, 2).toUpperCase() || 'GR',
+        prenom: conversation.nomGroupe?.substring(0, 1) || 'G',
+        nomUtilisateur: conversation.nomGroupe?.substring(1, 2) || 'R',
         sousTitre: `${conversation.participants.length} participants`,
+        estGroupe: true,
       };
     }
 
@@ -359,12 +566,14 @@ export default function ConversationScreen() {
     return {
       nom: autre ? `${autre.prenom} ${autre.nom}` : 'Conversation',
       avatar: autre?.avatar,
-      initiales: autre ? `${autre.prenom[0]}${autre.nom[0]}`.toUpperCase() : '?',
+      prenom: autre?.prenom || '',
+      nomUtilisateur: autre?.nom || '',
       sousTitre: undefined,
+      estGroupe: false,
     };
   };
 
-  const { nom, avatar, initiales, sousTitre } = getConversationDisplay();
+  const { nom, avatar, prenom, nomUtilisateur, sousTitre, estGroupe } = getConversationDisplay();
 
   if (chargement) {
     return (
@@ -386,22 +595,23 @@ export default function ConversationScreen() {
           <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
         </Pressable>
 
-        <Pressable style={styles.headerInfo} onPress={showOptions}>
-          {avatar ? (
-            <Image source={{ uri: avatar }} style={styles.headerAvatar} />
-          ) : (
-            <LinearGradient
-              colors={conversation?.estGroupe ? ['#10B981', '#059669'] : [couleurs.primaire, couleurs.primaireDark]}
-              style={styles.headerAvatarPlaceholder}
-            >
-              <Text style={styles.headerInitiales}>{initiales}</Text>
-            </LinearGradient>
-          )}
+        <Pressable style={styles.headerInfo} onPress={naviguerVersProfil}>
+          <Avatar
+            uri={avatar}
+            prenom={prenom}
+            nom={nomUtilisateur}
+            taille={40}
+            gradientColors={estGroupe ? ['#10B981', '#059669'] : [couleurs.primaire, couleurs.primaireDark]}
+          />
           <View style={styles.headerTexts}>
             <Text style={styles.headerNom} numberOfLines={1}>
               {nom}
             </Text>
-            {sousTitre && <Text style={styles.headerSousTitre}>{sousTitre}</Text>}
+            {sousTitre ? (
+              <Text style={styles.headerSousTitre}>{sousTitre}</Text>
+            ) : (
+              <Text style={styles.headerSousTitre}>Appuyez pour voir le profil</Text>
+            )}
           </View>
         </Pressable>
 
@@ -471,6 +681,55 @@ export default function ConversationScreen() {
           </Pressable>
         )}
       </View>
+
+      {/* Modal d'édition */}
+      <Modal
+        visible={modalEditionVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setModalEditionVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setModalEditionVisible(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Modifier le message</Text>
+              {messageEnEdition && (
+                <Text style={styles.modalSubtitle}>
+                  {getTempsRestantEdition(messageEnEdition)}
+                </Text>
+              )}
+            </View>
+
+            <TextInput
+              style={styles.modalInput}
+              value={contenuEdition}
+              onChangeText={setContenuEdition}
+              multiline
+              autoFocus
+              maxLength={2000}
+            />
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setModalEditionVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSaveBtn, !contenuEdition.trim() && styles.modalSaveBtnDisabled]}
+                onPress={sauvegarderEdition}
+                disabled={!contenuEdition.trim()}
+              >
+                <Text style={styles.modalSaveText}>Enregistrer</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -580,6 +839,10 @@ const styles = StyleSheet.create({
   messageAvatarContainer: {
     marginRight: espacements.xs,
   },
+  messageAvatarSpacer: {
+    width: 36,
+    marginLeft: espacements.xs,
+  },
   messageAvatar: {
     width: 28,
     height: 28,
@@ -589,14 +852,13 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: couleurs.fondCard,
     justifyContent: 'center',
     alignItems: 'center',
   },
   messageAvatarInitiales: {
-    fontSize: typographie.tailles.xs,
+    fontSize: 10,
     fontWeight: typographie.poids.bold,
-    color: couleurs.texteSecondaire,
+    color: couleurs.blanc,
   },
   messageBubble: {
     maxWidth: '75%',
@@ -631,14 +893,30 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: rayons.md,
   },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+    gap: 4,
+  },
+  messageModifie: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    color: couleurs.texteMuted,
+  },
+  messageModifieMoi: {
+    color: 'rgba(255,255,255,0.6)',
+  },
   messageHeure: {
     fontSize: typographie.tailles.xs,
     color: couleurs.texteMuted,
-    marginTop: 4,
-    alignSelf: 'flex-end',
   },
   messageHeureMoi: {
     color: 'rgba(255,255,255,0.7)',
+  },
+  messageCheckmark: {
+    marginLeft: 2,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -675,5 +953,70 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.6,
+  },
+  // Modal d'édition
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: espacements.lg,
+  },
+  modalContent: {
+    backgroundColor: couleurs.fond,
+    borderRadius: rayons.lg,
+    padding: espacements.lg,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalHeader: {
+    marginBottom: espacements.md,
+  },
+  modalTitle: {
+    fontSize: typographie.tailles.lg,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texte,
+  },
+  modalSubtitle: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+    marginTop: 4,
+  },
+  modalInput: {
+    backgroundColor: couleurs.fondCard,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    fontSize: typographie.tailles.base,
+    color: couleurs.texte,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: espacements.lg,
+    gap: espacements.md,
+  },
+  modalCancelBtn: {
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.sm,
+  },
+  modalCancelText: {
+    fontSize: typographie.tailles.base,
+    color: couleurs.texteSecondaire,
+  },
+  modalSaveBtn: {
+    backgroundColor: couleurs.primaire,
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+  },
+  modalSaveBtnDisabled: {
+    opacity: 0.5,
+  },
+  modalSaveText: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.blanc,
   },
 });

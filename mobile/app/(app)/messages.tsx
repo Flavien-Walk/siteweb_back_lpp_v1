@@ -1,8 +1,9 @@
 /**
  * Messages - Liste des conversations style Instagram
+ * Avec swipe pour supprimer et mise à jour temps réel
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,32 +11,45 @@ import {
   FlatList,
   Pressable,
   TextInput,
-  Image,
   ActivityIndicator,
   RefreshControl,
   Modal,
   Alert,
+  Animated,
+  ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
 import { useUser } from '../../src/contexts/UserContext';
+import { Avatar } from '../../src/composants';
 import {
   getConversations,
   rechercherUtilisateurs,
   getOuCreerConversationPrivee,
   creerGroupe,
+  supprimerConversation,
   Conversation,
   Utilisateur,
 } from '../../src/services/messagerie';
+import {
+  getMesAmis,
+  getDemandesAmis,
+  accepterDemandeAmi,
+  refuserDemandeAmi,
+  ProfilUtilisateur,
+  DemandeAmi
+} from '../../src/services/utilisateurs';
 
 export default function Messages() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { utilisateur } = useUser();
+  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   // State
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -54,11 +68,44 @@ export default function Messages() {
   const [participantsSelectionnes, setParticipantsSelectionnes] = useState<Utilisateur[]>([]);
   const [nomGroupe, setNomGroupe] = useState('');
 
+  // Liste d'amis pour la création de groupe
+  const [mesAmis, setMesAmis] = useState<ProfilUtilisateur[]>([]);
+  const [chargementAmis, setChargementAmis] = useState(false);
+
+  // Onglets Messages / Demandes
+  const [ongletActif, setOngletActif] = useState<'messages' | 'demandes'>('messages');
+  const [demandesAmis, setDemandesAmis] = useState<DemandeAmi[]>([]);
+  const [chargementDemandes, setChargementDemandes] = useState(false);
+
+  // Extraire les contacts existants depuis les conversations
+  const contactsExistants = React.useMemo(() => {
+    const contacts: Utilisateur[] = [];
+    const idsVus = new Set<string>();
+
+    conversations.forEach(conv => {
+      if (!conv.estGroupe && conv.participant && !idsVus.has(conv.participant._id)) {
+        contacts.push(conv.participant);
+        idsVus.add(conv.participant._id);
+      }
+      // Aussi ajouter les participants des groupes
+      if (conv.participants) {
+        conv.participants.forEach(p => {
+          if (!idsVus.has(p._id)) {
+            contacts.push(p);
+            idsVus.add(p._id);
+          }
+        });
+      }
+    });
+
+    return contacts;
+  }, [conversations]);
+
   // Charger les conversations
-  const chargerConversations = useCallback(async (estRefresh = false) => {
+  const chargerConversations = useCallback(async (estRefresh = false, silencieux = false) => {
     if (estRefresh) {
       setRafraichissement(true);
-    } else {
+    } else if (!silencieux) {
       setChargement(true);
     }
 
@@ -77,7 +124,25 @@ export default function Messages() {
 
   useEffect(() => {
     chargerConversations();
+    // Charger aussi le nombre de demandes pour le badge
+    chargerDemandesAmis();
   }, [chargerConversations]);
+
+  // Polling pour mise à jour temps réel (toutes les 3 secondes)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      chargerConversations(false, true); // Silencieux
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [chargerConversations]);
+
+  // Rafraîchir quand l'écran reprend le focus
+  useFocusEffect(
+    useCallback(() => {
+      chargerConversations(false, true);
+    }, [chargerConversations])
+  );
 
   // Recherche utilisateurs pour nouvelle conversation
   useEffect(() => {
@@ -102,6 +167,85 @@ export default function Messages() {
     return () => clearTimeout(delai);
   }, [rechercheUtilisateur]);
 
+  // Charger la liste d'amis pour la création de groupe
+  const chargerMesAmis = async () => {
+    setChargementAmis(true);
+    try {
+      const reponse = await getMesAmis();
+      if (reponse.succes && reponse.data) {
+        // Filtrer pour exclure soi-même
+        const amisFiltres = reponse.data.amis.filter(
+          (ami) => ami._id !== utilisateur?.id
+        );
+        setMesAmis(amisFiltres);
+      }
+    } catch (error) {
+      console.error('Erreur chargement amis:', error);
+    } finally {
+      setChargementAmis(false);
+    }
+  };
+
+  // Activer le mode groupe et charger les amis
+  const activerModeGroupe = async () => {
+    setModeGroupe(true);
+    setParticipantsSelectionnes([]);
+    await chargerMesAmis();
+  };
+
+  // Charger les demandes d'amis
+  const chargerDemandesAmis = async () => {
+    setChargementDemandes(true);
+    try {
+      const reponse = await getDemandesAmis();
+      if (reponse.succes && reponse.data) {
+        setDemandesAmis(reponse.data.demandes || []);
+      }
+    } catch (error) {
+      console.error('Erreur chargement demandes:', error);
+    } finally {
+      setChargementDemandes(false);
+    }
+  };
+
+  // Accepter une demande d'ami
+  const handleAccepterDemande = async (userId: string) => {
+    try {
+      const reponse = await accepterDemandeAmi(userId);
+      if (reponse.succes) {
+        // Retirer de la liste
+        setDemandesAmis(prev => prev.filter(d => d.expediteur._id !== userId));
+        Alert.alert('Succès', 'Demande acceptée ! Vous êtes maintenant amis.');
+      } else {
+        Alert.alert('Erreur', reponse.message || 'Impossible d\'accepter la demande');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible d\'accepter la demande');
+    }
+  };
+
+  // Refuser une demande d'ami
+  const handleRefuserDemande = async (userId: string) => {
+    try {
+      const reponse = await refuserDemandeAmi(userId);
+      if (reponse.succes) {
+        // Retirer de la liste
+        setDemandesAmis(prev => prev.filter(d => d.expediteur._id !== userId));
+      } else {
+        Alert.alert('Erreur', reponse.message || 'Impossible de refuser la demande');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de refuser la demande');
+    }
+  };
+
+  // Charger les demandes au changement d'onglet
+  useEffect(() => {
+    if (ongletActif === 'demandes') {
+      chargerDemandesAmis();
+    }
+  }, [ongletActif]);
+
   // Filtrer conversations par recherche
   const conversationsFiltrees = conversations.filter((conv) => {
     if (recherche.length < 2) return true;
@@ -122,6 +266,36 @@ export default function Messages() {
       pathname: '/(app)/conversation/[id]',
       params: { id: conv._id },
     });
+  };
+
+  // Supprimer une conversation (seulement de mon côté)
+  const handleSupprimerConversation = async (convId: string) => {
+    Alert.alert(
+      'Supprimer la conversation',
+      'Cette conversation sera supprimée de votre liste. L\'autre personne conservera la conversation de son côté.',
+      [
+        { text: 'Annuler', style: 'cancel', onPress: () => {
+          // Fermer le swipe
+          swipeableRefs.current.get(convId)?.close();
+        }},
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const reponse = await supprimerConversation(convId);
+              if (reponse.succes) {
+                setConversations(prev => prev.filter(c => c._id !== convId));
+              } else {
+                Alert.alert('Erreur', reponse.message || 'Impossible de supprimer la conversation');
+              }
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer la conversation');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Démarrer une conversation privée
@@ -206,6 +380,51 @@ export default function Messages() {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   };
 
+  // Render swipe actions (droite - supprimer)
+  const renderRightActions = (convId: string, progress: Animated.AnimatedInterpolation<number>) => {
+    const translateX = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [80, 0],
+    });
+
+    return (
+      <Animated.View style={[styles.swipeActionsRight, { transform: [{ translateX }] }]}>
+        <Pressable
+          style={styles.swipeActionDelete}
+          onPress={() => handleSupprimerConversation(convId)}
+        >
+          <Ionicons name="trash-outline" size={24} color={couleurs.blanc} />
+        </Pressable>
+      </Animated.View>
+    );
+  };
+
+  // Render swipe actions (gauche - archiver/muet)
+  const renderLeftActions = (conv: Conversation, progress: Animated.AnimatedInterpolation<number>) => {
+    const translateX = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-80, 0],
+    });
+
+    return (
+      <Animated.View style={[styles.swipeActionsLeft, { transform: [{ translateX }] }]}>
+        <Pressable
+          style={styles.swipeActionMute}
+          onPress={() => {
+            swipeableRefs.current.get(conv._id)?.close();
+            // TODO: Toggle mute
+          }}
+        >
+          <Ionicons
+            name={conv.estMuet ? 'volume-high-outline' : 'volume-mute-outline'}
+            size={24}
+            color={couleurs.blanc}
+          />
+        </Pressable>
+      </Animated.View>
+    );
+  };
+
   // Render conversation item
   const renderConversation = ({ item }: { item: Conversation }) => {
     const nom = item.estGroupe
@@ -221,109 +440,79 @@ export default function Messages() {
       : `${item.participant?.prenom?.[0] || ''}${item.participant?.nom?.[0] || ''}`.toUpperCase();
 
     return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.conversationItem,
-          pressed && styles.conversationItemPressed,
-        ]}
-        onPress={() => ouvrirConversation(item)}
+      <Swipeable
+        ref={(ref) => swipeableRefs.current.set(item._id, ref)}
+        renderRightActions={(progress) => renderRightActions(item._id, progress)}
+        renderLeftActions={(progress) => renderLeftActions(item, progress)}
+        overshootRight={false}
+        overshootLeft={false}
+        friction={2}
       >
-        {/* Avatar */}
-        <View style={styles.avatarContainer}>
-          {avatar ? (
-            <Image source={{ uri: avatar }} style={styles.avatar} />
-          ) : (
-            <LinearGradient
-              colors={item.estGroupe ? ['#10B981', '#059669'] : [couleurs.primaire, couleurs.primaireDark]}
-              style={styles.avatarPlaceholder}
-            >
-              <Text style={styles.avatarInitiales}>{initiales}</Text>
-            </LinearGradient>
-          )}
-          {item.estGroupe && (
-            <View style={styles.groupBadge}>
-              <Ionicons name="people" size={10} color={couleurs.blanc} />
-            </View>
-          )}
-        </View>
-
-        {/* Infos */}
-        <View style={styles.conversationInfo}>
-          <View style={styles.conversationHeader}>
-            <Text
-              style={[
-                styles.conversationNom,
-                item.messagesNonLus > 0 && styles.conversationNomNonLu,
-              ]}
-              numberOfLines={1}
-            >
-              {nom}
-            </Text>
-            <Text style={styles.conversationDate}>
-              {item.dernierMessage ? formatDate(item.dernierMessage.dateCreation) : ''}
-            </Text>
-          </View>
-          <View style={styles.conversationPreview}>
-            <Text
-              style={[
-                styles.conversationMessage,
-                item.messagesNonLus > 0 && styles.conversationMessageNonLu,
-              ]}
-              numberOfLines={1}
-            >
-              {item.dernierMessage?.contenu || 'Aucun message'}
-            </Text>
-            {item.messagesNonLus > 0 && (
-              <View style={styles.badgeNonLu}>
-                <Text style={styles.badgeNonLuText}>
-                  {item.messagesNonLus > 99 ? '99+' : item.messagesNonLus}
-                </Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.conversationItem,
+            pressed && styles.conversationItemPressed,
+          ]}
+          onPress={() => ouvrirConversation(item)}
+        >
+          {/* Avatar */}
+          <View style={styles.avatarContainer}>
+            <Avatar
+              uri={avatar}
+              prenom={item.estGroupe ? item.nomGroupe?.substring(0, 1) : item.participant?.prenom}
+              nom={item.estGroupe ? item.nomGroupe?.substring(1, 2) : item.participant?.nom}
+              taille={56}
+              gradientColors={item.estGroupe ? ['#10B981', '#059669'] : [couleurs.primaire, couleurs.primaireDark]}
+            />
+            {item.estGroupe && (
+              <View style={styles.groupBadge}>
+                <Ionicons name="people" size={10} color={couleurs.blanc} />
               </View>
             )}
           </View>
-        </View>
 
-        {/* Indicateur sourdine */}
-        {item.estMuet && (
-          <Ionicons name="volume-mute" size={16} color={couleurs.texteMuted} />
-        )}
-      </Pressable>
-    );
-  };
-
-  // Render utilisateur recherche
-  const renderUtilisateurRecherche = ({ item }: { item: Utilisateur }) => {
-    const estSelectionne = participantsSelectionnes.find((p) => p._id === item._id);
-
-    return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.utilisateurItem,
-          pressed && styles.utilisateurItemPressed,
-          estSelectionne && styles.utilisateurItemSelectionne,
-        ]}
-        onPress={() => demarrerConversation(item)}
-      >
-        {item.avatar ? (
-          <Image source={{ uri: item.avatar }} style={styles.utilisateurAvatar} />
-        ) : (
-          <View style={styles.utilisateurAvatarPlaceholder}>
-            <Text style={styles.utilisateurInitiales}>
-              {item.prenom[0]}{item.nom[0]}
-            </Text>
+          {/* Infos */}
+          <View style={styles.conversationInfo}>
+            <View style={styles.conversationHeader}>
+              <Text
+                style={[
+                  styles.conversationNom,
+                  item.messagesNonLus > 0 && styles.conversationNomNonLu,
+                ]}
+                numberOfLines={1}
+              >
+                {nom}
+              </Text>
+              <Text style={styles.conversationDate}>
+                {item.dernierMessage ? formatDate(item.dernierMessage.dateCreation) : ''}
+              </Text>
+            </View>
+            <View style={styles.conversationPreview}>
+              <Text
+                style={[
+                  styles.conversationMessage,
+                  item.messagesNonLus > 0 && styles.conversationMessageNonLu,
+                ]}
+                numberOfLines={1}
+              >
+                {item.dernierMessage?.contenu || 'Aucun message'}
+              </Text>
+              {item.messagesNonLus > 0 && (
+                <View style={styles.badgeNonLu}>
+                  <Text style={styles.badgeNonLuText}>
+                    {item.messagesNonLus > 99 ? '99+' : item.messagesNonLus}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-        )}
-        <View style={styles.utilisateurInfo}>
-          <Text style={styles.utilisateurNom}>
-            {item.prenom} {item.nom}
-          </Text>
-        </View>
-        {modeGroupe && (
-          <View style={[styles.checkBox, estSelectionne && styles.checkBoxActive]}>
-            {estSelectionne && <Ionicons name="checkmark" size={14} color={couleurs.blanc} />}
-          </View>
-        )}
-      </Pressable>
+
+          {/* Indicateur sourdine */}
+          {item.estMuet && (
+            <Ionicons name="volume-mute" size={16} color={couleurs.texteMuted} />
+          )}
+        </Pressable>
+      </Swipeable>
     );
   };
 
@@ -343,57 +532,173 @@ export default function Messages() {
         </Pressable>
       </View>
 
-      {/* Barre de recherche */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={couleurs.texteMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Rechercher une conversation..."
-          placeholderTextColor={couleurs.textePlaceholder}
-          value={recherche}
-          onChangeText={setRecherche}
-        />
-        {recherche.length > 0 && (
-          <Pressable onPress={() => setRecherche('')}>
-            <Ionicons name="close-circle" size={20} color={couleurs.texteMuted} />
-          </Pressable>
-        )}
+      {/* Onglets Messages / Demandes */}
+      <View style={styles.tabsContainer}>
+        <Pressable
+          style={[styles.tab, ongletActif === 'messages' && styles.tabActive]}
+          onPress={() => setOngletActif('messages')}
+        >
+          <Text style={[styles.tabText, ongletActif === 'messages' && styles.tabTextActive]}>
+            Messages
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, ongletActif === 'demandes' && styles.tabActive]}
+          onPress={() => setOngletActif('demandes')}
+        >
+          <Text style={[styles.tabText, ongletActif === 'demandes' && styles.tabTextActive]}>
+            Demandes
+          </Text>
+          {demandesAmis.length > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{demandesAmis.length}</Text>
+            </View>
+          )}
+        </Pressable>
       </View>
 
-      {/* Liste des conversations */}
-      {chargement ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={couleurs.primaire} />
+      {/* Barre de recherche (seulement pour les messages) */}
+      {ongletActif === 'messages' && (
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={couleurs.texteMuted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher une conversation..."
+            placeholderTextColor={couleurs.textePlaceholder}
+            value={recherche}
+            onChangeText={setRecherche}
+          />
+          {recherche.length > 0 && (
+            <Pressable onPress={() => setRecherche('')}>
+              <Ionicons name="close-circle" size={20} color={couleurs.texteMuted} />
+            </Pressable>
+          )}
         </View>
-      ) : conversationsFiltrees.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color={couleurs.texteMuted} />
-          <Text style={styles.emptyText}>
-            {recherche.length > 0 ? 'Aucune conversation trouvée' : 'Aucune conversation'}
-          </Text>
-          <Pressable
-            style={styles.emptyButton}
-            onPress={() => setModalNouveauVisible(true)}
-          >
-            <Text style={styles.emptyButtonText}>Démarrer une conversation</Text>
-          </Pressable>
-        </View>
+      )}
+
+      {/* Contenu selon l'onglet actif */}
+      {ongletActif === 'messages' ? (
+        // Onglet Messages
+        chargement ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={couleurs.primaire} />
+          </View>
+        ) : conversationsFiltrees.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="chatbubbles-outline" size={64} color={couleurs.texteMuted} />
+            <Text style={styles.emptyText}>
+              {recherche.length > 0 ? 'Aucune conversation trouvée' : 'Aucune conversation'}
+            </Text>
+            <Pressable
+              style={styles.emptyButton}
+              onPress={() => setModalNouveauVisible(true)}
+            >
+              <Text style={styles.emptyButtonText}>Démarrer une conversation</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <FlatList
+            data={conversationsFiltrees}
+            renderItem={renderConversation}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={rafraichissement}
+                onRefresh={() => chargerConversations(true)}
+                tintColor={couleurs.primaire}
+                colors={[couleurs.primaire]}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        )
       ) : (
-        <FlatList
-          data={conversationsFiltrees}
-          renderItem={renderConversation}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={rafraichissement}
-              onRefresh={() => chargerConversations(true)}
-              tintColor={couleurs.primaire}
-              colors={[couleurs.primaire]}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        />
+        // Onglet Demandes d'amis
+        chargementDemandes ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={couleurs.primaire} />
+          </View>
+        ) : demandesAmis.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="people-outline" size={64} color={couleurs.texteMuted} />
+            <Text style={styles.emptyText}>Aucune demande d'ami</Text>
+            <Text style={styles.emptySubtext}>
+              Quand quelqu'un vous enverra une demande d'ami, elle apparaîtra ici.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={demandesAmis}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={chargementDemandes}
+                onRefresh={chargerDemandesAmis}
+                tintColor={couleurs.primaire}
+                colors={[couleurs.primaire]}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <View style={styles.demandeItem}>
+                {/* Avatar */}
+                <Pressable
+                  style={styles.demandeAvatarContainer}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/(app)/utilisateur/[id]',
+                      params: { id: item.expediteur._id },
+                    });
+                  }}
+                >
+                  <Avatar
+                    uri={item.expediteur.avatar}
+                    prenom={item.expediteur.prenom}
+                    nom={item.expediteur.nom}
+                    taille={56}
+                  />
+                </Pressable>
+
+                {/* Infos */}
+                <View style={styles.demandeInfo}>
+                  <Pressable
+                    onPress={() => {
+                      router.push({
+                        pathname: '/(app)/utilisateur/[id]',
+                        params: { id: item.expediteur._id },
+                      });
+                    }}
+                  >
+                    <Text style={styles.demandeNom}>
+                      {item.expediteur.prenom} {item.expediteur.nom}
+                    </Text>
+                  </Pressable>
+                  <Text style={styles.demandeDate}>
+                    Demande reçue {formatDate(item.dateCreation)}
+                  </Text>
+                </View>
+
+                {/* Actions */}
+                <View style={styles.demandeActions}>
+                  <Pressable
+                    style={styles.demandeAccepter}
+                    onPress={() => handleAccepterDemande(item.expediteur._id)}
+                  >
+                    <Ionicons name="checkmark" size={20} color={couleurs.blanc} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.demandeRefuser}
+                    onPress={() => handleRefuserDemande(item.expediteur._id)}
+                  >
+                    <Ionicons name="close" size={20} color={couleurs.blanc} />
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          />
+        )
       )}
 
       {/* Modal nouvelle conversation */}
@@ -433,8 +738,10 @@ export default function Messages() {
           <Pressable
             style={styles.toggleGroupe}
             onPress={() => {
-              setModeGroupe(!modeGroupe);
               if (!modeGroupe) {
+                activerModeGroupe();
+              } else {
+                setModeGroupe(false);
                 setParticipantsSelectionnes([]);
               }
             }}
@@ -499,25 +806,174 @@ export default function Messages() {
             />
           </View>
 
-          {/* Résultats */}
-          {chargementRecherche ? (
-            <View style={styles.modalLoadingContainer}>
-              <ActivityIndicator size="small" color={couleurs.primaire} />
-            </View>
-          ) : (
-            <FlatList
-              data={utilisateursTrouves}
-              renderItem={renderUtilisateurRecherche}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.modalListContent}
-              ListEmptyComponent={
-                rechercheUtilisateur.length >= 2 ? (
+          {/* Résultats - Mode Groupe (amis uniquement) */}
+          {modeGroupe ? (
+            chargementAmis ? (
+              <View style={styles.modalLoadingContainer}>
+                <ActivityIndicator size="small" color={couleurs.primaire} />
+                <Text style={styles.modalLoadingText}>Chargement de vos amis...</Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.modalScrollView}
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {mesAmis.length === 0 ? (
                   <View style={styles.modalEmptyContainer}>
-                    <Text style={styles.modalEmptyText}>Aucun utilisateur trouvé</Text>
+                    <Ionicons name="people-outline" size={48} color={couleurs.texteMuted} />
+                    <Text style={styles.modalEmptyText}>Aucun ami</Text>
+                    <Text style={styles.modalEmptySubtext}>
+                      Vous devez avoir des amis pour créer un groupe.
+                      Ajoutez des amis depuis leur profil !
+                    </Text>
                   </View>
-                ) : null
-              }
-            />
+                ) : (
+                  <>
+                    <Text style={styles.sectionTitle}>
+                      Sélectionnez vos amis ({mesAmis.length} ami{mesAmis.length > 1 ? 's' : ''})
+                    </Text>
+                    {mesAmis.map((ami) => {
+                      const estSelectionne = participantsSelectionnes.find(
+                        (p) => p._id === ami._id
+                      );
+                      return (
+                        <Pressable
+                          key={ami._id}
+                          style={({ pressed }) => [
+                            styles.utilisateurItem,
+                            pressed && styles.utilisateurItemPressed,
+                            estSelectionne && styles.utilisateurItemSelectionne,
+                          ]}
+                          onPress={() => {
+                            if (estSelectionne) {
+                              setParticipantsSelectionnes(
+                                participantsSelectionnes.filter((p) => p._id !== ami._id)
+                              );
+                            } else {
+                              setParticipantsSelectionnes([
+                                ...participantsSelectionnes,
+                                { _id: ami._id, prenom: ami.prenom, nom: ami.nom, avatar: ami.avatar },
+                              ]);
+                            }
+                          }}
+                        >
+                          <Avatar
+                            uri={ami.avatar}
+                            prenom={ami.prenom}
+                            nom={ami.nom}
+                            taille={44}
+                          />
+                          <View style={styles.utilisateurInfo}>
+                            <Text style={styles.utilisateurNom}>
+                              {ami.prenom} {ami.nom}
+                            </Text>
+                          </View>
+                          <View style={[styles.checkBox, estSelectionne && styles.checkBoxActive]}>
+                            {estSelectionne && (
+                              <Ionicons name="checkmark" size={14} color={couleurs.blanc} />
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </>
+                )}
+              </ScrollView>
+            )
+          ) : (
+            /* Mode conversation normale */
+            chargementRecherche ? (
+              <View style={styles.modalLoadingContainer}>
+                <ActivityIndicator size="small" color={couleurs.primaire} />
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.modalScrollView}
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Afficher les contacts existants si pas de recherche */}
+                {rechercheUtilisateur.length < 2 && contactsExistants.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitle}>Suggestions</Text>
+                    {contactsExistants.map((contact) => (
+                      <Pressable
+                        key={contact._id}
+                        style={({ pressed }) => [
+                          styles.utilisateurItem,
+                          pressed && styles.utilisateurItemPressed,
+                        ]}
+                        onPress={() => demarrerConversation(contact)}
+                      >
+                        <Avatar
+                          uri={contact.avatar}
+                          prenom={contact.prenom}
+                          nom={contact.nom}
+                          taille={44}
+                        />
+                        <View style={styles.utilisateurInfo}>
+                          <Text style={styles.utilisateurNom}>
+                            {contact.prenom} {contact.nom}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+
+                {/* Résultats de recherche */}
+                {rechercheUtilisateur.length >= 2 && utilisateursTrouves.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitle}>Résultats</Text>
+                    {utilisateursTrouves.map((user) => (
+                      <Pressable
+                        key={user._id}
+                        style={({ pressed }) => [
+                          styles.utilisateurItem,
+                          pressed && styles.utilisateurItemPressed,
+                        ]}
+                        onPress={() => demarrerConversation(user)}
+                      >
+                        <Avatar
+                          uri={user.avatar}
+                          prenom={user.prenom}
+                          nom={user.nom}
+                          taille={44}
+                        />
+                        <View style={styles.utilisateurInfo}>
+                          <Text style={styles.utilisateurNom}>
+                            {user.prenom} {user.nom}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+
+                {/* Message si aucun résultat de recherche */}
+                {rechercheUtilisateur.length >= 2 && utilisateursTrouves.length === 0 && (
+                  <View style={styles.modalEmptyContainer}>
+                    <Ionicons name="search-outline" size={48} color={couleurs.texteMuted} />
+                    <Text style={styles.modalEmptyText}>Aucun utilisateur trouvé</Text>
+                    <Text style={styles.modalEmptySubtext}>Essayez un autre nom</Text>
+                  </View>
+                )}
+
+                {/* Message si aucun contact et pas de recherche */}
+                {rechercheUtilisateur.length < 2 && contactsExistants.length === 0 && (
+                  <View style={styles.modalEmptyContainer}>
+                    <Ionicons name="people-outline" size={48} color={couleurs.texteMuted} />
+                    <Text style={styles.modalEmptyText}>Aucun contact</Text>
+                    <Text style={styles.modalEmptySubtext}>
+                      Tapez au moins 2 caractères pour rechercher
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            )
           )}
         </View>
       </Modal>
@@ -549,6 +1005,48 @@ const styles = StyleSheet.create({
   },
   headerAction: {
     padding: espacements.xs,
+  },
+  // Onglets
+  tabsContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.md,
+    gap: espacements.xs,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: couleurs.primaire,
+  },
+  tabText: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.medium,
+    color: couleurs.texteSecondaire,
+  },
+  tabTextActive: {
+    color: couleurs.primaire,
+    fontWeight: typographie.poids.semibold,
+  },
+  tabBadge: {
+    backgroundColor: couleurs.danger,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  tabBadgeText: {
+    fontSize: typographie.tailles.xs,
+    fontWeight: typographie.poids.bold,
+    color: couleurs.blanc,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -583,6 +1081,13 @@ const styles = StyleSheet.create({
     marginTop: espacements.lg,
     textAlign: 'center',
   },
+  emptySubtext: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteMuted,
+    marginTop: espacements.sm,
+    textAlign: 'center',
+    paddingHorizontal: espacements.xl,
+  },
   emptyButton: {
     marginTop: espacements.xl,
     backgroundColor: couleurs.primaire,
@@ -598,12 +1103,34 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: espacements.xl,
   },
+  // Swipe actions
+  swipeActionsRight: {
+    width: 80,
+    flexDirection: 'row',
+  },
+  swipeActionsLeft: {
+    width: 80,
+    flexDirection: 'row',
+  },
+  swipeActionDelete: {
+    flex: 1,
+    backgroundColor: couleurs.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  swipeActionMute: {
+    flex: 1,
+    backgroundColor: couleurs.primaire,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: espacements.lg,
     paddingVertical: espacements.md,
     gap: espacements.md,
+    backgroundColor: couleurs.fond,
   },
   conversationItemPressed: {
     backgroundColor: couleurs.fondCard,
@@ -795,6 +1322,17 @@ const styles = StyleSheet.create({
   modalLoadingContainer: {
     padding: espacements.xl,
     alignItems: 'center',
+    gap: espacements.md,
+  },
+  modalLoadingText: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: espacements.xl,
   },
   modalListContent: {
     paddingVertical: espacements.sm,
@@ -806,6 +1344,24 @@ const styles = StyleSheet.create({
   modalEmptyText: {
     fontSize: typographie.tailles.base,
     color: couleurs.texteSecondaire,
+    marginTop: espacements.md,
+  },
+  modalEmptySubtext: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteMuted,
+    textAlign: 'center',
+    marginTop: espacements.xs,
+    paddingHorizontal: espacements.lg,
+  },
+  sectionTitle: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texteMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: espacements.lg,
+    paddingTop: espacements.md,
+    paddingBottom: espacements.sm,
   },
   utilisateurItem: {
     flexDirection: 'row',
@@ -858,5 +1414,69 @@ const styles = StyleSheet.create({
   checkBoxActive: {
     backgroundColor: couleurs.primaire,
     borderColor: couleurs.primaire,
+  },
+  // Demandes d'amis
+  demandeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.md,
+    gap: espacements.md,
+    backgroundColor: couleurs.fond,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  demandeAvatarContainer: {
+    position: 'relative',
+  },
+  demandeAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  demandeAvatarPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  demandeAvatarInitiales: {
+    fontSize: typographie.tailles.lg,
+    fontWeight: typographie.poids.bold,
+    color: couleurs.blanc,
+  },
+  demandeInfo: {
+    flex: 1,
+  },
+  demandeNom: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texte,
+  },
+  demandeDate: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  demandeActions: {
+    flexDirection: 'row',
+    gap: espacements.sm,
+  },
+  demandeAccepter: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: couleurs.succes,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  demandeRefuser: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: couleurs.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
