@@ -451,9 +451,8 @@ export const ajouterCommentaire = async (
       reponseA: reponseAId,
     });
 
-    // Incrémenter le compteur de commentaires
-    publication.nbCommentaires += 1;
-    await publication.save();
+    // Incrémenter le compteur de commentaires (opération atomique)
+    await Publication.findByIdAndUpdate(id, { $inc: { nbCommentaires: 1 } });
 
     // Récupérer avec les infos de l'auteur
     const commentaireComplet = await Commentaire.findById(commentaire._id)

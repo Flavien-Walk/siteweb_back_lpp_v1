@@ -4,6 +4,7 @@ import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
+import { Message, Conversation } from '../models/Message.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { uploadAvatar, isBase64DataUrl, isHttpUrl } from '../utils/cloudinary.js';
 
@@ -226,8 +227,87 @@ export const supprimerCompte = async (
       }
     }
 
-    // Supprimer les notifications de l'utilisateur
-    await Notification.deleteMany({ destinataire: userId });
+    // Supprimer toutes les données liées à l'utilisateur
+    await Promise.all([
+      // Notifications (reçues)
+      Notification.deleteMany({ destinataire: userId }),
+      // Notifications créées par l'utilisateur (data.userId)
+      Notification.deleteMany({ 'data.userId': userId.toString() }),
+      // Publications de l'utilisateur
+      Publication.deleteMany({ auteur: userId, auteurType: 'Utilisateur' }),
+      // Commentaires de l'utilisateur
+      Commentaire.deleteMany({ auteur: userId }),
+      // Retirer les likes de l'utilisateur sur les publications
+      Publication.updateMany(
+        { likes: userId },
+        { $pull: { likes: userId } }
+      ),
+      // Retirer les likes de l'utilisateur sur les commentaires
+      Commentaire.updateMany(
+        { likes: userId },
+        { $pull: { likes: userId } }
+      ),
+      // Messages envoyés par l'utilisateur
+      Message.deleteMany({ expediteur: userId }),
+      // Retirer l'utilisateur des lecteurs de messages
+      Message.updateMany(
+        { lecteurs: userId },
+        { $pull: { lecteurs: userId } }
+      ),
+    ]);
+
+    // Gérer les conversations
+    // Pour les conversations 1-1 où l'utilisateur participe : supprimer
+    // Pour les groupes : retirer l'utilisateur des participants
+    const conversationsUtilisateur = await Conversation.find({ participants: userId });
+
+    for (const conv of conversationsUtilisateur) {
+      if (!conv.estGroupe) {
+        // Conversation privée : supprimer la conversation et ses messages
+        await Message.deleteMany({ conversation: conv._id });
+        await Conversation.findByIdAndDelete(conv._id);
+      } else {
+        // Groupe : retirer l'utilisateur des participants et admins
+        conv.participants = conv.participants.filter(
+          (p) => p.toString() !== userId.toString()
+        );
+        conv.admins = conv.admins?.filter(
+          (a) => a.toString() !== userId.toString()
+        );
+        conv.muetPar = conv.muetPar?.filter(
+          (m) => m.toString() !== userId.toString()
+        );
+
+        // Si plus de participants, supprimer le groupe
+        if (conv.participants.length === 0) {
+          await Message.deleteMany({ conversation: conv._id });
+          await Conversation.findByIdAndDelete(conv._id);
+        } else {
+          // Transférer le créateur si nécessaire
+          if (conv.createur?.toString() === userId.toString() && conv.participants.length > 0) {
+            conv.createur = conv.participants[0];
+            if (!conv.admins?.includes(conv.participants[0])) {
+              conv.admins = [...(conv.admins || []), conv.participants[0]];
+            }
+          }
+          await conv.save();
+        }
+      }
+    }
+
+    // Retirer l'utilisateur des listes d'amis des autres utilisateurs
+    await Utilisateur.updateMany(
+      { amis: userId },
+      { $pull: { amis: userId } }
+    );
+    await Utilisateur.updateMany(
+      { demandesAmisRecues: userId },
+      { $pull: { demandesAmisRecues: userId } }
+    );
+    await Utilisateur.updateMany(
+      { demandesAmisEnvoyees: userId },
+      { $pull: { demandesAmisEnvoyees: userId } }
+    );
 
     // Supprimer l'utilisateur
     await Utilisateur.findByIdAndDelete(userId);
