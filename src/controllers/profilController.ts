@@ -5,6 +5,7 @@ import Notification from '../models/Notification.js';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
+import { uploadAvatar, isBase64DataUrl, isHttpUrl } from '../utils/cloudinary.js';
 
 // Avatars par défaut (PNG format pour meilleure compatibilité React Native)
 export const AVATARS_DEFAUT = [
@@ -240,9 +241,12 @@ export const supprimerCompte = async (
   }
 };
 
-// Schéma pour l'avatar
+// Schéma pour l'avatar (accepte URL ou data URL base64)
 const schemaModifierAvatar = z.object({
-  avatar: z.string().url('URL avatar invalide').nullable(),
+  avatar: z.string().nullable().refine(
+    (val) => val === null || val === '' || isBase64DataUrl(val) || isHttpUrl(val),
+    { message: 'Avatar doit être une URL valide ou une image base64' }
+  ),
 });
 
 /**
@@ -264,6 +268,7 @@ export const getAvatarsDefaut = async (
 /**
  * PATCH /api/profil/avatar
  * Modifier l'avatar de l'utilisateur
+ * Supporte: URL HTTP(S), data URL base64, null (suppression)
  */
 export const modifierAvatar = async (
   req: Request,
@@ -274,9 +279,22 @@ export const modifierAvatar = async (
     const donnees = schemaModifierAvatar.parse(req.body);
     const userId = req.utilisateur!._id;
 
+    let avatarUrl: string | null = donnees.avatar;
+
+    // Si c'est une data URL base64, uploader sur Cloudinary
+    if (avatarUrl && isBase64DataUrl(avatarUrl)) {
+      try {
+        avatarUrl = await uploadAvatar(avatarUrl, userId.toString());
+        console.log('Avatar uploadé sur Cloudinary:', avatarUrl);
+      } catch (uploadError) {
+        console.error('Erreur upload Cloudinary:', uploadError);
+        throw new ErreurAPI('Erreur lors de l\'upload de l\'image. Veuillez réessayer.', 500);
+      }
+    }
+
     const utilisateur = await Utilisateur.findByIdAndUpdate(
       userId,
-      { avatar: donnees.avatar },
+      { avatar: avatarUrl },
       { new: true }
     );
 
