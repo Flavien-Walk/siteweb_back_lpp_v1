@@ -52,6 +52,7 @@ export default function Messages() {
   const [chargement, setChargement] = useState(true);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [recherche, setRecherche] = useState('');
+  const [ongletActif, setOngletActif] = useState<'messages' | 'demandes'>('messages');
 
   // Nouvelle conversation
   const [modalNouveauVisible, setModalNouveauVisible] = useState(false);
@@ -64,9 +65,10 @@ export default function Messages() {
   const [participantsSelectionnes, setParticipantsSelectionnes] = useState<Utilisateur[]>([]);
   const [nomGroupe, setNomGroupe] = useState('');
 
-  // Liste d'amis pour la création de groupe
+  // Liste d'amis pour la création de groupe et le filtrage
   const [mesAmis, setMesAmis] = useState<ProfilUtilisateur[]>([]);
   const [chargementAmis, setChargementAmis] = useState(false);
+  const [amisIds, setAmisIds] = useState<Set<string>>(new Set());
 
 
   // Extraire les contacts existants depuis les conversations
@@ -116,7 +118,23 @@ export default function Messages() {
 
   useEffect(() => {
     chargerConversations();
+    // Charger la liste des amis pour le filtrage Messages/Demandes
+    chargerAmisInitial();
   }, [chargerConversations]);
+
+  // Charger les amis au démarrage pour le filtrage
+  const chargerAmisInitial = async () => {
+    try {
+      const reponse = await getMesAmis();
+      if (reponse.succes && reponse.data) {
+        const ids = new Set(reponse.data.amis.map(ami => ami._id));
+        setAmisIds(ids);
+        setMesAmis(reponse.data.amis.filter(ami => ami._id !== utilisateur?.id));
+      }
+    } catch (error) {
+      console.error('Erreur chargement amis:', error);
+    }
+  };
 
   // Polling pour mise à jour temps réel (toutes les 3 secondes)
   useEffect(() => {
@@ -183,19 +201,52 @@ export default function Messages() {
     await chargerMesAmis();
   };
 
-  // Filtrer conversations par recherche
-  const conversationsFiltrees = conversations.filter((conv) => {
-    if (recherche.length < 2) return true;
-    const rechercheMin = recherche.toLowerCase();
+  // Filtrer conversations par onglet (amis/non-amis) et recherche
+  const conversationsFiltrees = React.useMemo(() => {
+    return conversations.filter((conv) => {
+      // Filtrage par onglet (Messages = amis, Demandes = non-amis)
+      if (!conv.estGroupe && conv.participant) {
+        const estAmi = amisIds.has(conv.participant._id);
+        if (ongletActif === 'messages' && !estAmi) return false;
+        if (ongletActif === 'demandes' && estAmi) return false;
+      }
+      // Les groupes n'apparaissent que dans l'onglet Messages
+      if (conv.estGroupe && ongletActif === 'demandes') return false;
 
-    if (conv.estGroupe) {
-      return conv.nomGroupe?.toLowerCase().includes(rechercheMin);
-    }
+      // Filtrage par recherche
+      if (recherche.length < 2) return true;
+      const rechercheMin = recherche.toLowerCase();
 
-    return `${conv.participant?.prenom} ${conv.participant?.nom}`
-      .toLowerCase()
-      .includes(rechercheMin);
-  });
+      if (conv.estGroupe) {
+        return conv.nomGroupe?.toLowerCase().includes(rechercheMin);
+      }
+
+      return `${conv.participant?.prenom} ${conv.participant?.nom}`
+        .toLowerCase()
+        .includes(rechercheMin);
+    });
+  }, [conversations, ongletActif, amisIds, recherche]);
+
+  // Compter les messages non lus par onglet
+  const compteurOnglets = React.useMemo(() => {
+    let messagesAmis = 0;
+    let demandesNonAmis = 0;
+
+    conversations.forEach(conv => {
+      if (conv.estGroupe) {
+        messagesAmis += conv.messagesNonLus || 0;
+      } else if (conv.participant) {
+        const estAmi = amisIds.has(conv.participant._id);
+        if (estAmi) {
+          messagesAmis += conv.messagesNonLus || 0;
+        } else {
+          demandesNonAmis += conv.messagesNonLus || 0;
+        }
+      }
+    });
+
+    return { messagesAmis, demandesNonAmis };
+  }, [conversations, amisIds]);
 
   // Ouvrir une conversation
   const ouvrirConversation = (conv: Conversation) => {
@@ -238,7 +289,14 @@ export default function Messages() {
   // Démarrer une conversation privée
   const demarrerConversation = async (user: Utilisateur) => {
     if (modeGroupe) {
-      // Ajouter/retirer des participants
+      // Ajouter/retirer des participants (uniquement amis)
+      if (!amisIds.has(user._id)) {
+        Alert.alert(
+          'Ami requis',
+          `${user.prenom} n'est pas dans votre liste d'amis. Ajoutez-le en ami pour l'ajouter au groupe.`
+        );
+        return;
+      }
       const dejaSelectionne = participantsSelectionnes.find((p) => p._id === user._id);
       if (dejaSelectionne) {
         setParticipantsSelectionnes(participantsSelectionnes.filter((p) => p._id !== user._id));
@@ -246,7 +304,24 @@ export default function Messages() {
         setParticipantsSelectionnes([...participantsSelectionnes, user]);
       }
     } else {
-      // Conversation privée directe
+      // Conversation privée directe - vérifier si ami
+      if (!amisIds.has(user._id)) {
+        Alert.alert(
+          'Ami requis',
+          `Vous ne pouvez envoyer des messages qu'à vos amis. Envoyez d'abord une demande d'ami à ${user.prenom}.`,
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Voir le profil',
+              onPress: () => {
+                setModalNouveauVisible(false);
+                router.push({ pathname: '/(app)/profil-utilisateur', params: { id: user._id } });
+              },
+            },
+          ]
+        );
+        return;
+      }
       try {
         const reponse = await getOuCreerConversationPrivee(user._id);
         if (reponse.succes && reponse.data) {
@@ -486,6 +561,40 @@ export default function Messages() {
           )}
         </View>
 
+      {/* Onglets Messages / Demandes */}
+      <View style={styles.tabsContainer}>
+        <Pressable
+          style={[styles.tab, ongletActif === 'messages' && styles.tabActive]}
+          onPress={() => setOngletActif('messages')}
+        >
+          <Text style={[styles.tabText, ongletActif === 'messages' && styles.tabTextActive]}>
+            Messages
+          </Text>
+          {compteurOnglets.messagesAmis > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>
+                {compteurOnglets.messagesAmis > 99 ? '99+' : compteurOnglets.messagesAmis}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+        <Pressable
+          style={[styles.tab, ongletActif === 'demandes' && styles.tabActive]}
+          onPress={() => setOngletActif('demandes')}
+        >
+          <Text style={[styles.tabText, ongletActif === 'demandes' && styles.tabTextActive]}>
+            Demandes
+          </Text>
+          {compteurOnglets.demandesNonAmis > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>
+                {compteurOnglets.demandesNonAmis > 99 ? '99+' : compteurOnglets.demandesNonAmis}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
       {/* Liste des conversations */}
       {chargement ? (
         <View style={styles.loadingContainer}>
@@ -493,16 +602,32 @@ export default function Messages() {
         </View>
       ) : conversationsFiltrees.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color={couleurs.texteMuted} />
+          <Ionicons
+            name={ongletActif === 'messages' ? 'chatbubbles-outline' : 'mail-unread-outline'}
+            size={64}
+            color={couleurs.texteMuted}
+          />
           <Text style={styles.emptyText}>
-            {recherche.length > 0 ? 'Aucune conversation trouvée' : 'Aucune conversation'}
+            {recherche.length > 0
+              ? 'Aucune conversation trouvée'
+              : ongletActif === 'messages'
+                ? 'Aucune conversation avec vos amis'
+                : 'Aucune demande de message'
+            }
           </Text>
-          <Pressable
-            style={styles.emptyButton}
-            onPress={() => setModalNouveauVisible(true)}
-          >
-            <Text style={styles.emptyButtonText}>Démarrer une conversation</Text>
-          </Pressable>
+          {ongletActif === 'demandes' && (
+            <Text style={styles.emptySubtext}>
+              Les messages de personnes qui ne sont pas encore vos amis apparaîtront ici
+            </Text>
+          )}
+          {ongletActif === 'messages' && (
+            <Pressable
+              style={styles.emptyButton}
+              onPress={() => setModalNouveauVisible(true)}
+            >
+              <Text style={styles.emptyButtonText}>Démarrer une conversation</Text>
+            </Pressable>
+          )}
         </View>
       ) : (
         <FlatList
@@ -748,29 +873,42 @@ export default function Messages() {
                 {rechercheUtilisateur.length >= 2 && utilisateursTrouves.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Résultats</Text>
-                    {utilisateursTrouves.map((user) => (
-                      <Pressable
-                        key={user._id}
-                        style={({ pressed }) => [
-                          styles.utilisateurItem,
-                          pressed && styles.utilisateurItemPressed,
-                        ]}
-                        onPress={() => demarrerConversation(user)}
-                      >
-                        <Avatar
-                          uri={user.avatar}
-                          prenom={user.prenom}
-                          nom={user.nom}
-                          taille={44}
-                        />
-                        <View style={styles.utilisateurInfo}>
-                          <Text style={styles.utilisateurNom}>
-                            {user.prenom} {user.nom}
-                          </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
-                      </Pressable>
-                    ))}
+                    {utilisateursTrouves.map((user) => {
+                      const estAmi = amisIds.has(user._id);
+                      return (
+                        <Pressable
+                          key={user._id}
+                          style={({ pressed }) => [
+                            styles.utilisateurItem,
+                            pressed && styles.utilisateurItemPressed,
+                            !estAmi && styles.utilisateurNonAmi,
+                          ]}
+                          onPress={() => demarrerConversation(user)}
+                        >
+                          <Avatar
+                            uri={user.avatar}
+                            prenom={user.prenom}
+                            nom={user.nom}
+                            taille={44}
+                          />
+                          <View style={styles.utilisateurInfo}>
+                            <Text style={styles.utilisateurNom}>
+                              {user.prenom} {user.nom}
+                            </Text>
+                            {!estAmi && (
+                              <Text style={styles.utilisateurNonAmiLabel}>
+                                Non ami - Message impossible
+                              </Text>
+                            )}
+                          </View>
+                          {estAmi ? (
+                            <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
+                          ) : (
+                            <Ionicons name="lock-closed" size={18} color={couleurs.texteMuted} />
+                          )}
+                        </Pressable>
+                      );
+                    })}
                   </>
                 )}
 
@@ -842,6 +980,49 @@ const styles = StyleSheet.create({
     paddingVertical: espacements.md,
     fontSize: typographie.tailles.base,
     color: couleurs.texte,
+  },
+  // Onglets Messages / Demandes
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: espacements.lg,
+    marginBottom: espacements.sm,
+    gap: espacements.sm,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.md,
+    borderRadius: rayons.lg,
+    backgroundColor: couleurs.fondCard,
+    gap: espacements.xs,
+  },
+  tabActive: {
+    backgroundColor: couleurs.primaire,
+  },
+  tabText: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.medium,
+    color: couleurs.texteSecondaire,
+  },
+  tabTextActive: {
+    color: couleurs.blanc,
+    fontWeight: typographie.poids.semibold,
+  },
+  tabBadge: {
+    backgroundColor: couleurs.danger,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  tabBadgeText: {
+    fontSize: typographie.tailles.xs,
+    fontWeight: typographie.poids.bold,
+    color: couleurs.blanc,
   },
   loadingContainer: {
     flex: 1,
@@ -1180,6 +1361,14 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.base,
     fontWeight: typographie.poids.medium,
     color: couleurs.texte,
+  },
+  utilisateurNonAmi: {
+    opacity: 0.6,
+  },
+  utilisateurNonAmiLabel: {
+    fontSize: typographie.tailles.xs,
+    color: couleurs.texteMuted,
+    marginTop: 2,
   },
   checkBox: {
     width: 24,

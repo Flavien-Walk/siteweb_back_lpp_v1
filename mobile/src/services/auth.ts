@@ -42,6 +42,24 @@ interface ReponseAuth {
 }
 
 /**
+ * Normalise les données utilisateur de l'API
+ * Transforme _id en id et s'assure que tous les champs sont présents
+ */
+const normaliserUtilisateur = (data: any): Utilisateur => {
+  return {
+    id: data.id || data._id || '',
+    prenom: data.prenom || '',
+    nom: data.nom || '',
+    email: data.email || '',
+    avatar: data.avatar || undefined,
+    role: data.role || 'user',
+    statut: data.statut || undefined,
+    provider: data.provider || 'local',
+    emailVerifie: data.emailVerifie ?? false,
+  };
+};
+
+/**
  * Connexion avec email et mot de passe
  */
 export const connexion = async (
@@ -50,11 +68,15 @@ export const connexion = async (
   const reponse = await api.post<ReponseAuth>('/auth/connexion', donnees);
 
   if (reponse.succes && reponse.data) {
+    // Normaliser l'utilisateur (transforme _id en id)
+    const utilisateurNormalise = normaliserUtilisateur(reponse.data.utilisateur);
+    reponse.data.utilisateur = utilisateurNormalise;
+
     // Sauvegarder le token et l'utilisateur
     await setToken(reponse.data.token);
     await AsyncStorage.setItem(
       STORAGE_KEYS.UTILISATEUR,
-      JSON.stringify(reponse.data.utilisateur)
+      JSON.stringify(utilisateurNormalise)
     );
   }
 
@@ -70,11 +92,15 @@ export const inscription = async (
   const reponse = await api.post<ReponseAuth>('/auth/inscription', donnees);
 
   if (reponse.succes && reponse.data) {
+    // Normaliser l'utilisateur (transforme _id en id)
+    const utilisateurNormalise = normaliserUtilisateur(reponse.data.utilisateur);
+    reponse.data.utilisateur = utilisateurNormalise;
+
     // Sauvegarder le token et l'utilisateur
     await setToken(reponse.data.token);
     await AsyncStorage.setItem(
       STORAGE_KEYS.UTILISATEUR,
-      JSON.stringify(reponse.data.utilisateur)
+      JSON.stringify(utilisateurNormalise)
     );
   }
 
@@ -85,7 +111,14 @@ export const inscription = async (
  * Récupérer les infos de l'utilisateur connecté
  */
 export const getMoi = async (): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
-  return api.get<{ utilisateur: Utilisateur }>('/auth/moi', true);
+  const reponse = await api.get<{ utilisateur: any }>('/auth/moi', true);
+
+  if (reponse.succes && reponse.data) {
+    // Normaliser l'utilisateur (transforme _id en id)
+    reponse.data.utilisateur = normaliserUtilisateur(reponse.data.utilisateur);
+  }
+
+  return reponse as ReponseAPI<{ utilisateur: Utilisateur }>;
 };
 
 /**
@@ -102,7 +135,9 @@ export const deconnexion = async (): Promise<void> => {
 export const getUtilisateurLocal = async (): Promise<Utilisateur | null> => {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.UTILISATEUR);
-    return data ? JSON.parse(data) : null;
+    if (!data) return null;
+    // Normaliser les données récupérées (au cas où stockées avec _id)
+    return normaliserUtilisateur(JSON.parse(data));
   } catch {
     return null;
   }
@@ -122,17 +157,19 @@ export const estConnecte = async (): Promise<boolean> => {
 export const modifierProfil = async (
   donnees: { prenom?: string; nom?: string; email?: string }
 ): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
-  const reponse = await api.patch<{ utilisateur: Utilisateur }>('/profil', donnees, true);
+  const reponse = await api.patch<{ utilisateur: any }>('/profil', donnees, true);
 
   if (reponse.succes && reponse.data) {
-    // Mettre à jour l'utilisateur en local
+    // Normaliser et mettre à jour l'utilisateur en local
+    const utilisateurNormalise = normaliserUtilisateur(reponse.data.utilisateur);
+    reponse.data.utilisateur = utilisateurNormalise;
     await AsyncStorage.setItem(
       STORAGE_KEYS.UTILISATEUR,
-      JSON.stringify(reponse.data.utilisateur)
+      JSON.stringify(utilisateurNormalise)
     );
   }
 
-  return reponse;
+  return reponse as ReponseAPI<{ utilisateur: Utilisateur }>;
 };
 
 /**
@@ -180,17 +217,19 @@ export const getAvatarsDefaut = async (): Promise<ReponseAPI<{ avatars: string[]
 export const modifierAvatar = async (
   avatar: string | null
 ): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
-  const reponse = await api.patch<{ utilisateur: Utilisateur }>('/profil/avatar', { avatar }, true);
+  const reponse = await api.patch<{ utilisateur: any }>('/profil/avatar', { avatar }, true);
 
   if (reponse.succes && reponse.data) {
-    // Mettre à jour l'utilisateur en local
+    // Normaliser et mettre à jour l'utilisateur en local
+    const utilisateurNormalise = normaliserUtilisateur(reponse.data.utilisateur);
+    reponse.data.utilisateur = utilisateurNormalise;
     await AsyncStorage.setItem(
       STORAGE_KEYS.UTILISATEUR,
-      JSON.stringify(reponse.data.utilisateur)
+      JSON.stringify(utilisateurNormalise)
     );
   }
 
-  return reponse;
+  return reponse as ReponseAPI<{ utilisateur: Utilisateur }>;
 };
 
 /**
@@ -199,26 +238,30 @@ export const modifierAvatar = async (
 export const modifierStatut = async (
   statut: StatutUtilisateur
 ): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
-  const reponse = await api.patch<{ utilisateur: Utilisateur }>('/profil/statut', { statut }, true);
+  const reponse = await api.patch<{ utilisateur: any }>('/profil/statut', { statut }, true);
 
   if (reponse.succes && reponse.data) {
-    // Mettre à jour l'utilisateur en local
+    // Normaliser et mettre à jour l'utilisateur en local
+    const utilisateurNormalise = normaliserUtilisateur(reponse.data.utilisateur);
+    reponse.data.utilisateur = utilisateurNormalise;
     await AsyncStorage.setItem(
       STORAGE_KEYS.UTILISATEUR,
-      JSON.stringify(reponse.data.utilisateur)
+      JSON.stringify(utilisateurNormalise)
     );
   }
 
-  return reponse;
+  return reponse as ReponseAPI<{ utilisateur: Utilisateur }>;
 };
 
 /**
  * Mettre à jour l'utilisateur local (pour synchronisation)
  */
-export const setUtilisateurLocal = async (utilisateur: Utilisateur): Promise<void> => {
+export const setUtilisateurLocal = async (utilisateur: Utilisateur | any): Promise<void> => {
+  // Normaliser avant de sauvegarder
+  const utilisateurNormalise = normaliserUtilisateur(utilisateur);
   await AsyncStorage.setItem(
     STORAGE_KEYS.UTILISATEUR,
-    JSON.stringify(utilisateur)
+    JSON.stringify(utilisateurNormalise)
   );
 };
 

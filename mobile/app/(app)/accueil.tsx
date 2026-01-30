@@ -3,7 +3,7 @@
  * Decouverte de startups et communaute
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { espacements, rayons } from '../../src/constantes/theme';
@@ -61,6 +61,8 @@ import {
   Evenement,
   getEvenements,
 } from '../../src/services/evenements';
+import { getNotifications } from '../../src/services/notifications';
+import { rechercherUtilisateurs as rechercherUtilisateursAPI, ProfilUtilisateur, getDemandesAmis } from '../../src/services/utilisateurs';
 import Avatar from '../../src/composants/Avatar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -172,6 +174,8 @@ export default function Accueil() {
   const [fabOuvert, setFabOuvert] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
+  const [afficherScrollTop, setAfficherScrollTop] = useState(false);
+  const scrollTopOpacity = useRef(new Animated.Value(0)).current;
 
   // Publications API
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -200,6 +204,17 @@ export default function Accueil() {
   // Evenements (lives) API
   const [evenements, setEvenements] = useState<Evenement[]>([]);
   const [chargementEvenements, setChargementEvenements] = useState(false);
+
+  // Notifications
+  const [notificationsNonLues, setNotificationsNonLues] = useState(0);
+
+  // Demandes d'amis en attente
+  const [demandesAmisEnAttente, setDemandesAmisEnAttente] = useState(0);
+
+  // Recherche utilisateurs
+  const [rechercheUtilisateurs, setRechercheUtilisateurs] = useState<ProfilUtilisateur[]>([]);
+  const [chargementRecherche, setChargementRecherche] = useState(false);
+  const [modalRecherche, setModalRecherche] = useState(false);
 
   // Animations FAB
   const fabRotation = useRef(new Animated.Value(0)).current;
@@ -235,14 +250,68 @@ export default function Accueil() {
     }).start();
   }, []);
 
+  // Rafraîchir les notifications et demandes quand l'écran reprend le focus
+  useFocusEffect(
+    useCallback(() => {
+      chargerNotifications();
+    }, [])
+  );
+
   const chargerDonnees = async () => {
     await Promise.all([
       chargerPublications(),
       chargerConversations(),
       chargerProjets(),
       chargerEvenements(),
+      chargerNotifications(),
     ]);
   };
+
+  // Charger le nombre de notifications non lues et demandes d'amis
+  const chargerNotifications = async () => {
+    try {
+      const [notifReponse, demandesReponse] = await Promise.all([
+        getNotifications(1, 50),
+        getDemandesAmis(),
+      ]);
+
+      if (notifReponse.succes && notifReponse.data) {
+        const nonLues = notifReponse.data.notifications.filter(n => !n.lue).length;
+        setNotificationsNonLues(nonLues);
+      }
+
+      if (demandesReponse.succes && demandesReponse.data) {
+        setDemandesAmisEnAttente(demandesReponse.data.demandes.length);
+      }
+    } catch (error) {
+      console.error('Erreur chargement notifications:', error);
+    }
+  };
+
+  // Recherche utilisateurs avec debounce
+  useEffect(() => {
+    const delai = setTimeout(async () => {
+      if (recherche.trim().length >= 2) {
+        setChargementRecherche(true);
+        setModalRecherche(true);
+        try {
+          const reponse = await rechercherUtilisateursAPI(recherche.trim());
+          if (reponse.succes && reponse.data) {
+            setRechercheUtilisateurs(reponse.data.utilisateurs);
+          }
+        } catch (error) {
+          console.error('Erreur recherche utilisateurs:', error);
+        } finally {
+          setChargementRecherche(false);
+        }
+      } else {
+        setRechercheUtilisateurs([]);
+        setModalRecherche(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delai);
+  }, [recherche]);
 
   const chargerPublications = async () => {
     try {
@@ -1263,9 +1332,24 @@ export default function Accueil() {
           value={recherche}
           onChangeText={setRecherche}
         />
+        {recherche.length > 0 && (
+          <Pressable onPress={() => setRecherche('')}>
+            <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
+          </Pressable>
+        )}
       </View>
-      <Pressable style={styles.notifButton}>
+      <Pressable style={styles.notifButton} onPress={() => router.push('/(app)/notifications')}>
         <Ionicons name="notifications-outline" size={24} color={couleurs.texte} />
+        {(notificationsNonLues > 0 || demandesAmisEnAttente > 0) && (
+          <View style={[styles.notifBadge, demandesAmisEnAttente > 0 && styles.notifBadgeDemandes]}>
+            <Text style={styles.notifBadgeText}>
+              {(() => {
+                const total = notificationsNonLues + demandesAmisEnAttente;
+                return total > 99 ? '99+' : total;
+              })()}
+            </Text>
+          </View>
+        )}
       </Pressable>
       <Pressable style={styles.avatar} onPress={handleProfil}>
         <Avatar
@@ -1304,9 +1388,11 @@ export default function Accueil() {
             <Text style={[styles.navTabText, ongletActif === onglet.key && styles.navTabTextActive]}>
               {onglet.label}
             </Text>
-            {onglet.key === 'messages' && unreadMessages > 0 && (
-              <View style={styles.navBadge}>
-                <Text style={styles.navBadgeText}>{unreadMessages}</Text>
+            {onglet.key === 'messages' && (unreadMessages > 0 || demandesAmisEnAttente > 0) && (
+              <View style={[styles.navBadge, demandesAmisEnAttente > 0 && styles.navBadgeDemandes]}>
+                <Text style={styles.navBadgeText}>
+                  {unreadMessages + demandesAmisEnAttente}
+                </Text>
               </View>
             )}
           </Pressable>
@@ -1781,6 +1867,31 @@ export default function Accueil() {
     setTimeout(action, 200);
   };
 
+  // Gestion du scroll pour afficher/masquer le bouton scroll-to-top
+  const handleScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    const scrollY = event.nativeEvent.contentOffset.y;
+    const seuil = 300; // Afficher le bouton après 300px de scroll
+
+    if (scrollY > seuil && !afficherScrollTop) {
+      setAfficherScrollTop(true);
+      Animated.spring(scrollTopOpacity, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 8,
+      }).start();
+    } else if (scrollY <= seuil && afficherScrollTop) {
+      Animated.timing(scrollTopOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setAfficherScrollTop(false));
+    }
+  };
+
+  const scrollToTop = () => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
   const fabRotationInterpolate = fabRotation.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '45deg'],
@@ -1893,6 +2004,8 @@ export default function Accueil() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
             refreshControl={
               <RefreshControl
                 refreshing={rafraichissement}
@@ -1913,6 +2026,23 @@ export default function Accueil() {
       </KeyboardAvoidingView>
 
       {renderFAB()}
+
+      {/* Bouton scroll to top */}
+      {afficherScrollTop && (
+        <Animated.View
+          style={[
+            styles.scrollTopBtn,
+            {
+              opacity: scrollTopOpacity,
+              transform: [{ scale: scrollTopOpacity }],
+            },
+          ]}
+        >
+          <Pressable onPress={scrollToTop} style={styles.scrollTopBtnInner}>
+            <Ionicons name="chevron-up" size={24} color={couleurs.blanc} />
+          </Pressable>
+        </Animated.View>
+      )}
 
       {/* Modal creer publication */}
       <Modal
@@ -1984,6 +2114,84 @@ export default function Accueil() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Modal recherche utilisateurs */}
+      <Modal
+        visible={modalRecherche && recherche.length >= 2}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          setRecherche('');
+          setModalRecherche(false);
+        }}
+      >
+        <Pressable
+          style={styles.searchModalOverlay}
+          onPress={() => {
+            setRecherche('');
+            setModalRecherche(false);
+          }}
+        >
+          <View style={styles.searchModalContent}>
+            <View style={styles.searchModalHeader}>
+              <Text style={styles.searchModalTitle}>Résultats de recherche</Text>
+              <Pressable onPress={() => {
+                setRecherche('');
+                setModalRecherche(false);
+              }}>
+                <Ionicons name="close" size={24} color={couleurs.texte} />
+              </Pressable>
+            </View>
+
+            {chargementRecherche ? (
+              <View style={styles.searchModalLoading}>
+                <Text style={styles.searchModalLoadingText}>Recherche en cours...</Text>
+              </View>
+            ) : rechercheUtilisateurs.length === 0 ? (
+              <View style={styles.searchModalEmpty}>
+                <Ionicons name="search-outline" size={48} color={couleurs.texteSecondaire} />
+                <Text style={styles.searchModalEmptyText}>Aucun utilisateur trouvé</Text>
+                <Text style={styles.searchModalEmptySubtext}>Essayez un autre nom</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.searchModalList} keyboardShouldPersistTaps="handled">
+                {rechercheUtilisateurs.map((user) => (
+                  <Pressable
+                    key={user._id}
+                    style={styles.searchModalItem}
+                    onPress={() => {
+                      setRecherche('');
+                      setModalRecherche(false);
+                      router.push({
+                        pathname: '/(app)/utilisateur/[id]',
+                        params: { id: user._id },
+                      });
+                    }}
+                  >
+                    <Avatar
+                      uri={user.avatar}
+                      prenom={user.prenom}
+                      nom={user.nom}
+                      taille={44}
+                    />
+                    <View style={styles.searchModalItemInfo}>
+                      <Text style={styles.searchModalItemName}>
+                        {user.prenom} {user.nom}
+                      </Text>
+                      {user.nbAmis !== undefined && (
+                        <Text style={styles.searchModalItemSub}>
+                          {user.nbAmis} ami{user.nbAmis > 1 ? 's' : ''}
+                        </Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -2030,6 +2238,29 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     backgroundColor: couleurs.fondSecondaire,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: couleurs.fond,
+  },
+  notifBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  notifBadgeDemandes: {
+    backgroundColor: couleurs.primaire,
   },
   avatar: {
     width: 44,
@@ -2094,6 +2325,9 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: couleurs.blanc,
+  },
+  navBadgeDemandes: {
+    backgroundColor: couleurs.primaire,
   },
 
   // Stories
@@ -3315,6 +3549,25 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 90,
   },
+  scrollTopBtn: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    zIndex: 50,
+  },
+  scrollTopBtnInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
   fabMenu: {
     position: 'absolute',
     bottom: 100,
@@ -3547,5 +3800,79 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: couleurs.blanc,
+  },
+
+  // Search Modal
+  searchModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingTop: 100,
+    paddingHorizontal: espacements.lg,
+  },
+  searchModalContent: {
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.xl,
+    maxHeight: '70%',
+    overflow: 'hidden',
+  },
+  searchModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: espacements.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  searchModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  searchModalLoading: {
+    padding: espacements.xl,
+    alignItems: 'center',
+  },
+  searchModalLoadingText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+  },
+  searchModalEmpty: {
+    padding: espacements.xxl,
+    alignItems: 'center',
+  },
+  searchModalEmptyText: {
+    fontSize: 16,
+    color: couleurs.texteSecondaire,
+    marginTop: espacements.md,
+  },
+  searchModalEmptySubtext: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    marginTop: espacements.xs,
+  },
+  searchModalList: {
+    maxHeight: 400,
+  },
+  searchModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: espacements.md,
+    paddingHorizontal: espacements.lg,
+    gap: espacements.md,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  searchModalItemInfo: {
+    flex: 1,
+  },
+  searchModalItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  searchModalItemSub: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
   },
 });

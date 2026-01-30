@@ -175,3 +175,52 @@ export const getDemandesAmis = async (): Promise<ReponseAPI<DemandesAmisResponse
 export const getMesAmis = async (): Promise<ReponseAPI<AmisResponse>> => {
   return api.get<AmisResponse>('/utilisateurs/mes-amis', true);
 };
+
+// ============ STATS ============
+
+export interface StatsUtilisateur {
+  nbAmis: number;
+  nbDemandesRecues: number;
+  nbDemandesEnvoyees: number;
+}
+
+interface StatsResponse {
+  stats: StatsUtilisateur;
+}
+
+/**
+ * Récupérer les statistiques de l'utilisateur connecté
+ * Utilise les endpoints existants pour calculer les stats
+ */
+export const getMesStats = async (): Promise<ReponseAPI<StatsResponse>> => {
+  try {
+    // Récupérer les amis et les demandes en parallèle
+    const [amisReponse, demandesReponse] = await Promise.all([
+      getMesAmis(),
+      getDemandesAmis(),
+    ]);
+
+    const stats: StatsUtilisateur = {
+      nbAmis: amisReponse.succes && amisReponse.data ? amisReponse.data.amis.length : 0,
+      nbDemandesRecues: demandesReponse.succes && demandesReponse.data ? demandesReponse.data.demandes.length : 0,
+      nbDemandesEnvoyees: 0, // Sera récupéré si l'endpoint existe
+    };
+
+    return {
+      succes: true,
+      data: { stats },
+    };
+  } catch (error) {
+    console.error('Erreur récupération stats:', error);
+    return {
+      succes: true,
+      data: {
+        stats: {
+          nbAmis: 0,
+          nbDemandesRecues: 0,
+          nbDemandesEnvoyees: 0,
+        },
+      },
+    };
+  }
+};

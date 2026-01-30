@@ -65,12 +65,26 @@ const Avatar: React.FC<AvatarProps> = ({
     setErreurImage(false);
   }, []);
 
+  // Vérifier si l'URL est valide (pas un fichier local temporaire)
+  const isValidUrl = (url: string | null | undefined): boolean => {
+    if (!url || url.length === 0) return false;
+    // Les fichiers locaux temporaires (file://) ne sont pas persistants
+    if (url.startsWith('file://')) return false;
+    // Accepter http://, https://, et data: (base64)
+    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
+  };
+
   // Vérifier si on doit afficher l'image
-  const afficherImage = uri && uri.length > 0 && !erreurImage;
+  const afficherImage = isValidUrl(uri) && !erreurImage;
 
   // Normaliser l'URL pour iOS (certaines URLs nécessitent des ajustements)
   const getImageUri = (): string => {
-    if (!uri) return '';
+    if (!uri || !isValidUrl(uri)) return '';
+
+    // Les data URLs (base64) n'ont pas besoin de transformation
+    if (uri.startsWith('data:')) {
+      return uri;
+    }
 
     let normalizedUri = uri;
 

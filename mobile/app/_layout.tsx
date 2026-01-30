@@ -2,6 +2,7 @@
  * Layout racine de l'application
  */
 
+import { useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
@@ -10,14 +11,21 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/contextes/AuthContexte';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { UserProvider } from '../src/contexts/UserContext';
+import SplashScreen from '../src/composants/SplashScreen';
 
 // Composant interne qui utilise le theme
 function AppContent() {
   const { couleurs, isDark } = useTheme();
+  const [showSplash, setShowSplash] = useState(true);
+
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+  };
 
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
       <Stack
         screenOptions={{
           headerShown: false,
