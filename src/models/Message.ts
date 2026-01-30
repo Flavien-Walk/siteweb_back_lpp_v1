@@ -21,7 +21,43 @@ export const chiffrerMessage = (texte: string): string => {
 
 // Fonction pour déchiffrer un message
 export const dechiffrerMessage = (texteCrypte: string): string => {
-  const [ivHex, encryptedText] = texteCrypte.split(':');
+  // Validation : chaîne non vide
+  if (!texteCrypte || typeof texteCrypte !== 'string') {
+    throw new Error('Contenu chiffré manquant');
+  }
+
+  // Validation du format : doit contenir exactement un ':'
+  const colonIndex = texteCrypte.indexOf(':');
+  if (colonIndex === -1) {
+    // Pas de séparateur = texte non chiffré (données legacy ou corruption)
+    // On retourne le texte tel quel pour compatibilité ascendante
+    console.warn('[Message] Format non chiffré détecté, retour du texte brut');
+    return texteCrypte;
+  }
+
+  const ivHex = texteCrypte.substring(0, colonIndex);
+  const encryptedText = texteCrypte.substring(colonIndex + 1);
+
+  // Validation : IV doit être exactement 32 caractères hex (16 bytes)
+  if (ivHex.length !== 32 || !/^[0-9a-fA-F]+$/.test(ivHex)) {
+    // Format invalide - peut-être du texte contenant ':'
+    console.warn('[Message] IV invalide, retour du texte brut');
+    return texteCrypte;
+  }
+
+  // Validation : le texte chiffré ne doit pas être vide
+  if (!encryptedText || encryptedText.length === 0) {
+    throw new Error('Contenu chiffré vide');
+  }
+
+  // Validation : le texte chiffré doit être du hex valide
+  if (!/^[0-9a-fA-F]+$/.test(encryptedText)) {
+    // Pas du hex = probablement pas chiffré
+    console.warn('[Message] Texte chiffré non-hex détecté, retour du texte brut');
+    return texteCrypte;
+  }
+
+  // Déchiffrement
   const iv = Buffer.from(ivHex, 'hex');
   const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
