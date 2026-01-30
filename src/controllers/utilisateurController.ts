@@ -191,6 +191,13 @@ export const envoyerDemandeAmi = async (
 
       await Promise.all([utilisateur.save(), cible.save()]);
 
+      // Supprimer la notification de demande d'ami existante
+      await Notification.deleteMany({
+        destinataire: userId,
+        type: 'demande_ami',
+        'data.userId': cibleId,
+      });
+
       // Créer une notification pour la cible (sa demande a été acceptée)
       await Notification.create({
         destinataire: cible._id,
@@ -216,20 +223,29 @@ export const envoyerDemandeAmi = async (
 
     await Promise.all([utilisateur.save(), cible.save()]);
 
-    // Créer une notification pour le destinataire
-    await Notification.create({
+    // Vérifier si une notification de demande d'ami existe déjà (éviter les doublons)
+    const notificationExistante = await Notification.findOne({
       destinataire: cible._id,
       type: 'demande_ami',
-      titre: 'Nouvelle demande d\'ami',
-      message: `${utilisateur.prenom} ${utilisateur.nom} vous a envoyé une demande d'ami.`,
-      lien: `/profil/${utilisateur._id}`,
-      data: {
-        userId: utilisateur._id.toString(),
-        userNom: utilisateur.nom,
-        userPrenom: utilisateur.prenom,
-        userAvatar: utilisateur.avatar || null,
-      },
+      'data.userId': userId.toString(),
     });
+
+    if (!notificationExistante) {
+      // Créer une notification pour le destinataire uniquement si elle n'existe pas
+      await Notification.create({
+        destinataire: cible._id,
+        type: 'demande_ami',
+        titre: 'Nouvelle demande d\'ami',
+        message: `${utilisateur.prenom} ${utilisateur.nom} vous a envoyé une demande d'ami.`,
+        lien: `/profil/${utilisateur._id}`,
+        data: {
+          userId: utilisateur._id.toString(),
+          userNom: utilisateur.nom,
+          userPrenom: utilisateur.prenom,
+          userAvatar: utilisateur.avatar || null,
+        },
+      });
+    }
 
     res.json({ succes: true, message: 'Demande d\'ami envoyée.' });
   } catch (error) {
@@ -274,6 +290,13 @@ export const annulerDemandeAmi = async (
     );
 
     await Promise.all([utilisateur.save(), cible.save()]);
+
+    // Supprimer la notification de demande d'ami chez la cible
+    await Notification.deleteMany({
+      destinataire: cibleId,
+      type: 'demande_ami',
+      'data.userId': userId.toString(),
+    });
 
     res.json({ succes: true, message: 'Demande annulée.' });
   } catch (error) {
@@ -326,6 +349,13 @@ export const accepterDemandeAmi = async (
     );
 
     await Promise.all([utilisateur.save(), demandeur.save()]);
+
+    // Supprimer la notification de demande d'ami correspondante
+    await Notification.deleteMany({
+      destinataire: userId,
+      type: 'demande_ami',
+      'data.userId': demandeurId,
+    });
 
     // Créer une notification pour le demandeur (sa demande a été acceptée)
     await Notification.create({
@@ -386,6 +416,13 @@ export const refuserDemandeAmi = async (
 
     await Promise.all([utilisateur.save(), demandeur.save()]);
 
+    // Supprimer la notification de demande d'ami correspondante
+    await Notification.deleteMany({
+      destinataire: userId,
+      type: 'demande_ami',
+      'data.userId': demandeurId,
+    });
+
     res.json({ succes: true, message: 'Demande refusée.' });
   } catch (error) {
     next(error);
@@ -425,6 +462,15 @@ export const supprimerAmi = async (
     ami.amis = ami.amis?.filter((a) => a.toString() !== userId.toString());
 
     await Promise.all([utilisateur.save(), ami.save()]);
+
+    // Nettoyer toutes les notifications d'amitié entre les deux utilisateurs
+    // (demande_ami et ami_accepte dans les deux sens)
+    await Notification.deleteMany({
+      $or: [
+        { destinataire: userId, type: { $in: ['demande_ami', 'ami_accepte'] }, 'data.userId': amiId },
+        { destinataire: amiId, type: { $in: ['demande_ami', 'ami_accepte'] }, 'data.userId': userId.toString() },
+      ],
+    });
 
     res.json({ succes: true, message: 'Ami supprimé.' });
   } catch (error) {
