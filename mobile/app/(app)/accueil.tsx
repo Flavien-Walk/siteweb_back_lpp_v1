@@ -1388,10 +1388,10 @@ export default function Accueil() {
             <Text style={[styles.navTabText, ongletActif === onglet.key && styles.navTabTextActive]}>
               {onglet.label}
             </Text>
-            {onglet.key === 'messages' && (unreadMessages > 0 || demandesAmisEnAttente > 0) && (
-              <View style={[styles.navBadge, demandesAmisEnAttente > 0 && styles.navBadgeDemandes]}>
+            {onglet.key === 'messages' && unreadMessages > 0 && (
+              <View style={styles.navBadge}>
                 <Text style={styles.navBadgeText}>
-                  {unreadMessages + demandesAmisEnAttente}
+                  {unreadMessages}
                 </Text>
               </View>
             )}
