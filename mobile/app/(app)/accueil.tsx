@@ -276,7 +276,10 @@ export default function Accueil() {
       ]);
 
       if (notifReponse.succes && notifReponse.data) {
-        const nonLues = notifReponse.data.notifications.filter(n => !n.lue).length;
+        // Exclure les demandes d'ami du compteur (elles sont comptées via demandesAmisEnAttente)
+        const nonLues = notifReponse.data.notifications.filter(
+          n => !n.lue && n.type !== 'demande_ami'
+        ).length;
         setNotificationsNonLues(nonLues);
       }
 
