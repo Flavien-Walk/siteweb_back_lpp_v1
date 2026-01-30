@@ -461,6 +461,20 @@ export const supprimerAmi = async (
     utilisateur.amis = utilisateur.amis?.filter((a) => a.toString() !== amiId);
     ami.amis = ami.amis?.filter((a) => a.toString() !== userId.toString());
 
+    // Nettoyer aussi les demandes d'amis résiduelles (éviter les incohérences)
+    utilisateur.demandesAmisRecues = utilisateur.demandesAmisRecues?.filter(
+      (d) => d.toString() !== amiId
+    );
+    utilisateur.demandesAmisEnvoyees = utilisateur.demandesAmisEnvoyees?.filter(
+      (d) => d.toString() !== amiId
+    );
+    ami.demandesAmisRecues = ami.demandesAmisRecues?.filter(
+      (d) => d.toString() !== userId.toString()
+    );
+    ami.demandesAmisEnvoyees = ami.demandesAmisEnvoyees?.filter(
+      (d) => d.toString() !== userId.toString()
+    );
+
     await Promise.all([utilisateur.save(), ami.save()]);
 
     // Nettoyer toutes les notifications d'amitié entre les deux utilisateurs
