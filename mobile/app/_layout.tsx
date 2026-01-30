@@ -30,9 +30,32 @@ function AppContent() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: couleurs.fond },
-          animation: 'fade',
+          animation: 'slide_from_right',
+          animationDuration: 250,
         }}
-      />
+      >
+        {/* Auth screens - fade */}
+        <Stack.Screen
+          name="(auth)"
+          options={{
+            animation: 'fade',
+          }}
+        />
+        {/* Main app screens */}
+        <Stack.Screen
+          name="(app)"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        {/* Index - no animation */}
+        <Stack.Screen
+          name="index"
+          options={{
+            animation: 'none',
+          }}
+        />
+      </Stack>
     </>
   );
 }

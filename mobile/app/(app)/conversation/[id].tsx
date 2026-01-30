@@ -18,6 +18,7 @@ import {
   Alert,
   ActionSheetIOS,
   Modal,
+  Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,7 +28,8 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
-import { Avatar } from '../../../src/composants';
+import { Avatar, AnimatedPressable } from '../../../src/composants';
+import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import {
   getMessages,
   envoyerMessage,
@@ -50,6 +52,57 @@ interface ConversationInfo {
 
 // Délai maximum pour éditer un message (15 minutes)
 const DELAI_EDITION_MS = 15 * 60 * 1000;
+
+// Composant animé pour les bulles de message
+const AnimatedMessageBubble = ({
+  children,
+  estMoi,
+  isNew = false
+}: {
+  children: React.ReactNode;
+  estMoi: boolean;
+  isNew?: boolean;
+}) => {
+  const slideAnim = useRef(new Animated.Value(isNew ? (estMoi ? 30 : -30) : 0)).current;
+  const scaleAnim = useRef(new Animated.Value(isNew ? 0.8 : 1)).current;
+  const opacityAnim = useRef(new Animated.Value(isNew ? 0 : 1)).current;
+
+  useEffect(() => {
+    if (isNew) {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          ...ANIMATION_CONFIG.spring,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          ...ANIMATION_CONFIG.spring,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: ANIMATION_CONFIG.durations.fast,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isNew, slideAnim, scaleAnim, opacityAnim, estMoi]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: opacityAnim,
+        transform: [
+          { translateX: slideAnim },
+          { scale: scaleAnim },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+};
 
 export default function ConversationScreen() {
   const router = useRouter();
@@ -480,25 +533,31 @@ export default function ConversationScreen() {
     const avatarUrl = conversation?.estGroupe ? item.expediteur.avatar : autreParticipant?.avatar;
     const initiales = item.expediteur.prenom?.[0] || '?';
 
+    // Détecter si c'est un message récent (moins de 2 secondes)
+    const messageAge = Date.now() - new Date(item.dateCreation).getTime();
+    const isRecentMessage = messageAge < 2000;
+
     return (
       <View>
         {showSeparator && (
           <Text style={styles.dateSeparator}>{formatDateSeparateur(item.dateCreation)}</Text>
         )}
-        <Pressable
+        <AnimatedPressable
           onLongPress={() => handleLongPressMessage(item)}
           delayLongPress={500}
+          scaleOnPress={0.98}
         >
-          <View style={[styles.messageRow, estMoi && styles.messageRowMoi]}>
-            {/* Avatar pour les messages reçus */}
-            {showAvatar && (
-              <View style={styles.messageAvatarContainer}>
-                <Avatar
-                  uri={avatarUrl}
-                  prenom={item.expediteur.prenom}
-                  nom={item.expediteur.nom}
-                  taille={28}
-                />
+          <AnimatedMessageBubble estMoi={estMoi} isNew={isRecentMessage}>
+            <View style={[styles.messageRow, estMoi && styles.messageRowMoi]}>
+              {/* Avatar pour les messages reçus */}
+              {showAvatar && (
+                <View style={styles.messageAvatarContainer}>
+                  <Avatar
+                    uri={avatarUrl}
+                    prenom={item.expediteur.prenom}
+                    nom={item.expediteur.nom}
+                    taille={28}
+                  />
               </View>
             )}
 
@@ -538,10 +597,11 @@ export default function ConversationScreen() {
               </View>
             </View>
 
-            {/* Espace pour aligner les messages envoyés */}
-            {estMoi && <View style={styles.messageAvatarSpacer} />}
-          </View>
-        </Pressable>
+              {/* Espace pour aligner les messages envoyés */}
+              {estMoi && <View style={styles.messageAvatarSpacer} />}
+            </View>
+          </AnimatedMessageBubble>
+        </AnimatedPressable>
       </View>
     );
   };

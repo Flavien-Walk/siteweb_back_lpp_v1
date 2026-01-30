@@ -1,9 +1,9 @@
 /**
- * Page Profil Utilisateur - Voir le profil d'un autre utilisateur
- * Avec actions: ajouter ami, envoyer message
+ * Page Profil Utilisateur - Design épuré et moderne
+ * Inspiré d'Instagram avec une hiérarchie visuelle claire
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,8 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -44,6 +43,10 @@ export default function ProfilUtilisateurPage() {
   const [rafraichissement, setRafraichissement] = useState(false);
   const [actionEnCours, setActionEnCours] = useState(false);
 
+  // Ref pour tracker si le profil a déjà été chargé
+  const profilChargeRef = useRef(false);
+  const idPrecedentRef = useRef<string | undefined>(undefined);
+
   // Charger le profil
   const chargerProfil = useCallback(async (estRefresh = false) => {
     if (!id) return;
@@ -69,20 +72,20 @@ export default function ProfilUtilisateurPage() {
     }
   }, [id]);
 
+  // Charger le profil uniquement quand l'ID change ou au premier montage
   useEffect(() => {
-    chargerProfil();
-  }, [chargerProfil]);
+    if (idPrecedentRef.current !== id) {
+      idPrecedentRef.current = id;
+      profilChargeRef.current = false;
+      setProfil(null);
+      setChargement(true);
+    }
 
-  // Rafraîchir le profil quand l'écran reprend le focus
-  // (ex: après avoir accepté une demande d'ami ailleurs)
-  useFocusEffect(
-    useCallback(() => {
-      // Ne pas recharger si c'est le premier montage (déjà fait par useEffect)
-      if (profil) {
-        chargerProfil(true);
-      }
-    }, [profil, chargerProfil])
-  );
+    if (!profilChargeRef.current && id) {
+      profilChargeRef.current = true;
+      chargerProfil();
+    }
+  }, [id, chargerProfil]);
 
   // Envoyer un message
   const handleEnvoyerMessage = async () => {
@@ -113,7 +116,6 @@ export default function ProfilUtilisateurPage() {
     setActionEnCours(true);
     try {
       if (profil.estAmi) {
-        // Supprimer l'ami
         Alert.alert(
           'Retirer des amis',
           `Voulez-vous vraiment retirer ${profil.prenom} de vos amis ?`,
@@ -138,7 +140,6 @@ export default function ProfilUtilisateurPage() {
       }
 
       if (profil.demandeEnvoyee) {
-        // Annuler la demande
         const reponse = await annulerDemandeAmi(id);
         if (reponse.succes) {
           setProfil({ ...profil, demandeEnvoyee: false });
@@ -146,7 +147,6 @@ export default function ProfilUtilisateurPage() {
           Alert.alert('Erreur', reponse.message || 'Erreur');
         }
       } else if (profil.demandeRecue) {
-        // Accepter la demande
         const reponse = await accepterDemandeAmi(id);
         if (reponse.succes) {
           setProfil({ ...profil, estAmi: true, demandeRecue: false });
@@ -154,7 +154,6 @@ export default function ProfilUtilisateurPage() {
           Alert.alert('Erreur', reponse.message || 'Erreur');
         }
       } else {
-        // Envoyer une demande
         const reponse = await envoyerDemandeAmi(id);
         if (reponse.succes) {
           setProfil({ ...profil, demandeEnvoyee: true });
@@ -169,22 +168,27 @@ export default function ProfilUtilisateurPage() {
     }
   };
 
-  // Obtenir le texte du bouton ami
-  const getBoutonAmiTexte = () => {
-    if (!profil) return 'Ajouter';
-    if (profil.estAmi) return 'Amis';
-    if (profil.demandeEnvoyee) return 'Demande envoyée';
-    if (profil.demandeRecue) return 'Accepter';
-    return 'Ajouter';
+  // Configuration du bouton ami
+  const getBoutonAmiConfig = () => {
+    if (!profil) return { texte: 'Ajouter', icon: 'person-add-outline' as const, style: 'primary' };
+    if (profil.estAmi) return { texte: 'Amis', icon: 'checkmark-circle' as const, style: 'success' };
+    if (profil.demandeEnvoyee) return { texte: 'En attente', icon: 'time-outline' as const, style: 'pending' };
+    if (profil.demandeRecue) return { texte: 'Accepter', icon: 'checkmark' as const, style: 'received' };
+    return { texte: 'Ajouter', icon: 'person-add-outline' as const, style: 'primary' };
   };
 
-  // Obtenir l'icône du bouton ami
-  const getBoutonAmiIcon = (): keyof typeof Ionicons.glyphMap => {
-    if (!profil) return 'person-add-outline';
-    if (profil.estAmi) return 'checkmark-circle';
-    if (profil.demandeEnvoyee) return 'hourglass-outline';
-    if (profil.demandeRecue) return 'person-add';
-    return 'person-add-outline';
+  // Configuration du statut
+  const getStatutConfig = (statut?: string) => {
+    switch (statut) {
+      case 'investisseur':
+        return { label: 'Investisseur', icon: 'trending-up' as const, color: couleurs.succes };
+      case 'porteur':
+        return { label: 'Porteur de projet', icon: 'rocket' as const, color: couleurs.primaire };
+      case 'les-deux':
+        return { label: 'Investisseur & Porteur', icon: 'star' as const, color: couleurs.accent };
+      default:
+        return { label: 'Membre', icon: 'person' as const, color: couleurs.texteSecondaire };
+    }
   };
 
   // Formater la date d'inscription
@@ -193,59 +197,65 @@ export default function ProfilUtilisateurPage() {
     return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   };
 
-  // Obtenir les initiales
-  const getInitiales = () => {
-    if (!profil) return '?';
-    return `${profil.prenom?.[0] || ''}${profil.nom?.[0] || ''}`.toUpperCase();
-  };
-
-  // Obtenir le libellé du statut
-  const getStatutLabel = (statut?: string) => {
-    switch (statut) {
-      case 'investisseur':
-        return 'Investisseur';
-      case 'porteur':
-        return 'Porteur de projet';
-      case 'les-deux':
-        return 'Investisseur & Porteur';
-      default:
-        return 'Membre';
-    }
-  };
-
+  // État de chargement
   if (chargement) {
     return (
-      <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={couleurs.primaire} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+            <Ionicons name="chevron-back" size={24} color={couleurs.texte} />
+          </Pressable>
+          <View style={styles.headerCenter} />
+          <View style={styles.headerBtn} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={couleurs.primaire} />
+        </View>
       </View>
     );
   }
 
+  // Profil non trouvé
   if (!profil) {
     return (
-      <View style={[styles.container, styles.errorContainer, { paddingTop: insets.top }]}>
-        <Ionicons name="alert-circle-outline" size={64} color={couleurs.texteMuted} />
-        <Text style={styles.errorText}>Utilisateur non trouvé</Text>
-        <Pressable style={styles.errorButton} onPress={() => router.back()}>
-          <Text style={styles.errorButtonText}>Retour</Text>
-        </Pressable>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+            <Ionicons name="chevron-back" size={24} color={couleurs.texte} />
+          </Pressable>
+          <View style={styles.headerCenter} />
+          <View style={styles.headerBtn} />
+        </View>
+        <View style={styles.errorContainer}>
+          <View style={styles.errorIconWrapper}>
+            <Ionicons name="person-outline" size={48} color={couleurs.texteSecondaire} />
+          </View>
+          <Text style={styles.errorTitle}>Utilisateur introuvable</Text>
+          <Text style={styles.errorText}>Ce profil n'existe pas ou a été supprimé</Text>
+          <Pressable style={styles.errorButton} onPress={() => router.back()}>
+            <Text style={styles.errorButtonText}>Retour</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
-  // Vérifier si c'est mon propre profil
   const estMonProfil = moi?.id === profil._id;
+  const boutonConfig = getBoutonAmiConfig();
+  const statutConfig = getStatutConfig(profil.statut);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
+      {/* Header simple et propre */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBack}>
-          <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+          <Ionicons name="chevron-back" size={24} color={couleurs.texte} />
         </Pressable>
-        <Text style={styles.headerTitle}>Profil</Text>
-        <Pressable style={styles.headerAction}>
-          <Ionicons name="ellipsis-horizontal" size={24} color={couleurs.texte} />
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {profil.prenom} {profil.nom}
+        </Text>
+        <Pressable style={styles.headerBtn}>
+          <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texte} />
         </Pressable>
       </View>
 
@@ -261,197 +271,152 @@ export default function ProfilUtilisateurPage() {
           />
         }
       >
-        {/* Section profil - Style Instagram */}
-        <View style={styles.profilSection}>
-          {/* Header avec avatar et stats */}
-          <View style={styles.profilHeader}>
-            {/* Avatar */}
-            <View style={styles.avatarContainer}>
-              <Avatar
-                uri={profil.avatar}
-                prenom={profil.prenom}
-                nom={profil.nom}
-                taille={90}
-                style={styles.avatar}
-              />
-              {/* Badge statut sur l'avatar */}
-              {profil.statut && (
-                <View style={styles.avatarBadge}>
-                  <Ionicons
-                    name={profil.statut === 'investisseur' ? 'trending-up' : profil.statut === 'porteur' ? 'rocket' : 'star'}
-                    size={12}
-                    color={couleurs.blanc}
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* Stats à côté de l'avatar - Style Instagram */}
-            <View style={styles.statsRow}>
-              <Pressable style={styles.statItem}>
-                <Text style={styles.statValue}>{profil.nbAmis || 0}</Text>
-                <Text style={styles.statLabel}>Amis</Text>
-              </Pressable>
-              <Pressable style={styles.statItem}>
-                <Text style={styles.statValue}>{profil.projetsSuivis || 0}</Text>
-                <Text style={styles.statLabel}>Projets</Text>
-              </Pressable>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {new Date(profil.dateInscription).getFullYear()}
-                </Text>
-                <Text style={styles.statLabel}>Membre</Text>
+        {/* Section profil - Layout horizontal style Instagram */}
+        <View style={styles.profilHeader}>
+          {/* Avatar avec gradient */}
+          <View style={styles.avatarSection}>
+            <LinearGradient
+              colors={[couleurs.primaire, couleurs.secondaire, couleurs.accent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatarGradient}
+            >
+              <View style={styles.avatarInner}>
+                <Avatar
+                  uri={profil.avatar}
+                  prenom={profil.prenom}
+                  nom={profil.nom}
+                  taille={86}
+                />
               </View>
-            </View>
+            </LinearGradient>
           </View>
 
-          {/* Nom et username */}
-          <View style={styles.nomSection}>
-            <Text style={styles.profilNom}>
-              {profil.prenom} {profil.nom}
-            </Text>
-            <View style={styles.statutBadge}>
-              <Ionicons
-                name={profil.statut === 'investisseur' ? 'trending-up' : profil.statut === 'porteur' ? 'rocket' : 'star'}
-                size={12}
-                color={couleurs.primaire}
-              />
-              <Text style={styles.statutText}>{getStatutLabel(profil.statut)}</Text>
+          {/* Stats horizontales */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{profil.nbAmis || 0}</Text>
+              <Text style={styles.statLabel}>Amis</Text>
             </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{profil.projetsSuivis || 0}</Text>
+              <Text style={styles.statLabel}>Projets</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statLabel}>Publications</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Informations utilisateur */}
+        <View style={styles.infoSection}>
+          {/* Nom complet */}
+          <Text style={styles.nomComplet}>{profil.prenom} {profil.nom}</Text>
+
+          {/* Badge statut */}
+          <View style={[styles.statutBadge, { backgroundColor: `${statutConfig.color}15` }]}>
+            <Ionicons name={statutConfig.icon} size={14} color={statutConfig.color} />
+            <Text style={[styles.statutText, { color: statutConfig.color }]}>
+              {statutConfig.label}
+            </Text>
           </View>
 
           {/* Bio */}
           {profil.bio ? (
-            <Text style={styles.bio}>{profil.bio}</Text>
-          ) : (
-            <Text style={styles.bioEmpty}>Aucune biographie</Text>
-          )}
+            <Text style={styles.bioText}>{profil.bio}</Text>
+          ) : null}
 
-          {/* Boutons d'action - Style Instagram */}
-          {!estMonProfil && (
-            <View style={styles.actionsContainer}>
-              {/* Bouton Ami */}
-              <Pressable
-                style={[
-                  styles.actionButton,
-                  profil.estAmi && styles.actionButtonActive,
-                  profil.demandeEnvoyee && styles.actionButtonPending,
-                  profil.demandeRecue && styles.actionButtonReceived,
-                ]}
-                onPress={handleDemandeAmi}
-                disabled={actionEnCours}
-              >
-                {actionEnCours ? (
-                  <ActivityIndicator size="small" color={profil.estAmi || profil.demandeRecue ? couleurs.blanc : couleurs.primaire} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={getBoutonAmiIcon()}
-                      size={18}
-                      color={profil.estAmi || profil.demandeRecue ? couleurs.blanc : couleurs.primaire}
-                    />
-                    <Text
-                      style={[
-                        styles.actionButtonText,
-                        (profil.estAmi || profil.demandeRecue) && styles.actionButtonTextActive,
-                      ]}
-                    >
-                      {getBoutonAmiTexte()}
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-
-              {/* Bouton Message */}
-              <Pressable
-                style={[styles.actionButton, styles.actionButtonMessage]}
-                onPress={handleEnvoyerMessage}
-                disabled={actionEnCours}
-              >
-                <Ionicons name="chatbubble-outline" size={18} color={couleurs.blanc} />
-                <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>
-                  Message
-                </Text>
-              </Pressable>
-
-              {/* Bouton Options */}
-              <Pressable style={styles.actionButtonSmall}>
-                <Ionicons name="ellipsis-horizontal" size={18} color={couleurs.texte} />
-              </Pressable>
-            </View>
-          )}
-
-          {estMonProfil && (
-            <Pressable
-              style={styles.editProfileButton}
-              onPress={() => router.push('/(app)/profil')}
-            >
-              <Ionicons name="create-outline" size={18} color={couleurs.texte} />
-              <Text style={styles.editProfileButtonText}>Modifier le profil</Text>
-            </Pressable>
-          )}
+          {/* Date d'inscription */}
+          <Text style={styles.dateInscription}>
+            Membre depuis {formatDateInscription(profil.dateInscription)}
+          </Text>
         </View>
 
-        {/* Grille d'actions rapides */}
-        <View style={styles.quickActionsSection}>
-          <View style={styles.quickActionsGrid}>
-            <Pressable style={styles.quickActionItem}>
-              <View style={styles.quickActionIcon}>
-                <Ionicons name="document-text-outline" size={22} color={couleurs.primaire} />
-              </View>
-              <Text style={styles.quickActionLabel}>Publications</Text>
+        {/* Boutons d'action */}
+        {!estMonProfil ? (
+          <View style={styles.actionsSection}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionBtn,
+                boutonConfig.style === 'primary' && styles.actionBtnPrimary,
+                boutonConfig.style === 'success' && styles.actionBtnSuccess,
+                boutonConfig.style === 'pending' && styles.actionBtnOutline,
+                boutonConfig.style === 'received' && styles.actionBtnSuccess,
+                pressed && styles.actionBtnPressed,
+              ]}
+              onPress={handleDemandeAmi}
+              disabled={actionEnCours}
+            >
+              {actionEnCours ? (
+                <ActivityIndicator
+                  size="small"
+                  color={boutonConfig.style === 'pending' ? couleurs.texte : couleurs.blanc}
+                />
+              ) : (
+                <>
+                  <Ionicons
+                    name={boutonConfig.icon}
+                    size={18}
+                    color={boutonConfig.style === 'pending' ? couleurs.texte : couleurs.blanc}
+                  />
+                  <Text
+                    style={[
+                      styles.actionBtnText,
+                      boutonConfig.style === 'pending' && styles.actionBtnTextDark,
+                    ]}
+                  >
+                    {boutonConfig.texte}
+                  </Text>
+                </>
+              )}
             </Pressable>
-            <Pressable style={styles.quickActionItem}>
-              <View style={styles.quickActionIcon}>
-                <Ionicons name="heart-outline" size={22} color={couleurs.danger} />
-              </View>
-              <Text style={styles.quickActionLabel}>Favoris</Text>
-            </Pressable>
-            <Pressable style={styles.quickActionItem}>
-              <View style={styles.quickActionIcon}>
-                <Ionicons name="bookmark-outline" size={22} color={couleurs.succes} />
-              </View>
-              <Text style={styles.quickActionLabel}>Projets</Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.actionBtnOutline,
+                pressed && styles.actionBtnPressed,
+              ]}
+              onPress={handleEnvoyerMessage}
+              disabled={actionEnCours}
+            >
+              <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
+              <Text style={styles.actionBtnTextDark}>Message</Text>
             </Pressable>
           </View>
-        </View>
+        ) : (
+          <View style={styles.actionsSection}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.actionBtnOutline,
+                { flex: 1 },
+                pressed && styles.actionBtnPressed,
+              ]}
+              onPress={() => router.push('/(app)/profil')}
+            >
+              <Ionicons name="pencil-outline" size={18} color={couleurs.texte} />
+              <Text style={styles.actionBtnTextDark}>Modifier le profil</Text>
+            </Pressable>
+          </View>
+        )}
 
-        {/* Informations supplémentaires */}
-        <View style={styles.infoSection}>
-          <Text style={styles.infoSectionTitle}>À propos</Text>
+        {/* Séparateur */}
+        <View style={styles.separator} />
 
-          <View style={styles.infoCard}>
-            <View style={styles.infoItem}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="calendar-outline" size={18} color={couleurs.primaire} />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Membre depuis</Text>
-                <Text style={styles.infoValue}>{formatDateInscription(profil.dateInscription)}</Text>
-              </View>
+        {/* Section activité */}
+        <View style={styles.activitySection}>
+          <Text style={styles.sectionTitle}>Activité</Text>
+
+          <View style={styles.emptyActivity}>
+            <View style={styles.emptyIconWrapper}>
+              <Ionicons name="grid-outline" size={32} color={couleurs.bordure} />
             </View>
-
-            {profil.statut && (
-              <View style={styles.infoItem}>
-                <View style={styles.infoIconContainer}>
-                  <Ionicons name="briefcase-outline" size={18} color={couleurs.primaire} />
-                </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Statut</Text>
-                  <Text style={styles.infoValue}>{getStatutLabel(profil.statut)}</Text>
-                </View>
-              </View>
-            )}
-
-            <View style={styles.infoItem}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="people-outline" size={18} color={couleurs.primaire} />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Réseau</Text>
-                <Text style={styles.infoValue}>{profil.nbAmis || 0} ami{(profil.nbAmis || 0) > 1 ? 's' : ''}</Text>
-              </View>
-            </View>
+            <Text style={styles.emptyTitle}>Aucune publication</Text>
+            <Text style={styles.emptyText}>
+              Les publications de {profil.prenom} apparaîtront ici
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -464,119 +429,111 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: couleurs.fond,
   },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: espacements.xl,
-  },
-  errorText: {
-    fontSize: typographie.tailles.lg,
-    color: couleurs.texteSecondaire,
-    marginTop: espacements.lg,
-    textAlign: 'center',
-  },
-  errorButton: {
-    marginTop: espacements.xl,
-    backgroundColor: couleurs.primaire,
-    paddingHorizontal: espacements.xl,
-    paddingVertical: espacements.md,
-    borderRadius: rayons.full,
-  },
-  errorButtonText: {
-    color: couleurs.blanc,
-    fontWeight: typographie.poids.semibold,
-    fontSize: typographie.tailles.base,
-  },
 
   // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: espacements.lg,
-    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
     borderBottomWidth: 1,
     borderBottomColor: couleurs.bordure,
+    backgroundColor: couleurs.fond,
   },
-  headerBack: {
+  headerBtn: {
     width: 40,
     height: 40,
-    borderRadius: rayons.md,
-    backgroundColor: couleurs.fondCard,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerCenter: {
+    flex: 1,
+  },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texte,
+    marginHorizontal: espacements.sm,
+  },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Error
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: espacements.xxl,
+  },
+  errorIconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: couleurs.fondCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espacements.lg,
+  },
+  errorTitle: {
     fontSize: typographie.tailles.lg,
     fontWeight: typographie.poids.semibold,
     color: couleurs.texte,
+    marginBottom: espacements.xs,
   },
-  headerAction: {
-    width: 40,
-    height: 40,
+  errorText: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+    marginBottom: espacements.xl,
+  },
+  errorButton: {
+    paddingHorizontal: espacements.xl,
+    paddingVertical: espacements.md,
+    backgroundColor: couleurs.primaire,
     borderRadius: rayons.md,
-    backgroundColor: couleurs.fondCard,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  errorButtonText: {
+    color: couleurs.blanc,
+    fontWeight: typographie.poids.semibold,
+    fontSize: typographie.tailles.sm,
   },
 
+  // Scroll
   scrollContent: {
-    paddingBottom: espacements.xxl,
+    paddingBottom: espacements.xxxl,
   },
 
-  // Section profil - Style Instagram
-  profilSection: {
-    paddingVertical: espacements.lg,
-    paddingHorizontal: espacements.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: couleurs.bordure,
-  },
+  // Profil Header - Layout Instagram
   profilHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: espacements.lg,
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.xl,
   },
-  avatarContainer: {
-    position: 'relative',
+  avatarSection: {
     marginRight: espacements.xl,
   },
-  avatar: {
-    width: 90,
-    height: 90,
+  avatarGradient: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    padding: 3,
+  },
+  avatarInner: {
+    flex: 1,
     borderRadius: 45,
-    borderWidth: 3,
-    borderColor: couleurs.primaire,
-  },
-  avatarPlaceholder: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: couleurs.primaire,
-  },
-  avatarInitiales: {
-    fontSize: typographie.tailles.xxl,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
-  },
-  avatarBadge: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: couleurs.primaire,
+    backgroundColor: couleurs.fond,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: couleurs.fond,
+    overflow: 'hidden',
   },
   statsRow: {
     flex: 1,
@@ -585,200 +542,135 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: 'center',
-    flex: 1,
   },
   statValue: {
-    fontSize: typographie.tailles.xl,
+    fontSize: 18,
     fontWeight: typographie.poids.bold,
     color: couleurs.texte,
   },
   statLabel: {
     fontSize: typographie.tailles.xs,
-    color: couleurs.texteMuted,
+    color: couleurs.texteSecondaire,
     marginTop: 2,
   },
-  nomSection: {
-    marginBottom: espacements.sm,
+
+  // Info Section
+  infoSection: {
+    paddingHorizontal: espacements.lg,
+    paddingBottom: espacements.md,
   },
-  profilNom: {
-    fontSize: typographie.tailles.lg,
-    fontWeight: typographie.poids.bold,
+  nomComplet: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
     color: couleurs.texte,
     marginBottom: espacements.xs,
   },
   statutBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: couleurs.primaireLight,
-    paddingHorizontal: espacements.sm,
-    paddingVertical: 3,
-    borderRadius: rayons.full,
-    gap: 4,
     alignSelf: 'flex-start',
+    gap: espacements.xs,
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 4,
+    borderRadius: rayons.sm,
+    marginBottom: espacements.sm,
   },
   statutText: {
     fontSize: typographie.tailles.xs,
     fontWeight: typographie.poids.medium,
-    color: couleurs.primaire,
   },
-  bio: {
+  bioText: {
     fontSize: typographie.tailles.sm,
     color: couleurs.texte,
     lineHeight: 20,
-    marginBottom: espacements.lg,
+    marginBottom: espacements.sm,
   },
-  bioEmpty: {
-    fontSize: typographie.tailles.sm,
-    color: couleurs.texteMuted,
-    fontStyle: 'italic',
-    marginBottom: espacements.lg,
-  },
-
-  // Actions - Style Instagram
-  actionsContainer: {
-    flexDirection: 'row',
-    gap: espacements.sm,
-    width: '100%',
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: espacements.sm,
-    borderRadius: rayons.md,
-    borderWidth: 1,
-    borderColor: couleurs.primaire,
-    gap: espacements.xs,
-    minHeight: 36,
-  },
-  actionButtonActive: {
-    backgroundColor: couleurs.succes,
-    borderColor: couleurs.succes,
-  },
-  actionButtonPending: {
-    borderColor: couleurs.bordure,
-    backgroundColor: couleurs.fondCard,
-  },
-  actionButtonReceived: {
-    backgroundColor: couleurs.primaire,
-    borderColor: couleurs.primaire,
-  },
-  actionButtonMessage: {
-    backgroundColor: couleurs.primaire,
-    borderColor: couleurs.primaire,
-  },
-  actionButtonSmall: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: rayons.md,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    backgroundColor: couleurs.fondCard,
-  },
-  actionButtonText: {
-    fontSize: typographie.tailles.sm,
-    fontWeight: typographie.poids.semibold,
-    color: couleurs.primaire,
-  },
-  actionButtonTextActive: {
-    color: couleurs.blanc,
-  },
-
-  editProfileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: espacements.sm,
-    borderRadius: rayons.md,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    backgroundColor: couleurs.fondCard,
-    gap: espacements.xs,
-    width: '100%',
-  },
-  editProfileButtonText: {
-    fontSize: typographie.tailles.sm,
-    fontWeight: typographie.poids.semibold,
-    color: couleurs.texte,
-  },
-
-  // Quick Actions Grid
-  quickActionsSection: {
-    paddingVertical: espacements.md,
-    borderBottomWidth: 1,
-    borderBottomColor: couleurs.bordure,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  quickActionItem: {
-    alignItems: 'center',
-    paddingVertical: espacements.sm,
-  },
-  quickActionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: couleurs.fondCard,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: espacements.xs,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-  },
-  quickActionLabel: {
+  dateInscription: {
     fontSize: typographie.tailles.xs,
     color: couleurs.texteSecondaire,
-    fontWeight: typographie.poids.medium,
   },
 
-  // Info section
-  infoSection: {
+  // Actions Section
+  actionsSection: {
+    flexDirection: 'row',
+    gap: espacements.sm,
     paddingHorizontal: espacements.lg,
-    paddingVertical: espacements.lg,
+    paddingVertical: espacements.md,
   },
-  infoSectionTitle: {
-    fontSize: typographie.tailles.base,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.texte,
-    marginBottom: espacements.md,
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.sm + 2,
+    borderRadius: rayons.md,
+    gap: espacements.xs,
   },
-  infoCard: {
+  actionBtnPrimary: {
+    backgroundColor: couleurs.primaire,
+  },
+  actionBtnSuccess: {
+    backgroundColor: couleurs.succes,
+  },
+  actionBtnOutline: {
     backgroundColor: couleurs.fondCard,
-    borderRadius: rayons.lg,
-    padding: espacements.md,
     borderWidth: 1,
     borderColor: couleurs.bordure,
   },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: espacements.sm,
-    gap: espacements.md,
+  actionBtnPressed: {
+    opacity: 0.7,
   },
-  infoIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: couleurs.primaireLight,
+  actionBtnText: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.blanc,
+  },
+  actionBtnTextDark: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texte,
+  },
+
+  // Separator
+  separator: {
+    height: 8,
+    backgroundColor: couleurs.fondCard,
+    marginVertical: espacements.md,
+  },
+
+  // Activity Section
+  activitySection: {
+    paddingHorizontal: espacements.lg,
+  },
+  sectionTitle: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texte,
+    marginBottom: espacements.lg,
+  },
+  emptyActivity: {
+    alignItems: 'center',
+    paddingVertical: espacements.xxxl,
+  },
+  emptyIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: couleurs.bordure,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: espacements.md,
   },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: typographie.tailles.xs,
-    color: couleurs.texteMuted,
-  },
-  infoValue: {
-    fontSize: typographie.tailles.sm,
+  emptyTitle: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
     color: couleurs.texte,
-    fontWeight: typographie.poids.medium,
-    marginTop: 1,
+    marginBottom: espacements.xs,
+  },
+  emptyText: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
   },
 });

@@ -4,7 +4,7 @@
  * Theme : choix clair/sombre avec persistance
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -29,23 +29,18 @@ import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import {
-  Utilisateur,
   modifierProfil,
   modifierMotDePasse,
   supprimerCompte,
   getAvatarsDefaut,
   modifierAvatar,
-  modifierStatut,
-  StatutUtilisateur,
 } from '../../src/services/auth';
-import { getMesStats, StatsUtilisateur, getMesAmis, getDemandesAmis, ProfilUtilisateur, DemandeAmi, accepterDemandeAmi, refuserDemandeAmi } from '../../src/services/utilisateurs';
 import Avatar from '../../src/composants/Avatar';
-import { FlatList } from 'react-native';
 
 type Section = 'profil' | 'apparence' | 'securite' | 'confidentialite';
 
 export default function Profil() {
-  const { couleurs, mode, toggleTheme, isDark } = useTheme();
+  const { couleurs, toggleTheme, isDark } = useTheme();
   const { utilisateur, updateUser, logout } = useUser();
   const [sectionActive, setSectionActive] = useState<Section>('profil');
   const [chargement, setChargement] = useState(false);
@@ -71,18 +66,6 @@ export default function Profil() {
   const [avatarsDefaut, setAvatarsDefaut] = useState<string[]>([]);
   const [chargementAvatar, setChargementAvatar] = useState(false);
 
-  // Stats sociales
-  const [stats, setStats] = useState<StatsUtilisateur | null>(null);
-  const [chargementStats, setChargementStats] = useState(true);
-
-  // Amis et demandes
-  const [mesAmis, setMesAmis] = useState<ProfilUtilisateur[]>([]);
-  const [demandesAmis, setDemandesAmis] = useState<DemandeAmi[]>([]);
-  const [modalAmis, setModalAmis] = useState(false);
-  const [modalDemandes, setModalDemandes] = useState(false);
-  const [chargementAmis, setChargementAmis] = useState(false);
-  const [actionEnCours, setActionEnCours] = useState<string | null>(null);
-
   useEffect(() => {
     if (utilisateur) {
       setPrenom(utilisateur.prenom);
@@ -90,93 +73,6 @@ export default function Profil() {
       setEmail(utilisateur.email);
     }
   }, [utilisateur]);
-
-  // Charger les stats et données sociales au montage
-  useEffect(() => {
-    chargerDonneesSociales();
-  }, []);
-
-  // Rafraîchir les données sociales quand l'écran reprend le focus
-  useFocusEffect(
-    useCallback(() => {
-      chargerDonneesSociales();
-    }, [])
-  );
-
-  const chargerDonneesSociales = async () => {
-    setChargementStats(true);
-    try {
-      const [statsReponse, amisReponse, demandesReponse] = await Promise.all([
-        getMesStats(),
-        getMesAmis(),
-        getDemandesAmis(),
-      ]);
-
-      if (statsReponse.succes && statsReponse.data) {
-        setStats(statsReponse.data.stats);
-      }
-      if (amisReponse.succes && amisReponse.data) {
-        setMesAmis(amisReponse.data.amis);
-      }
-      if (demandesReponse.succes && demandesReponse.data) {
-        setDemandesAmis(demandesReponse.data.demandes);
-      }
-    } catch (error) {
-      console.error('Erreur chargement données sociales:', error);
-    } finally {
-      setChargementStats(false);
-    }
-  };
-
-  // Accepter une demande d'ami
-  const handleAccepterDemande = async (demande: DemandeAmi) => {
-    setActionEnCours(demande._id);
-    try {
-      const reponse = await accepterDemandeAmi(demande.expediteur._id);
-      if (reponse.succes) {
-        // Retirer de la liste des demandes
-        setDemandesAmis(prev => prev.filter(d => d._id !== demande._id));
-        // Ajouter aux amis
-        setMesAmis(prev => [...prev, {
-          _id: demande.expediteur._id,
-          prenom: demande.expediteur.prenom,
-          nom: demande.expediteur.nom,
-          avatar: demande.expediteur.avatar,
-          dateInscription: '',
-        }]);
-        // Mettre à jour les stats
-        setStats(prev => prev ? {
-          ...prev,
-          nbAmis: prev.nbAmis + 1,
-          nbDemandesRecues: prev.nbDemandesRecues - 1,
-        } : null);
-        afficherMessage('succes', `Vous êtes maintenant ami avec ${demande.expediteur.prenom} !`);
-      }
-    } catch (error) {
-      afficherMessage('erreur', 'Impossible d\'accepter la demande');
-    } finally {
-      setActionEnCours(null);
-    }
-  };
-
-  // Refuser une demande d'ami
-  const handleRefuserDemande = async (demande: DemandeAmi) => {
-    setActionEnCours(demande._id);
-    try {
-      const reponse = await refuserDemandeAmi(demande.expediteur._id);
-      if (reponse.succes) {
-        setDemandesAmis(prev => prev.filter(d => d._id !== demande._id));
-        setStats(prev => prev ? {
-          ...prev,
-          nbDemandesRecues: prev.nbDemandesRecues - 1,
-        } : null);
-      }
-    } catch (error) {
-      afficherMessage('erreur', 'Impossible de refuser la demande');
-    } finally {
-      setActionEnCours(null);
-    }
-  };
 
   const chargerAvatars = async () => {
     try {
@@ -240,7 +136,7 @@ export default function Profil() {
         let avatarUrl: string;
 
         if (asset.base64) {
-          // Déterminer le type MIME
+          // Determiner le type MIME
           const mimeType = asset.mimeType || 'image/jpeg';
           avatarUrl = `data:${mimeType};base64,${asset.base64}`;
         } else {
@@ -774,58 +670,16 @@ export default function Profil() {
                 uri={utilisateur?.avatar}
                 prenom={utilisateur?.prenom}
                 nom={utilisateur?.nom}
-                taille={80}
+                taille={100}
               />
               <View style={styles.avatarEditBadge}>
-                <Ionicons name="camera" size={14} color={couleurs.blanc} />
+                <Ionicons name="camera" size={16} color={couleurs.blanc} />
               </View>
             </Pressable>
             <Text style={styles.profileName}>
               {utilisateur?.prenom} {utilisateur?.nom}
             </Text>
             <Text style={styles.profileEmail}>{utilisateur?.email}</Text>
-
-            {/* Stats sociales style Instagram */}
-            <View style={styles.statsContainer}>
-              <Pressable
-                style={styles.statItem}
-                onPress={() => setModalAmis(true)}
-              >
-                <Text style={styles.statValue}>
-                  {chargementStats ? '-' : mesAmis.length}
-                </Text>
-                <Text style={styles.statLabel}>Amis</Text>
-              </Pressable>
-              <View style={styles.statDivider} />
-              <Pressable
-                style={styles.statItem}
-                onPress={() => setModalDemandes(true)}
-              >
-                <Text style={styles.statValue}>
-                  {chargementStats ? '-' : demandesAmis.length}
-                </Text>
-                <Text style={styles.statLabel}>Demandes</Text>
-                {demandesAmis.length > 0 && (
-                  <View style={styles.statBadge}>
-                    <Text style={styles.statBadgeText}>+{demandesAmis.length}</Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-
-            {/* Bouton voir demandes si en attente */}
-            {demandesAmis.length > 0 && (
-              <Pressable
-                style={styles.demandesAlertBtn}
-                onPress={() => setModalDemandes(true)}
-              >
-                <Ionicons name="person-add" size={18} color={couleurs.blanc} />
-                <Text style={styles.demandesAlertText}>
-                  {demandesAmis.length} demande{demandesAmis.length > 1 ? 's' : ''} d'ami en attente
-                </Text>
-                <Ionicons name="chevron-forward" size={18} color={couleurs.blanc} />
-              </Pressable>
-            )}
           </View>
 
           {/* Menu */}
@@ -903,148 +757,6 @@ export default function Profil() {
                     ))}
                   </ScrollView>
                 </>
-              )}
-            </View>
-          </View>
-        </Modal>
-
-        {/* Modal liste d'amis */}
-        <Modal
-          visible={modalAmis}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalAmis(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContentLarge}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Mes amis ({mesAmis.length})</Text>
-                <Pressable onPress={() => setModalAmis(false)}>
-                  <Ionicons name="close" size={24} color={couleurs.texte} />
-                </Pressable>
-              </View>
-
-              {mesAmis.length === 0 ? (
-                <View style={styles.modalEmptyState}>
-                  <Ionicons name="people-outline" size={64} color={couleurs.texteSecondaire} />
-                  <Text style={styles.modalEmptyText}>Vous n'avez pas encore d'amis</Text>
-                  <Text style={styles.modalEmptySubtext}>
-                    Recherchez des utilisateurs et envoyez-leur une demande d'ami !
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={mesAmis}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={styles.friendItem}
-                      onPress={() => {
-                        setModalAmis(false);
-                        router.push({
-                          pathname: '/(app)/utilisateur/[id]',
-                          params: { id: item._id },
-                        });
-                      }}
-                    >
-                      <Avatar
-                        uri={item.avatar}
-                        prenom={item.prenom}
-                        nom={item.nom}
-                        taille={50}
-                      />
-                      <View style={styles.friendInfo}>
-                        <Text style={styles.friendName}>{item.prenom} {item.nom}</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  )}
-                  contentContainerStyle={styles.friendsList}
-                />
-              )}
-            </View>
-          </View>
-        </Modal>
-
-        {/* Modal demandes d'amis */}
-        <Modal
-          visible={modalDemandes}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalDemandes(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContentLarge}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Demandes d'amis ({demandesAmis.length})</Text>
-                <Pressable onPress={() => setModalDemandes(false)}>
-                  <Ionicons name="close" size={24} color={couleurs.texte} />
-                </Pressable>
-              </View>
-
-              {demandesAmis.length === 0 ? (
-                <View style={styles.modalEmptyState}>
-                  <Ionicons name="person-add-outline" size={64} color={couleurs.texteSecondaire} />
-                  <Text style={styles.modalEmptyText}>Aucune demande en attente</Text>
-                  <Text style={styles.modalEmptySubtext}>
-                    Les demandes d'amis apparaîtront ici
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={demandesAmis}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item }) => (
-                    <View style={styles.demandeItem}>
-                      <Pressable
-                        style={styles.demandeUser}
-                        onPress={() => {
-                          setModalDemandes(false);
-                          router.push({
-                            pathname: '/(app)/utilisateur/[id]',
-                            params: { id: item.expediteur._id },
-                          });
-                        }}
-                      >
-                        <Avatar
-                          uri={item.expediteur.avatar}
-                          prenom={item.expediteur.prenom}
-                          nom={item.expediteur.nom}
-                          taille={50}
-                        />
-                        <View style={styles.friendInfo}>
-                          <Text style={styles.friendName}>
-                            {item.expediteur.prenom} {item.expediteur.nom}
-                          </Text>
-                          <Text style={styles.demandeDate}>
-                            {new Date(item.dateCreation).toLocaleDateString('fr-FR')}
-                          </Text>
-                        </View>
-                      </Pressable>
-                      <View style={styles.demandeActions}>
-                        {actionEnCours === item._id ? (
-                          <ActivityIndicator size="small" color={couleurs.primaire} />
-                        ) : (
-                          <>
-                            <Pressable
-                              style={styles.demandeAcceptBtn}
-                              onPress={() => handleAccepterDemande(item)}
-                            >
-                              <Ionicons name="checkmark" size={20} color={couleurs.blanc} />
-                            </Pressable>
-                            <Pressable
-                              style={styles.demandeRefuseBtn}
-                              onPress={() => handleRefuserDemande(item)}
-                            >
-                              <Ionicons name="close" size={20} color={couleurs.blanc} />
-                            </Pressable>
-                          </>
-                        )}
-                      </View>
-                    </View>
-                  )}
-                  contentContainerStyle={styles.friendsList}
-                />
               )}
             </View>
           </View>
@@ -1131,44 +843,25 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: espacements.xl,
   },
-  avatarLarge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: couleurs.primaire,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: espacements.md,
-  },
-  avatarLargeText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: couleurs.blanc,
-  },
   avatarContainer: {
     position: 'relative',
     marginBottom: espacements.md,
-  },
-  avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
   },
   avatarEditBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: couleurs.primaire,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: couleurs.fond,
   },
   profileName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: couleurs.texte,
     marginBottom: espacements.xs,
@@ -1176,161 +869,6 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   profileEmail: {
     fontSize: 14,
     color: couleurs.texteSecondaire,
-  },
-
-  // Stats sociales
-  statsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: espacements.lg,
-    backgroundColor: couleurs.fondSecondaire,
-    borderRadius: rayons.lg,
-    paddingVertical: espacements.md,
-    paddingHorizontal: espacements.xl,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-  },
-  statItem: {
-    alignItems: 'center',
-    paddingHorizontal: espacements.lg,
-    position: 'relative',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: couleurs.texte,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: couleurs.bordure,
-  },
-  statBadge: {
-    position: 'absolute',
-    top: -8,
-    right: 0,
-    backgroundColor: couleurs.primaire,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  statBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: couleurs.blanc,
-  },
-
-  // Bouton alerte demandes
-  demandesAlertBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: couleurs.primaire,
-    marginTop: espacements.md,
-    marginHorizontal: espacements.lg,
-    paddingVertical: espacements.sm,
-    paddingHorizontal: espacements.md,
-    borderRadius: rayons.full,
-    gap: espacements.sm,
-  },
-  demandesAlertText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: couleurs.blanc,
-  },
-
-  // Modal amis/demandes
-  modalContentLarge: {
-    backgroundColor: couleurs.fondSecondaire,
-    borderTopLeftRadius: rayons.xl,
-    borderTopRightRadius: rayons.xl,
-    paddingBottom: espacements.xxl,
-    maxHeight: '85%',
-    minHeight: '50%',
-  },
-  modalEmptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: espacements.xxl,
-  },
-  modalEmptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: couleurs.texte,
-    marginTop: espacements.lg,
-    textAlign: 'center',
-  },
-  modalEmptySubtext: {
-    fontSize: 14,
-    color: couleurs.texteSecondaire,
-    marginTop: espacements.sm,
-    textAlign: 'center',
-  },
-  friendsList: {
-    paddingVertical: espacements.sm,
-  },
-  friendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: espacements.lg,
-    paddingVertical: espacements.md,
-    gap: espacements.md,
-  },
-  friendInfo: {
-    flex: 1,
-  },
-  friendName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: couleurs.texte,
-  },
-  demandeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: espacements.lg,
-    paddingVertical: espacements.md,
-    gap: espacements.md,
-  },
-  demandeUser: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: espacements.md,
-  },
-  demandeDate: {
-    fontSize: 12,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
-  },
-  demandeActions: {
-    flexDirection: 'row',
-    gap: espacements.sm,
-  },
-  demandeAcceptBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: couleurs.succes,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  demandeRefuseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: couleurs.erreur,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   // Menu

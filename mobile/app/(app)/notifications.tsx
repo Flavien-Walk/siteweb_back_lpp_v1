@@ -22,7 +22,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
-import { Avatar } from '../../src/composants';
+import { Avatar, AnimatedPressable, SkeletonList } from '../../src/composants';
+import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import {
   getNotifications,
   marquerNotificationLue,
@@ -264,12 +265,13 @@ export default function Notifications() {
         overshootRight={false}
         friction={2}
       >
-        <Pressable
+        <AnimatedPressable
           style={[
             styles.notifItem,
             !item.lue && styles.notifItemNonLue,
           ]}
           onPress={() => handleNotificationPress(item)}
+          scaleOnPress={0.98}
         >
           {/* Avatar ou icône */}
           <View style={styles.notifIconContainer}>
@@ -330,7 +332,7 @@ export default function Notifications() {
 
           {/* Indicateur non lu */}
           {!item.lue && <View style={styles.notifIndicateur} />}
-        </Pressable>
+        </AnimatedPressable>
       </Swipeable>
     );
   };
@@ -364,7 +366,7 @@ export default function Notifications() {
       {/* Liste des notifications */}
       {chargement ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={couleurs.primaire} />
+          <SkeletonList type="notification" count={5} />
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyContainer}>

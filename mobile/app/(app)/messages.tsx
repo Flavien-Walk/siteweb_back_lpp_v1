@@ -26,7 +26,8 @@ import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
 import { useUser } from '../../src/contexts/UserContext';
-import { Avatar } from '../../src/composants';
+import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../../src/composants';
+import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import {
   getConversations,
   rechercherUtilisateurs,
@@ -460,12 +461,10 @@ export default function Messages() {
         overshootLeft={false}
         friction={2}
       >
-        <Pressable
-          style={({ pressed }) => [
-            styles.conversationItem,
-            pressed && styles.conversationItemPressed,
-          ]}
+        <AnimatedPressable
+          style={styles.conversationItem}
           onPress={() => ouvrirConversation(item)}
+          scaleOnPress={0.98}
         >
           {/* Avatar */}
           <View style={styles.avatarContainer}>
@@ -509,13 +508,7 @@ export default function Messages() {
               >
                 {item.dernierMessage?.contenu || 'Aucun message'}
               </Text>
-              {item.messagesNonLus > 0 && (
-                <View style={styles.badgeNonLu}>
-                  <Text style={styles.badgeNonLuText}>
-                    {item.messagesNonLus > 99 ? '99+' : item.messagesNonLus}
-                  </Text>
-                </View>
-              )}
+              <NotificationBadge count={item.messagesNonLus} />
             </View>
           </View>
 
@@ -523,7 +516,7 @@ export default function Messages() {
           {item.estMuet && (
             <Ionicons name="volume-mute" size={16} color={couleurs.texteMuted} />
           )}
-        </Pressable>
+        </AnimatedPressable>
       </Swipeable>
     );
   };
@@ -598,7 +591,7 @@ export default function Messages() {
       {/* Liste des conversations */}
       {chargement ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={couleurs.primaire} />
+          <SkeletonList type="conversation" count={5} />
         </View>
       ) : conversationsFiltrees.length === 0 ? (
         <View style={styles.emptyContainer}>

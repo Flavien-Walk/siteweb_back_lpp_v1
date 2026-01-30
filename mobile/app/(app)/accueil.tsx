@@ -3,7 +3,7 @@
  * Decouverte de startups et communaute
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
@@ -63,7 +63,16 @@ import {
 } from '../../src/services/evenements';
 import { getNotifications } from '../../src/services/notifications';
 import { rechercherUtilisateurs as rechercherUtilisateursAPI, ProfilUtilisateur, getDemandesAmis } from '../../src/services/utilisateurs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Avatar from '../../src/composants/Avatar';
+
+// Clé de stockage pour l'historique de recherche
+const HISTORIQUE_RECHERCHE_KEY = '@lpp_historique_recherche';
+const MAX_HISTORIQUE = 10;
+import LikeButton, { LikeButtonCompact } from '../../src/composants/LikeButton';
+import AnimatedPressable from '../../src/composants/AnimatedPressable';
+import { SkeletonList } from '../../src/composants/SkeletonLoader';
+import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -163,9 +172,43 @@ const MOCK_LIVES: Live[] = [
   },
 ];
 
+// Composant wrapper pour l'animation d'entrée des publications
+const AnimatedPublicationWrapper = ({ children, index }: { children: React.ReactNode; index: number }) => {
+  const animatedValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animatedValue, {
+      toValue: 1,
+      duration: ANIMATION_CONFIG.durations.normal,
+      delay: index * 50, // Stagger de 50ms entre chaque post
+      useNativeDriver: true,
+      easing: ANIMATION_CONFIG.easing.smooth,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: animatedValue,
+        transform: [
+          {
+            translateY: animatedValue.interpolate({
+              inputRange: [0, 1],
+              outputRange: [20, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+};
+
 export default function Accueil() {
   const { couleurs } = useTheme();
   const { utilisateur, needsStatut, refreshUser } = useUser();
+  const insets = useSafeAreaInsets();
   const styles = createStyles(couleurs);
 
   const [rafraichissement, setRafraichissement] = useState(false);
@@ -214,7 +257,11 @@ export default function Accueil() {
   // Recherche utilisateurs
   const [rechercheUtilisateurs, setRechercheUtilisateurs] = useState<ProfilUtilisateur[]>([]);
   const [chargementRecherche, setChargementRecherche] = useState(false);
-  const [modalRecherche, setModalRecherche] = useState(false);
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const rechercheInputRef = useRef<TextInput>(null);
+
+  // Historique de recherche
+  const [historiqueRecherche, setHistoriqueRecherche] = useState<string[]>([]);
 
   // Animations FAB
   const fabRotation = useRef(new Animated.Value(0)).current;
@@ -257,6 +304,60 @@ export default function Accueil() {
     }, [])
   );
 
+  // Charger l'historique de recherche au montage
+  useEffect(() => {
+    chargerHistoriqueRecherche();
+  }, []);
+
+  // Fonctions pour l'historique de recherche
+  const chargerHistoriqueRecherche = async () => {
+    try {
+      const data = await AsyncStorage.getItem(HISTORIQUE_RECHERCHE_KEY);
+      if (data) {
+        setHistoriqueRecherche(JSON.parse(data));
+      }
+    } catch (error) {
+      console.error('Erreur chargement historique:', error);
+    }
+  };
+
+  const ajouterAHistorique = async (terme: string) => {
+    try {
+      const termeTrim = terme.trim();
+      if (termeTrim.length < 2) return;
+
+      // Éviter les doublons et limiter la taille
+      const nouvelHistorique = [
+        termeTrim,
+        ...historiqueRecherche.filter(t => t.toLowerCase() !== termeTrim.toLowerCase()),
+      ].slice(0, MAX_HISTORIQUE);
+
+      setHistoriqueRecherche(nouvelHistorique);
+      await AsyncStorage.setItem(HISTORIQUE_RECHERCHE_KEY, JSON.stringify(nouvelHistorique));
+    } catch (error) {
+      console.error('Erreur sauvegarde historique:', error);
+    }
+  };
+
+  const supprimerDeHistorique = async (terme: string) => {
+    try {
+      const nouvelHistorique = historiqueRecherche.filter(t => t !== terme);
+      setHistoriqueRecherche(nouvelHistorique);
+      await AsyncStorage.setItem(HISTORIQUE_RECHERCHE_KEY, JSON.stringify(nouvelHistorique));
+    } catch (error) {
+      console.error('Erreur suppression historique:', error);
+    }
+  };
+
+  const viderHistorique = async () => {
+    try {
+      setHistoriqueRecherche([]);
+      await AsyncStorage.removeItem(HISTORIQUE_RECHERCHE_KEY);
+    } catch (error) {
+      console.error('Erreur vidage historique:', error);
+    }
+  };
+
   const chargerDonnees = async () => {
     await Promise.all([
       chargerPublications(),
@@ -296,7 +397,6 @@ export default function Accueil() {
     const delai = setTimeout(async () => {
       if (recherche.trim().length >= 2) {
         setChargementRecherche(true);
-        setModalRecherche(true);
         try {
           const reponse = await rechercherUtilisateursAPI(recherche.trim());
           if (reponse.succes && reponse.data) {
@@ -309,12 +409,23 @@ export default function Accueil() {
         }
       } else {
         setRechercheUtilisateurs([]);
-        setModalRecherche(false);
       }
     }, 300);
 
     return () => clearTimeout(delai);
   }, [recherche]);
+
+  // Ouvrir la recherche plein écran
+  const ouvrirRecherche = () => {
+    setRechercheOuverte(true);
+  };
+
+  // Fermer la recherche plein écran
+  const fermerRecherche = () => {
+    setRechercheOuverte(false);
+    setRecherche('');
+    setRechercheUtilisateurs([]);
+  };
 
   const chargerPublications = async () => {
     try {
@@ -894,26 +1005,28 @@ export default function Accueil() {
           </Pressable>
         </View>
         <View style={styles.postActions}>
-          <Pressable style={styles.postAction} onPress={handleLike}>
-            <Ionicons
-              name={liked ? 'heart' : 'heart-outline'}
+          <View style={styles.postAction}>
+            <LikeButton
+              isLiked={liked}
+              count={nbLikes}
+              onPress={handleLike}
               size={22}
-              color={liked ? couleurs.erreur : couleurs.texteSecondaire}
+              showCount={false}
             />
-            <Text style={[styles.postActionText, liked && { color: couleurs.erreur }]}>J'aime</Text>
-          </Pressable>
-          <Pressable style={styles.postAction} onPress={handleToggleComments}>
+            <Text style={[styles.postActionText, liked && { color: couleurs.danger }]}>J'aime</Text>
+          </View>
+          <AnimatedPressable style={styles.postAction} onPress={handleToggleComments}>
             <Ionicons
               name={showComments ? 'chatbubble' : 'chatbubble-outline'}
               size={22}
               color={showComments ? couleurs.primaire : couleurs.texteSecondaire}
             />
             <Text style={[styles.postActionText, showComments && { color: couleurs.primaire }]}>Commenter</Text>
-          </Pressable>
-          <Pressable style={styles.postAction} onPress={handleShare}>
+          </AnimatedPressable>
+          <AnimatedPressable style={styles.postAction} onPress={handleShare}>
             <Ionicons name="share-outline" size={22} color={couleurs.texteSecondaire} />
             <Text style={styles.postActionText}>Partager</Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
         {showComments && (
@@ -1059,16 +1172,12 @@ export default function Accueil() {
                               {comment.modifie && (
                                 <Text style={styles.commentModified}>(modifie)</Text>
                               )}
-                              <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(comment._id)}>
-                                <Ionicons
-                                  name={comment.aLike ? 'heart' : 'heart-outline'}
-                                  size={14}
-                                  color={comment.aLike ? couleurs.erreur : couleurs.texteSecondaire}
-                                />
-                                <Text style={[styles.commentLikeText, comment.aLike && { color: couleurs.erreur }]}>
-                                  {comment.nbLikes}
-                                </Text>
-                              </Pressable>
+                              <LikeButtonCompact
+                                isLiked={comment.aLike}
+                                count={comment.nbLikes}
+                                onPress={() => handleLikeComment(comment._id)}
+                                size={14}
+                              />
                               <Pressable
                                 style={styles.commentReplyBtn}
                                 onPress={() => setReplyingTo({ id: comment._id, auteur: commentAuteur })}
@@ -1180,16 +1289,12 @@ export default function Accueil() {
                                   {reponse.modifie && (
                                     <Text style={styles.commentModified}>(modifie)</Text>
                                   )}
-                                  <Pressable style={styles.commentLikeBtn} onPress={() => handleLikeComment(reponse._id)}>
-                                    <Ionicons
-                                      name={reponse.aLike ? 'heart' : 'heart-outline'}
-                                      size={12}
-                                      color={reponse.aLike ? couleurs.erreur : couleurs.texteSecondaire}
-                                    />
-                                    <Text style={[styles.commentLikeText, reponse.aLike && { color: couleurs.erreur }]}>
-                                      {reponse.nbLikes}
-                                    </Text>
-                                  </Pressable>
+                                  <LikeButtonCompact
+                                    isLiked={reponse.aLike}
+                                    count={reponse.nbLikes}
+                                    onPress={() => handleLikeComment(reponse._id)}
+                                    size={12}
+                                  />
                                 </View>
                               </>
                             )}
@@ -1326,21 +1431,10 @@ export default function Accueil() {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Rechercher startups, membres..."
-          placeholderTextColor={couleurs.texteSecondaire}
-          value={recherche}
-          onChangeText={setRecherche}
-        />
-        {recherche.length > 0 && (
-          <Pressable onPress={() => setRecherche('')}>
-            <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
-          </Pressable>
-        )}
-      </View>
+      <Pressable style={styles.searchContainer} onPress={ouvrirRecherche}>
+        <Ionicons name="search" size={16} color={couleurs.texteMuted} />
+        <Text style={styles.searchPlaceholder}>Rechercher</Text>
+      </Pressable>
       <Pressable style={styles.notifButton} onPress={() => router.push('/(app)/notifications')}>
         <Ionicons name="notifications-outline" size={24} color={couleurs.texte} />
         {(notificationsNonLues > 0 || demandesAmisEnAttente > 0) && (
@@ -1467,9 +1561,7 @@ export default function Accueil() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Fil d'actualite</Text>
         {chargement ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Chargement des publications...</Text>
-          </View>
+          <SkeletonList type="post" count={3} />
         ) : publications.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="newspaper-outline" size={48} color={couleurs.texteSecondaire} />
@@ -1477,13 +1569,14 @@ export default function Accueil() {
             <Text style={styles.emptySubtext}>Soyez le premier a publier !</Text>
           </View>
         ) : (
-          publications.map((publication) => (
-            <PublicationCard
-              key={publication._id}
-              publication={publication}
-              onUpdate={handleUpdatePublication}
-              onDelete={handleDeletePublication}
-            />
+          publications.map((publication, index) => (
+            <AnimatedPublicationWrapper key={publication._id} index={index}>
+              <PublicationCard
+                publication={publication}
+                onUpdate={handleUpdatePublication}
+                onDelete={handleDeletePublication}
+              />
+            </AnimatedPublicationWrapper>
           ))
         )}
       </View>
@@ -2030,8 +2123,8 @@ export default function Accueil() {
 
       {renderFAB()}
 
-      {/* Bouton scroll to top */}
-      {afficherScrollTop && (
+      {/* Bouton scroll to top - masqué quand le FAB est ouvert */}
+      {afficherScrollTop && !fabOuvert && (
         <Animated.View
           style={[
             styles.scrollTopBtn,
@@ -2042,7 +2135,7 @@ export default function Accueil() {
           ]}
         >
           <Pressable onPress={scrollToTop} style={styles.scrollTopBtnInner}>
-            <Ionicons name="chevron-up" size={24} color={couleurs.blanc} />
+            <Ionicons name="chevron-up" size={22} color={couleurs.texte} />
           </Pressable>
         </Animated.View>
       )}
@@ -2118,82 +2211,158 @@ export default function Accueil() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal recherche utilisateurs */}
+      {/* Recherche plein écran */}
       <Modal
-        visible={modalRecherche && recherche.length >= 2}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => {
-          setRecherche('');
-          setModalRecherche(false);
-        }}
+        visible={rechercheOuverte}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={fermerRecherche}
       >
-        <Pressable
-          style={styles.searchModalOverlay}
-          onPress={() => {
-            setRecherche('');
-            setModalRecherche(false);
-          }}
-        >
-          <View style={styles.searchModalContent}>
-            <View style={styles.searchModalHeader}>
-              <Text style={styles.searchModalTitle}>Résultats de recherche</Text>
-              <Pressable onPress={() => {
-                setRecherche('');
-                setModalRecherche(false);
-              }}>
-                <Ionicons name="close" size={24} color={couleurs.texte} />
-              </Pressable>
+        <View style={[styles.fullSearchContainer, { paddingTop: insets.top }]}>
+          {/* Header de recherche */}
+          <View style={styles.fullSearchHeader}>
+            <View style={styles.fullSearchInputContainer}>
+              <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
+              <TextInput
+                ref={rechercheInputRef}
+                style={styles.fullSearchInput}
+                placeholder="Rechercher..."
+                placeholderTextColor={couleurs.texteSecondaire}
+                value={recherche}
+                onChangeText={setRecherche}
+                autoFocus
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {recherche.length > 0 && (
+                <Pressable onPress={() => setRecherche('')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
+                </Pressable>
+              )}
             </View>
-
-            {chargementRecherche ? (
-              <View style={styles.searchModalLoading}>
-                <Text style={styles.searchModalLoadingText}>Recherche en cours...</Text>
-              </View>
-            ) : rechercheUtilisateurs.length === 0 ? (
-              <View style={styles.searchModalEmpty}>
-                <Ionicons name="search-outline" size={48} color={couleurs.texteSecondaire} />
-                <Text style={styles.searchModalEmptyText}>Aucun utilisateur trouvé</Text>
-                <Text style={styles.searchModalEmptySubtext}>Essayez un autre nom</Text>
-              </View>
-            ) : (
-              <ScrollView style={styles.searchModalList} keyboardShouldPersistTaps="handled">
-                {rechercheUtilisateurs.map((user) => (
-                  <Pressable
-                    key={user._id}
-                    style={styles.searchModalItem}
-                    onPress={() => {
-                      setRecherche('');
-                      setModalRecherche(false);
-                      router.push({
-                        pathname: '/(app)/utilisateur/[id]',
-                        params: { id: user._id },
-                      });
-                    }}
-                  >
-                    <Avatar
-                      uri={user.avatar}
-                      prenom={user.prenom}
-                      nom={user.nom}
-                      taille={44}
-                    />
-                    <View style={styles.searchModalItemInfo}>
-                      <Text style={styles.searchModalItemName}>
-                        {user.prenom} {user.nom}
-                      </Text>
-                      {user.nbAmis !== undefined && (
-                        <Text style={styles.searchModalItemSub}>
-                          {user.nbAmis} ami{user.nbAmis > 1 ? 's' : ''}
-                        </Text>
-                      )}
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
+            <Pressable onPress={fermerRecherche} style={styles.fullSearchCancel}>
+              <Text style={styles.fullSearchCancelText}>Annuler</Text>
+            </Pressable>
           </View>
-        </Pressable>
+
+          {/* Contenu de recherche */}
+          <View style={styles.fullSearchContent}>
+            {recherche.length < 2 ? (
+              historiqueRecherche.length > 0 ? (
+                <ScrollView
+                  style={styles.fullSearchResults}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.historiqueHeader}>
+                    <Text style={styles.historiqueTitle}>Recherches récentes</Text>
+                    <Pressable onPress={viderHistorique} hitSlop={8}>
+                      <Text style={styles.historiqueClear}>Effacer</Text>
+                    </Pressable>
+                  </View>
+                  {historiqueRecherche.map((terme, index) => (
+                    <Pressable
+                      key={`${terme}-${index}`}
+                      style={({ pressed }) => [
+                        styles.historiqueItem,
+                        pressed && styles.fullSearchResultItemPressed,
+                      ]}
+                      onPress={() => setRecherche(terme)}
+                    >
+                      <View style={styles.historiqueIconContainer}>
+                        <Ionicons name="time-outline" size={18} color={couleurs.texteSecondaire} />
+                      </View>
+                      <Text style={styles.historiqueText} numberOfLines={1}>{terme}</Text>
+                      <Pressable
+                        onPress={() => supprimerDeHistorique(terme)}
+                        hitSlop={8}
+                        style={styles.historiqueDeleteBtn}
+                      >
+                        <Ionicons name="close" size={18} color={couleurs.texteMuted} />
+                      </Pressable>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.fullSearchHint}>
+                  <View style={styles.fullSearchHintIcon}>
+                    <Ionicons name="search" size={40} color={couleurs.primaire} />
+                  </View>
+                  <Text style={styles.fullSearchHintTitle}>Rechercher sur LPP</Text>
+                  <Text style={styles.fullSearchHintText}>
+                    Trouvez des membres, startups, projets et bien plus encore
+                  </Text>
+                </View>
+              )
+            ) : chargementRecherche ? (
+                <View style={styles.fullSearchLoading}>
+                  <View style={styles.fullSearchLoadingDots}>
+                    <Animated.View style={[styles.fullSearchDot, { backgroundColor: couleurs.primaire }]} />
+                    <Animated.View style={[styles.fullSearchDot, { backgroundColor: couleurs.secondaire }]} />
+                    <Animated.View style={[styles.fullSearchDot, { backgroundColor: couleurs.primaire }]} />
+                  </View>
+                  <Text style={styles.fullSearchLoadingText}>Recherche en cours...</Text>
+                </View>
+              ) : rechercheUtilisateurs.length === 0 ? (
+                <View style={styles.fullSearchEmpty}>
+                  <View style={styles.fullSearchEmptyIcon}>
+                    <Ionicons name="person-outline" size={48} color={couleurs.texteSecondaire} />
+                  </View>
+                  <Text style={styles.fullSearchEmptyTitle}>Aucun résultat</Text>
+                  <Text style={styles.fullSearchEmptyText}>
+                    Aucun utilisateur ne correspond à "{recherche}"
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView
+                  style={styles.fullSearchResults}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={styles.fullSearchResultsCount}>
+                    {rechercheUtilisateurs.length} résultat{rechercheUtilisateurs.length > 1 ? 's' : ''}
+                  </Text>
+                  {rechercheUtilisateurs.map((user) => (
+                    <Pressable
+                      key={user._id}
+                      style={({ pressed }) => [
+                        styles.fullSearchResultItem,
+                        pressed && styles.fullSearchResultItemPressed,
+                      ]}
+                      onPress={() => {
+                        // Ajouter le nom à l'historique
+                        ajouterAHistorique(`${user.prenom} ${user.nom}`);
+                        fermerRecherche();
+                        router.push({
+                          pathname: '/(app)/utilisateur/[id]',
+                          params: { id: user._id },
+                        });
+                      }}
+                    >
+                      <Avatar
+                        uri={user.avatar}
+                        prenom={user.prenom}
+                        nom={user.nom}
+                        taille={44}
+                      />
+                      <View style={styles.fullSearchResultInfo}>
+                        <Text style={styles.fullSearchResultName}>
+                          {user.prenom} {user.nom}
+                        </Text>
+                        {user.nbAmis !== undefined && (
+                          <Text style={styles.fullSearchResultSub}>
+                            {user.nbAmis} ami{user.nbAmis > 1 ? 's' : ''}
+                          </Text>
+                        )}
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteMuted} />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -2224,15 +2393,15 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: couleurs.fondSecondaire,
-    borderRadius: rayons.md,
-    paddingHorizontal: espacements.md,
-    paddingVertical: espacements.sm,
-    gap: espacements.sm,
+    borderRadius: rayons.lg,
+    paddingHorizontal: espacements.sm + 2,
+    paddingVertical: espacements.xs + 2,
+    gap: espacements.xs,
   },
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
-    fontSize: 14,
-    color: couleurs.texte,
+    fontSize: 13,
+    color: couleurs.texteMuted,
   },
   notifButton: {
     width: 44,
@@ -3555,21 +3724,23 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   scrollTopBtn: {
     position: 'absolute',
     bottom: 100,
-    left: 20,
-    zIndex: 50,
+    right: 20,
+    zIndex: 99,
   },
   scrollTopBtnInner: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: couleurs.primaire,
+    backgroundColor: couleurs.fondSecondaire,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 3,
   },
   fabMenu: {
     position: 'absolute',
@@ -3805,77 +3976,211 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     color: couleurs.blanc,
   },
 
-  // Search Modal
-  searchModalOverlay: {
+  // Full Screen Search
+  fullSearchContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    paddingTop: 100,
-    paddingHorizontal: espacements.lg,
+    backgroundColor: couleurs.fond,
   },
-  searchModalContent: {
-    backgroundColor: couleurs.fondSecondaire,
-    borderRadius: rayons.xl,
-    maxHeight: '70%',
-    overflow: 'hidden',
-  },
-  searchModalHeader: {
+  fullSearchHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: espacements.lg,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    gap: espacements.sm,
     borderBottomWidth: 1,
     borderBottomColor: couleurs.bordure,
   },
-  searchModalTitle: {
+  fullSearchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    paddingHorizontal: espacements.sm + 2,
+    paddingVertical: espacements.xs + 3,
+    gap: espacements.xs,
+  },
+  fullSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: couleurs.texte,
+    paddingVertical: 0,
+  },
+  fullSearchCancel: {
+    paddingHorizontal: espacements.xs,
+    paddingVertical: espacements.xs,
+  },
+  fullSearchCancelText: {
+    fontSize: 15,
+    color: couleurs.primaire,
+    fontWeight: '500',
+  },
+  fullSearchContent: {
+    flex: 1,
+  },
+  fullSearchHint: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: espacements.xl,
+    paddingBottom: 80,
+  },
+  fullSearchHintIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: couleurs.primaireLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espacements.lg,
+  },
+  fullSearchHintTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: couleurs.texte,
+    marginBottom: espacements.xs,
+    textAlign: 'center',
   },
-  searchModalLoading: {
-    padding: espacements.xl,
+  fullSearchHintText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  fullSearchLoading: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 80,
   },
-  searchModalLoadingText: {
+  fullSearchLoadingDots: {
+    flexDirection: 'row',
+    gap: espacements.sm,
+    marginBottom: espacements.md,
+  },
+  fullSearchDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  fullSearchLoadingText: {
     fontSize: 14,
     color: couleurs.texteSecondaire,
   },
-  searchModalEmpty: {
-    padding: espacements.xxl,
+  fullSearchEmpty: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: espacements.xl,
+    paddingBottom: 80,
   },
-  searchModalEmptyText: {
-    fontSize: 16,
-    color: couleurs.texteSecondaire,
-    marginTop: espacements.md,
+  fullSearchEmptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: couleurs.fondSecondaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espacements.lg,
   },
-  searchModalEmptySubtext: {
+  fullSearchEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: couleurs.texte,
+    marginBottom: espacements.xs,
+  },
+  fullSearchEmptyText: {
     fontSize: 14,
     color: couleurs.texteSecondaire,
-    marginTop: espacements.xs,
+    textAlign: 'center',
   },
-  searchModalList: {
-    maxHeight: 400,
+  fullSearchResults: {
+    flex: 1,
   },
-  searchModalItem: {
+  fullSearchResultsCount: {
+    fontSize: 12,
+    color: couleurs.texteMuted,
+    paddingHorizontal: espacements.md,
+    paddingTop: espacements.sm,
+    paddingBottom: espacements.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fullSearchResultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: espacements.md,
+    paddingVertical: espacements.sm,
+    paddingHorizontal: espacements.md,
+    gap: espacements.sm,
+  },
+  fullSearchResultItemPressed: {
+    backgroundColor: couleurs.fondSecondaire,
+  },
+  fullSearchResultInfo: {
+    flex: 1,
+  },
+  fullSearchResultName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: couleurs.texte,
+    marginBottom: 1,
+  },
+  fullSearchResultSub: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+  fullSearchResultArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: couleurs.fondSecondaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Historique de recherche
+  historiqueHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: espacements.lg,
-    gap: espacements.md,
+    paddingVertical: espacements.md,
     borderBottomWidth: 1,
     borderBottomColor: couleurs.bordure,
   },
-  searchModalItemInfo: {
-    flex: 1,
-  },
-  searchModalItemName: {
-    fontSize: 16,
+  historiqueTitle: {
+    fontSize: 14,
     fontWeight: '600',
+    color: couleurs.texteSecondaire,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  historiqueClear: {
+    fontSize: 13,
+    color: couleurs.primaire,
+    fontWeight: '500',
+  },
+  historiqueItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.lg,
+    gap: espacements.md,
+  },
+  historiqueIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: couleurs.fondSecondaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historiqueText: {
+    flex: 1,
+    fontSize: 15,
     color: couleurs.texte,
   },
-  searchModalItemSub: {
-    fontSize: 13,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
+  historiqueDeleteBtn: {
+    padding: espacements.xs,
   },
 });

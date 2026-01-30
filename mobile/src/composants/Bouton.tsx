@@ -1,18 +1,20 @@
 /**
- * Composant Bouton réutilisable
+ * Composant Bouton réutilisable avec animation
  */
 
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import {
-  TouchableOpacity,
+  Pressable,
   Text,
   StyleSheet,
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { couleurs, espacements, rayons, typographie } from '../constantes/theme';
+import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 
 interface BoutonProps {
   titre: string;
@@ -36,6 +38,43 @@ const Bouton: React.FC<BoutonProps> = ({
   style,
 }) => {
   const estDesactive = desactive || chargement;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const spinAnim = useRef(new Animated.Value(0)).current;
+
+  // Animation de scale au press
+  const handlePressIn = useCallback(() => {
+    if (estDesactive) return;
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      ...ANIMATION_CONFIG.springFast,
+    }).start();
+  }, [scaleAnim, estDesactive]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      ...ANIMATION_CONFIG.spring,
+    }).start();
+  }, [scaleAnim]);
+
+  // Animation de rotation pour le loader
+  React.useEffect(() => {
+    if (chargement) {
+      const spin = Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      );
+      spin.start();
+      return () => spin.stop();
+    } else {
+      spinAnim.setValue(0);
+    }
+  }, [chargement, spinAnim]);
 
   const getTailleStyles = (): { container: ViewStyle; texte: TextStyle } => {
     switch (taille) {
@@ -62,28 +101,31 @@ const Bouton: React.FC<BoutonProps> = ({
   // Bouton primaire avec gradient
   if (variante === 'primaire') {
     return (
-      <TouchableOpacity
+      <Pressable
         onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
         disabled={estDesactive}
-        activeOpacity={0.8}
-        style={[styles.touchable, style]}
+        style={style}
       >
-        <LinearGradient
-          colors={estDesactive ? [couleurs.texteMuted, couleurs.texteMuted] : [...couleurs.gradientPrimaire]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.gradient, tailleStyles.container]}
-        >
-          {chargement ? (
-            <ActivityIndicator color={couleurs.blanc} size="small" />
-          ) : (
-            <>
-              {icone}
-              <Text style={[styles.textePrimaire, tailleStyles.texte]}>{titre}</Text>
-            </>
-          )}
-        </LinearGradient>
-      </TouchableOpacity>
+        <Animated.View style={[styles.touchable, { transform: [{ scale: scaleAnim }] }]}>
+          <LinearGradient
+            colors={estDesactive ? [couleurs.texteMuted, couleurs.texteMuted] : [...couleurs.gradientPrimaire]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.gradient, tailleStyles.container]}
+          >
+            {chargement ? (
+              <ActivityIndicator color={couleurs.blanc} size="small" />
+            ) : (
+              <>
+                {icone}
+                <Text style={[styles.textePrimaire, tailleStyles.texte]}>{titre}</Text>
+              </>
+            )}
+          </LinearGradient>
+        </Animated.View>
+      </Pressable>
     );
   }
 
@@ -122,29 +164,34 @@ const Bouton: React.FC<BoutonProps> = ({
   const varianteStyles = getVarianteStyles();
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       disabled={estDesactive}
-      activeOpacity={0.7}
-      style={[
-        styles.base,
-        tailleStyles.container,
-        varianteStyles.container,
-        estDesactive && styles.desactive,
-        style,
-      ]}
+      style={style}
     >
-      {chargement ? (
-        <ActivityIndicator color={varianteStyles.texte.color || couleurs.texte} size="small" />
-      ) : (
-        <>
-          {icone}
-          <Text style={[styles.texteBase, tailleStyles.texte, varianteStyles.texte]}>
-            {titre}
-          </Text>
-        </>
-      )}
-    </TouchableOpacity>
+      <Animated.View
+        style={[
+          styles.base,
+          tailleStyles.container,
+          varianteStyles.container,
+          estDesactive && styles.desactive,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
+      >
+        {chargement ? (
+          <ActivityIndicator color={varianteStyles.texte.color || couleurs.texte} size="small" />
+        ) : (
+          <>
+            {icone}
+            <Text style={[styles.texteBase, tailleStyles.texte, varianteStyles.texte]}>
+              {titre}
+            </Text>
+          </>
+        )}
+      </Animated.View>
+    </Pressable>
   );
 };
 

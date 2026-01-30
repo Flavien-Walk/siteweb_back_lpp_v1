@@ -24,6 +24,7 @@ export interface Message {
   lecteurs: string[];
   dateCreation: string;
   estMoi: boolean;
+  modifie?: boolean;
 }
 
 export interface Conversation {
@@ -145,6 +146,34 @@ export const toggleMuetConversation = async (
   return api.patch<{ estMuet: boolean }>(
     `/messagerie/conversations/${conversationId}/muet`,
     {},
+    true
+  );
+};
+
+/**
+ * Modifier un message (dans les 15 minutes après envoi)
+ */
+export const modifierMessage = async (
+  conversationId: string,
+  messageId: string,
+  contenu: string
+): Promise<ReponseAPI<{ message: Message }>> => {
+  return api.patch<{ message: Message }>(
+    `/messagerie/conversations/${conversationId}/messages/${messageId}`,
+    { contenu },
+    true
+  );
+};
+
+/**
+ * Supprimer un message (dans les 15 minutes après envoi)
+ */
+export const supprimerMessage = async (
+  conversationId: string,
+  messageId: string
+): Promise<ReponseAPI<void>> => {
+  return api.delete<void>(
+    `/messagerie/conversations/${conversationId}/messages/${messageId}`,
     true
   );
 };
