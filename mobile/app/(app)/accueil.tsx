@@ -263,7 +263,7 @@ export default function Accueil() {
       chargerConversations(),
       chargerProjets(),
       chargerEvenements(),
-      chargerNotifications(),
+      // Note: chargerNotifications() est appelé via useFocusEffect pour éviter les doublons
     ]);
   };
 

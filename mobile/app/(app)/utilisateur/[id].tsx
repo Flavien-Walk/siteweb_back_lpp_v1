@@ -15,7 +15,7 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -72,6 +72,17 @@ export default function ProfilUtilisateurPage() {
   useEffect(() => {
     chargerProfil();
   }, [chargerProfil]);
+
+  // Rafraîchir le profil quand l'écran reprend le focus
+  // (ex: après avoir accepté une demande d'ami ailleurs)
+  useFocusEffect(
+    useCallback(() => {
+      // Ne pas recharger si c'est le premier montage (déjà fait par useEffect)
+      if (profil) {
+        chargerProfil(true);
+      }
+    }, [profil, chargerProfil])
+  );
 
   // Envoyer un message
   const handleEnvoyerMessage = async () => {
