@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { urlValidator, latitudeValidator, longitudeValidator } from '../utils/validators.js';
 
 export type MaturiteProjet = 'idee' | 'prototype' | 'lancement' | 'croissance';
 export type CategorieProjet = 'tech' | 'food' | 'sante' | 'education' | 'energie' | 'culture' | 'environnement' | 'autre';
@@ -66,8 +67,8 @@ const projetSchema = new Schema<IProjet>(
     },
     localisation: {
       ville: { type: String, required: true },
-      lat: { type: Number, required: true },
-      lng: { type: Number, required: true },
+      lat: { type: Number, required: true, validate: latitudeValidator },
+      lng: { type: Number, required: true, validate: longitudeValidator },
     },
     progression: {
       type: Number,
@@ -82,9 +83,11 @@ const projetSchema = new Schema<IProjet>(
     montant: {
       type: Number,
       default: 0,
+      min: [0, 'Le montant ne peut pas être négatif'],
     },
     image: {
       type: String,
+      validate: urlValidator,
     },
     tags: [{
       type: String,
@@ -107,6 +110,7 @@ projetSchema.index({ categorie: 1 });
 projetSchema.index({ maturite: 1 });
 projetSchema.index({ 'localisation.ville': 1 });
 projetSchema.index({ nom: 'text', description: 'text', pitch: 'text' });
+projetSchema.index({ porteur: 1 }); // Pour récupérer les projets d'un utilisateur
 
 const Projet = mongoose.model<IProjet>('Projet', projetSchema);
 

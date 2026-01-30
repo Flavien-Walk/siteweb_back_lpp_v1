@@ -57,6 +57,8 @@ const commentaireSchema = new Schema<ICommentaire>(
 commentaireSchema.index({ publication: 1, dateCreation: -1 });
 // Index pour les réponses à un commentaire
 commentaireSchema.index({ reponseA: 1 });
+// Index pour récupérer les commentaires d'un utilisateur
+commentaireSchema.index({ auteur: 1, dateCreation: -1 });
 
 const Commentaire = mongoose.model<ICommentaire>('Commentaire', commentaireSchema);
 

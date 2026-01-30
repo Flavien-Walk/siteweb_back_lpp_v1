@@ -1,8 +1,11 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import crypto from 'crypto';
 
-// Clé de chiffrement (à stocker dans les variables d'environnement en production)
-const ENCRYPTION_KEY = process.env.MESSAGE_ENCRYPTION_KEY || 'lpp-default-key-32-chars-long!!';
+// Clé de chiffrement (OBLIGATOIRE en variable d'environnement)
+const ENCRYPTION_KEY = process.env.MESSAGE_ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY) {
+  throw new Error('MESSAGE_ENCRYPTION_KEY est requis dans les variables d\'environnement');
+}
 const IV_LENGTH = 16;
 const ALGORITHM = 'aes-256-cbc';
 

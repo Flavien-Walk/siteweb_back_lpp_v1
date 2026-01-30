@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { urlValidator } from '../utils/validators.js';
 
 // Types pour les providers OAuth
 export type ProviderOAuth = 'local' | 'google' | 'facebook' | 'apple';
@@ -78,6 +79,7 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     avatar: {
       type: String,
       default: null,
+      validate: urlValidator,
     },
     role: {
       type: String,

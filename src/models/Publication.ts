@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { urlValidator } from '../utils/validators.js';
 
 export type TypePublication = 'post' | 'annonce' | 'update' | 'editorial' | 'live-extrait';
 
@@ -40,6 +41,7 @@ const publicationSchema = new Schema<IPublication>(
     },
     media: {
       type: String,
+      validate: urlValidator,
     },
     projet: {
       type: Schema.Types.ObjectId,
@@ -65,6 +67,7 @@ const publicationSchema = new Schema<IPublication>(
 publicationSchema.index({ dateCreation: -1 });
 publicationSchema.index({ projet: 1 });
 publicationSchema.index({ type: 1 });
+publicationSchema.index({ auteur: 1, dateCreation: -1 }); // Pour récupérer les publications d'un utilisateur
 
 const Publication = mongoose.model<IPublication>('Publication', publicationSchema);
 
