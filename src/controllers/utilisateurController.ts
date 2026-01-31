@@ -631,19 +631,26 @@ export const getAmisUtilisateur = async (
       }
     }
 
-    // Récupérer l'utilisateur cible avec ses amis
+    // Récupérer l'utilisateur cible avec ses amis (inclure le champ amis des amis pour vérifier la bidirectionnalité)
     const utilisateurCible = await Utilisateur.findById(id)
       .select('prenom nom amis')
-      .populate('amis', 'prenom nom avatar statut role');
+      .populate('amis', 'prenom nom avatar statut role amis');
 
     if (!utilisateurCible) {
       res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
       return;
     }
 
-    // Filtrer les amis invalides (null après populate = utilisateur supprimé ou ID orphelin)
+    // Filtrer les amis :
+    // 1. L'ami doit exister (pas null après populate)
+    // 2. La relation doit être bidirectionnelle (l'ami doit aussi avoir l'utilisateur dans ses amis)
     const amis = (utilisateurCible.amis || [])
-      .filter((ami: any) => ami && ami._id && ami.prenom)
+      .filter((ami: any) => {
+        if (!ami || !ami._id || !ami.prenom) return false;
+        // Vérifier la bidirectionnalité
+        const amiAmisIds = (ami.amis || []).map((a: any) => a.toString());
+        return amiAmisIds.includes(id);
+      })
       .map((ami: any) => ({
         _id: ami._id,
         prenom: ami.prenom,
