@@ -103,6 +103,12 @@ export default function Notifications() {
         pathname: '/(app)/conversation/[id]',
         params: { id: notif.data.conversationId },
       });
+    } else if ((notif.type === 'nouveau_commentaire' || notif.type === 'like_commentaire') && notif.data?.publicationId) {
+      // Naviguer vers le feed avec la publication concernée
+      router.push({
+        pathname: '/(app)/accueil',
+        params: { publicationId: notif.data.publicationId },
+      });
     }
   };
 
@@ -192,6 +198,8 @@ export default function Notifications() {
         return 'chatbubble-ellipses';
       case 'nouveau_like':
         return 'heart';
+      case 'like_commentaire':
+        return 'heart';
       case 'projet_update':
         return 'rocket';
       case 'systeme':
@@ -211,6 +219,10 @@ export default function Notifications() {
         return '#3B82F6';
       case 'nouveau_like':
         return couleurs.danger;
+      case 'like_commentaire':
+        return couleurs.danger;
+      case 'nouveau_commentaire':
+        return '#8B5CF6';
       case 'projet_update':
         return '#F59E0B';
       default:

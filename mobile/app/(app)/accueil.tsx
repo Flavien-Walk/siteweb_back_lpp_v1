@@ -26,7 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { espacements, rayons } from '../../src/constantes/theme';
@@ -214,6 +214,11 @@ export default function Accueil() {
   const { utilisateur, needsStatut, refreshUser } = useUser();
   const insets = useSafeAreaInsets();
   const styles = createStyles(couleurs);
+
+  // Paramètres de navigation (pour scroll vers une publication depuis notification)
+  const { publicationId } = useLocalSearchParams<{ publicationId?: string }>();
+  const publicationLayoutsRef = useRef<Map<string, number>>(new Map());
+  const [publicationCiblee, setPublicationCiblee] = useState<string | null>(null);
 
   const [rafraichissement, setRafraichissement] = useState(false);
   const [ongletActif, setOngletActif] = useState<OngletActif>('feed');
@@ -439,6 +444,40 @@ export default function Accueil() {
   useEffect(() => {
     chargerHistoriqueRecherche();
   }, []);
+
+  // Scroll vers une publication ciblée (depuis notification)
+  useEffect(() => {
+    if (publicationId && typeof publicationId === 'string') {
+      setPublicationCiblee(publicationId);
+      // S'assurer qu'on est sur l'onglet feed
+      setOngletActif('feed');
+    }
+  }, [publicationId]);
+
+  // Effectuer le scroll quand les publications sont chargées et qu'une cible est définie
+  useEffect(() => {
+    if (publicationCiblee && !chargement && publications.length > 0) {
+      // Attendre que les layouts soient calculés
+      const timeoutId = setTimeout(() => {
+        const layoutY = publicationLayoutsRef.current.get(publicationCiblee);
+        if (layoutY !== undefined && scrollViewRef.current) {
+          // Scroller vers la publication avec un offset pour le header
+          scrollViewRef.current.scrollTo({
+            y: Math.max(0, layoutY - 100),
+            animated: true,
+          });
+          // Réinitialiser après le scroll
+          setTimeout(() => {
+            setPublicationCiblee(null);
+          }, 1500);
+        } else {
+          // Publication non trouvée, réinitialiser
+          setPublicationCiblee(null);
+        }
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [publicationCiblee, chargement, publications]);
 
   // Fonctions pour l'historique de recherche
   const chargerHistoriqueRecherche = async () => {
@@ -1876,13 +1915,26 @@ export default function Accueil() {
           </View>
         ) : (
           publications.map((publication, index) => (
-            <AnimatedPublicationWrapper key={publication._id} index={index}>
-              <PublicationCard
-                publication={publication}
-                onUpdate={handleUpdatePublication}
-                onDelete={handleDeletePublication}
-              />
-            </AnimatedPublicationWrapper>
+            <View
+              key={publication._id}
+              onLayout={(e) => {
+                publicationLayoutsRef.current.set(publication._id, e.nativeEvent.layout.y);
+              }}
+              style={publicationCiblee === publication._id ? {
+                borderWidth: 2,
+                borderColor: couleurs.primaire,
+                borderRadius: rayons.lg,
+                backgroundColor: couleurs.primaireLight,
+              } : undefined}
+            >
+              <AnimatedPublicationWrapper index={index}>
+                <PublicationCard
+                  publication={publication}
+                  onUpdate={handleUpdatePublication}
+                  onDelete={handleDeletePublication}
+                />
+              </AnimatedPublicationWrapper>
+            </View>
           ))
         )}
       </View>
