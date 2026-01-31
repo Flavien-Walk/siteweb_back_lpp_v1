@@ -584,10 +584,17 @@ export default function Profil() {
 
         {/* Stats horizontales */}
         <View style={styles.statsRow}>
-          <View style={styles.statItem}>
+          <Pressable
+            style={styles.statItem}
+            onPress={() => {
+              if (utilisateur?.id) {
+                router.push({ pathname: '/(app)/amis/[id]', params: { id: utilisateur.id } });
+              }
+            }}
+          >
             <Text style={styles.statValue}>{utilisateur?.nbAmis || 0}</Text>
             <Text style={styles.statLabel}>Amis</Text>
-          </View>
+          </Pressable>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{utilisateur?.projetsSuivis || 0}</Text>
             <Text style={styles.statLabel}>Projets</Text>
