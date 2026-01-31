@@ -3,13 +3,14 @@
  * Remplace Pressable/TouchableOpacity avec animations fluides
  */
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   Animated,
   Pressable,
   PressableProps,
   ViewStyle,
   StyleProp,
+  StyleSheet,
 } from 'react-native';
 import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 
@@ -26,6 +27,28 @@ interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
   children: React.ReactNode;
 }
 
+// Propriétés de layout à appliquer au Pressable externe
+const LAYOUT_PROPS: (keyof ViewStyle)[] = [
+  'flex',
+  'flexGrow',
+  'flexShrink',
+  'flexBasis',
+  'alignSelf',
+  'width',
+  'height',
+  'minWidth',
+  'minHeight',
+  'maxWidth',
+  'maxHeight',
+  'margin',
+  'marginTop',
+  'marginBottom',
+  'marginLeft',
+  'marginRight',
+  'marginHorizontal',
+  'marginVertical',
+];
+
 const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   style,
   scaleOnPress = 0.97,
@@ -39,6 +62,28 @@ const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  // Séparer les styles de layout (pour Pressable) des autres styles (pour Animated.View)
+  const { pressableStyle, innerStyle } = useMemo(() => {
+    const flatStyle = StyleSheet.flatten(style) || {};
+    const layoutStyle: ViewStyle = {};
+    const contentStyle: ViewStyle = {};
+
+    Object.keys(flatStyle).forEach((key) => {
+      if (LAYOUT_PROPS.includes(key as keyof ViewStyle)) {
+        (layoutStyle as any)[key] = (flatStyle as any)[key];
+      } else {
+        (contentStyle as any)[key] = (flatStyle as any)[key];
+      }
+    });
+
+    // Si le Pressable a flex, l'inner view doit aussi remplir son parent
+    if (layoutStyle.flex || layoutStyle.flexGrow || layoutStyle.width || layoutStyle.height) {
+      contentStyle.flex = contentStyle.flex ?? 1;
+    }
+
+    return { pressableStyle: layoutStyle, innerStyle: contentStyle };
+  }, [style]);
 
   const handlePressIn = useCallback((event: any) => {
     if (disableAnimation || disabled) {
@@ -86,6 +131,7 @@ const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
 
   return (
     <Pressable
+      style={pressableStyle}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={disabled}
@@ -93,7 +139,7 @@ const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
     >
       <Animated.View
         style={[
-          style,
+          innerStyle,
           {
             transform: [{ scale: scaleAnim }],
             opacity: opacityAnim,
