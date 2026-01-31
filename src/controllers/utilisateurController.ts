@@ -616,27 +616,31 @@ export const getAmisUtilisateur = async (
       return;
     }
 
-    // Récupérer l'utilisateur cible
+    const estSoiMeme = userId.toString() === id;
+
+    // Si ce n'est pas soi-même, vérifier l'amitié via l'utilisateur connecté
+    if (!estSoiMeme) {
+      const utilisateurConnecte = await Utilisateur.findById(userId).select('amis');
+      const estAmi = utilisateurConnecte?.amis?.some(
+        (a) => a.toString() === id
+      ) || false;
+
+      if (!estAmi) {
+        res.status(403).json({
+          succes: false,
+          message: 'Vous devez être ami pour voir cette liste.',
+        });
+        return;
+      }
+    }
+
+    // Récupérer l'utilisateur cible avec ses amis populés
     const utilisateurCible = await Utilisateur.findById(id)
       .select('amis prenom nom')
       .populate('amis', 'prenom nom avatar statut');
 
     if (!utilisateurCible) {
       res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
-      return;
-    }
-
-    // Vérifier si c'est soi-même ou si on est ami
-    const estSoiMeme = userId.toString() === id;
-    const estAmi = utilisateurCible.amis?.some(
-      (ami: any) => ami._id.toString() === userId.toString()
-    );
-
-    if (!estSoiMeme && !estAmi) {
-      res.status(403).json({
-        succes: false,
-        message: 'Vous devez être ami pour voir cette liste.',
-      });
       return;
     }
 
