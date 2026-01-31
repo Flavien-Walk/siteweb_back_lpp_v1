@@ -699,13 +699,22 @@ export const toggleLikeCommentaire = async (
 
     // Créer une notification pour l'auteur du commentaire (uniquement lors d'un like, pas d'un unlike)
     const auteurCommentaireId = commentaire.auteur.toString();
+    console.log('[LIKE_COMMENT_NOTIF] Debug:', {
+      dejaLike,
+      auteurCommentaireId,
+      userId: userId.toString(),
+      sameUser: auteurCommentaireId === userId.toString(),
+      willCreateNotif: !dejaLike && auteurCommentaireId !== userId.toString(),
+    });
+
     if (!dejaLike && auteurCommentaireId !== userId.toString()) {
       try {
         const likeur = await Utilisateur.findById(userId).select('prenom nom avatar');
+        console.log('[LIKE_COMMENT_NOTIF] Likeur trouvé:', likeur ? `${likeur.prenom} ${likeur.nom}` : 'null');
         if (likeur) {
-          await Notification.create({
+          const notifData = {
             destinataire: auteurCommentaireId,
-            type: 'like_commentaire',
+            type: 'like_commentaire' as const,
             titre: 'Like sur votre commentaire',
             message: `${likeur.prenom} ${likeur.nom} a aimé votre commentaire.`,
             data: {
@@ -716,12 +725,17 @@ export const toggleLikeCommentaire = async (
               publicationId: commentaire.publication.toString(),
               commentaireId: comId,
             },
-          });
+          };
+          console.log('[LIKE_COMMENT_NOTIF] Création notification:', JSON.stringify(notifData, null, 2));
+          const notif = await Notification.create(notifData);
+          console.log('[LIKE_COMMENT_NOTIF] Notification créée avec succès, ID:', notif._id.toString());
         }
       } catch (notifError) {
         // Ne pas bloquer si la notification échoue
-        console.error('Erreur création notification like commentaire:', notifError);
+        console.error('[LIKE_COMMENT_NOTIF] ERREUR création notification:', notifError);
       }
+    } else {
+      console.log('[LIKE_COMMENT_NOTIF] Notification non créée - raison:', dejaLike ? 'déjà liké' : 'même utilisateur');
     }
 
     res.json({
