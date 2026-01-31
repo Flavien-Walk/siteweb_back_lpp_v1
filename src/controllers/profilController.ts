@@ -67,6 +67,11 @@ const schemaModifierProfil = z.object({
     .toLowerCase()
     .trim()
     .optional(),
+  bio: z
+    .string()
+    .max(150, 'La bio ne peut pas dépasser 150 caractères')
+    .trim()
+    .optional(),
 });
 
 // Schéma de validation pour le changement de mot de passe
@@ -137,6 +142,7 @@ export const modifierProfil = async (
           nom: utilisateur.nom,
           email: utilisateur.email,
           avatar: utilisateur.avatar,
+          bio: utilisateur.bio,
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
@@ -392,6 +398,7 @@ export const modifierAvatar = async (
           nom: utilisateur.nom,
           email: utilisateur.email,
           avatar: utilisateur.avatar,
+          bio: utilisateur.bio,
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
@@ -441,6 +448,7 @@ export const modifierStatut = async (
           nom: utilisateur.nom,
           email: utilisateur.email,
           avatar: utilisateur.avatar,
+          bio: utilisateur.bio,
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,

@@ -21,6 +21,7 @@ export interface IUtilisateur extends Document {
   provider: ProviderOAuth;
   providerId?: string;
   avatar?: string;
+  bio?: string;
   role: Role;
   statut?: StatutUtilisateur;
   cguAcceptees: boolean;
@@ -80,6 +81,12 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       type: String,
       default: null,
       validate: urlValidator,
+    },
+    bio: {
+      type: String,
+      default: null,
+      maxlength: [150, 'La bio ne peut pas depasser 150 caracteres'],
+      trim: true,
     },
     role: {
       type: String,
