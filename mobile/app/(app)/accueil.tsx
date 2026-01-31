@@ -3430,7 +3430,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: couleurs.bordure,
-    paddingHorizontal: espacements.xs,
   },
   postAction: {
     flex: 1,
@@ -3438,8 +3437,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: espacements.md,
-    paddingHorizontal: espacements.xs,
-    gap: espacements.sm,
+    gap: espacements.xs,
   },
   postActionText: {
     fontSize: 13,
