@@ -25,7 +25,7 @@ export default function AppLayout() {
       />
       {/* Conversation - slide from bottom (style Instagram DM) */}
       <Stack.Screen
-        name="conversation/[id]"
+        name="conversation"
         options={{
           animation: 'slide_from_bottom',
           animationDuration: 300,
@@ -33,7 +33,7 @@ export default function AppLayout() {
       />
       {/* Profil utilisateur - slide from right */}
       <Stack.Screen
-        name="utilisateur/[id]"
+        name="utilisateur"
         options={{
           animation: 'slide_from_right',
         }}

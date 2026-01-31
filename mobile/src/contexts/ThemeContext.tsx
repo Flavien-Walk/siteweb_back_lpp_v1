@@ -16,9 +16,11 @@ export interface ThemeCouleurs {
   secondaire: string;
   secondaireLight: string;
   secondaireDark: string;
+  accent: string;
   fond: string;
   fondSecondaire: string;
   fondTertiaire: string;
+  fondCard: string;
   texte: string;
   texteSecondaire: string;
   texteMuted: string;
@@ -64,9 +66,11 @@ export const darkTheme: ThemeCouleurs = {
   secondaire: '#10B981',
   secondaireLight: '#34D399',
   secondaireDark: '#059669',
+  accent: '#F59E0B',
   fond: '#0F0F14',
   fondSecondaire: '#1A1A24',
   fondTertiaire: '#252532',
+  fondCard: '#1A1A24',
   texte: '#FFFFFF',
   texteSecondaire: '#A1A1AA',
   texteMuted: '#71717A',
@@ -104,9 +108,11 @@ export const lightTheme: ThemeCouleurs = {
   secondaire: '#10B981',
   secondaireLight: '#34D399',
   secondaireDark: '#059669',
+  accent: '#F59E0B',
   fond: '#FFFFFF',
   fondSecondaire: '#F8FAFC',
   fondTertiaire: '#F1F5F9',
+  fondCard: '#F8FAFC',
   texte: '#0F172A',
   texteSecondaire: '#64748B',
   texteMuted: '#94A3B8',

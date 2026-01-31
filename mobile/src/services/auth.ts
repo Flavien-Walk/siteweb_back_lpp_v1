@@ -16,10 +16,14 @@ export interface Utilisateur {
   nom: string;
   email: string;
   avatar?: string;
+  bio?: string;
   role: Role;
   statut?: StatutUtilisateur;
   provider: 'local' | 'google' | 'facebook' | 'apple';
   emailVerifie: boolean;
+  dateInscription?: string;
+  nbAmis?: number;
+  projetsSuivis?: number;
 }
 
 interface DonneesConnexion {
@@ -52,10 +56,14 @@ const normaliserUtilisateur = (data: any): Utilisateur => {
     nom: data.nom || '',
     email: data.email || '',
     avatar: data.avatar || undefined,
+    bio: data.bio || undefined,
     role: data.role || 'user',
     statut: data.statut || undefined,
     provider: data.provider || 'local',
     emailVerifie: data.emailVerifie ?? false,
+    dateInscription: data.dateInscription || data.createdAt || undefined,
+    nbAmis: data.nbAmis ?? 0,
+    projetsSuivis: data.projetsSuivis ?? 0,
   };
 };
 
@@ -155,7 +163,7 @@ export const estConnecte = async (): Promise<boolean> => {
  * Modifier le profil de l'utilisateur
  */
 export const modifierProfil = async (
-  donnees: { prenom?: string; nom?: string; email?: string }
+  donnees: { prenom?: string; nom?: string; email?: string; bio?: string }
 ): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
   const reponse = await api.patch<{ utilisateur: any }>('/profil', donnees, true);
 
