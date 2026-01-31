@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,7 @@ import {
   ProfilUtilisateur,
 } from '../../../src/services/utilisateurs';
 import { getOuCreerConversationPrivee } from '../../../src/services/messagerie';
+import { getPublicationsUtilisateur, Publication } from '../../../src/services/publications';
 
 export default function ProfilUtilisateurPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,10 +44,28 @@ export default function ProfilUtilisateurPage() {
   const [chargement, setChargement] = useState(true);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [actionEnCours, setActionEnCours] = useState(false);
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [chargementPublications, setChargementPublications] = useState(false);
 
   // Ref pour tracker si le profil a déjà été chargé
   const profilChargeRef = useRef(false);
   const idPrecedentRef = useRef<string | undefined>(undefined);
+
+  // Charger les publications de l'utilisateur
+  const chargerPublications = useCallback(async () => {
+    if (!id) return;
+    setChargementPublications(true);
+    try {
+      const reponse = await getPublicationsUtilisateur(id);
+      if (reponse.succes && reponse.data) {
+        setPublications(reponse.data.publications);
+      }
+    } catch (error) {
+      console.error('Erreur chargement publications:', error);
+    } finally {
+      setChargementPublications(false);
+    }
+  }, [id]);
 
   // Charger le profil
   const chargerProfil = useCallback(async (estRefresh = false) => {
@@ -58,7 +78,10 @@ export default function ProfilUtilisateurPage() {
     }
 
     try {
-      const reponse = await getProfilUtilisateur(id);
+      const [reponse] = await Promise.all([
+        getProfilUtilisateur(id),
+        chargerPublications(),
+      ]);
       if (reponse.succes && reponse.data) {
         setProfil(reponse.data.utilisateur);
       } else {
@@ -70,7 +93,7 @@ export default function ProfilUtilisateurPage() {
       setChargement(false);
       setRafraichissement(false);
     }
-  }, [id]);
+  }, [id, chargerPublications]);
 
   // Charger le profil uniquement quand l'ID change ou au premier montage
   useEffect(() => {
@@ -411,15 +434,45 @@ export default function ProfilUtilisateurPage() {
         <View style={styles.activitySection}>
           <Text style={styles.sectionTitle}>Activité</Text>
 
-          <View style={styles.emptyActivity}>
-            <View style={styles.emptyIconWrapper}>
-              <Ionicons name="grid-outline" size={32} color={couleurs.bordure} />
+          {chargementPublications ? (
+            <View style={styles.emptyActivity}>
+              <ActivityIndicator size="large" color={couleurs.primaire} />
             </View>
-            <Text style={styles.emptyTitle}>Aucune publication</Text>
-            <Text style={styles.emptyText}>
-              Les publications de {profil.prenom} apparaîtront ici
-            </Text>
-          </View>
+          ) : publications.length === 0 ? (
+            <View style={styles.emptyActivity}>
+              <View style={styles.emptyIconWrapper}>
+                <Ionicons name="grid-outline" size={32} color={couleurs.bordure} />
+              </View>
+              <Text style={styles.emptyTitle}>Aucune publication</Text>
+              <Text style={styles.emptyText}>
+                Les publications de {profil.prenom} apparaîtront ici
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.publicationsGrid}>
+              {publications.map((pub) => (
+                <Pressable
+                  key={pub._id}
+                  style={styles.publicationItem}
+                  onPress={() => {/* TODO: ouvrir le détail */}}
+                >
+                  {pub.media ? (
+                    <Image
+                      source={{ uri: pub.media }}
+                      style={styles.publicationImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.publicationTextOnly}>
+                      <Text style={styles.publicationTextContent} numberOfLines={4}>
+                        {pub.contenu}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -674,5 +727,30 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.sm,
     color: couleurs.texteSecondaire,
     textAlign: 'center',
+  },
+  publicationsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 2,
+  },
+  publicationItem: {
+    width: '32.5%',
+    aspectRatio: 1,
+    backgroundColor: couleurs.fondCard,
+  },
+  publicationImage: {
+    width: '100%',
+    height: '100%',
+  },
+  publicationTextOnly: {
+    flex: 1,
+    padding: espacements.sm,
+    backgroundColor: couleurs.fondElevated,
+    justifyContent: 'center',
+  },
+  publicationTextContent: {
+    fontSize: 11,
+    color: couleurs.texte,
+    lineHeight: 14,
   },
 });

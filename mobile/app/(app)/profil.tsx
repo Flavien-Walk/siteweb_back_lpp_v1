@@ -38,6 +38,7 @@ import {
   getAvatarsDefaut,
   modifierAvatar,
 } from '../../src/services/auth';
+import { getPublicationsUtilisateur, Publication } from '../../src/services/publications';
 import Avatar from '../../src/composants/Avatar';
 
 type Onglet = 'profil-public' | 'parametres';
@@ -90,6 +91,10 @@ export default function Profil() {
   // Animation de l'indicateur d'onglet
   const [indicatorPosition] = useState(new Animated.Value(0));
 
+  // Publications de l'utilisateur
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [chargementPublications, setChargementPublications] = useState(false);
+
   useEffect(() => {
     if (utilisateur) {
       setPrenom(utilisateur.prenom);
@@ -98,6 +103,25 @@ export default function Profil() {
       setBio(utilisateur.bio || '');
     }
   }, [utilisateur]);
+
+  // Charger les publications de l'utilisateur
+  useEffect(() => {
+    const chargerPublications = async () => {
+      if (!utilisateur?.id) return;
+      setChargementPublications(true);
+      try {
+        const reponse = await getPublicationsUtilisateur(utilisateur.id);
+        if (reponse.succes && reponse.data) {
+          setPublications(reponse.data.publications);
+        }
+      } catch (error) {
+        console.error('Erreur chargement publications:', error);
+      } finally {
+        setChargementPublications(false);
+      }
+    };
+    chargerPublications();
+  }, [utilisateur?.id]);
 
   // Animation lors du changement d'onglet
   useEffect(() => {
@@ -328,13 +352,21 @@ export default function Profil() {
     );
   };
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setRafraichissement(true);
-    // Simuler un refresh (les données viennent du context)
-    setTimeout(() => {
+    try {
+      if (utilisateur?.id) {
+        const reponse = await getPublicationsUtilisateur(utilisateur.id);
+        if (reponse.succes && reponse.data) {
+          setPublications(reponse.data.publications);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur refresh publications:', error);
+    } finally {
       setRafraichissement(false);
-    }, 500);
-  }, []);
+    }
+  }, [utilisateur?.id]);
 
   const getInitiales = () => {
     if (!utilisateur) return 'U';
@@ -504,15 +536,45 @@ export default function Profil() {
       <View style={styles.activitySection}>
         <Text style={styles.sectionTitle}>Mon activité</Text>
 
-        <View style={styles.emptyActivity}>
-          <View style={styles.emptyIconWrapper}>
-            <Ionicons name="grid-outline" size={32} color={couleurs.bordure} />
+        {chargementPublications ? (
+          <View style={styles.emptyActivity}>
+            <ActivityIndicator size="large" color={couleurs.primaire} />
           </View>
-          <Text style={styles.emptyTitle}>Aucune publication</Text>
-          <Text style={styles.emptyText}>
-            Vos publications apparaîtront ici
-          </Text>
-        </View>
+        ) : publications.length === 0 ? (
+          <View style={styles.emptyActivity}>
+            <View style={styles.emptyIconWrapper}>
+              <Ionicons name="grid-outline" size={32} color={couleurs.bordure} />
+            </View>
+            <Text style={styles.emptyTitle}>Aucune publication</Text>
+            <Text style={styles.emptyText}>
+              Vos publications apparaîtront ici
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.publicationsGrid}>
+            {publications.map((pub) => (
+              <Pressable
+                key={pub._id}
+                style={styles.publicationItem}
+                onPress={() => {/* TODO: ouvrir le détail */}}
+              >
+                {pub.media ? (
+                  <Image
+                    source={{ uri: pub.media }}
+                    style={styles.publicationImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.publicationTextOnly}>
+                    <Text style={styles.publicationTextContent} numberOfLines={4}>
+                      {pub.contenu}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -1400,6 +1462,31 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: couleurs.texteSecondaire,
     textAlign: 'center',
+  },
+  publicationsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 2,
+  },
+  publicationItem: {
+    width: '32.5%',
+    aspectRatio: 1,
+    backgroundColor: couleurs.fondSecondaire,
+  },
+  publicationImage: {
+    width: '100%',
+    height: '100%',
+  },
+  publicationTextOnly: {
+    flex: 1,
+    padding: espacements.sm,
+    backgroundColor: couleurs.fondTertiaire,
+    justifyContent: 'center',
+  },
+  publicationTextContent: {
+    fontSize: 11,
+    color: couleurs.texte,
+    lineHeight: 14,
   },
 
   // =====================

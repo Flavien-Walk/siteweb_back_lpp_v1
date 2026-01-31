@@ -75,6 +75,17 @@ export const getPublication = async (
 };
 
 /**
+ * Récupérer les publications d'un utilisateur spécifique
+ */
+export const getPublicationsUtilisateur = async (
+  userId: string,
+  page = 1,
+  limit = 20
+): Promise<ReponseAPI<{ publications: Publication[]; pagination: PaginationData }>> => {
+  return api.get(`/publications?auteur=${userId}&page=${page}&limit=${limit}`, true);
+};
+
+/**
  * Créer une publication
  */
 export const creerPublication = async (
