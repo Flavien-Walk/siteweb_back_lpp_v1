@@ -13,6 +13,7 @@ import {
   Platform,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +21,7 @@ import { router } from 'expo-router';
 import { Bouton, ChampTexte } from '../../src/composants';
 import { couleurs, espacements, typographie, rayons } from '../../src/constantes/theme';
 import { connexion } from '../../src/services/auth';
+import { connexionGoogle, connexionApple } from '../../src/services/oauth';
 import { useAuth } from '../../src/contextes/AuthContexte';
 
 const { width } = Dimensions.get('window');
@@ -30,6 +32,7 @@ export default function Connexion() {
   const [motDePasse, setMotDePasse] = useState('');
   const [afficherMdp, setAfficherMdp] = useState(false);
   const [chargement, setChargement] = useState(false);
+  const [chargementOAuth, setChargementOAuth] = useState<'google' | 'apple' | null>(null);
   const [erreur, setErreur] = useState('');
   const [erreurs, setErreurs] = useState<Record<string, string>>({});
 
@@ -72,6 +75,28 @@ export default function Connexion() {
       setErreur('Une erreur est survenue. Réessaie.');
     } finally {
       setChargement(false);
+    }
+  };
+
+  const handleOAuth = async (provider: 'google' | 'apple') => {
+    setChargementOAuth(provider);
+    setErreur('');
+
+    try {
+      const result = provider === 'google'
+        ? await connexionGoogle()
+        : await connexionApple();
+
+      if (result.succes && result.utilisateur) {
+        setUtilisateur(result.utilisateur);
+        router.replace('/(app)/accueil');
+      } else {
+        setErreur(result.message || 'Erreur de connexion');
+      }
+    } catch {
+      setErreur('Une erreur est survenue. Réessaie.');
+    } finally {
+      setChargementOAuth(null);
     }
   };
 
@@ -155,8 +180,43 @@ export default function Connexion() {
           {/* Séparateur */}
           <View style={styles.separateur}>
             <View style={styles.ligne} />
-            <Text style={styles.separateurTexte}>ou</Text>
+            <Text style={styles.separateurTexte}>ou continue avec</Text>
             <View style={styles.ligne} />
+          </View>
+
+          {/* Boutons OAuth */}
+          <View style={styles.oauthContainer}>
+            <TouchableOpacity
+              style={[styles.oauthButton, styles.googleButton]}
+              onPress={() => handleOAuth('google')}
+              disabled={chargementOAuth !== null || chargement}
+            >
+              {chargementOAuth === 'google' ? (
+                <ActivityIndicator size="small" color={couleurs.texte} />
+              ) : (
+                <>
+                  <Text style={styles.oauthIcon}>G</Text>
+                  <Text style={styles.oauthText}>Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity
+                style={[styles.oauthButton, styles.appleButton]}
+                onPress={() => handleOAuth('apple')}
+                disabled={chargementOAuth !== null || chargement}
+              >
+                {chargementOAuth === 'apple' ? (
+                  <ActivityIndicator size="small" color={couleurs.blanc} />
+                ) : (
+                  <>
+                    <Text style={styles.oauthIconApple}></Text>
+                    <Text style={styles.oauthTextApple}>Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Lien inscription */}
@@ -276,5 +336,47 @@ const styles = StyleSheet.create({
     color: couleurs.primaire,
     fontSize: typographie.tailles.base,
     fontWeight: typographie.poids.semibold,
+  },
+  oauthContainer: {
+    flexDirection: 'row',
+    gap: espacements.md,
+    marginBottom: espacements.xxl,
+  },
+  oauthButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: espacements.sm,
+    paddingVertical: espacements.md,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+  },
+  googleButton: {
+    backgroundColor: couleurs.fondCard,
+    borderColor: couleurs.bordure,
+  },
+  appleButton: {
+    backgroundColor: couleurs.blanc,
+    borderColor: couleurs.blanc,
+  },
+  oauthIcon: {
+    fontSize: typographie.tailles.lg,
+    fontWeight: typographie.poids.bold,
+    color: couleurs.texte,
+  },
+  oauthIconApple: {
+    fontSize: typographie.tailles.lg,
+    color: couleurs.noir,
+  },
+  oauthText: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.medium,
+    color: couleurs.texte,
+  },
+  oauthTextApple: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.medium,
+    color: couleurs.noir,
   },
 });
