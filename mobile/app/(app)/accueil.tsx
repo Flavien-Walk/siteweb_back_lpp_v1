@@ -22,6 +22,7 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -226,6 +227,12 @@ export default function Accueil() {
   const [modalCreerPost, setModalCreerPost] = useState(false);
   const [nouveauPostContenu, setNouveauPostContenu] = useState('');
   const [creationEnCours, setCreationEnCours] = useState(false);
+  const [mediaSelectionne, setMediaSelectionne] = useState<{
+    uri: string;
+    type: 'image' | 'video';
+    base64?: string;
+    mimeType?: string;
+  } | null>(null);
 
   // Messagerie
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -566,14 +573,25 @@ export default function Accueil() {
   };
 
   const handleCreerPost = async () => {
-    if (!nouveauPostContenu.trim() || creationEnCours) return;
+    if ((!nouveauPostContenu.trim() && !mediaSelectionne) || creationEnCours) return;
 
     try {
       setCreationEnCours(true);
-      const reponse = await creerPublication(nouveauPostContenu.trim());
+
+      // Préparer le média en base64 si présent
+      let mediaData: string | undefined;
+      if (mediaSelectionne?.base64) {
+        const mimeType = mediaSelectionne.mimeType || (mediaSelectionne.type === 'video' ? 'video/mp4' : 'image/jpeg');
+        mediaData = `data:${mimeType};base64,${mediaSelectionne.base64}`;
+      } else if (mediaSelectionne?.uri) {
+        mediaData = mediaSelectionne.uri;
+      }
+
+      const reponse = await creerPublication(nouveauPostContenu.trim(), mediaData);
       if (reponse.succes && reponse.data) {
         setPublications(prev => [reponse.data!.publication, ...prev]);
         setNouveauPostContenu('');
+        setMediaSelectionne(null);
         setModalCreerPost(false);
         Alert.alert('Succes', 'Publication creee !');
       } else {
@@ -584,6 +602,101 @@ export default function Accueil() {
     } finally {
       setCreationEnCours(false);
     }
+  };
+
+  // Sélection d'une image depuis la galerie
+  const handleSelectImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre galerie pour ajouter des photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setMediaSelectionne({
+          uri: asset.uri,
+          type: 'image',
+          base64: asset.base64 || undefined,
+          mimeType: asset.mimeType || 'image/jpeg',
+        });
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+    }
+  };
+
+  // Sélection d'une vidéo depuis la galerie
+  const handleSelectVideo = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre galerie pour ajouter des vidéos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: true,
+        quality: 0.7,
+        videoMaxDuration: 60,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setMediaSelectionne({
+          uri: asset.uri,
+          type: 'video',
+          mimeType: asset.mimeType || 'video/mp4',
+        });
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de sélectionner la vidéo');
+    }
+  };
+
+  // Prendre une photo avec l'appareil photo
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre caméra pour prendre des photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setMediaSelectionne({
+          uri: asset.uri,
+          type: 'image',
+          base64: asset.base64 || undefined,
+          mimeType: asset.mimeType || 'image/jpeg',
+        });
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de prendre la photo');
+    }
+  };
+
+  // Supprimer le média sélectionné
+  const handleRemoveMedia = () => {
+    setMediaSelectionne(null);
   };
 
   const handleProfil = () => {
@@ -1005,7 +1118,7 @@ export default function Accueil() {
           </Pressable>
         </View>
         <View style={styles.postActions}>
-          <View style={styles.postAction}>
+          <AnimatedPressable style={styles.postAction} onPress={handleLike}>
             <LikeButton
               isLiked={liked}
               count={nbLikes}
@@ -1014,7 +1127,7 @@ export default function Accueil() {
               showCount={false}
             />
             <Text style={[styles.postActionText, liked && { color: couleurs.danger }]}>J'aime</Text>
-          </View>
+          </AnimatedPressable>
           <AnimatedPressable style={styles.postAction} onPress={handleToggleComments}>
             <Ionicons
               name={showComments ? 'chatbubble' : 'chatbubble-outline'}
@@ -2145,7 +2258,11 @@ export default function Accueil() {
         visible={modalCreerPost}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setModalCreerPost(false)}
+        onRequestClose={() => {
+          setModalCreerPost(false);
+          setMediaSelectionne(null);
+          setNouveauPostContenu('');
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -2154,12 +2271,16 @@ export default function Accueil() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nouvelle publication</Text>
-              <Pressable onPress={() => setModalCreerPost(false)} style={styles.modalCloseBtn}>
+              <Pressable onPress={() => {
+                setModalCreerPost(false);
+                setMediaSelectionne(null);
+                setNouveauPostContenu('');
+              }} style={styles.modalCloseBtn}>
                 <Ionicons name="close" size={24} color={couleurs.texte} />
               </Pressable>
             </View>
 
-            <View style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
               <View style={styles.modalAuthor}>
                 <Avatar
                   uri={utilisateur?.avatar}
@@ -2183,19 +2304,54 @@ export default function Accueil() {
                 autoFocus
               />
 
+              {/* Aperçu du média sélectionné */}
+              {mediaSelectionne && (
+                <View style={styles.mediaPreviewContainer}>
+                  <Image
+                    source={{ uri: mediaSelectionne.uri }}
+                    style={styles.mediaPreview}
+                    resizeMode="cover"
+                  />
+                  {mediaSelectionne.type === 'video' && (
+                    <View style={styles.mediaVideoIndicator}>
+                      <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                    </View>
+                  )}
+                  <Pressable style={styles.mediaRemoveBtn} onPress={handleRemoveMedia}>
+                    <Ionicons name="close-circle" size={28} color={couleurs.blanc} />
+                  </Pressable>
+                </View>
+              )}
+
               <Text style={styles.modalCharCount}>
                 {nouveauPostContenu.length}/5000
               </Text>
+            </ScrollView>
+
+            {/* Barre d'actions médias */}
+            <View style={styles.modalMediaBar}>
+              <Pressable style={styles.modalMediaBtn} onPress={handleSelectImage}>
+                <Ionicons name="image-outline" size={24} color={couleurs.primaire} />
+                <Text style={styles.modalMediaBtnText}>Photo</Text>
+              </Pressable>
+              <Pressable style={styles.modalMediaBtn} onPress={handleSelectVideo}>
+                <Ionicons name="videocam-outline" size={24} color={couleurs.primaire} />
+                <Text style={styles.modalMediaBtnText}>Video</Text>
+              </Pressable>
+              <Pressable style={styles.modalMediaBtn} onPress={handleTakePhoto}>
+                <Ionicons name="camera-outline" size={24} color={couleurs.primaire} />
+                <Text style={styles.modalMediaBtnText}>Camera</Text>
+              </Pressable>
             </View>
 
             <View style={styles.modalFooter}>
               <Pressable
                 style={[
                   styles.modalPublishBtn,
-                  (!nouveauPostContenu.trim() || creationEnCours) && styles.modalPublishBtnDisabled,
+                  ((!nouveauPostContenu.trim() && !mediaSelectionne) || creationEnCours) && styles.modalPublishBtnDisabled,
                 ]}
                 onPress={handleCreerPost}
-                disabled={!nouveauPostContenu.trim() || creationEnCours}
+                disabled={(!nouveauPostContenu.trim() && !mediaSelectionne) || creationEnCours}
               >
                 {creationEnCours ? (
                   <Text style={styles.modalPublishBtnText}>Publication...</Text>
@@ -2791,6 +2947,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: couleurs.bordure,
+    paddingHorizontal: espacements.xs,
   },
   postAction: {
     flex: 1,
@@ -2798,10 +2955,12 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: espacements.md,
-    gap: espacements.xs,
+    paddingHorizontal: espacements.xs,
+    gap: espacements.sm,
   },
   postActionText: {
     fontSize: 13,
+    fontWeight: '500',
     color: couleurs.texteSecondaire,
   },
 
@@ -3974,6 +4133,59 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: couleurs.blanc,
+  },
+
+  // Media Preview dans Modal
+  mediaPreviewContainer: {
+    position: 'relative',
+    marginTop: espacements.md,
+    borderRadius: rayons.md,
+    overflow: 'hidden',
+    backgroundColor: couleurs.fondTertiaire,
+  },
+  mediaPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: rayons.md,
+  },
+  mediaVideoIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  mediaRemoveBtn: {
+    position: 'absolute',
+    top: espacements.sm,
+    right: espacements.sm,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 14,
+  },
+
+  // Barre d'actions médias dans Modal
+  modalMediaBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+    paddingVertical: espacements.sm,
+    paddingHorizontal: espacements.lg,
+  },
+  modalMediaBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: espacements.xs,
+    paddingVertical: espacements.sm,
+  },
+  modalMediaBtnText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: couleurs.primaire,
   },
 
   // Full Screen Search
