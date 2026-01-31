@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 
@@ -584,6 +585,79 @@ export const getMesAmis = async (
     res.json({
       succes: true,
       data: {
+        amis,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/utilisateurs/:id/amis
+ * Récupérer la liste d'amis d'un utilisateur
+ * Accessible uniquement si on est ami avec cet utilisateur ou si c'est soi-même
+ */
+export const getAmisUtilisateur = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.utilisateur?._id;
+
+    if (!userId) {
+      res.status(401).json({ succes: false, message: 'Non authentifié.' });
+      return;
+    }
+
+    const userIdStr = userId.toString();
+    const estSoiMeme = userIdStr === id;
+
+    // Si ce n'est pas son propre profil, vérifier l'amitié
+    if (!estSoiMeme) {
+      const utilisateurConnecte = await Utilisateur.findById(userIdStr).select('amis');
+      if (!utilisateurConnecte) {
+        res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
+        return;
+      }
+      const amisIds = (utilisateurConnecte.amis || []).map((a) => a.toString());
+      const estAmi = amisIds.includes(id);
+
+      if (!estAmi) {
+        res.status(403).json({ succes: false, message: 'Vous devez être ami pour voir cette liste.' });
+        return;
+      }
+    }
+
+    // Récupérer l'utilisateur cible avec ses amis
+    const utilisateurCible = await Utilisateur.findById(id)
+      .select('prenom nom amis')
+      .populate('amis', 'prenom nom avatar statut role');
+
+    if (!utilisateurCible) {
+      res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
+      return;
+    }
+
+    const amis = (utilisateurCible.amis || []).map((ami: any) => ({
+      _id: ami._id,
+      prenom: ami.prenom,
+      nom: ami.nom,
+      avatar: ami.avatar,
+      statut: ami.statut,
+      role: ami.role,
+    }));
+
+    res.json({
+      succes: true,
+      data: {
+        utilisateur: {
+          _id: utilisateurCible._id,
+          prenom: utilisateurCible.prenom,
+          nom: utilisateurCible.nom,
+        },
         amis,
       },
     });
