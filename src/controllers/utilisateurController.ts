@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 
