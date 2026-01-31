@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import {
   inscription,
@@ -10,6 +10,21 @@ import {
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
 const router = Router();
+
+/**
+ * Middleware pour capturer la plateforme (web/mobile) et la passer dans le state OAuth
+ */
+const capturerPlateforme = (provider: string) => (req: Request, res: Response, next: NextFunction) => {
+  const platform = req.query.platform as string;
+
+  // Encoder la plateforme dans le state OAuth (base64 pour compatibilite)
+  const stateData = { platform: platform || 'web' };
+  const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
+
+  // Passer le state a passport via query
+  (req as any).authState = state;
+  next();
+};
 
 // ============================================
 // ROUTES AUTH EMAIL/PASSWORD
@@ -40,13 +55,18 @@ router.get('/moi', verifierJwt, moi);
 /**
  * GET /api/auth/google
  * Initier le flux OAuth Google
+ * Accepte ?platform=mobile pour les clients mobiles
  */
 router.get(
   '/google',
-  passport.authenticate('google', {
-    scope: ['profile', 'email'],
-    session: false,
-  })
+  capturerPlateforme('google'),
+  (req, res, next) => {
+    passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      session: false,
+      state: (req as any).authState,
+    })(req, res, next);
+  }
 );
 
 /**
@@ -69,13 +89,18 @@ router.get(
 /**
  * GET /api/auth/facebook
  * Initier le flux OAuth Facebook
+ * Accepte ?platform=mobile pour les clients mobiles
  */
 router.get(
   '/facebook',
-  passport.authenticate('facebook', {
-    scope: ['public_profile'],
-    session: false,
-  })
+  capturerPlateforme('facebook'),
+  (req, res, next) => {
+    passport.authenticate('facebook', {
+      scope: ['public_profile'],
+      session: false,
+      state: (req as any).authState,
+    })(req, res, next);
+  }
 );
 
 /**
@@ -98,13 +123,18 @@ router.get(
 /**
  * GET /api/auth/apple
  * Initier le flux OAuth Apple
+ * Accepte ?platform=mobile pour les clients mobiles
  */
 router.get(
   '/apple',
-  passport.authenticate('apple', {
-    scope: ['name', 'email'],
-    session: false,
-  })
+  capturerPlateforme('apple'),
+  (req, res, next) => {
+    passport.authenticate('apple', {
+      scope: ['name', 'email'],
+      session: false,
+      state: (req as any).authState,
+    })(req, res, next);
+  }
 );
 
 /**

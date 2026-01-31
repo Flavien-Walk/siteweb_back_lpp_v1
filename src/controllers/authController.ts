@@ -170,23 +170,60 @@ export const moi = async (
   }
 };
 
+// Scheme de l'app mobile pour deep linking
+const MOBILE_SCHEME = process.env.MOBILE_SCHEME || 'lpp';
+
+/**
+ * Detecter si la requete provient d'un client mobile
+ */
+const isMobileClient = (req: Request): boolean => {
+  // Verifier le state OAuth qui contient platform=mobile
+  const state = req.query.state as string;
+  if (state) {
+    try {
+      const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+      if (stateData.platform === 'mobile') return true;
+    } catch {
+      // State non parsable, continuer avec d'autres checks
+    }
+  }
+
+  // Fallback: verifier le User-Agent
+  const userAgent = req.headers['user-agent'] || '';
+  return /expo|react-native|okhttp/i.test(userAgent);
+};
+
 /**
  * Callback OAuth - genere le token et redirige vers le frontend
- * Le token est transmis via un cookie httpOnly sécurisé
+ * Web: token via cookie httpOnly securise
+ * Mobile: token via deep link URL
  */
 export const callbackOAuth = (req: Request, res: Response): void => {
   try {
     const utilisateur = req.user as any;
 
     if (!utilisateur) {
-      res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_echec`);
+      const isMobile = isMobileClient(req);
+      if (isMobile) {
+        res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=oauth_echec`);
+      } else {
+        res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_echec`);
+      }
       return;
     }
 
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
-    // Definir le token dans un cookie httpOnly securise
+    // Verifier si c'est un client mobile
+    if (isMobileClient(req)) {
+      // Mobile: redirection via deep link avec token dans l'URL
+      // C'est securise car le deep link n'est interceptable que par l'app native
+      res.redirect(`${MOBILE_SCHEME}://auth/callback?token=${token}`);
+      return;
+    }
+
+    // Web: Definir le token dans un cookie httpOnly securise
     res.cookie('oauth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -199,7 +236,12 @@ export const callbackOAuth = (req: Request, res: Response): void => {
     res.redirect(`${process.env.CLIENT_URL}/auth/callback`);
   } catch (error) {
     console.error('Erreur callback OAuth:', error);
-    res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_erreur`);
+    const isMobile = isMobileClient(req);
+    if (isMobile) {
+      res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=oauth_erreur`);
+    } else {
+      res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_erreur`);
+    }
   }
 };
 
