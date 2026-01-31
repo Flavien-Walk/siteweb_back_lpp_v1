@@ -78,7 +78,7 @@ import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Types
 type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages';
@@ -240,6 +240,10 @@ export default function Accueil() {
   // Video player modal
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  // Image viewer modal
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
@@ -1269,12 +1273,16 @@ export default function Accueil() {
           return (
             <Pressable
               style={styles.postMediaContainer}
-              onPress={isVideo ? () => {
-                setVideoUrl(publication.media!);
-                setVideoModalVisible(true);
-                resetControlsTimeout();
-              } : undefined}
-              disabled={!isVideo}
+              onPress={() => {
+                if (isVideo) {
+                  setVideoUrl(publication.media!);
+                  setVideoModalVisible(true);
+                  resetControlsTimeout();
+                } else {
+                  setImageUrl(publication.media!);
+                  setImageModalVisible(true);
+                }
+              }}
             >
               <Image
                 source={{ uri: thumbnailUri }}
@@ -2862,6 +2870,45 @@ export default function Accueil() {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* Modal Visionneuse Image - Style Instagram */}
+      <Modal
+        visible={imageModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          setImageModalVisible(false);
+          setImageUrl(null);
+        }}
+        statusBarTranslucent
+      >
+        <View style={styles.imageModalContainer}>
+          <Pressable
+            style={styles.imageModalBackdrop}
+            onPress={() => {
+              setImageModalVisible(false);
+              setImageUrl(null);
+            }}
+          />
+          {imageUrl && (
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.imageModalImage}
+              resizeMode="contain"
+            />
+          )}
+          <Pressable
+            style={styles.imageModalCloseBtn}
+            onPress={() => {
+              setImageModalVisible(false);
+              setImageUrl(null);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close" size={26} color={couleurs.blanc} />
+          </Pressable>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -3425,6 +3472,32 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  // ========== VISIONNEUSE IMAGE - Style Instagram ==========
+  imageModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  imageModalImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.8,
+  },
+  imageModalCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   postStats: {
     flexDirection: 'row',
