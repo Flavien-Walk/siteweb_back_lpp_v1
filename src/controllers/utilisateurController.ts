@@ -641,14 +641,17 @@ export const getAmisUtilisateur = async (
       return;
     }
 
-    const amis = (utilisateurCible.amis || []).map((ami: any) => ({
-      _id: ami._id,
-      prenom: ami.prenom,
-      nom: ami.nom,
-      avatar: ami.avatar,
-      statut: ami.statut,
-      role: ami.role,
-    }));
+    // Filtrer les amis invalides (null après populate = utilisateur supprimé ou ID orphelin)
+    const amis = (utilisateurCible.amis || [])
+      .filter((ami: any) => ami && ami._id && ami.prenom)
+      .map((ami: any) => ({
+        _id: ami._id,
+        prenom: ami.prenom,
+        nom: ami.nom,
+        avatar: ami.avatar,
+        statut: ami.statut,
+        role: ami.role,
+      }));
 
     res.json({
       succes: true,
