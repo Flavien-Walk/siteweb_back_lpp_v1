@@ -177,17 +177,19 @@ export default function ProfilUtilisateurPage() {
     return { texte: 'Ajouter', icon: 'person-add-outline' as const, style: 'primary' };
   };
 
-  // Configuration du statut
-  const getStatutConfig = (statut?: string) => {
+  // Configuration du statut (avec gestion du rôle admin)
+  const getStatutConfig = (role?: string, statut?: string) => {
+    // Admin en priorité
+    if (role === 'admin') {
+      return { label: 'Admin LPP', icon: 'shield-checkmark' as const, color: '#dc2626' };
+    }
+    // Sinon statut utilisateur
     switch (statut) {
-      case 'investisseur':
-        return { label: 'Investisseur', icon: 'trending-up' as const, color: couleurs.succes };
-      case 'porteur':
-        return { label: 'Porteur de projet', icon: 'rocket' as const, color: couleurs.primaire };
-      case 'les-deux':
-        return { label: 'Investisseur & Porteur', icon: 'star' as const, color: couleurs.accent };
+      case 'entrepreneur':
+        return { label: 'Entrepreneur', icon: 'rocket' as const, color: couleurs.primaire };
+      case 'visiteur':
       default:
-        return { label: 'Membre', icon: 'person' as const, color: couleurs.texteSecondaire };
+        return { label: 'Visiteur', icon: 'compass' as const, color: couleurs.texteSecondaire };
     }
   };
 
@@ -242,7 +244,7 @@ export default function ProfilUtilisateurPage() {
 
   const estMonProfil = moi?.id === profil._id;
   const boutonConfig = getBoutonAmiConfig();
-  const statutConfig = getStatutConfig(profil.statut);
+  const statutConfig = getStatutConfig(profil.role, profil.statut);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

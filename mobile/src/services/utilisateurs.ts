@@ -12,7 +12,8 @@ export interface ProfilUtilisateur {
   nom: string;
   avatar?: string;
   bio?: string;
-  statut?: 'investisseur' | 'porteur' | 'les-deux';
+  role?: 'utilisateur' | 'admin';
+  statut?: 'visiteur' | 'entrepreneur';
   dateInscription: string;
   estAmi?: boolean;
   demandeEnvoyee?: boolean;

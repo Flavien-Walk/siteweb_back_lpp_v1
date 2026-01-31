@@ -20,10 +20,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -235,6 +237,127 @@ export default function Accueil() {
     mimeType?: string;
   } | null>(null);
 
+  // Video player modal
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const videoRef = useRef<Video>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoPosition, setVideoPosition] = useState(0);
+  const [showControls, setShowControls] = useState(true);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controlsOpacity = useRef(new Animated.Value(1)).current;
+
+  // Helper: générer thumbnail Cloudinary pour vidéo
+  const getVideoThumbnail = (videoUrl: string): string => {
+    // Cloudinary video URL: https://res.cloudinary.com/xxx/video/upload/v123/folder/file.mp4
+    // Thumbnail URL: https://res.cloudinary.com/xxx/video/upload/so_0,w_600,h_600,c_limit/v123/folder/file.jpg
+    if (videoUrl.includes('cloudinary.com') && videoUrl.includes('/video/upload/')) {
+      return videoUrl
+        .replace('/video/upload/', '/video/upload/so_0,w_600,h_600,c_limit,f_jpg/')
+        .replace(/\.(mp4|mov|webm|avi)$/i, '.jpg');
+    }
+    // Fallback: retourner l'URL originale (ne marchera pas mais évite le crash)
+    return videoUrl;
+  };
+
+  // Contrôles vidéo
+  const togglePlayPause = async () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        await videoRef.current.pauseAsync();
+      } else {
+        await videoRef.current.playAsync();
+      }
+      setIsPlaying(!isPlaying);
+      resetControlsTimeout();
+    }
+  };
+
+  const toggleMute = async () => {
+    if (videoRef.current) {
+      await videoRef.current.setIsMutedAsync(!isMuted);
+      setIsMuted(!isMuted);
+      resetControlsTimeout();
+    }
+  };
+
+  const seekVideo = async (value: number) => {
+    if (videoRef.current && videoDuration > 0) {
+      await videoRef.current.setPositionAsync(value);
+      resetControlsTimeout();
+    }
+  };
+
+  const formatTime = (millis: number): string => {
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const resetControlsTimeout = () => {
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    setShowControls(true);
+    Animated.timing(controlsOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+
+    controlsTimeoutRef.current = setTimeout(() => {
+      if (isPlaying) {
+        Animated.timing(controlsOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => setShowControls(false));
+      }
+    }, 3000);
+  };
+
+  const handleVideoTap = () => {
+    // Annuler tout timeout existant
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = null;
+    }
+
+    if (showControls) {
+      // Masquer immédiatement
+      Animated.timing(controlsOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => setShowControls(false));
+    } else {
+      // Afficher immédiatement (sans auto-hide, l'utilisateur doit retaper pour masquer)
+      setShowControls(true);
+      Animated.timing(controlsOpacity, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
+  const closeVideoModal = () => {
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    setVideoModalVisible(false);
+    setVideoUrl(null);
+    setIsPlaying(true);
+    setIsMuted(false);
+    setVideoDuration(0);
+    setVideoPosition(0);
+    setShowControls(true);
+    controlsOpacity.setValue(1);
+  };
+
   // Messagerie
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [rechercheMessage, setRechercheMessage] = useState('');
@@ -305,12 +428,8 @@ export default function Accueil() {
     }).start();
   }, []);
 
-  // Rafraîchir les notifications et demandes quand l'écran reprend le focus
-  useFocusEffect(
-    useCallback(() => {
-      chargerNotifications();
-    }, [])
-  );
+  // Note: les notifications sont chargées via chargerDonnees() au refresh, pas via useFocusEffect
+  // pour éviter que le badge se mette à jour quand on revient du centre de notifications
 
   // Charger l'historique de recherche au montage
   useEffect(() => {
@@ -372,7 +491,7 @@ export default function Accueil() {
       chargerConversations(),
       chargerProjets(),
       chargerEvenements(),
-      // Note: chargerNotifications() est appelé via useFocusEffect pour éviter les doublons
+      chargerNotifications(),
     ]);
   };
 
@@ -1124,26 +1243,45 @@ export default function Accueil() {
         ) : (
           <Text style={styles.postContenu}>{publication.contenu}</Text>
         )}
-        {publication.media && (
-          <View style={styles.postMediaContainer}>
-            <Image
-              source={{ uri: publication.media }}
-              style={styles.postImage}
-              resizeMode="cover"
-            />
-            {/* Indicateur vidéo si c'est une vidéo */}
-            {(publication.media.includes('.mp4') ||
-              publication.media.includes('.mov') ||
-              publication.media.includes('.webm') ||
-              publication.media.includes('video')) && (
-              <View style={styles.postVideoOverlay}>
-                <View style={styles.postVideoPlayBtn}>
-                  <Ionicons name="play" size={32} color={couleurs.blanc} />
+        {publication.media && (() => {
+          const isVideo = publication.media.includes('.mp4') ||
+            publication.media.includes('.mov') ||
+            publication.media.includes('.webm') ||
+            publication.media.includes('video');
+
+          // Utiliser thumbnail Cloudinary pour les vidéos
+          const thumbnailUri = isVideo
+            ? getVideoThumbnail(publication.media)
+            : publication.media;
+
+          return (
+            <Pressable
+              style={styles.postMediaContainer}
+              onPress={isVideo ? () => {
+                setVideoUrl(publication.media!);
+                setVideoModalVisible(true);
+                resetControlsTimeout();
+              } : undefined}
+              disabled={!isVideo}
+            >
+              <Image
+                source={{ uri: thumbnailUri }}
+                style={styles.postImage}
+                resizeMode="cover"
+              />
+              {isVideo && (
+                <View style={styles.postVideoOverlay}>
+                  <View style={styles.postVideoPlayBtn}>
+                    <Ionicons name="play" size={32} color={couleurs.blanc} />
+                  </View>
+                  <View style={styles.videoDurationBadge}>
+                    <Ionicons name="videocam" size={12} color={couleurs.blanc} />
+                  </View>
                 </View>
-              </View>
-            )}
-          </View>
-        )}
+              )}
+            </Pressable>
+          );
+        })()}
         <View style={styles.postStats}>
           <Text style={styles.postStatText}>{nbLikes} j'aime</Text>
           <Pressable onPress={handleToggleComments}>
@@ -2441,8 +2579,10 @@ export default function Accueil() {
               historiqueRecherche.length > 0 ? (
                 <ScrollView
                   style={styles.fullSearchResults}
+                  contentContainerStyle={{ paddingBottom: 100 }}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
+                  onScrollBeginDrag={() => Keyboard.dismiss()}
                 >
                   <View style={styles.historiqueHeader}>
                     <Text style={styles.historiqueTitle}>Recherches récentes</Text>
@@ -2506,8 +2646,10 @@ export default function Accueil() {
               ) : (
                 <ScrollView
                   style={styles.fullSearchResults}
+                  contentContainerStyle={{ paddingBottom: 100 }}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
+                  onScrollBeginDrag={() => Keyboard.dismiss()}
                 >
                   <Text style={styles.fullSearchResultsCount}>
                     {rechercheUtilisateurs.length} résultat{rechercheUtilisateurs.length > 1 ? 's' : ''}
@@ -2551,6 +2693,161 @@ export default function Accueil() {
                 </ScrollView>
               )}
           </View>
+        </View>
+      </Modal>
+
+      {/* Modal Lecteur Vidéo - Style Instagram/LinkedIn */}
+      <Modal
+        visible={videoModalVisible}
+        animationType="fade"
+        transparent={false}
+        onRequestClose={closeVideoModal}
+        statusBarTranslucent
+      >
+        <View style={styles.videoModalContainer}>
+          {/* Vidéo */}
+          {videoUrl && (
+            <View style={styles.videoTouchArea}>
+              <Video
+                ref={videoRef}
+                source={{ uri: videoUrl }}
+                style={styles.videoPlayer}
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+                isMuted={isMuted}
+                isLooping={false}
+                onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
+                  if (status.isLoaded) {
+                    setVideoDuration(status.durationMillis || 0);
+                    setVideoPosition(status.positionMillis || 0);
+                    setIsPlaying(status.isPlaying);
+                    if (status.didJustFinish) {
+                      setIsPlaying(false);
+                      setShowControls(true);
+                      controlsOpacity.setValue(1);
+                    }
+                  }
+                }}
+              />
+            </View>
+          )}
+
+          {/* Overlay gradient haut */}
+          <Animated.View
+            style={[styles.videoGradientTop, { opacity: controlsOpacity }]}
+            pointerEvents="none"
+          >
+            <LinearGradient
+              colors={['rgba(0,0,0,0.6)', 'transparent']}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+
+          {/* Overlay gradient bas */}
+          <Animated.View
+            style={[styles.videoGradientBottom, { opacity: controlsOpacity }]}
+            pointerEvents="none"
+          >
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.7)']}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+
+          {/* Bouton fermer - Style Instagram */}
+          <Animated.View
+            style={[styles.videoCloseContainer, { opacity: controlsOpacity }]}
+            pointerEvents={showControls ? 'auto' : 'none'}
+          >
+            <Pressable
+              style={styles.videoCloseBtn}
+              onPress={closeVideoModal}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={26} color={couleurs.blanc} />
+            </Pressable>
+          </Animated.View>
+
+          {/* Zone de tap pour toggle les contrôles (couvre tout l'écran) */}
+          <Pressable
+            style={styles.videoCenterControl}
+            onPress={handleVideoTap}
+          >
+            {/* Bouton Play/Pause central - Apparaît au tap */}
+            {showControls && (
+              <Animated.View style={{ opacity: controlsOpacity }}>
+                <Pressable
+                  style={styles.videoCenterBtn}
+                  onPress={togglePlayPause}
+                >
+                  <View style={styles.videoCenterBtnInner}>
+                    <Ionicons
+                      name={isPlaying ? 'pause' : 'play'}
+                      size={44}
+                      color={couleurs.blanc}
+                      style={!isPlaying ? { marginLeft: 4 } : undefined}
+                    />
+                  </View>
+                </Pressable>
+              </Animated.View>
+            )}
+          </Pressable>
+
+          {/* Contrôles bas - Style épuré */}
+          <Animated.View
+            style={[styles.videoBottomControls, { opacity: controlsOpacity }]}
+            pointerEvents={showControls ? 'auto' : 'none'}
+          >
+            {/* Barre de progression */}
+            <Pressable
+              style={styles.videoProgressBar}
+              onPress={(e) => {
+                const { locationX } = e.nativeEvent;
+                const progress = locationX / (SCREEN_WIDTH - 32);
+                const newPosition = progress * videoDuration;
+                seekVideo(Math.max(0, Math.min(newPosition, videoDuration)));
+              }}
+            >
+              <View style={styles.videoProgressTrack}>
+                <View
+                  style={[
+                    styles.videoProgressFill,
+                    {
+                      width: videoDuration > 0
+                        ? `${(videoPosition / videoDuration) * 100}%`
+                        : '0%',
+                    },
+                  ]}
+                />
+              </View>
+            </Pressable>
+
+            {/* Ligne de contrôles */}
+            <View style={styles.videoControlsRow}>
+              {/* Temps */}
+              <View style={styles.videoTimeContainer}>
+                <Text style={styles.videoTimeText}>
+                  {formatTime(videoPosition)} <Text style={styles.videoTimeSeparator}>/</Text> {formatTime(videoDuration)}
+                </Text>
+              </View>
+
+              {/* Boutons droite */}
+              <View style={styles.videoRightControls}>
+                {/* Bouton Mute */}
+                <Pressable
+                  style={styles.videoSmallBtn}
+                  onPress={toggleMute}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name={isMuted ? 'volume-mute' : 'volume-high'}
+                    size={22}
+                    color={couleurs.blanc}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -2988,6 +3285,134 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // ========== LECTEUR VIDEO - Style Instagram/LinkedIn ==========
+  videoModalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  videoTouchArea: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlayer: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+  },
+  videoGradientTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  videoGradientBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 160 : 200, // Android: plus haut pour couvrir les contrôles
+  },
+  videoCloseContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 44,
+    left: 16,
+    zIndex: 10,
+  },
+  videoCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoCenterControl: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoCenterBtn: {
+    padding: 8,
+  },
+  videoCenterBtnInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  videoBottomControls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 72, // Android: espace pour barre de navigation système
+  },
+  videoProgressBar: {
+    height: 24,
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  videoProgressTrack: {
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 1.5,
+    overflow: 'hidden',
+  },
+  videoProgressFill: {
+    height: '100%',
+    backgroundColor: couleurs.primaire,
+    borderRadius: 1.5,
+  },
+  videoControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  videoTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  videoTimeText: {
+    fontSize: 13,
+    color: couleurs.blanc,
+    fontWeight: '500',
+    fontVariant: ['tabular-nums'],
+  },
+  videoTimeSeparator: {
+    color: 'rgba(255,255,255,0.5)',
+    marginHorizontal: 2,
+  },
+  videoRightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  videoSmallBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoDurationBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   postStats: {
     flexDirection: 'row',
