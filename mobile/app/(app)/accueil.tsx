@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -647,20 +648,35 @@ export default function Accueil() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos'],
         allowsEditing: true,
-        quality: 0.7,
-        videoMaxDuration: 60,
+        quality: 0.5,
+        videoMaxDuration: 30, // Limité à 30s pour éviter les fichiers trop volumineux
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
+
+        // Vérifier la taille du fichier (limite à 50MB)
+        const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+        if (fileInfo.exists && 'size' in fileInfo && fileInfo.size > 50 * 1024 * 1024) {
+          Alert.alert('Vidéo trop volumineuse', 'La vidéo ne doit pas dépasser 50 MB. Essayez une vidéo plus courte.');
+          return;
+        }
+
+        // Lire la vidéo en base64
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
         setMediaSelectionne({
           uri: asset.uri,
           type: 'video',
+          base64: base64,
           mimeType: asset.mimeType || 'video/mp4',
         });
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de sélectionner la vidéo');
+      console.error('Erreur sélection vidéo:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner la vidéo. Elle est peut-être trop volumineuse.');
     }
   };
 
