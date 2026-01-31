@@ -72,8 +72,8 @@ router.delete('/:id/ami', verifierJwt, supprimerAmi);
 
 /**
  * GET /api/utilisateurs/:id/amis
- * Liste des amis d'un utilisateur
- * Accessible si on est ami ou si c'est soi-même
+ * Récupérer la liste d'amis d'un utilisateur
+ * Accessible si ami ou soi-même
  */
 router.get('/:id/amis', verifierJwt, getAmisUtilisateur);
 

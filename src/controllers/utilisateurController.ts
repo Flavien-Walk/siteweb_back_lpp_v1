@@ -612,41 +612,29 @@ export const getAmisUtilisateur = async (
       return;
     }
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ succes: false, message: 'ID invalide.' });
-      return;
-    }
-
     const userIdStr = userId.toString();
     const estSoiMeme = userIdStr === id;
 
-    // Si ce n'est pas soi-même, vérifier l'amitié
+    // Si ce n'est pas son propre profil, vérifier l'amitié
     if (!estSoiMeme) {
-      // Récupérer l'utilisateur connecté avec ses amis
       const utilisateurConnecte = await Utilisateur.findById(userIdStr).select('amis');
-
       if (!utilisateurConnecte) {
-        res.status(401).json({ succes: false, message: 'Utilisateur connecté non trouvé.' });
+        res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
         return;
       }
-
-      // Vérifier si l'utilisateur cible est dans la liste d'amis
-      const amisIds = (utilisateurConnecte.amis || []).map(a => a.toString());
+      const amisIds = (utilisateurConnecte.amis || []).map((a) => a.toString());
       const estAmi = amisIds.includes(id);
 
       if (!estAmi) {
-        res.status(403).json({
-          succes: false,
-          message: 'Vous devez être ami pour voir cette liste.',
-        });
+        res.status(403).json({ succes: false, message: 'Vous devez être ami pour voir cette liste.' });
         return;
       }
     }
 
-    // Récupérer l'utilisateur cible avec ses amis populés
+    // Récupérer l'utilisateur cible avec ses amis
     const utilisateurCible = await Utilisateur.findById(id)
-      .select('amis prenom nom')
-      .populate('amis', 'prenom nom avatar statut');
+      .select('prenom nom amis')
+      .populate('amis', 'prenom nom avatar statut role');
 
     if (!utilisateurCible) {
       res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
@@ -659,21 +647,21 @@ export const getAmisUtilisateur = async (
       nom: ami.nom,
       avatar: ami.avatar,
       statut: ami.statut,
+      role: ami.role,
     }));
 
     res.json({
       succes: true,
       data: {
-        amis,
         utilisateur: {
           _id: utilisateurCible._id,
           prenom: utilisateurCible.prenom,
           nom: utilisateurCible.nom,
         },
+        amis,
       },
     });
   } catch (error) {
-    console.error('[getAmisUtilisateur] Erreur:', error);
     next(error);
   }
 };
