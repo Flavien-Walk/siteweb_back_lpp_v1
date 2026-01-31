@@ -103,7 +103,7 @@ export default function Notifications() {
         pathname: '/(app)/conversation/[id]',
         params: { id: notif.data.conversationId },
       });
-    } else if ((notif.type === 'nouveau_commentaire' || notif.type === 'like_commentaire') && notif.data?.publicationId) {
+    } else if ((notif.type === 'nouveau_commentaire' || notif.type === 'like_commentaire' || notif.type === 'nouveau_like') && notif.data?.publicationId) {
       // Naviguer vers le feed avec la publication concernée
       router.push({
         pathname: '/(app)/accueil',
