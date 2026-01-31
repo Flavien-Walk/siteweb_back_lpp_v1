@@ -12,6 +12,7 @@ export type TypeNotification =
   | 'nouveau_message'
   | 'nouveau_commentaire'
   | 'nouveau_like'
+  | 'like_commentaire'
   | 'projet_update'
   | 'systeme';
 
@@ -31,6 +32,7 @@ export interface Notification {
     conversationId?: string;
     projetId?: string;
     publicationId?: string;
+    commentaireId?: string;
   };
 }
 
