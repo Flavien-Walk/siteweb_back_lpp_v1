@@ -591,3 +591,75 @@ export const getMesAmis = async (
     next(error);
   }
 };
+
+/**
+ * GET /api/utilisateurs/:id/amis
+ * Récupérer la liste d'amis d'un utilisateur
+ * Accessible uniquement si on est ami avec cet utilisateur ou si c'est soi-même
+ */
+export const getAmisUtilisateur = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.utilisateur?._id;
+
+    if (!userId) {
+      res.status(401).json({ succes: false, message: 'Non authentifié.' });
+      return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ succes: false, message: 'ID invalide.' });
+      return;
+    }
+
+    // Récupérer l'utilisateur cible
+    const utilisateurCible = await Utilisateur.findById(id)
+      .select('amis prenom nom')
+      .populate('amis', 'prenom nom avatar statut');
+
+    if (!utilisateurCible) {
+      res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
+      return;
+    }
+
+    // Vérifier si c'est soi-même ou si on est ami
+    const estSoiMeme = userId.toString() === id;
+    const estAmi = utilisateurCible.amis?.some(
+      (ami: any) => ami._id.toString() === userId.toString()
+    );
+
+    if (!estSoiMeme && !estAmi) {
+      res.status(403).json({
+        succes: false,
+        message: 'Vous devez être ami pour voir cette liste.',
+      });
+      return;
+    }
+
+    const amis = (utilisateurCible.amis || []).map((ami: any) => ({
+      _id: ami._id,
+      prenom: ami.prenom,
+      nom: ami.nom,
+      avatar: ami.avatar,
+      statut: ami.statut,
+    }));
+
+    res.json({
+      succes: true,
+      data: {
+        amis,
+        utilisateur: {
+          _id: utilisateurCible._id,
+          prenom: utilisateurCible.prenom,
+          nom: utilisateurCible.nom,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

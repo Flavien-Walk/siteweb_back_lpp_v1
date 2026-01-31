@@ -9,6 +9,7 @@ import {
   supprimerAmi,
   getDemandesAmis,
   getMesAmis,
+  getAmisUtilisateur,
 } from '../controllers/utilisateurController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
 
@@ -68,6 +69,13 @@ router.post('/:id/refuser-ami', verifierJwt, refuserDemandeAmi);
 router.delete('/:id/ami', verifierJwt, supprimerAmi);
 
 // ============ ROUTES AVEC PARAMÈTRE ID ============
+
+/**
+ * GET /api/utilisateurs/:id/amis
+ * Liste des amis d'un utilisateur
+ * Accessible si on est ami ou si c'est soi-même
+ */
+router.get('/:id/amis', verifierJwt, getAmisUtilisateur);
 
 /**
  * GET /api/utilisateurs/:id
