@@ -1109,7 +1109,24 @@ export default function Accueil() {
           <Text style={styles.postContenu}>{publication.contenu}</Text>
         )}
         {publication.media && (
-          <Image source={{ uri: publication.media }} style={styles.postImage} />
+          <View style={styles.postMediaContainer}>
+            <Image
+              source={{ uri: publication.media }}
+              style={styles.postImage}
+              resizeMode="cover"
+            />
+            {/* Indicateur vidéo si c'est une vidéo */}
+            {(publication.media.includes('.mp4') ||
+              publication.media.includes('.mov') ||
+              publication.media.includes('.webm') ||
+              publication.media.includes('video')) && (
+              <View style={styles.postVideoOverlay}>
+                <View style={styles.postVideoPlayBtn}>
+                  <Ionicons name="play" size={32} color={couleurs.blanc} />
+                </View>
+              </View>
+            )}
+          </View>
         )}
         <View style={styles.postStats}>
           <Text style={styles.postStatText}>{nbLikes} j'aime</Text>
@@ -2927,9 +2944,34 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     paddingHorizontal: espacements.md,
     marginBottom: espacements.md,
   },
+  postMediaContainer: {
+    position: 'relative',
+    width: '100%',
+    backgroundColor: couleurs.fondTertiaire,
+  },
   postImage: {
     width: '100%',
-    height: 200,
+    height: 280,
+    minHeight: 200,
+    maxHeight: 400,
+  },
+  postVideoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  postVideoPlayBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   postStats: {
     flexDirection: 'row',
