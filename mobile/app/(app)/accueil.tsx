@@ -1072,6 +1072,14 @@ export default function Accueil() {
       return isMyPost() || isAdmin();
     };
 
+    // Navigation vers le profil de l'auteur du post
+    const naviguerVersProfilAuteur = () => {
+      router.push({
+        pathname: '/(app)/utilisateur/[id]',
+        params: { id: publication.auteur._id },
+      });
+    };
+
     const showNotification = (type: 'succes' | 'erreur', message: string) => {
       setNotification({ type, message });
       setTimeout(() => setNotification(null), 3000);
@@ -1151,15 +1159,19 @@ export default function Accueil() {
         )}
 
         <View style={styles.postHeader}>
-          <Avatar
-            uri={publication.auteur.avatar}
-            prenom={publication.auteur.prenom}
-            nom={publication.auteur.nom}
-            taille={44}
-          />
+          <Pressable onPress={naviguerVersProfilAuteur}>
+            <Avatar
+              uri={publication.auteur.avatar}
+              prenom={publication.auteur.prenom}
+              nom={publication.auteur.nom}
+              taille={44}
+            />
+          </Pressable>
           <View style={styles.postAuteurContainer}>
             <View style={styles.postAuteurRow}>
-              <Text style={styles.postAuteur}>{auteurNom}</Text>
+              <Pressable onPress={naviguerVersProfilAuteur}>
+                <Text style={styles.postAuteur}>{auteurNom}</Text>
+              </Pressable>
               {publication.auteur.role === 'admin' && (
                 <View style={styles.adminBadge}>
                   <Ionicons name="shield-checkmark" size={12} color="#fff" />
