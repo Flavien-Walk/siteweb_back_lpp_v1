@@ -551,7 +551,7 @@ export const getDemandesAmis = async (
 
 /**
  * GET /api/utilisateurs/mes-amis
- * Récupérer ma liste d'amis
+ * Récupérer ma liste d'amis (avec vérification bidirectionnelle)
  */
 export const getMesAmis = async (
   req: Request,
@@ -567,20 +567,49 @@ export const getMesAmis = async (
     }
 
     const utilisateur = await Utilisateur.findById(userId)
-      .populate('amis', 'prenom nom avatar statut');
+      .populate('amis', 'prenom nom avatar statut role');
 
     if (!utilisateur) {
       res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
       return;
     }
 
-    const amis = (utilisateur.amis || []).map((ami: any) => ({
-      _id: ami._id,
-      prenom: ami.prenom,
-      nom: ami.nom,
-      avatar: ami.avatar,
-      statut: ami.statut,
-    }));
+    // Si pas d'amis dans le tableau, retourner une liste vide
+    if (!utilisateur.amis || utilisateur.amis.length === 0) {
+      res.json({
+        succes: true,
+        data: {
+          amis: [],
+        },
+      });
+      return;
+    }
+
+    // Récupérer les IDs des amis potentiels
+    const amisPotentielsIds = utilisateur.amis
+      .filter((ami: any) => ami && ami._id)
+      .map((ami: any) => ami._id);
+
+    // Vérification bidirectionnelle : l'ami doit aussi avoir l'utilisateur dans sa liste
+    const amisBidirectionnels = await Utilisateur.find({
+      _id: { $in: amisPotentielsIds },
+      amis: userId,
+    }).select('_id');
+
+    const amisBidirectionnelsSet = new Set(
+      amisBidirectionnels.map((a) => a._id.toString())
+    );
+
+    // Filtrer pour ne garder que les amis bidirectionnels
+    const amis = utilisateur.amis
+      .filter((ami: any) => ami && ami._id && amisBidirectionnelsSet.has(ami._id.toString()))
+      .map((ami: any) => ({
+        _id: ami._id,
+        prenom: ami.prenom,
+        nom: ami.nom,
+        avatar: ami.avatar,
+        statut: ami.statut,
+      }));
 
     res.json({
       succes: true,
@@ -631,26 +660,53 @@ export const getAmisUtilisateur = async (
       }
     }
 
-    // Récupérer l'utilisateur cible avec ses amis (inclure le champ amis des amis pour vérifier la bidirectionnalité)
+    // Récupérer l'utilisateur cible avec ses amis
     const utilisateurCible = await Utilisateur.findById(id)
       .select('prenom nom amis')
-      .populate('amis', 'prenom nom avatar statut role amis');
+      .populate('amis', 'prenom nom avatar statut role');
 
     if (!utilisateurCible) {
       res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
       return;
     }
 
-    // Filtrer les amis :
-    // 1. L'ami doit exister (pas null après populate)
-    // 2. La relation doit être bidirectionnelle (l'ami doit aussi avoir l'utilisateur dans ses amis)
-    const amis = (utilisateurCible.amis || [])
-      .filter((ami: any) => {
-        if (!ami || !ami._id || !ami.prenom) return false;
-        // Vérifier la bidirectionnalité
-        const amiAmisIds = (ami.amis || []).map((a: any) => a.toString());
-        return amiAmisIds.includes(id);
-      })
+    // Si l'utilisateur n'a pas d'amis dans son tableau, retourner une liste vide
+    if (!utilisateurCible.amis || utilisateurCible.amis.length === 0) {
+      res.json({
+        succes: true,
+        data: {
+          utilisateur: {
+            _id: utilisateurCible._id,
+            prenom: utilisateurCible.prenom,
+            nom: utilisateurCible.nom,
+          },
+          amis: [],
+        },
+      });
+      return;
+    }
+
+    // Récupérer les IDs des amis potentiels (ceux dans le tableau amis de l'utilisateur cible)
+    const amisPotentielsIds = utilisateurCible.amis
+      .filter((ami: any) => ami && ami._id)
+      .map((ami: any) => ami._id);
+
+    // Vérification bidirectionnelle : trouver lesquels de ces "amis" ont aussi
+    // l'utilisateur cible dans LEUR propre liste d'amis
+    // C'est une vraie requête MongoDB, plus fiable que le populate imbriqué
+    const amisBidirectionnels = await Utilisateur.find({
+      _id: { $in: amisPotentielsIds },
+      amis: id, // L'ami doit avoir l'utilisateur cible dans sa liste
+    }).select('_id');
+
+    // Créer un Set des IDs d'amis bidirectionnels pour filtrage rapide
+    const amisBidirectionnelsSet = new Set(
+      amisBidirectionnels.map((a) => a._id.toString())
+    );
+
+    // Filtrer pour ne garder que les amis bidirectionnels
+    const amis = utilisateurCible.amis
+      .filter((ami: any) => ami && ami._id && amisBidirectionnelsSet.has(ami._id.toString()))
       .map((ami: any) => ({
         _id: ami._id,
         prenom: ami.prenom,
