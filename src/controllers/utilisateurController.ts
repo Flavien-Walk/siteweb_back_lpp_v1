@@ -616,14 +616,22 @@ export const getAmisUtilisateur = async (
       return;
     }
 
-    const estSoiMeme = userId.toString() === id;
+    const userIdStr = userId.toString();
+    const estSoiMeme = userIdStr === id;
 
-    // Si ce n'est pas soi-même, vérifier l'amitié via l'utilisateur connecté
+    // Si ce n'est pas soi-même, vérifier l'amitié
     if (!estSoiMeme) {
-      const utilisateurConnecte = await Utilisateur.findById(userId).select('amis');
-      const estAmi = utilisateurConnecte?.amis?.some(
-        (a) => a.toString() === id
-      ) || false;
+      // Récupérer l'utilisateur connecté avec ses amis
+      const utilisateurConnecte = await Utilisateur.findById(userIdStr).select('amis');
+
+      if (!utilisateurConnecte) {
+        res.status(401).json({ succes: false, message: 'Utilisateur connecté non trouvé.' });
+        return;
+      }
+
+      // Vérifier si l'utilisateur cible est dans la liste d'amis
+      const amisIds = (utilisateurConnecte.amis || []).map(a => a.toString());
+      const estAmi = amisIds.includes(id);
 
       if (!estAmi) {
         res.status(403).json({
@@ -664,6 +672,7 @@ export const getAmisUtilisateur = async (
       },
     });
   } catch (error) {
+    console.error('[getAmisUtilisateur] Erreur:', error);
     next(error);
   }
 };
