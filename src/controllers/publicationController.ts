@@ -329,8 +329,8 @@ export const toggleLikePublication = async (
       throw new ErreurAPI('ID de publication invalide.', 400);
     }
 
-    // Vérifier d'abord si le like existe (pour savoir quelle opération effectuer)
-    const publication = await Publication.findById(id).select('likes');
+    // Vérifier d'abord si le like existe et récupérer l'auteur
+    const publication = await Publication.findById(id).select('likes auteur');
 
     if (!publication) {
       throw new ErreurAPI('Publication non trouvée.', 404);
@@ -351,6 +351,31 @@ export const toggleLikePublication = async (
 
     if (!updateResult) {
       throw new ErreurAPI('Publication non trouvée.', 404);
+    }
+
+    // Créer une notification pour l'auteur de la publication (uniquement lors d'un like, pas d'un unlike)
+    const auteurPublicationId = publication.auteur.toString();
+    if (!dejaLike && auteurPublicationId !== userId.toString()) {
+      try {
+        const likeur = await Utilisateur.findById(userId).select('prenom nom avatar');
+        if (likeur) {
+          await Notification.create({
+            destinataire: auteurPublicationId,
+            type: 'nouveau_like',
+            titre: 'Nouveau like',
+            message: `${likeur.prenom} ${likeur.nom} a aimé votre publication.`,
+            data: {
+              userId: userId.toString(),
+              userNom: likeur.nom,
+              userPrenom: likeur.prenom,
+              userAvatar: likeur.avatar || null,
+              publicationId: id,
+            },
+          });
+        }
+      } catch (notifError) {
+        console.error('Erreur création notification like publication:', notifError);
+      }
     }
 
     res.json({
