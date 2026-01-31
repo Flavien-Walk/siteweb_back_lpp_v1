@@ -87,7 +87,7 @@ export const getUtilisateur = async (
     const userId = req.utilisateur?._id;
 
     const utilisateur = await Utilisateur.findById(id)
-      .select('prenom nom avatar role statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation');
+      .select('prenom nom avatar bio role statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation');
 
     if (!utilisateur) {
       res.status(404).json({
@@ -117,6 +117,7 @@ export const getUtilisateur = async (
           prenom: utilisateur.prenom,
           nom: utilisateur.nom,
           avatar: utilisateur.avatar,
+          bio: utilisateur.bio,
           role: utilisateur.role,
           statut: utilisateur.statut,
           dateInscription: utilisateur.dateCreation,
