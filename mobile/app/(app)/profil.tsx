@@ -612,17 +612,31 @@ export default function Profil() {
           </View>
         </View>
 
-        {/* Bio - cliquable pour modifier */}
-        <Pressable onPress={handleOuvrirModalBio} style={styles.bioContainer}>
+        {/* Section Description */}
+        <View style={styles.descriptionSection}>
+          <View style={styles.descriptionHeader}>
+            <Text style={styles.descriptionLabel}>Description</Text>
+            <Pressable
+              onPress={handleOuvrirModalBio}
+              style={({ pressed }) => [
+                styles.modifierDescriptionBtn,
+                pressed && styles.modifierDescriptionBtnPressed,
+              ]}
+            >
+              <Ionicons name="pencil-outline" size={14} color={couleurs.primaire} />
+              <Text style={styles.modifierDescriptionText}>
+                {utilisateur?.bio ? 'Modifier' : 'Ajouter'}
+              </Text>
+            </Pressable>
+          </View>
           {utilisateur?.bio ? (
-            <Text style={styles.bioText}>{utilisateur.bio}</Text>
+            <Text style={styles.descriptionText}>{utilisateur.bio}</Text>
           ) : (
-            <View style={styles.ajouterBioBtn}>
-              <Ionicons name="add-circle-outline" size={16} color={couleurs.primaire} />
-              <Text style={styles.ajouterBioText}>Ajouter une bio</Text>
-            </View>
+            <Text style={styles.descriptionPlaceholder}>
+              Ajoutez une description pour vous présenter à la communauté
+            </Text>
           )}
-        </Pressable>
+        </View>
 
         {/* Infos secondaires */}
         <View style={styles.secondaryInfoRow}>
@@ -1721,23 +1735,55 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  bioContainer: {
-    marginBottom: espacements.md,
+  // Section Description
+  descriptionSection: {
+    marginBottom: espacements.lg,
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
   },
-  bioText: {
-    fontSize: 14,
-    color: couleurs.texte,
-    lineHeight: 20,
+  descriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: espacements.sm,
   },
-  ajouterBioBtn: {
+  descriptionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  modifierDescriptionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: espacements.xs,
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: rayons.sm,
+    backgroundColor: `${couleurs.primaire}15`,
   },
-  ajouterBioText: {
-    fontSize: 14,
+  modifierDescriptionBtnPressed: {
+    opacity: 0.7,
+  },
+  modifierDescriptionText: {
+    fontSize: 12,
     color: couleurs.primaire,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: couleurs.texte,
+    lineHeight: 22,
+  },
+  descriptionPlaceholder: {
+    fontSize: 14,
+    color: couleurs.texteMuted,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
   secondaryInfoRow: {
     flexDirection: 'row',

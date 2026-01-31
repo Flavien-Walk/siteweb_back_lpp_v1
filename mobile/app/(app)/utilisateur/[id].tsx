@@ -490,9 +490,12 @@ export default function ProfilUtilisateurPage() {
             </Text>
           </View>
 
-          {/* Bio */}
+          {/* Section Description */}
           {profil.bio ? (
-            <Text style={styles.bioText}>{profil.bio}</Text>
+            <View style={styles.descriptionSection}>
+              <Text style={styles.descriptionLabel}>Description</Text>
+              <Text style={styles.descriptionText}>{profil.bio}</Text>
+            </View>
           ) : null}
 
           {/* Date d'inscription */}
@@ -1018,11 +1021,28 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.xs,
     fontWeight: typographie.poids.medium,
   },
-  bioText: {
+  // Section Description
+  descriptionSection: {
+    marginTop: espacements.sm,
+    marginBottom: espacements.sm,
+    backgroundColor: couleurs.fondCard,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  descriptionLabel: {
+    fontSize: typographie.tailles.xs,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texteSecondaire,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: espacements.xs,
+  },
+  descriptionText: {
     fontSize: typographie.tailles.sm,
     color: couleurs.texte,
-    lineHeight: 20,
-    marginBottom: espacements.sm,
+    lineHeight: 22,
   },
   dateInscription: {
     fontSize: typographie.tailles.xs,
