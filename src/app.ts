@@ -101,9 +101,9 @@ export const creerApp = (): Application => {
   // MIDDLEWARES DE PARSING
   // ============================================
 
-  // Limite augmentée pour permettre l'upload d'images base64 (avatars)
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // Limite augmentée pour permettre l'upload de médias base64 (avatars, photos, vidéos)
+  app.use(express.json({ limit: '100mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
   // ============================================
   // PASSPORT
