@@ -3197,6 +3197,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: espacements.md,
+    gap: espacements.md,
   },
   postAvatar: {
     width: 44,
