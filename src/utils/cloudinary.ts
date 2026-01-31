@@ -105,10 +105,24 @@ export const getOptimizedAvatarUrl = (publicId: string, size: number = 200): str
 };
 
 /**
- * Vérifier si une chaîne est une data URL base64
+ * Vérifier si une chaîne est une data URL base64 (image)
  */
 export const isBase64DataUrl = (str: string): boolean => {
   return str.startsWith('data:image/');
+};
+
+/**
+ * Vérifier si une chaîne est une data URL base64 (vidéo)
+ */
+export const isBase64VideoDataUrl = (str: string): boolean => {
+  return str.startsWith('data:video/');
+};
+
+/**
+ * Vérifier si une chaîne est une data URL base64 (image ou vidéo)
+ */
+export const isBase64MediaDataUrl = (str: string): boolean => {
+  return str.startsWith('data:image/') || str.startsWith('data:video/');
 };
 
 /**
@@ -116,6 +130,47 @@ export const isBase64DataUrl = (str: string): boolean => {
  */
 export const isHttpUrl = (str: string): boolean => {
   return str.startsWith('http://') || str.startsWith('https://');
+};
+
+/**
+ * Upload un média (image ou vidéo) pour une publication
+ * @param mediaData - Data URL base64 du média
+ * @param publicationId - ID de la publication (utilisé comme public_id)
+ */
+export const uploadPublicationMedia = async (
+  mediaData: string,
+  publicationId: string
+): Promise<string> => {
+  try {
+    const isVideo = mediaData.startsWith('data:video/');
+
+    const options: Record<string, any> = {
+      folder: 'lpp/publications',
+      public_id: `pub_${publicationId}_${Date.now()}`,
+      resource_type: isVideo ? 'video' : 'image',
+      overwrite: true,
+    };
+
+    // Transformations différentes pour images et vidéos
+    if (!isVideo) {
+      options.transformation = [
+        { width: 1080, height: 1080, crop: 'limit' },
+        { quality: 'auto', fetch_format: 'auto' },
+      ];
+    } else {
+      options.transformation = [
+        { width: 1080, height: 1920, crop: 'limit' },
+        { quality: 'auto' },
+      ];
+    }
+
+    const result: UploadApiResponse = await cloudinary.uploader.upload(mediaData, options);
+    return result.secure_url;
+  } catch (error) {
+    const cloudinaryError = error as UploadApiErrorResponse;
+    console.error('Erreur upload média Cloudinary:', cloudinaryError.message || error);
+    throw new Error(`Erreur lors de l'upload du média: ${cloudinaryError.message || 'Erreur inconnue'}`);
+  }
 };
 
 export default cloudinary;

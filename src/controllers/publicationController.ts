@@ -4,17 +4,28 @@ import mongoose from 'mongoose';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
+import { isBase64MediaDataUrl, isHttpUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
 
 // Schéma de validation pour créer une publication
 const schemaCreerPublication = z.object({
   contenu: z
     .string()
-    .min(1, 'Le contenu est requis')
     .max(5000, 'Le contenu ne peut pas dépasser 5000 caractères')
-    .trim(),
-  media: z.string().url('URL média invalide').optional(),
+    .trim()
+    .optional()
+    .default(''),
+  media: z
+    .string()
+    .refine(
+      (val) => !val || isBase64MediaDataUrl(val) || isHttpUrl(val),
+      { message: 'Média doit être une URL valide ou une image/vidéo base64' }
+    )
+    .optional(),
   type: z.enum(['post', 'annonce', 'update', 'editorial', 'live-extrait']).default('post'),
-});
+}).refine(
+  (data) => data.contenu?.trim() || data.media,
+  { message: 'Le contenu ou un média est requis' }
+);
 
 // Schéma pour créer un commentaire
 const schemaCreerCommentaire = z.object({
@@ -143,11 +154,26 @@ export const creerPublication = async (
     const donnees = schemaCreerPublication.parse(req.body);
     const userId = req.utilisateur!._id;
 
+    // Générer un ID temporaire pour le nom du fichier Cloudinary
+    const tempId = new mongoose.Types.ObjectId().toString();
+
+    // Si le média est une data URL base64, uploader sur Cloudinary
+    let mediaUrl = donnees.media;
+    if (donnees.media && isBase64MediaDataUrl(donnees.media)) {
+      try {
+        mediaUrl = await uploadPublicationMedia(donnees.media, tempId);
+        console.log('Média uploadé sur Cloudinary:', mediaUrl);
+      } catch (uploadError) {
+        console.error('Erreur upload Cloudinary:', uploadError);
+        throw new ErreurAPI('Erreur lors de l\'upload du média. Veuillez réessayer.', 500);
+      }
+    }
+
     const publication = await Publication.create({
       auteur: userId,
       auteurType: 'Utilisateur',
       contenu: donnees.contenu,
-      media: donnees.media,
+      media: mediaUrl,
       type: donnees.type,
       likes: [],
       nbCommentaires: 0,
