@@ -1863,7 +1863,9 @@ export default function Accueil() {
       {renderStories()}
       {renderTrending()}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Fil d'actualite</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Fil d'actualite</Text>
+        </View>
         {chargement ? (
           <SkeletonList type="post" count={3} />
         ) : publications.length === 0 ? (
