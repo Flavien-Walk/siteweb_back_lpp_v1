@@ -6,7 +6,10 @@ export type TypeNotification =
   | 'live-rappel'
   | 'interaction'
   | 'demande_ami'
-  | 'ami_accepte';
+  | 'ami_accepte'
+  | 'nouveau_commentaire'
+  | 'nouveau_like'
+  | 'like_commentaire';
 
 export interface INotificationData {
   userId?: string;
@@ -15,6 +18,8 @@ export interface INotificationData {
   userAvatar?: string;
   projetId?: string;
   projetNom?: string;
+  publicationId?: string;
+  commentaireId?: string;
 }
 
 export interface INotification extends Document {
@@ -38,7 +43,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire'],
       required: true,
     },
     titre: {
@@ -62,6 +67,8 @@ const notificationSchema = new Schema<INotification>(
         userAvatar: String,
         projetId: String,
         projetNom: String,
+        publicationId: String,
+        commentaireId: String,
       },
       default: null,
     },

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
+import Notification from '../models/Notification.js';
+import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64MediaDataUrl, isHttpUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
 
@@ -486,6 +488,32 @@ export const ajouterCommentaire = async (
     const commentaireComplet = await Commentaire.findById(commentaire._id)
       .populate('auteur', 'prenom nom avatar role statut');
 
+    // Créer une notification pour l'auteur de la publication (si ce n'est pas lui-même qui commente)
+    const auteurPublicationId = publication.auteur.toString();
+    if (auteurPublicationId !== userId.toString()) {
+      try {
+        const commentateur = await Utilisateur.findById(userId).select('prenom nom avatar');
+        if (commentateur) {
+          await Notification.create({
+            destinataire: auteurPublicationId,
+            type: 'nouveau_commentaire',
+            titre: 'Nouveau commentaire',
+            message: `${commentateur.prenom} ${commentateur.nom} a commenté votre publication.`,
+            data: {
+              userId: userId.toString(),
+              userNom: commentateur.nom,
+              userPrenom: commentateur.prenom,
+              userAvatar: commentateur.avatar || null,
+              publicationId: id,
+            },
+          });
+        }
+      } catch (notifError) {
+        // Ne pas bloquer si la notification échoue
+        console.error('Erreur création notification commentaire:', notifError);
+      }
+    }
+
     res.status(201).json({
       succes: true,
       message: 'Commentaire ajouté avec succès.',
@@ -646,8 +674,8 @@ export const toggleLikeCommentaire = async (
       throw new ErreurAPI('ID de commentaire invalide.', 400);
     }
 
-    // Vérifier d'abord si le like existe
-    const commentaire = await Commentaire.findById(comId).select('likes');
+    // Vérifier d'abord si le like existe et récupérer l'auteur du commentaire
+    const commentaire = await Commentaire.findById(comId).select('likes auteur publication');
     if (!commentaire) {
       throw new ErreurAPI('Commentaire non trouvé.', 404);
     }
@@ -667,6 +695,33 @@ export const toggleLikeCommentaire = async (
 
     if (!updateResult) {
       throw new ErreurAPI('Commentaire non trouvé.', 404);
+    }
+
+    // Créer une notification pour l'auteur du commentaire (uniquement lors d'un like, pas d'un unlike)
+    const auteurCommentaireId = commentaire.auteur.toString();
+    if (!dejaLike && auteurCommentaireId !== userId.toString()) {
+      try {
+        const likeur = await Utilisateur.findById(userId).select('prenom nom avatar');
+        if (likeur) {
+          await Notification.create({
+            destinataire: auteurCommentaireId,
+            type: 'like_commentaire',
+            titre: 'Like sur votre commentaire',
+            message: `${likeur.prenom} ${likeur.nom} a aimé votre commentaire.`,
+            data: {
+              userId: userId.toString(),
+              userNom: likeur.nom,
+              userPrenom: likeur.prenom,
+              userAvatar: likeur.avatar || null,
+              publicationId: commentaire.publication.toString(),
+              commentaireId: comId,
+            },
+          });
+        }
+      } catch (notifError) {
+        // Ne pas bloquer si la notification échoue
+        console.error('Erreur création notification like commentaire:', notifError);
+      }
     }
 
     res.json({
