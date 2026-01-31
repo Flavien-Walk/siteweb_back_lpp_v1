@@ -137,11 +137,13 @@ export default function Messages() {
     }
   };
 
-  // Polling pour mise à jour temps réel (toutes les 3 secondes)
+  // Polling pour mise à jour temps réel (toutes les 15 secondes)
+  // Réduit de 3s à 15s pour économiser la batterie et les requêtes API
+  // TODO: Remplacer par WebSocket pour temps réel optimal
   useEffect(() => {
     const interval = setInterval(() => {
       chargerConversations(false, true); // Silencieux
-    }, 3000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [chargerConversations]);

@@ -1,16 +1,12 @@
 /**
  * Contexte d'authentification
- * Gère l'état de connexion dans toute l'application
+ * Wrapper autour de UserContext pour compatibilité avec l'ancienne API
+ * Unifié avec UserContext pour éviter la désynchronisation des données utilisateur
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import {
-  Utilisateur,
-  getUtilisateurLocal,
-  getMoi,
-  deconnexion as authDeconnexion,
-  getToken,
-} from '../services/auth';
+import React, { createContext, useContext, ReactNode } from 'react';
+import { useUser } from '../contexts/UserContext';
+import { Utilisateur } from '../services/auth';
 
 interface AuthContexteType {
   utilisateur: Utilisateur | null;
@@ -23,66 +19,30 @@ interface AuthContexteType {
 
 const AuthContexte = createContext<AuthContexteType | undefined>(undefined);
 
+/**
+ * AuthProvider - Wrapper qui expose les données de UserContext
+ * avec l'API legacy pour compatibilité.
+ * Note: Ce provider DOIT être ENFANT de UserProvider dans le layout
+ */
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [utilisateur, setUtilisateur] = useState<Utilisateur | null>(null);
-  const [chargement, setChargement] = useState(true);
+  // Utilise UserContext comme source unique de vérité
+  const userContext = useUser();
 
-  const rafraichirUtilisateur = async () => {
-    const token = await getToken();
-    if (!token) {
-      setUtilisateur(null);
-      setChargement(false);
-      return;
-    }
-
-    try {
-      const reponse = await getMoi();
-      if (reponse.succes && reponse.data) {
-        setUtilisateur(reponse.data.utilisateur);
-      } else {
-        // Token invalide, on efface la session
-        await authDeconnexion();
-        setUtilisateur(null);
+  const value: AuthContexteType = {
+    utilisateur: userContext.utilisateur,
+    estConnecte: userContext.isAuthenticated,
+    chargement: userContext.isLoading,
+    setUtilisateur: (user) => {
+      if (user) {
+        userContext.updateUser(user);
       }
-    } catch {
-      // En cas d'erreur réseau, on utilise les données locales
-      const utilisateurLocal = await getUtilisateurLocal();
-      setUtilisateur(utilisateurLocal);
-    } finally {
-      setChargement(false);
-    }
-  };
-
-  useEffect(() => {
-    // Charger l'utilisateur au démarrage
-    const charger = async () => {
-      const utilisateurLocal = await getUtilisateurLocal();
-      if (utilisateurLocal) {
-        setUtilisateur(utilisateurLocal);
-      }
-      // Vérifier le token avec le serveur
-      await rafraichirUtilisateur();
-    };
-
-    charger();
-  }, []);
-
-  const deconnexion = async () => {
-    await authDeconnexion();
-    setUtilisateur(null);
+    },
+    deconnexion: userContext.logout,
+    rafraichirUtilisateur: userContext.refreshUser,
   };
 
   return (
-    <AuthContexte.Provider
-      value={{
-        utilisateur,
-        estConnecte: !!utilisateur,
-        chargement,
-        setUtilisateur,
-        deconnexion,
-        rafraichirUtilisateur,
-      }}
-    >
+    <AuthContexte.Provider value={value}>
       {children}
     </AuthContexte.Provider>
   );

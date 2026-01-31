@@ -153,13 +153,16 @@ export default function ConversationScreen() {
     chargerMessages();
   }, [chargerMessages]);
 
-  // Polling plus rapide (toutes les 2 secondes)
+  // Polling pour mise à jour temps réel (toutes les 10 secondes)
+  // Réduit de 2s à 10s pour économiser la batterie et les requêtes API
+  // Plus fréquent que la liste car on est dans une conversation active
+  // TODO: Remplacer par WebSocket pour temps réel optimal
   useEffect(() => {
     const interval = setInterval(() => {
       if (!chargement && id) {
         chargerMessages(true); // Silencieux
       }
-    }, 2000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [chargerMessages, chargement, id]);

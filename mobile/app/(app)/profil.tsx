@@ -1102,8 +1102,8 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     borderBottomColor: couleurs.bordure,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: rayons.md,
     backgroundColor: couleurs.fondSecondaire,
     alignItems: 'center',
@@ -1115,8 +1115,8 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     color: couleurs.texte,
   },
   logoutButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: rayons.md,
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
     alignItems: 'center',

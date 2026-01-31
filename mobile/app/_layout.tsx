@@ -65,11 +65,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <AuthProvider>
-            <UserProvider>
+          {/* UserProvider est la source unique de vérité pour l'utilisateur */}
+          {/* AuthProvider est un wrapper pour compatibilité avec l'API legacy */}
+          <UserProvider>
+            <AuthProvider>
               <AppContent />
-            </UserProvider>
-          </AuthProvider>
+            </AuthProvider>
+          </UserProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
