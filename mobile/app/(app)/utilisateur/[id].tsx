@@ -356,10 +356,12 @@ export default function ProfilUtilisateurPage() {
   // Gérer le clic sur le compteur d'amis
   const handleAmisPress = () => {
     const estMonProfilLocal = moi?.id === profil?._id;
-    // Si c'est mon profil ou si je suis ami → accès autorisé
+    // Si c'est mon profil ou si je suis ami → naviguer vers la liste d'amis
     if (estMonProfilLocal || profil?.estAmi) {
-      // Pour l'instant, pas de page liste d'amis
-      // On pourrait naviguer vers une future page ici
+      router.push({
+        pathname: '/(app)/amis/[id]',
+        params: { id: profil?._id || id },
+      });
       return;
     }
     // Si non ami → accès refusé
