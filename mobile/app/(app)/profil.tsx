@@ -1024,7 +1024,14 @@ export default function Profil() {
           transparent={true}
           onRequestClose={() => setModalBio(false)}
         >
-          <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
+          >
+            <Pressable
+              style={styles.modalOverlayTouchable}
+              onPress={() => setModalBio(false)}
+            />
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Modifier la bio</Text>
@@ -1064,7 +1071,7 @@ export default function Profil() {
                 )}
               </Pressable>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1704,6 +1711,9 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalOverlayTouchable: {
+    flex: 1,
   },
   modalContent: {
     backgroundColor: couleurs.fondSecondaire,
