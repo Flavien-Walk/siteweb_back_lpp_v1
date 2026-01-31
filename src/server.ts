@@ -9,10 +9,49 @@ import { connecterMongo, fermerMongo } from './config/mongo.js';
 const PORT = process.env.PORT || 5000;
 
 /**
+ * Variables d'environnement requises en production
+ */
+const REQUIRED_ENV_VARS = [
+  'MONGODB_URI',
+  'JWT_SECRET',
+  'MESSAGE_ENCRYPTION_KEY',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+] as const;
+
+/**
+ * Valider les variables d'environnement requises
+ */
+const validerEnvVars = (): void => {
+  const manquantes: string[] = [];
+
+  for (const varName of REQUIRED_ENV_VARS) {
+    if (!process.env[varName]) {
+      manquantes.push(varName);
+    }
+  }
+
+  if (manquantes.length > 0) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        `Variables d'environnement manquantes en production: ${manquantes.join(', ')}`
+      );
+    }
+    console.warn(
+      `⚠️ Variables d'environnement manquantes (dev): ${manquantes.join(', ')}`
+    );
+  }
+};
+
+/**
  * Démarrer le serveur
  */
 const demarrerServeur = async (): Promise<void> => {
   try {
+    // Valider les variables d'environnement
+    validerEnvVars();
+
     // Connexion à MongoDB
     await connecterMongo();
 

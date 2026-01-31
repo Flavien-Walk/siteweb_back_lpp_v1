@@ -5,6 +5,13 @@ import { Message, Conversation, chiffrerMessage, TypeMessage } from '../models/M
 import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
+/**
+ * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
+ */
+const escapeRegex = (str: string): string => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Schéma pour envoyer un message
 const schemaEnvoyerMessage = z.object({
   conversationId: z.string().optional(),
@@ -261,21 +268,29 @@ export const envoyerMessage = async (
         throw new ErreurAPI('Vous ne pouvez pas vous envoyer un message.', 400);
       }
 
-      // Trouver ou créer la conversation privée
-      conversation = await Conversation.findOne({
-        participants: { $all: [userId, donnees.destinataireId], $size: 2 },
-        estGroupe: false,
-      });
+      // Trouver ou créer la conversation privée (opération atomique avec upsert)
+      // Tri des participants pour garantir un ordre cohérent dans la requête
+      const participantsTries = [userId.toString(), donnees.destinataireId].sort();
 
-      if (!conversation) {
-        conversation = await Conversation.create({
-          participants: [userId, donnees.destinataireId],
+      conversation = await Conversation.findOneAndUpdate(
+        {
+          participants: { $all: participantsTries, $size: 2 },
           estGroupe: false,
-          admins: [],
-          muetPar: [],
-          dateMiseAJour: new Date(),
-        });
-      }
+        },
+        {
+          $setOnInsert: {
+            participants: participantsTries,
+            estGroupe: false,
+            admins: [],
+            muetPar: [],
+            dateMiseAJour: new Date(),
+          },
+        },
+        {
+          upsert: true,
+          new: true,
+        }
+      );
     } else {
       throw new ErreurAPI('conversationId ou destinataireId requis.', 400);
     }
@@ -756,29 +771,37 @@ export const getOuCreerConversationPrivee = async (
       throw new ErreurAPI('Utilisateur non trouvé.', 404);
     }
 
-    // Trouver ou créer la conversation
-    let conversation = await Conversation.findOne({
-      participants: { $all: [userId, autreUserId], $size: 2 },
-      estGroupe: false,
-    }).populate('participants', 'prenom nom avatar');
+    // Trouver ou créer la conversation (opération atomique avec upsert)
+    const participantsTries = [userId.toString(), autreUserId].sort();
 
-    if (!conversation) {
-      conversation = await Conversation.create({
-        participants: [userId, autreUserId],
+    let conversation = await Conversation.findOneAndUpdate(
+      {
+        participants: { $all: participantsTries, $size: 2 },
         estGroupe: false,
-        admins: [],
-        muetPar: [],
-        dateMiseAJour: new Date(),
-      });
+      },
+      {
+        $setOnInsert: {
+          participants: participantsTries,
+          estGroupe: false,
+          admins: [],
+          muetPar: [],
+          dateMiseAJour: new Date(),
+        },
+      },
+      {
+        upsert: true,
+        new: true,
+      }
+    );
 
-      conversation = await Conversation.findById(conversation._id)
-        .populate('participants', 'prenom nom avatar');
-    }
+    // Peupler les participants après l'upsert
+    const conversationPeuplee = await Conversation.findById(conversation!._id)
+      .populate('participants', 'prenom nom avatar');
 
     res.json({
       succes: true,
       data: {
-        conversation,
+        conversation: conversationPeuplee,
         participant: autreUtilisateur,
       },
     });
@@ -808,15 +831,15 @@ export const rechercherUtilisateurs = async (
       return;
     }
 
-    const recherche = q.trim();
-    const regex = new RegExp(recherche, 'i');
+    // Limiter la longueur et échapper les caractères spéciaux regex (protection ReDoS)
+    const recherche = escapeRegex(q.trim().slice(0, 100));
 
     const utilisateurs = await Utilisateur.find({
       _id: { $ne: userId },
       $or: [
-        { prenom: regex },
-        { nom: regex },
-        { email: regex },
+        { prenom: { $regex: recherche, $options: 'i' } },
+        { nom: { $regex: recherche, $options: 'i' } },
+        { email: { $regex: recherche, $options: 'i' } },
       ],
     })
       .select('prenom nom avatar')

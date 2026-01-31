@@ -81,6 +81,19 @@ const notificationSchema = new Schema<INotification>(
 notificationSchema.index({ destinataire: 1, dateCreation: -1 });
 notificationSchema.index({ destinataire: 1, lue: 1 });
 
+// Index unique partiel pour éviter les doublons de notifications demande_ami/ami_accepte
+// Un utilisateur ne peut recevoir qu'une seule notification de chaque type par expéditeur
+notificationSchema.index(
+  { destinataire: 1, type: 1, 'data.userId': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: { $in: ['demande_ami', 'ami_accepte'] },
+      'data.userId': { $exists: true, $ne: null },
+    },
+  }
+);
+
 const Notification = mongoose.model<INotification>('Notification', notificationSchema);
 
 export default Notification;

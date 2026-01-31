@@ -5,11 +5,23 @@
 
 import { v2 as cloudinary, UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
 
+// Validation des variables d'environnement Cloudinary
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+
+if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Variables d\'environnement Cloudinary manquantes (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)');
+  }
+  console.warn('⚠️ Variables Cloudinary non configurées - les uploads ne fonctionneront pas');
+}
+
 // Configuration Cloudinary
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dbhj82fxc',
-  api_key: process.env.CLOUDINARY_API_KEY || '121574816385623',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'gNASnDK5Ivxp9BZpni7SNrq_t24',
+  cloud_name: CLOUDINARY_CLOUD_NAME,
+  api_key: CLOUDINARY_API_KEY,
+  api_secret: CLOUDINARY_API_SECRET,
   secure: true,
 });
 

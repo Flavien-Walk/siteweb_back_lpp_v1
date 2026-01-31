@@ -312,7 +312,7 @@ export const modifierPublication = async (
 
 /**
  * POST /api/publications/:id/like
- * Liker/unliker une publication
+ * Liker/unliker une publication (opération atomique)
  */
 export const toggleLikePublication = async (
   req: Request,
@@ -327,7 +327,8 @@ export const toggleLikePublication = async (
       throw new ErreurAPI('ID de publication invalide.', 400);
     }
 
-    const publication = await Publication.findById(id);
+    // Vérifier d'abord si le like existe (pour savoir quelle opération effectuer)
+    const publication = await Publication.findById(id).select('likes');
 
     if (!publication) {
       throw new ErreurAPI('Publication non trouvée.', 404);
@@ -337,23 +338,24 @@ export const toggleLikePublication = async (
       (lid) => lid.toString() === userId.toString()
     );
 
-    if (dejaLike) {
-      // Retirer le like
-      publication.likes = publication.likes.filter(
-        (lid) => lid.toString() !== userId.toString()
-      );
-    } else {
-      // Ajouter le like
-      publication.likes.push(userId);
-    }
+    // Utiliser une opération atomique pour éviter les race conditions
+    const updateResult = await Publication.findByIdAndUpdate(
+      id,
+      dejaLike
+        ? { $pull: { likes: userId } }  // Retirer le like
+        : { $addToSet: { likes: userId } },  // Ajouter le like (sans doublon)
+      { new: true, select: 'likes' }
+    );
 
-    await publication.save();
+    if (!updateResult) {
+      throw new ErreurAPI('Publication non trouvée.', 404);
+    }
 
     res.json({
       succes: true,
       data: {
         aLike: !dejaLike,
-        nbLikes: publication.likes.length,
+        nbLikes: updateResult.likes.length,
       },
     });
   } catch (error) {
@@ -629,7 +631,7 @@ export const supprimerCommentaire = async (
 
 /**
  * POST /api/publications/:pubId/commentaires/:comId/like
- * Liker/unliker un commentaire
+ * Liker/unliker un commentaire (opération atomique)
  */
 export const toggleLikeCommentaire = async (
   req: Request,
@@ -644,7 +646,8 @@ export const toggleLikeCommentaire = async (
       throw new ErreurAPI('ID de commentaire invalide.', 400);
     }
 
-    const commentaire = await Commentaire.findById(comId);
+    // Vérifier d'abord si le like existe
+    const commentaire = await Commentaire.findById(comId).select('likes');
     if (!commentaire) {
       throw new ErreurAPI('Commentaire non trouvé.', 404);
     }
@@ -653,21 +656,24 @@ export const toggleLikeCommentaire = async (
       (lid) => lid.toString() === userId.toString()
     );
 
-    if (dejaLike) {
-      commentaire.likes = commentaire.likes.filter(
-        (lid) => lid.toString() !== userId.toString()
-      );
-    } else {
-      commentaire.likes.push(userId);
-    }
+    // Utiliser une opération atomique pour éviter les race conditions
+    const updateResult = await Commentaire.findByIdAndUpdate(
+      comId,
+      dejaLike
+        ? { $pull: { likes: userId } }
+        : { $addToSet: { likes: userId } },
+      { new: true, select: 'likes' }
+    );
 
-    await commentaire.save();
+    if (!updateResult) {
+      throw new ErreurAPI('Commentaire non trouvé.', 404);
+    }
 
     res.json({
       succes: true,
       data: {
         aLike: !dejaLike,
-        nbLikes: commentaire.likes.length,
+        nbLikes: updateResult.likes.length,
       },
     });
   } catch (error) {

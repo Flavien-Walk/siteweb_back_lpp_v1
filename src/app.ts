@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import passport from 'passport';
 
 import authRoutes from './routes/authRoutes.js';
@@ -101,9 +102,13 @@ export const creerApp = (): Application => {
   // MIDDLEWARES DE PARSING
   // ============================================
 
-  // Limite augmentée pour permettre l'upload de médias base64 (avatars, photos, vidéos)
-  app.use(express.json({ limit: '100mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+  // Limite pour l'upload de médias base64 (avatars, photos, vidéos)
+  // 20MB est suffisant pour images compressées et vidéos courtes
+  app.use(express.json({ limit: '20mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+  // Cookie parser pour les cookies httpOnly (OAuth)
+  app.use(cookieParser());
 
   // ============================================
   // PASSPORT

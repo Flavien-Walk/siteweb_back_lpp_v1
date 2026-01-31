@@ -5,6 +5,7 @@ import {
   connexion,
   moi,
   callbackOAuth,
+  getOAuthToken,
 } from '../controllers/authController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
@@ -118,5 +119,16 @@ router.post(
   }),
   callbackOAuth
 );
+
+// ============================================
+// ROUTE DE RECUPERATION DU TOKEN OAUTH
+// ============================================
+
+/**
+ * GET /api/auth/oauth/token
+ * Recuperer le token OAuth depuis le cookie httpOnly
+ * Le frontend appelle cette route apres redirection OAuth
+ */
+router.get('/oauth/token', getOAuthToken);
 
 export default router;

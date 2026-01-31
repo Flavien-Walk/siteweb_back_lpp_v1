@@ -172,6 +172,7 @@ export const moi = async (
 
 /**
  * Callback OAuth - genere le token et redirige vers le frontend
+ * Le token est transmis via un cookie httpOnly sécurisé
  */
 export const callbackOAuth = (req: Request, res: Response): void => {
   try {
@@ -185,10 +186,56 @@ export const callbackOAuth = (req: Request, res: Response): void => {
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
-    // Rediriger vers le frontend avec le token
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}`);
+    // Definir le token dans un cookie httpOnly securise
+    res.cookie('oauth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 5 * 60 * 1000, // 5 minutes - juste le temps de recuperer le token
+      path: '/',
+    });
+
+    // Rediriger vers le frontend (le token sera recupere via le cookie)
+    res.redirect(`${process.env.CLIENT_URL}/auth/callback`);
   } catch (error) {
     console.error('Erreur callback OAuth:', error);
     res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_erreur`);
+  }
+};
+
+/**
+ * Recuperer le token OAuth depuis le cookie httpOnly
+ * GET /api/auth/oauth/token
+ */
+export const getOAuthToken = (req: Request, res: Response): void => {
+  try {
+    const token = req.cookies?.oauth_token;
+
+    if (!token) {
+      res.status(401).json({
+        succes: false,
+        message: 'Aucun token OAuth disponible',
+      });
+      return;
+    }
+
+    // Supprimer le cookie apres recuperation (usage unique)
+    res.clearCookie('oauth_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    res.status(200).json({
+      succes: true,
+      data: { token },
+    });
+  } catch (error) {
+    console.error('Erreur recuperation token OAuth:', error);
+    res.status(500).json({
+      succes: false,
+      message: 'Erreur lors de la recuperation du token',
+    });
   }
 };

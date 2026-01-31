@@ -150,6 +150,30 @@ utilisateurSchema.pre('save', async function (next) {
   }
 });
 
+// Middleware pre-save pour garantir l'exclusivité ami/demande
+// Un utilisateur ne peut pas être à la fois ami ET dans les demandes
+utilisateurSchema.pre('save', function (next) {
+  if (this.amis && this.amis.length > 0) {
+    const amisIds = new Set(this.amis.map((id) => id.toString()));
+
+    // Retirer des demandes reçues les utilisateurs qui sont déjà amis
+    if (this.demandesAmisRecues) {
+      this.demandesAmisRecues = this.demandesAmisRecues.filter(
+        (id) => !amisIds.has(id.toString())
+      );
+    }
+
+    // Retirer des demandes envoyées les utilisateurs qui sont déjà amis
+    if (this.demandesAmisEnvoyees) {
+      this.demandesAmisEnvoyees = this.demandesAmisEnvoyees.filter(
+        (id) => !amisIds.has(id.toString())
+      );
+    }
+  }
+
+  next();
+});
+
 // Methode pour comparer les mots de passe
 utilisateurSchema.methods.comparerMotDePasse = async function (
   motDePasseCandidat: string

@@ -3,6 +3,13 @@ import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 
 /**
+ * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
+ */
+const escapeRegex = (str: string): string => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * GET /api/utilisateurs/recherche
  * Rechercher des utilisateurs par nom/prénom
  */
@@ -26,7 +33,8 @@ export const rechercherUtilisateurs = async (
       return;
     }
 
-    const recherche = q.trim();
+    // Limiter la longueur de recherche et échapper les caractères spéciaux regex (protection ReDoS)
+    const recherche = escapeRegex(q.trim().slice(0, 100));
 
     // Recherche par prénom, nom ou combinaison
     const utilisateurs = await Utilisateur.find({
