@@ -18,6 +18,7 @@ import {
   Dimensions,
   Platform,
   Animated,
+  ToastAndroid,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -343,6 +344,28 @@ export default function ProfilUtilisateurPage() {
     return { texte: 'Ajouter', icon: 'person-add-outline' as const, style: 'primary' };
   };
 
+  // Afficher un toast (cross-platform)
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', message);
+    }
+  };
+
+  // Gérer le clic sur le compteur d'amis
+  const handleAmisPress = () => {
+    const estMonProfilLocal = moi?.id === profil?._id;
+    // Si c'est mon profil ou si je suis ami → accès autorisé
+    if (estMonProfilLocal || profil?.estAmi) {
+      // Pour l'instant, pas de page liste d'amis
+      // On pourrait naviguer vers une future page ici
+      return;
+    }
+    // Si non ami → accès refusé
+    showToast('Devenez ami pour voir la liste d\'amis');
+  };
+
   // Configuration du statut (avec gestion du rôle admin)
   const getStatutConfig = (role?: string, statut?: string) => {
     // Admin en priorité
@@ -462,10 +485,29 @@ export default function ProfilUtilisateurPage() {
 
           {/* Stats horizontales */}
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profil.nbAmis || 0}</Text>
+            {/* Compteur d'amis - cliquable avec verrouillage si non ami */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.statItem,
+                styles.statItemClickable,
+                pressed && styles.statItemPressed,
+              ]}
+              onPress={handleAmisPress}
+            >
+              <View style={styles.statValueRow}>
+                <Text style={styles.statValue}>{profil.nbAmis || 0}</Text>
+                {/* Cadenas si non ami et pas mon profil */}
+                {!estMonProfil && !profil.estAmi && (
+                  <Ionicons
+                    name="lock-closed"
+                    size={12}
+                    color={couleurs.texteSecondaire}
+                    style={styles.statLockIcon}
+                  />
+                )}
+              </View>
               <Text style={styles.statLabel}>Amis</Text>
-            </View>
+            </Pressable>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{profil.projetsSuivis || 0}</Text>
               <Text style={styles.statLabel}>Projets</Text>
@@ -985,10 +1027,26 @@ const styles = StyleSheet.create({
   statItem: {
     alignItems: 'center',
   },
+  statItemClickable: {
+    paddingHorizontal: espacements.sm,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.sm,
+  },
+  statItemPressed: {
+    backgroundColor: couleurs.fondCard,
+  },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   statValue: {
     fontSize: 18,
     fontWeight: typographie.poids.bold,
     color: couleurs.texte,
+  },
+  statLockIcon: {
+    marginTop: 2,
   },
   statLabel: {
     fontSize: typographie.tailles.xs,
