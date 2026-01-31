@@ -177,6 +177,16 @@ export const getMesAmis = async (): Promise<ReponseAPI<AmisResponse>> => {
   return api.get<AmisResponse>('/utilisateurs/mes-amis', true);
 };
 
+/**
+ * Récupérer la liste d'amis d'un utilisateur
+ * Accessible uniquement si on est ami avec cet utilisateur ou si c'est soi-même
+ */
+export const getAmisUtilisateur = async (
+  userId: string
+): Promise<ReponseAPI<AmisResponse & { utilisateur: { _id: string; prenom: string; nom: string } }>> => {
+  return api.get(`/utilisateurs/${userId}/amis`, true);
+};
+
 // ============ STATS ============
 
 export interface StatsUtilisateur {
