@@ -14,6 +14,7 @@ export interface IStory extends Document {
   thumbnailUrl?: string;
   dateCreation: Date;
   dateExpiration: Date;
+  viewers: mongoose.Types.ObjectId[]; // Liste des utilisateurs qui ont vu cette story
 }
 
 const storySchema = new Schema<IStory>(
@@ -42,6 +43,11 @@ const storySchema = new Schema<IStory>(
       type: Date,
       default: () => new Date(Date.now() + STORY_DURATION_MS),
       index: true,
+    },
+    viewers: {
+      type: [Schema.Types.ObjectId],
+      ref: 'Utilisateur',
+      default: [],
     },
   },
   {

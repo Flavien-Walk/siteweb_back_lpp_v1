@@ -6,6 +6,7 @@ import {
   getStoriesUtilisateur,
   getStory,
   supprimerStory,
+  marquerVue,
 } from '../controllers/storyController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
 
@@ -29,6 +30,12 @@ router.get('/mes-stories', verifierJwt, getMesStories);
  * Stories actives d'un utilisateur spécifique
  */
 router.get('/utilisateur/:id', chargerUtilisateurOptionnel, getStoriesUtilisateur);
+
+/**
+ * POST /api/stories/:id/seen
+ * Marquer une story comme vue (auth requise)
+ */
+router.post('/:id/seen', verifierJwt, marquerVue);
 
 /**
  * GET /api/stories/:id

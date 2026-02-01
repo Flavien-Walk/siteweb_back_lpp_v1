@@ -125,7 +125,7 @@ export const getStoriesActives = async (
     const utilisateursAutorises = [userId, ...idsAmisValides];
 
     // Récupérer les stories actives uniquement de moi et mes amis
-    const stories = await Story.aggregate([
+    const storiesRaw = await Story.aggregate([
       // Filtrer: stories actives ET utilisateur autorisé
       {
         $match: {
@@ -147,6 +147,7 @@ export const getStoriesActives = async (
               thumbnailUrl: '$thumbnailUrl',
               dateCreation: '$dateCreation',
               dateExpiration: '$dateExpiration',
+              viewers: '$viewers',
             },
           },
           derniereStory: { $first: '$dateCreation' },
@@ -178,6 +179,30 @@ export const getStoriesActives = async (
         },
       },
     ]);
+
+    // Calculer estVue pour chaque story et toutesVues pour chaque groupe
+    const userIdStr = userId.toString();
+    const stories = storiesRaw.map((groupe: any) => {
+      const storiesAvecEstVue = groupe.stories.map((story: any) => ({
+        _id: story._id,
+        type: story.type,
+        mediaUrl: story.mediaUrl,
+        thumbnailUrl: story.thumbnailUrl,
+        dateCreation: story.dateCreation,
+        dateExpiration: story.dateExpiration,
+        estVue: (story.viewers || []).some((v: any) => v.toString() === userIdStr),
+      }));
+
+      // Vérifier si TOUTES les stories du groupe ont été vues
+      const toutesVues = storiesAvecEstVue.every((s: any) => s.estVue);
+
+      return {
+        utilisateur: groupe.utilisateur,
+        stories: storiesAvecEstVue,
+        derniereStory: groupe.derniereStory,
+        toutesVues,
+      };
+    });
 
     res.json({
       succes: true,
@@ -301,10 +326,25 @@ export const getStoriesUtilisateur = async (
     }
 
     // Récupérer les stories si autorisé
-    const stories = await Story.find({
+    const storiesRaw = await Story.find({
       utilisateur: id,
       dateExpiration: { $gt: maintenant },
     }).sort({ dateCreation: -1 });
+
+    // Ajouter estVue pour chaque story
+    const userIdStr = userId!.toString();
+    const stories = storiesRaw.map((story) => ({
+      _id: story._id,
+      type: story.type,
+      mediaUrl: story.mediaUrl,
+      thumbnailUrl: story.thumbnailUrl,
+      dateCreation: story.dateCreation,
+      dateExpiration: story.dateExpiration,
+      estVue: (story.viewers || []).some((v) => v.toString() === userIdStr),
+    }));
+
+    // Vérifier si toutes les stories ont été vues
+    const toutesVues = stories.length > 0 && stories.every((s) => s.estVue);
 
     res.json({
       succes: true,
@@ -317,6 +357,7 @@ export const getStoriesUtilisateur = async (
         },
         hasStories,
         peutVoir: true,
+        toutesVues,
         stories,
       },
     });
@@ -444,6 +485,58 @@ export const getStory = async (
           },
         },
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/stories/:id/seen
+ * Marquer une story comme vue par l'utilisateur connecté
+ * Utilise $addToSet pour éviter les doublons
+ */
+export const marquerVue = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.utilisateur!._id;
+    const maintenant = new Date();
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ErreurAPI('ID de story invalide.', 400);
+    }
+
+    // Vérifier que la story existe et est active
+    const story = await Story.findOne({
+      _id: id,
+      dateExpiration: { $gt: maintenant },
+    });
+
+    if (!story) {
+      throw new ErreurAPI('Story non trouvée ou expirée.', 404);
+    }
+
+    // Ne pas marquer sa propre story comme vue
+    if (story.utilisateur.toString() === userId.toString()) {
+      res.json({
+        succes: true,
+        message: 'Story propre, pas de marquage nécessaire.',
+      });
+      return;
+    }
+
+    // Ajouter l'utilisateur aux viewers (atomic, évite doublons)
+    await Story.findByIdAndUpdate(id, {
+      $addToSet: { viewers: userId },
+    });
+
+    res.json({
+      succes: true,
+      message: 'Story marquée comme vue.',
     });
   } catch (error) {
     next(error);
