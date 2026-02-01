@@ -19,9 +19,12 @@ import {
   CheckCircle,
   History,
   Flag,
+  FileText,
+  Activity,
+  ChevronRight,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
-import type { User as UserType } from '@/types'
+import type { User as UserType, TimelineEvent, AuditLog, UserReport } from '@/types'
 
 const roleLabels: Record<string, string> = {
   user: 'Utilisateur',
@@ -30,6 +33,28 @@ const roleLabels: Record<string, string> = {
   admin_modo: 'Admin Modo',
   super_admin: 'Super Admin',
 }
+
+const timelineEventLabels: Record<string, string> = {
+  warning: 'Avertissement',
+  suspension: 'Suspension',
+  ban: 'Bannissement',
+  unban: 'Débannissement',
+  report_action: 'Action de signalement',
+  role_change: 'Changement de rôle',
+  content_action: 'Action sur contenu',
+}
+
+const timelineEventIcons: Record<string, React.ReactNode> = {
+  warning: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+  suspension: <Clock className="h-4 w-4 text-orange-500" />,
+  ban: <Ban className="h-4 w-4 text-red-500" />,
+  unban: <CheckCircle className="h-4 w-4 text-green-500" />,
+  report_action: <Flag className="h-4 w-4 text-blue-500" />,
+  role_change: <Shield className="h-4 w-4 text-purple-500" />,
+  content_action: <FileText className="h-4 w-4 text-gray-500" />,
+}
+
+type HistoryTab = 'timeline' | 'reports' | 'audit'
 
 function UserStatusBadge({ user }: { user: UserType }) {
   if (user.bannedAt) {
@@ -52,6 +77,7 @@ export function UserDetailPage() {
   const [suspendDuration, setSuspendDuration] = useState('24')
   const [banReason, setBanReason] = useState('')
   const [newRole, setNewRole] = useState('')
+  const [historyTab, setHistoryTab] = useState<HistoryTab>('timeline')
 
   // Fetch user
   const {
@@ -62,6 +88,27 @@ export function UserDetailPage() {
     queryKey: ['user', id],
     queryFn: () => usersService.getUser(id!),
     enabled: !!id,
+  })
+
+  // Fetch timeline
+  const { data: timeline, isLoading: isLoadingTimeline } = useQuery({
+    queryKey: ['user-timeline', id],
+    queryFn: () => usersService.getUserTimeline(id!),
+    enabled: !!id && historyTab === 'timeline',
+  })
+
+  // Fetch audit history
+  const { data: auditHistory, isLoading: isLoadingAudit } = useQuery({
+    queryKey: ['user-audit', id],
+    queryFn: () => usersService.getUserAuditHistory(id!),
+    enabled: !!id && historyTab === 'audit',
+  })
+
+  // Fetch user reports
+  const { data: userReports, isLoading: isLoadingReports } = useQuery({
+    queryKey: ['user-reports', id],
+    queryFn: () => usersService.getUserReports(id!),
+    enabled: !!id && historyTab === 'reports',
   })
 
   // Warn mutation
@@ -282,21 +329,195 @@ export function UserDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Recent reports about this user */}
+          {/* History section with tabs */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Flag className="h-5 w-5" />
-                Signalements reçus
+                <History className="h-5 w-5" />
+                Historique complet
               </CardTitle>
               <CardDescription>
-                Signalements dont cet utilisateur est la cible
+                Timeline de modération, signalements et audit
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Fonctionnalité à venir
-              </p>
+              {/* Tabs */}
+              <div className="flex gap-1 mb-4 border-b">
+                <button
+                  onClick={() => setHistoryTab('timeline')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    historyTab === 'timeline'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Activity className="h-4 w-4 inline mr-1" />
+                  Actions de modération
+                </button>
+                <button
+                  onClick={() => setHistoryTab('reports')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    historyTab === 'reports'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Flag className="h-4 w-4 inline mr-1" />
+                  Reports émis
+                </button>
+                <button
+                  onClick={() => setHistoryTab('audit')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    historyTab === 'audit'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <FileText className="h-4 w-4 inline mr-1" />
+                  Audit logs
+                </button>
+              </div>
+
+              {/* Timeline tab */}
+              {historyTab === 'timeline' && (
+                <div className="space-y-3">
+                  {isLoadingTimeline ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+                      ))}
+                    </div>
+                  ) : timeline?.events && timeline.events.length > 0 ? (
+                    <div className="relative">
+                      <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-muted" />
+                      {timeline.events.map((event: TimelineEvent, index: number) => (
+                        <div key={event._id || index} className="relative pl-10 pb-4">
+                          <div className="absolute left-2 top-1 p-1 bg-background rounded-full border">
+                            {timelineEventIcons[event.type] || <Activity className="h-4 w-4" />}
+                          </div>
+                          <div className="rounded-md border p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium">
+                                {timelineEventLabels[event.type] || event.type}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatRelativeTime(event.date)}
+                              </span>
+                            </div>
+                            {event.reason && (
+                              <p className="text-sm text-muted-foreground">{event.reason}</p>
+                            )}
+                            {event.moderator && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Par {event.moderator.prenom} {event.moderator.nom}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Aucune action de modération
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Reports tab */}
+              {historyTab === 'reports' && (
+                <div className="space-y-3">
+                  {isLoadingReports ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+                      ))}
+                    </div>
+                  ) : userReports?.reports && userReports.reports.length > 0 ? (
+                    <>
+                      {userReports.reports.map((report: UserReport) => (
+                        <div
+                          key={report._id}
+                          className="rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
+                          onClick={() => navigate(`/reports/${report._id}`)}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary">{report.targetType}</Badge>
+                              <Badge
+                                variant={
+                                  report.status === 'resolved' ? 'success' :
+                                  report.status === 'rejected' ? 'destructive' :
+                                  'default'
+                                }
+                              >
+                                {report.status}
+                              </Badge>
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm line-clamp-1">{report.reason}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formatRelativeTime(report.createdAt)}
+                          </p>
+                        </div>
+                      ))}
+                      {userReports.pagination.totalPages > 1 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          {userReports.pagination.total} signalements au total
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Aucun signalement émis par cet utilisateur
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Audit tab */}
+              {historyTab === 'audit' && (
+                <div className="space-y-3">
+                  {isLoadingAudit ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+                      ))}
+                    </div>
+                  ) : auditHistory?.auditLogs && auditHistory.auditLogs.length > 0 ? (
+                    <>
+                      {auditHistory.auditLogs.map((log: AuditLog) => (
+                        <div key={log._id} className="rounded-md border p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <Badge variant="outline">{log.action}</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatRelativeTime(log.createdAt)}
+                            </span>
+                          </div>
+                          {log.reason && (
+                            <p className="text-sm text-muted-foreground">{log.reason}</p>
+                          )}
+                          {log.moderator && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Par {log.moderator.prenom} {log.moderator.nom}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      {auditHistory.pagination.totalPages > 1 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          {auditHistory.pagination.total} entrées au total
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Aucun audit log
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -159,6 +159,46 @@ export interface AuditLog {
   createdAt: string
 }
 
+// ============ USER TIMELINE / HISTORY ============
+
+export interface TimelineEvent {
+  _id: string
+  type: 'warning' | 'suspension' | 'ban' | 'unban' | 'report_action' | 'role_change' | 'content_action'
+  date: string
+  reason?: string
+  moderator?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  metadata?: Record<string, unknown>
+}
+
+export interface UserTimeline {
+  events: TimelineEvent[]
+  totalEvents: number
+}
+
+export interface UserAuditHistory {
+  auditLogs: AuditLog[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+}
+
+export interface UserReport {
+  _id: string
+  targetType: ReportTargetType
+  targetId: string
+  reason: string
+  status: ReportStatus
+  createdAt: string
+  targetContent?: string
+}
+
 // ============ STAFF CHAT ============
 
 export interface StaffMessage {

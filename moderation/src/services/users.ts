@@ -1,5 +1,5 @@
 import api from './api'
-import type { User, ApiResponse, PaginatedResponse } from '@/types'
+import type { User, ApiResponse, PaginatedResponse, AuditLog, UserTimeline, UserReport } from '@/types'
 
 export interface UserFilters {
   search?: string
@@ -191,6 +191,65 @@ export const usersService = {
 
     if (!response.data.succes || !response.data.data) {
       throw new Error(response.data.message || 'Erreur lors du chargement de l\'historique')
+    }
+
+    return response.data.data
+  },
+
+  /**
+   * Get user's audit log history (all moderation actions involving this user)
+   */
+  async getUserAuditHistory(id: string, params: { page?: number; limit?: number } = {}): Promise<{
+    auditLogs: AuditLog[]
+    pagination: { page: number; limit: number; total: number; totalPages: number }
+  }> {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.append('page', String(params.page))
+    if (params.limit) searchParams.append('limit', String(params.limit))
+
+    const response = await api.get<ApiResponse<{
+      auditLogs: AuditLog[]
+      pagination: { page: number; limit: number; total: number; totalPages: number }
+    }>>(`/admin/users/${id}/audit?${searchParams.toString()}`)
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement de l\'audit')
+    }
+
+    return response.data.data
+  },
+
+  /**
+   * Get user's moderation timeline (synthesized view of all events)
+   */
+  async getUserTimeline(id: string): Promise<UserTimeline> {
+    const response = await api.get<ApiResponse<UserTimeline>>(`/admin/users/${id}/timeline`)
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement de la timeline')
+    }
+
+    return response.data.data
+  },
+
+  /**
+   * Get reports created by this user
+   */
+  async getUserReports(id: string, params: { page?: number; limit?: number } = {}): Promise<{
+    reports: UserReport[]
+    pagination: { page: number; limit: number; total: number; totalPages: number }
+  }> {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.append('page', String(params.page))
+    if (params.limit) searchParams.append('limit', String(params.limit))
+
+    const response = await api.get<ApiResponse<{
+      reports: UserReport[]
+      pagination: { page: number; limit: number; total: number; totalPages: number }
+    }>>(`/admin/users/${id}/reports?${searchParams.toString()}`)
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement des signalements')
     }
 
     return response.data.data
