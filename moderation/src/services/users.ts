@@ -44,7 +44,10 @@ export const usersService = {
       }
     })
 
-    const response = await api.get<ApiResponse<PaginatedResponse<User>>>(
+    const response = await api.get<ApiResponse<{
+      users: User[]
+      pagination: { page: number; limit: number; total: number; pages: number }
+    }>>(
       `/admin/users?${searchParams.toString()}`
     )
 
@@ -52,7 +55,16 @@ export const usersService = {
       throw new Error(response.data.message || 'Erreur lors du chargement des utilisateurs')
     }
 
-    return response.data.data
+    // Transform backend response to match PaginatedResponse interface
+    const { users, pagination } = response.data.data
+    return {
+      items: users,
+      currentPage: pagination.page,
+      totalPages: pagination.pages,
+      totalCount: pagination.total,
+      hasNextPage: pagination.page < pagination.pages,
+      hasPrevPage: pagination.page > 1,
+    }
   },
 
   /**
