@@ -41,7 +41,10 @@ import {
   modifierAvatar,
 } from '../../src/services/auth';
 import { getPublicationsUtilisateur, Publication } from '../../src/services/publications';
+import { getMesStories, Story } from '../../src/services/stories';
 import Avatar from '../../src/composants/Avatar';
+import StoryViewer from '../../src/composants/StoryViewer';
+import StoryCreator from '../../src/composants/StoryCreator';
 
 type Onglet = 'profil-public' | 'parametres';
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
@@ -96,6 +99,11 @@ export default function Profil() {
   // Publications de l'utilisateur
   const [publications, setPublications] = useState<Publication[]>([]);
   const [chargementPublications, setChargementPublications] = useState(false);
+
+  // Stories
+  const [mesStories, setMesStories] = useState<Story[]>([]);
+  const [storyViewerVisible, setStoryViewerVisible] = useState(false);
+  const [storyCreatorVisible, setStoryCreatorVisible] = useState(false);
 
   // Modal visionneuse média
   const [imageModalVisible, setImageModalVisible] = useState(false);
@@ -260,6 +268,21 @@ export default function Profil() {
     };
     chargerPublications();
   }, [utilisateur?.id]);
+
+  // Charger mes stories
+  useEffect(() => {
+    const chargerMesStories = async () => {
+      try {
+        const reponse = await getMesStories();
+        if (reponse.succes && reponse.data) {
+          setMesStories(reponse.data.stories);
+        }
+      } catch (error) {
+        console.error('Erreur chargement stories:', error);
+      }
+    };
+    chargerMesStories();
+  }, []);
 
   // Animation lors du changement d'onglet
   useEffect(() => {
@@ -493,18 +516,25 @@ export default function Profil() {
   const handleRefresh = useCallback(async () => {
     setRafraichissement(true);
     try {
-      if (utilisateur?.id) {
-        const reponse = await getPublicationsUtilisateur(utilisateur.id);
-        if (reponse.succes && reponse.data) {
-          // Filtrage frontend de sécurité
-          const publicationsFiltrees = reponse.data.publications.filter(
-            (pub) => pub.auteur._id === utilisateur.id
-          );
-          setPublications(publicationsFiltrees);
-        }
+      // Charger publications et stories en parallèle
+      const [pubResponse, storiesResponse] = await Promise.all([
+        utilisateur?.id ? getPublicationsUtilisateur(utilisateur.id) : Promise.resolve(null),
+        getMesStories(),
+      ]);
+
+      if (pubResponse?.succes && pubResponse.data) {
+        // Filtrage frontend de sécurité
+        const publicationsFiltrees = pubResponse.data.publications.filter(
+          (pub) => pub.auteur._id === utilisateur?.id
+        );
+        setPublications(publicationsFiltrees);
+      }
+
+      if (storiesResponse.succes && storiesResponse.data) {
+        setMesStories(storiesResponse.data.stories);
       }
     } catch (error) {
-      console.error('Erreur refresh publications:', error);
+      console.error('Erreur refresh:', error);
     } finally {
       setRafraichissement(false);
     }
@@ -558,27 +588,62 @@ export default function Profil() {
     >
       {/* Section profil - Layout horizontal style Instagram */}
       <View style={styles.profilHeader}>
-        {/* Avatar avec gradient et bouton modifier */}
+        {/* Avatar avec anneau de story (si stories actives) et boutons */}
         <View style={styles.avatarSection}>
-          <Pressable onPress={handleOuvrirModalAvatar}>
-            <LinearGradient
-              colors={[couleurs.primaire, couleurs.secondaire, couleurs.accent]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatarGradient}
-            >
-              <View style={styles.avatarInner}>
-                <Avatar
-                  uri={utilisateur?.avatar}
-                  prenom={utilisateur?.prenom}
-                  nom={utilisateur?.nom}
-                  taille={86}
-                />
+          <Pressable
+            onPress={() => {
+              if (mesStories.length > 0) {
+                setStoryViewerVisible(true);
+              } else {
+                handleOuvrirModalAvatar();
+              }
+            }}
+            onLongPress={handleOuvrirModalAvatar}
+          >
+            {mesStories.length > 0 ? (
+              <LinearGradient
+                colors={[couleurs.accent, couleurs.primaire, couleurs.secondaire]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatarGradient}
+              >
+                <View style={styles.avatarInner}>
+                  <Avatar
+                    uri={utilisateur?.avatar}
+                    prenom={utilisateur?.prenom}
+                    nom={utilisateur?.nom}
+                    taille={86}
+                  />
+                </View>
+              </LinearGradient>
+            ) : (
+              <View style={[styles.avatarGradient, styles.avatarNoStory]}>
+                <View style={styles.avatarInner}>
+                  <Avatar
+                    uri={utilisateur?.avatar}
+                    prenom={utilisateur?.prenom}
+                    nom={utilisateur?.nom}
+                    taille={86}
+                  />
+                </View>
               </View>
-            </LinearGradient>
-            <View style={styles.avatarEditBadge}>
+            )}
+            {/* Badge camera pour modifier avatar */}
+            <Pressable
+              style={styles.avatarEditBadge}
+              onPress={handleOuvrirModalAvatar}
+              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+            >
               <Ionicons name="camera" size={14} color={couleurs.blanc} />
-            </View>
+            </Pressable>
+          </Pressable>
+          {/* Bouton + pour ajouter une story */}
+          <Pressable
+            style={styles.storyAddBadge}
+            onPress={() => setStoryCreatorVisible(true)}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+          >
+            <Ionicons name="add" size={16} color={couleurs.blanc} />
           </Pressable>
         </View>
 
@@ -730,15 +795,11 @@ export default function Profil() {
                 : null;
 
               const handlePress = () => {
-                if (pub.media) {
-                  if (mediaIsVideo) {
-                    setVideoUrl(pub.media);
-                    setVideoModalVisible(true);
-                  } else {
-                    setImageUrl(pub.media);
-                    setImageModalVisible(true);
-                  }
-                }
+                // Naviguer vers la page de detail de la publication
+                router.push({
+                  pathname: '/(app)/publication/[id]',
+                  params: { id: pub._id },
+                });
               };
 
               return (
@@ -773,12 +834,22 @@ export default function Profil() {
                     </View>
                   ) : (
                     <View style={styles.publicationTextOnly}>
-                      <Text style={styles.publicationTextContent} numberOfLines={5}>
-                        {pub.contenu}
-                      </Text>
+                      {/* Guillemet decoratif */}
+                      <View style={styles.textQuoteIcon}>
+                        <Ionicons name="chatbox" size={16} color={couleurs.primaire} />
+                      </View>
+                      {/* Contenu texte */}
+                      <View style={styles.textContentWrapper}>
+                        <Text style={styles.publicationTextContent} numberOfLines={4}>
+                          {pub.contenu}
+                        </Text>
+                      </View>
+                      {/* Stats en bas */}
                       <View style={styles.publicationTextStats}>
-                        <Ionicons name="heart-outline" size={12} color={couleurs.texteSecondaire} />
-                        <Text style={styles.publicationTextStatValue}>{pub.nbLikes || 0}</Text>
+                        <View style={styles.textStatBadge}>
+                          <Ionicons name="heart" size={10} color={couleurs.primaire} />
+                          <Text style={styles.publicationTextStatValue}>{pub.nbLikes || 0}</Text>
+                        </View>
                       </View>
                     </View>
                   )}
@@ -1539,6 +1610,32 @@ export default function Profil() {
             </Animated.View>
           </View>
         </Modal>
+
+        {/* Modal Viewer Stories */}
+        <StoryViewer
+          visible={storyViewerVisible}
+          stories={mesStories}
+          userName={utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous'}
+          userAvatar={utilisateur?.avatar}
+          onClose={() => setStoryViewerVisible(false)}
+        />
+
+        {/* Modal Création Story */}
+        <StoryCreator
+          visible={storyCreatorVisible}
+          onClose={() => setStoryCreatorVisible(false)}
+          onStoryCreated={async () => {
+            // Rafraîchir les stories
+            try {
+              const reponse = await getMesStories();
+              if (reponse.succes && reponse.data) {
+                setMesStories(reponse.data.stories);
+              }
+            } catch (error) {
+              console.error('Erreur rafraîchissement stories:', error);
+            }
+          }}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1691,6 +1788,24 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: couleurs.fond,
+  },
+  avatarNoStory: {
+    borderWidth: 3,
+    borderColor: couleurs.bordure,
+    backgroundColor: 'transparent',
+  },
+  storyAddBadge: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: couleurs.secondaire,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -1862,6 +1977,62 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   },
 
   // =====================
+  // SECTION MES STORIES
+  // =====================
+  storiesSection: {
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.md,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+    marginTop: espacements.sm,
+  },
+  storiesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: espacements.md,
+  },
+  storiesSectionTitle: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texte,
+  },
+  storiesCount: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+  },
+  storiesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.lg,
+  },
+  noStoriesHint: {
+    flex: 1,
+  },
+  noStoriesText: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+    marginBottom: espacements.sm,
+  },
+  addStoryBtn: {
+    borderRadius: rayons.full,
+    overflow: 'hidden',
+    alignSelf: 'flex-start',
+  },
+  addStoryBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.xs + 2,
+    gap: espacements.xs,
+  },
+  addStoryBtnText: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.blanc,
+  },
+
+  // =====================
   // SECTION ACTIVITÉ / PUBLICATIONS
   // =====================
   activitySection: {
@@ -1987,24 +2158,49 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   publicationTextOnly: {
     flex: 1,
     padding: espacements.sm,
-    backgroundColor: couleurs.fondTertiaire,
-    justifyContent: 'space-between',
+    paddingLeft: espacements.md,
+    backgroundColor: couleurs.fondCard,
+    justifyContent: 'center',
+    borderLeftWidth: 3,
+    borderLeftColor: couleurs.primaire,
+  },
+  textQuoteIcon: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    opacity: 0.25,
+  },
+  textContentWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingRight: espacements.sm,
   },
   publicationTextContent: {
-    fontSize: 12,
+    fontSize: 13,
     color: couleurs.texte,
-    lineHeight: 16,
-    flex: 1,
+    lineHeight: 18,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   publicationTextStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: espacements.xs,
+    justifyContent: 'flex-end',
+    marginTop: espacements.sm,
+  },
+  textStatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: `${couleurs.primaire}15`,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   publicationTextStatValue: {
-    fontSize: 11,
-    color: couleurs.texteSecondaire,
+    fontSize: 10,
+    fontWeight: '600',
+    color: couleurs.primaire,
   },
 
   // =====================

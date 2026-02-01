@@ -76,6 +76,10 @@ const MAX_HISTORIQUE = 10;
 import LikeButton, { LikeButtonCompact } from '../../src/composants/LikeButton';
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
+import StoriesRow from '../../src/composants/StoriesRow';
+import StoryViewer from '../../src/composants/StoryViewer';
+import StoryCreator from '../../src/composants/StoryCreator';
+import { Story } from '../../src/services/stories';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -402,6 +406,14 @@ export default function Accueil() {
 
   // Historique de recherche
   const [historiqueRecherche, setHistoriqueRecherche] = useState<string[]>([]);
+
+  // Stories
+  const [storyViewerVisible, setStoryViewerVisible] = useState(false);
+  const [storyCreatorVisible, setStoryCreatorVisible] = useState(false);
+  const [storiesAVisionner, setStoriesAVisionner] = useState<Story[]>([]);
+  const [storyUserName, setStoryUserName] = useState('');
+  const [storyUserAvatar, setStoryUserAvatar] = useState<string | undefined>();
+  const [storiesRefreshKey, setStoriesRefreshKey] = useState(0);
 
   // Animations FAB
   const fabRotation = useRef(new Animated.Value(0)).current;
@@ -1841,34 +1853,38 @@ export default function Accueil() {
     </View>
   );
 
-  // Stories mock data
-  const MOCK_STORIES = [
-    { id: '1', nom: 'GreenTech', avatar: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&h=150&fit=crop', nouveau: true },
-    { id: '2', nom: 'MedIA', avatar: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=150&h=150&fit=crop', nouveau: true },
-    { id: '3', nom: 'FinFlow', avatar: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=150&h=150&fit=crop', nouveau: false },
-    { id: '4', nom: 'BioFood', avatar: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=150&h=150&fit=crop', nouveau: false },
-    { id: '5', nom: 'TechLab', avatar: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=150&h=150&fit=crop', nouveau: true },
-  ];
+  // Handlers pour les stories
+  const handleStoryPress = useCallback((userId: string, stories: Story[], userName: string) => {
+    // Trouver l'avatar de l'utilisateur (soit de notre utilisateur, soit des stories)
+    let userAvatar: string | undefined;
+    if (utilisateur && userId === utilisateur.id) {
+      userAvatar = utilisateur.avatar;
+    } else if (stories[0]?.utilisateur?.avatar) {
+      userAvatar = stories[0].utilisateur.avatar;
+    }
+
+    setStoriesAVisionner(stories);
+    setStoryUserName(userName);
+    setStoryUserAvatar(userAvatar);
+    setStoryViewerVisible(true);
+  }, [utilisateur]);
+
+  const handleAddStoryPress = useCallback(() => {
+    setStoryCreatorVisible(true);
+  }, []);
+
+  const handleStoryCreated = useCallback(() => {
+    // Rafraîchir les stories
+    setStoriesRefreshKey(prev => prev + 1);
+  }, []);
 
   const renderStories = () => (
-    <View style={styles.storiesSection}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesScroll}>
-        <Pressable style={styles.storyItemAdd}>
-          <View style={styles.storyAddIcon}>
-            <Ionicons name="add" size={24} color={couleurs.primaire} />
-          </View>
-          <Text style={styles.storyNom}>Votre story</Text>
-        </Pressable>
-        {MOCK_STORIES.map((story) => (
-          <Pressable key={story.id} style={styles.storyItem}>
-            <View style={[styles.storyRing, story.nouveau && styles.storyRingActive]}>
-              <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
-            </View>
-            <Text style={styles.storyNom} numberOfLines={1}>{story.nom}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
+    <StoriesRow
+      key={storiesRefreshKey}
+      onStoryPress={handleStoryPress}
+      onAddStoryPress={handleAddStoryPress}
+      refreshing={rafraichissement}
+    />
   );
 
   const renderTrending = () => (
@@ -2262,7 +2278,7 @@ export default function Accueil() {
   const FAB_ACTIONS = [
     { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
     { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => Alert.alert('Go Live', 'Bientot disponible !') },
-    { id: 3, icon: 'camera-outline' as const, label: 'Story', color: '#10B981', action: () => Alert.alert('Story', 'Bientot disponible !') },
+    { id: 3, icon: 'camera-outline' as const, label: 'Story', color: '#10B981', action: () => setStoryCreatorVisible(true) },
     { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => Alert.alert('Startup', 'Bientot disponible !') },
   ];
 
@@ -2963,6 +2979,25 @@ export default function Accueil() {
           </Pressable>
         </View>
       </Modal>
+
+      {/* Modal Viewer Stories */}
+      <StoryViewer
+        visible={storyViewerVisible}
+        stories={storiesAVisionner}
+        userName={storyUserName}
+        userAvatar={storyUserAvatar}
+        onClose={() => {
+          setStoryViewerVisible(false);
+          setStoriesAVisionner([]);
+        }}
+      />
+
+      {/* Modal Création Story */}
+      <StoryCreator
+        visible={storyCreatorVisible}
+        onClose={() => setStoryCreatorVisible(false)}
+        onStoryCreated={handleStoryCreated}
+      />
     </SafeAreaView>
   );
 }

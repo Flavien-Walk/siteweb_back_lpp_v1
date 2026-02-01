@@ -1,0 +1,488 @@
+/**
+ * StoryViewer - Lecteur de stories plein écran style Instagram
+ * - Barre de progression en haut
+ * - Tap gauche = story précédente
+ * - Tap droite = story suivante
+ * - Swipe down / bouton X = fermer
+ * - Support photo et vidéo
+ */
+
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  Pressable,
+  Image,
+  Dimensions,
+  Animated,
+  Platform,
+  StatusBar,
+  PanResponder,
+  ActivityIndicator,
+} from 'react-native';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Avatar from './Avatar';
+import { couleurs, espacements, typographie } from '../constantes/theme';
+import { Story, formatTempsRestant } from '../services/stories';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const STORY_DURATION = 5000; // 5 secondes pour les photos
+
+interface StoryViewerProps {
+  visible: boolean;
+  stories: Story[];
+  userName: string;
+  userAvatar?: string;
+  initialIndex?: number;
+  onClose: () => void;
+  onAllStoriesViewed?: () => void;
+}
+
+const StoryViewer: React.FC<StoryViewerProps> = ({
+  visible,
+  stories,
+  userName,
+  userAvatar,
+  initialIndex = 0,
+  onClose,
+  onAllStoriesViewed,
+}) => {
+  const insets = useSafeAreaInsets();
+  const videoRef = useRef<Video>(null);
+
+  // États
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Animation de progression
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const progressAnimation = useRef<Animated.CompositeAnimation | null>(null);
+
+  // Animation de swipe down
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  // Story courante
+  const currentStory = stories[currentIndex];
+  const isVideo = currentStory?.type === 'video';
+
+  // Reset à l'ouverture
+  useEffect(() => {
+    if (visible) {
+      setCurrentIndex(initialIndex);
+      setIsPaused(false);
+      setIsLoading(true);
+      progressAnim.setValue(0);
+      translateY.setValue(0);
+    }
+  }, [visible, initialIndex]);
+
+  // Démarrer/arrêter la progression
+  const startProgress = useCallback((duration: number) => {
+    progressAnimation.current?.stop();
+    progressAnim.setValue(0);
+
+    progressAnimation.current = Animated.timing(progressAnim, {
+      toValue: 1,
+      duration,
+      useNativeDriver: false,
+    });
+
+    progressAnimation.current.start(({ finished }) => {
+      if (finished && !isPaused) {
+        goToNext();
+      }
+    });
+  }, [isPaused]);
+
+  const pauseProgress = useCallback(() => {
+    progressAnimation.current?.stop();
+  }, []);
+
+  const resumeProgress = useCallback(() => {
+    if (!isPaused && !isVideo) {
+      // Calculer le temps restant
+      const currentProgress = (progressAnim as any)._value || 0;
+      const remainingDuration = STORY_DURATION * (1 - currentProgress);
+
+      progressAnimation.current = Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: remainingDuration,
+        useNativeDriver: false,
+      });
+
+      progressAnimation.current.start(({ finished }) => {
+        if (finished && !isPaused) {
+          goToNext();
+        }
+      });
+    }
+  }, [isPaused, isVideo]);
+
+  // Navigation entre stories
+  const goToNext = useCallback(() => {
+    if (currentIndex < stories.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+      setIsLoading(true);
+      progressAnim.setValue(0);
+    } else {
+      // Toutes les stories vues
+      onAllStoriesViewed?.();
+      onClose();
+    }
+  }, [currentIndex, stories.length, onAllStoriesViewed, onClose]);
+
+  const goToPrev = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+      setIsLoading(true);
+      progressAnim.setValue(0);
+    } else {
+      // Restart current story
+      progressAnim.setValue(0);
+      if (!isVideo) {
+        startProgress(STORY_DURATION);
+      }
+    }
+  }, [currentIndex, isVideo, startProgress]);
+
+  // Démarrer la progression quand l'image est chargée
+  const handleImageLoad = useCallback(() => {
+    setIsLoading(false);
+    if (!isPaused) {
+      startProgress(STORY_DURATION);
+    }
+  }, [isPaused, startProgress]);
+
+  // Gérer la vidéo
+  const handleVideoStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (status.isLoaded) {
+      setIsLoading(false);
+
+      if (status.didJustFinish) {
+        goToNext();
+      } else if (status.durationMillis && status.positionMillis !== undefined) {
+        // Mettre à jour la barre de progression
+        const progress = status.positionMillis / status.durationMillis;
+        progressAnim.setValue(progress);
+      }
+    }
+  }, [goToNext]);
+
+  // Pan responder pour le swipe down
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 10 && Math.abs(gestureState.dx) < 30;
+      },
+      onPanResponderGrant: () => {
+        pauseProgress();
+        setIsPaused(true);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100) {
+          // Fermer
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+          });
+        } else {
+          // Revenir
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start(() => {
+            setIsPaused(false);
+            resumeProgress();
+          });
+        }
+      },
+    })
+  ).current;
+
+  // Gérer les taps gauche/droite
+  const handleTap = useCallback((event: any) => {
+    const { locationX } = event.nativeEvent;
+    const thirdWidth = SCREEN_WIDTH / 3;
+
+    if (locationX < thirdWidth) {
+      // Tap gauche - précédent
+      goToPrev();
+    } else if (locationX > thirdWidth * 2) {
+      // Tap droite - suivant
+      goToNext();
+    } else {
+      // Tap centre - pause/play
+      setIsPaused((prev) => {
+        if (!prev) {
+          pauseProgress();
+          if (isVideo && videoRef.current) {
+            videoRef.current.pauseAsync();
+          }
+        } else {
+          resumeProgress();
+          if (isVideo && videoRef.current) {
+            videoRef.current.playAsync();
+          }
+        }
+        return !prev;
+      });
+    }
+  }, [goToPrev, goToNext, isVideo, pauseProgress, resumeProgress]);
+
+  // Long press pour pause
+  const handleLongPressIn = useCallback(() => {
+    setIsPaused(true);
+    pauseProgress();
+    if (isVideo && videoRef.current) {
+      videoRef.current.pauseAsync();
+    }
+  }, [isVideo, pauseProgress]);
+
+  const handleLongPressOut = useCallback(() => {
+    setIsPaused(false);
+    resumeProgress();
+    if (isVideo && videoRef.current) {
+      videoRef.current.playAsync();
+    }
+  }, [isVideo, resumeProgress]);
+
+  // Formater le temps depuis la création
+  const getTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffHours > 0) {
+      return `Il y a ${diffHours}h`;
+    }
+    if (diffMins > 0) {
+      return `Il y a ${diffMins}m`;
+    }
+    return 'À l\'instant';
+  };
+
+  if (!currentStory) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent={false}
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <StatusBar hidden />
+      <Animated.View
+        style={[
+          styles.container,
+          { transform: [{ translateY }] },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        {/* Média (photo ou vidéo) */}
+        <Pressable
+          style={styles.mediaContainer}
+          onPress={handleTap}
+          onLongPress={handleLongPressIn}
+          onPressOut={handleLongPressOut}
+          delayLongPress={200}
+        >
+          {isVideo ? (
+            <Video
+              ref={videoRef}
+              source={{ uri: currentStory.mediaUrl }}
+              style={styles.media}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={!isPaused}
+              isLooping={false}
+              onPlaybackStatusUpdate={handleVideoStatusUpdate}
+            />
+          ) : (
+            <Image
+              source={{ uri: currentStory.mediaUrl }}
+              style={styles.media}
+              resizeMode="contain"
+              onLoad={handleImageLoad}
+            />
+          )}
+
+          {/* Loading indicator */}
+          {isLoading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={couleurs.blanc} />
+            </View>
+          )}
+        </Pressable>
+
+        {/* Gradient en haut */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.6)', 'transparent']}
+          style={[styles.topGradient, { paddingTop: insets.top }]}
+          pointerEvents="box-none"
+        >
+          {/* Barres de progression */}
+          <View style={styles.progressContainer}>
+            {stories.map((_, index) => (
+              <View key={index} style={styles.progressBarBg}>
+                <Animated.View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width:
+                        index < currentIndex
+                          ? '100%'
+                          : index === currentIndex
+                          ? progressAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0%', '100%'],
+                            })
+                          : '0%',
+                    },
+                  ]}
+                />
+              </View>
+            ))}
+          </View>
+
+          {/* Header avec avatar et nom */}
+          <View style={styles.header}>
+            <View style={styles.userInfo}>
+              <Avatar
+                uri={userAvatar}
+                prenom={userName.split(' ')[0]}
+                nom={userName.split(' ')[1] || ''}
+                taille={36}
+              />
+              <View style={styles.userTextContainer}>
+                <Text style={styles.userName}>{userName}</Text>
+                <Text style={styles.timeAgo}>
+                  {getTimeAgo(currentStory.dateCreation)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Bouton fermer */}
+            <Pressable
+              style={styles.closeButton}
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={28} color={couleurs.blanc} />
+            </Pressable>
+          </View>
+        </LinearGradient>
+
+        {/* Indicateur de pause */}
+        {isPaused && !isLoading && (
+          <View style={styles.pauseIndicator}>
+            <Ionicons name="pause" size={60} color={couleurs.blanc} />
+          </View>
+        )}
+      </Animated.View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  mediaContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  media: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  topGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: espacements.md,
+    paddingBottom: espacements.xl,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    marginTop: espacements.sm,
+    gap: 4,
+  },
+  progressBarBg: {
+    flex: 1,
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 1,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: couleurs.blanc,
+    borderRadius: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: espacements.md,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userTextContainer: {
+    marginLeft: espacements.sm,
+    flex: 1,
+  },
+  userName: {
+    color: couleurs.blanc,
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
+  },
+  timeAgo: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: typographie.tailles.xs,
+    marginTop: 2,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pauseIndicator: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -30 }, { translateY: -30 }],
+    opacity: 0.5,
+  },
+});
+
+export default StoryViewer;

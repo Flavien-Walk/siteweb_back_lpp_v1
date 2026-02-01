@@ -41,6 +41,8 @@ import {
 } from '../../../src/services/utilisateurs';
 import { getOuCreerConversationPrivee } from '../../../src/services/messagerie';
 import { getPublicationsUtilisateur, Publication } from '../../../src/services/publications';
+import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
+import StoryViewer from '../../../src/composants/StoryViewer';
 
 export default function ProfilUtilisateurPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -54,6 +56,10 @@ export default function ProfilUtilisateurPage() {
   const [actionEnCours, setActionEnCours] = useState(false);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [chargementPublications, setChargementPublications] = useState(false);
+
+  // Stories de l'utilisateur
+  const [storiesUtilisateur, setStoriesUtilisateur] = useState<Story[]>([]);
+  const [storyViewerVisible, setStoryViewerVisible] = useState(false);
 
   // Modal visionneuse média
   const [imageModalVisible, setImageModalVisible] = useState(false);
@@ -211,6 +217,19 @@ export default function ProfilUtilisateurPage() {
     }
   }, [id]);
 
+  // Charger les stories de l'utilisateur
+  const chargerStories = useCallback(async () => {
+    if (!id) return;
+    try {
+      const reponse = await getStoriesUtilisateur(id);
+      if (reponse.succes && reponse.data) {
+        setStoriesUtilisateur(reponse.data.stories);
+      }
+    } catch (error) {
+      console.error('Erreur chargement stories:', error);
+    }
+  }, [id]);
+
   // Charger le profil
   const chargerProfil = useCallback(async (estRefresh = false) => {
     if (!id) return;
@@ -225,6 +244,7 @@ export default function ProfilUtilisateurPage() {
       const [reponse] = await Promise.all([
         getProfilUtilisateur(id),
         chargerPublications(),
+        chargerStories(),
       ]);
       if (reponse.succes && reponse.data) {
         setProfil(reponse.data.utilisateur);
@@ -237,7 +257,7 @@ export default function ProfilUtilisateurPage() {
       setChargement(false);
       setRafraichissement(false);
     }
-  }, [id, chargerPublications]);
+  }, [id, chargerPublications, chargerStories]);
 
   // Charger le profil uniquement quand l'ID change ou au premier montage
   useEffect(() => {
@@ -466,24 +486,45 @@ export default function ProfilUtilisateurPage() {
       >
         {/* Section profil - Layout horizontal style Instagram */}
         <View style={styles.profilHeader}>
-          {/* Avatar avec gradient */}
-          <View style={styles.avatarSection}>
-            <LinearGradient
-              colors={[couleurs.primaire, couleurs.secondaire, couleurs.accent]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatarGradient}
-            >
-              <View style={styles.avatarInner}>
-                <Avatar
-                  uri={profil.avatar}
-                  prenom={profil.prenom}
-                  nom={profil.nom}
-                  taille={86}
-                />
+          {/* Avatar avec anneau de story (si stories disponibles) */}
+          <Pressable
+            style={styles.avatarSection}
+            onPress={() => {
+              if (storiesUtilisateur.length > 0) {
+                setStoryViewerVisible(true);
+              }
+            }}
+            disabled={storiesUtilisateur.length === 0}
+          >
+            {storiesUtilisateur.length > 0 ? (
+              <LinearGradient
+                colors={[couleurs.accent, couleurs.primaire, couleurs.secondaire]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatarGradient}
+              >
+                <View style={styles.avatarInner}>
+                  <Avatar
+                    uri={profil.avatar}
+                    prenom={profil.prenom}
+                    nom={profil.nom}
+                    taille={86}
+                  />
+                </View>
+              </LinearGradient>
+            ) : (
+              <View style={[styles.avatarGradient, styles.avatarNoStory]}>
+                <View style={styles.avatarInner}>
+                  <Avatar
+                    uri={profil.avatar}
+                    prenom={profil.prenom}
+                    nom={profil.nom}
+                    taille={86}
+                  />
+                </View>
               </View>
-            </LinearGradient>
-          </View>
+            )}
+          </Pressable>
 
           {/* Stats horizontales */}
           <View style={styles.statsRow}>
@@ -655,15 +696,11 @@ export default function ProfilUtilisateurPage() {
                   : null;
 
                 const handlePress = () => {
-                  if (pub.media) {
-                    if (mediaIsVideo) {
-                      setVideoUrl(pub.media);
-                      setVideoModalVisible(true);
-                    } else {
-                      setImageUrl(pub.media);
-                      setImageModalVisible(true);
-                    }
-                  }
+                  // Naviguer vers la page de détail de la publication
+                  router.push({
+                    pathname: '/(app)/publication/[id]',
+                    params: { id: pub._id },
+                  });
                 };
 
                 return (
@@ -698,12 +735,22 @@ export default function ProfilUtilisateurPage() {
                       </View>
                     ) : (
                       <View style={styles.publicationTextOnly}>
-                        <Text style={styles.publicationTextContent} numberOfLines={5}>
-                          {pub.contenu}
-                        </Text>
+                        {/* Guillemet decoratif */}
+                        <View style={styles.textQuoteIcon}>
+                          <Ionicons name="chatbox" size={16} color={couleurs.primaire} />
+                        </View>
+                        {/* Contenu texte */}
+                        <View style={styles.textContentWrapper}>
+                          <Text style={styles.publicationTextContent} numberOfLines={4}>
+                            {pub.contenu}
+                          </Text>
+                        </View>
+                        {/* Stats en bas */}
                         <View style={styles.publicationTextStats}>
-                          <Ionicons name="heart-outline" size={12} color={couleurs.texteSecondaire} />
-                          <Text style={styles.publicationTextStatValue}>{pub.nbLikes || 0}</Text>
+                          <View style={styles.textStatBadge}>
+                            <Ionicons name="heart" size={10} color={couleurs.primaire} />
+                            <Text style={styles.publicationTextStatValue}>{pub.nbLikes || 0}</Text>
+                          </View>
                         </View>
                       </View>
                     )}
@@ -906,6 +953,15 @@ export default function ProfilUtilisateurPage() {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* Modal Viewer Stories */}
+      <StoryViewer
+        visible={storyViewerVisible}
+        stories={storiesUtilisateur}
+        userName={profil ? `${profil.prenom} ${profil.nom}` : ''}
+        userAvatar={profil?.avatar}
+        onClose={() => setStoryViewerVisible(false)}
+      />
     </View>
   );
 }
@@ -1021,6 +1077,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  avatarNoStory: {
+    borderWidth: 3,
+    borderColor: couleurs.bordure,
+    backgroundColor: 'transparent',
+  },
   statsRow: {
     flex: 1,
     flexDirection: 'row',
@@ -1107,6 +1168,35 @@ const styles = StyleSheet.create({
   dateInscription: {
     fontSize: typographie.tailles.xs,
     color: couleurs.texteSecondaire,
+  },
+
+  // Stories Section
+  storiesSection: {
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.md,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+    marginTop: espacements.sm,
+  },
+  storiesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: espacements.md,
+  },
+  storiesSectionTitle: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.texte,
+  },
+  storiesCount: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+  },
+  storiesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.lg,
   },
 
   // Actions Section
@@ -1276,24 +1366,49 @@ const styles = StyleSheet.create({
   publicationTextOnly: {
     flex: 1,
     padding: espacements.sm,
-    backgroundColor: couleurs.fondElevated,
-    justifyContent: 'space-between',
+    paddingLeft: espacements.md,
+    backgroundColor: couleurs.fondCard,
+    justifyContent: 'center',
+    borderLeftWidth: 3,
+    borderLeftColor: couleurs.primaire,
+  },
+  textQuoteIcon: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    opacity: 0.25,
+  },
+  textContentWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingRight: espacements.sm,
   },
   publicationTextContent: {
-    fontSize: typographie.tailles.xs,
+    fontSize: 13,
     color: couleurs.texte,
-    lineHeight: 16,
-    flex: 1,
+    lineHeight: 18,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   publicationTextStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: espacements.xs,
+    justifyContent: 'flex-end',
+    marginTop: espacements.sm,
+  },
+  textStatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: `${couleurs.primaire}15`,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   publicationTextStatValue: {
-    fontSize: 11,
-    color: couleurs.texteSecondaire,
+    fontSize: 10,
+    fontWeight: '600',
+    color: couleurs.primaire,
   },
 
   // =====================
