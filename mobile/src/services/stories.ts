@@ -118,6 +118,26 @@ export const markStorySeen = async (
 };
 
 /**
+ * Interface pour un viewer de story
+ */
+export interface StoryViewer {
+  _id: string;
+  prenom: string;
+  nom: string;
+  avatar?: string;
+}
+
+/**
+ * Récupérer la liste des utilisateurs ayant vu une story
+ * SÉCURITÉ: Ne fonctionne que pour ses propres stories
+ */
+export const getStoryViewers = async (
+  storyId: string
+): Promise<ReponseAPI<{ nbVues: number; viewers: StoryViewer[] }>> => {
+  return api.get(`/stories/${storyId}/viewers`, true);
+};
+
+/**
  * Vérifier si une story est expirée localement
  */
 export const isStoryExpired = (story: Story): boolean => {

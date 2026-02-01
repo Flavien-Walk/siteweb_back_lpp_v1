@@ -21,6 +21,8 @@ import {
   StatusBar,
   PanResponder,
   ActivityIndicator,
+  ScrollView,
+  FlatList,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +30,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from './Avatar';
 import { couleurs, espacements, typographie } from '../constantes/theme';
-import { Story, formatTempsRestant, markStorySeen } from '../services/stories';
+import { Story, formatTempsRestant, markStorySeen, getStoryViewers, StoryViewer as StoryViewerType } from '../services/stories';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const STORY_DURATION = 5000; // 5 secondes pour les photos
@@ -63,6 +65,12 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const markedSeenRef = useRef<Set<string>>(new Set()); // Stories déjà marquées comme vues
 
+  // États pour les vues (uniquement pour ses propres stories)
+  const [viewers, setViewers] = useState<StoryViewerType[]>([]);
+  const [nbVues, setNbVues] = useState(0);
+  const [viewersModalVisible, setViewersModalVisible] = useState(false);
+  const [loadingViewers, setLoadingViewers] = useState(false);
+
   // Animation de progression
   const progressAnim = useRef(new Animated.Value(0)).current;
   const progressAnimation = useRef<Animated.CompositeAnimation | null>(null);
@@ -83,8 +91,33 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
       progressAnim.setValue(0);
       translateY.setValue(0);
       markedSeenRef.current.clear(); // Reset le suivi des stories vues
+      setViewers([]);
+      setNbVues(0);
+      setViewersModalVisible(false);
     }
   }, [visible, initialIndex]);
+
+  // Charger les vues pour ses propres stories
+  useEffect(() => {
+    if (!visible || !isOwnStory || !currentStory) return;
+
+    const chargerViewers = async () => {
+      setLoadingViewers(true);
+      try {
+        const response = await getStoryViewers(currentStory._id);
+        if (response.succes && response.data) {
+          setViewers(response.data.viewers);
+          setNbVues(response.data.nbVues);
+        }
+      } catch (error) {
+        console.error('Erreur chargement viewers:', error);
+      } finally {
+        setLoadingViewers(false);
+      }
+    };
+
+    chargerViewers();
+  }, [visible, currentIndex, isOwnStory, currentStory]);
 
   // Marquer la story comme vue quand elle est affichée
   useEffect(() => {
@@ -416,7 +449,91 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
             <Ionicons name="pause" size={60} color={couleurs.blanc} />
           </View>
         )}
+
+        {/* Barre des vues en bas (uniquement pour ses propres stories) */}
+        {isOwnStory && (
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.6)']}
+            style={[styles.bottomGradient, { paddingBottom: insets.bottom + espacements.md }]}
+          >
+            <Pressable
+              style={styles.viewersButton}
+              onPress={() => {
+                pauseProgress();
+                setIsPaused(true);
+                setViewersModalVisible(true);
+              }}
+            >
+              <Ionicons name="eye-outline" size={20} color={couleurs.blanc} />
+              <Text style={styles.viewersCount}>
+                {loadingViewers ? '...' : nbVues} {nbVues === 1 ? 'vue' : 'vues'}
+              </Text>
+            </Pressable>
+          </LinearGradient>
+        )}
       </Animated.View>
+
+      {/* Modal liste des viewers */}
+      <Modal
+        visible={viewersModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setViewersModalVisible(false);
+          setIsPaused(false);
+          resumeProgress();
+        }}
+      >
+        <View style={styles.viewersModalOverlay}>
+          <View style={[styles.viewersModalContent, { paddingBottom: insets.bottom }]}>
+            {/* Header modal */}
+            <View style={styles.viewersModalHeader}>
+              <View style={styles.viewersModalHandle} />
+              <Text style={styles.viewersModalTitle}>
+                {nbVues} {nbVues === 1 ? 'vue' : 'vues'}
+              </Text>
+              <Pressable
+                style={styles.viewersModalClose}
+                onPress={() => {
+                  setViewersModalVisible(false);
+                  setIsPaused(false);
+                  resumeProgress();
+                }}
+              >
+                <Ionicons name="close" size={24} color={couleurs.texte} />
+              </Pressable>
+            </View>
+
+            {/* Liste des viewers */}
+            {viewers.length === 0 ? (
+              <View style={styles.viewersEmptyContainer}>
+                <Ionicons name="eye-off-outline" size={48} color={couleurs.texteSecondaire} />
+                <Text style={styles.viewersEmptyText}>Aucune vue pour le moment</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={viewers}
+                keyExtractor={(item) => item._id}
+                renderItem={({ item }) => (
+                  <View style={styles.viewerItem}>
+                    <Avatar
+                      uri={item.avatar}
+                      prenom={item.prenom}
+                      nom={item.nom}
+                      taille={44}
+                    />
+                    <Text style={styles.viewerName}>
+                      {item.prenom} {item.nom}
+                    </Text>
+                  </View>
+                )}
+                contentContainerStyle={styles.viewersList}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 };
@@ -503,6 +620,88 @@ const styles = StyleSheet.create({
     left: '50%',
     transform: [{ translateX: -30 }, { translateY: -30 }],
     opacity: 0.5,
+  },
+  // Styles pour les vues
+  bottomGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingTop: espacements.xxl,
+    paddingHorizontal: espacements.md,
+  },
+  viewersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+  },
+  viewersCount: {
+    color: couleurs.blanc,
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.medium,
+  },
+  // Modal viewers
+  viewersModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  viewersModalContent: {
+    backgroundColor: couleurs.fondCard,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    minHeight: 200,
+  },
+  viewersModalHeader: {
+    alignItems: 'center',
+    paddingVertical: espacements.md,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  viewersModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: couleurs.bordure,
+    borderRadius: 2,
+    marginBottom: espacements.sm,
+  },
+  viewersModalTitle: {
+    color: couleurs.texte,
+    fontSize: typographie.tailles.lg,
+    fontWeight: typographie.poids.semibold,
+  },
+  viewersModalClose: {
+    position: 'absolute',
+    right: espacements.md,
+    top: espacements.md,
+    padding: espacements.xs,
+  },
+  viewersList: {
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+  },
+  viewerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: espacements.sm,
+    gap: espacements.md,
+  },
+  viewerName: {
+    color: couleurs.texte,
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.medium,
+  },
+  viewersEmptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: espacements.xxxl,
+  },
+  viewersEmptyText: {
+    color: couleurs.texteSecondaire,
+    fontSize: typographie.tailles.sm,
+    marginTop: espacements.md,
   },
 });
 
