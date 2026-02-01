@@ -76,7 +76,8 @@ export const creerStory = async (
 
 /**
  * GET /api/stories
- * Récupérer toutes les stories actives (pour le feed)
+ * Récupérer les stories actives pour le feed
+ * RÈGLE DE CONFIDENTIALITÉ: Seules mes stories + stories de mes amis
  * Regroupe les stories par utilisateur
  */
 export const getStoriesActives = async (
@@ -86,11 +87,52 @@ export const getStoriesActives = async (
 ): Promise<void> => {
   try {
     const maintenant = new Date();
+    const userId = req.utilisateur?._id;
 
-    // Récupérer toutes les stories actives, groupées par utilisateur
+    // Si non connecté, retourner une liste vide
+    if (!userId) {
+      res.json({
+        succes: true,
+        data: {
+          storiesParUtilisateur: [],
+        },
+      });
+      return;
+    }
+
+    // Récupérer l'utilisateur connecté avec sa liste d'amis
+    const utilisateurConnecte = await Utilisateur.findById(userId).select('amis');
+    if (!utilisateurConnecte) {
+      res.json({
+        succes: true,
+        data: {
+          storiesParUtilisateur: [],
+        },
+      });
+      return;
+    }
+
+    // Construire la liste des utilisateurs autorisés: moi + mes amis (bidirectionnels)
+    const amisIds = utilisateurConnecte.amis || [];
+
+    // Vérifier la bidirectionnalité des relations
+    const amisBidirectionnels = await Utilisateur.find({
+      _id: { $in: amisIds },
+      amis: userId, // L'ami doit aussi m'avoir dans sa liste
+    }).select('_id');
+
+    const idsAmisValides = amisBidirectionnels.map(a => a._id);
+    const utilisateursAutorises = [userId, ...idsAmisValides];
+
+    // Récupérer les stories actives uniquement de moi et mes amis
     const stories = await Story.aggregate([
-      // Filtrer les stories actives
-      { $match: { dateExpiration: { $gt: maintenant } } },
+      // Filtrer: stories actives ET utilisateur autorisé
+      {
+        $match: {
+          dateExpiration: { $gt: maintenant },
+          utilisateur: { $in: utilisateursAutorises },
+        },
+      },
       // Trier par date de création (plus récent d'abord)
       { $sort: { dateCreation: -1 } },
       // Grouper par utilisateur
@@ -182,6 +224,10 @@ export const getMesStories = async (
 /**
  * GET /api/stories/utilisateur/:id
  * Récupérer les stories actives d'un utilisateur spécifique
+ * RÈGLE DE CONFIDENTIALITÉ:
+ * - Toujours retourner hasStories (indicateur visible)
+ * - Retourner peutVoir: true si ami ou soi-même
+ * - Ne retourner les stories que si peutVoir: true
  */
 export const getStoriesUtilisateur = async (
   req: Request,
@@ -191,27 +237,86 @@ export const getStoriesUtilisateur = async (
   try {
     const { id } = req.params;
     const maintenant = new Date();
+    const userId = req.utilisateur?._id;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new ErreurAPI('ID utilisateur invalide.', 400);
     }
 
-    // Vérifier que l'utilisateur existe
-    const utilisateur = await Utilisateur.findById(id).select('prenom nom avatar');
-    if (!utilisateur) {
+    // Vérifier que l'utilisateur cible existe avec sa liste d'amis
+    const utilisateurCible = await Utilisateur.findById(id).select('prenom nom avatar amis');
+    if (!utilisateurCible) {
       throw new ErreurAPI('Utilisateur non trouvé.', 404);
     }
 
+    // Compter les stories actives (pour l'indicateur)
+    const nbStories = await Story.countDocuments({
+      utilisateur: id,
+      dateExpiration: { $gt: maintenant },
+    });
+    const hasStories = nbStories > 0;
+
+    // Vérifier si l'utilisateur peut voir les stories
+    let peutVoir = false;
+
+    if (userId) {
+      const userIdStr = userId.toString();
+      const targetIdStr = id.toString();
+
+      // Cas 1: C'est moi
+      if (userIdStr === targetIdStr) {
+        peutVoir = true;
+      } else {
+        // Cas 2: Vérifier amitié bidirectionnelle
+        const utilisateurConnecte = await Utilisateur.findById(userId).select('amis');
+        if (utilisateurConnecte) {
+          const jeLeAiCommeAmi = utilisateurConnecte.amis?.some(
+            (amiId) => amiId.toString() === targetIdStr
+          );
+          const ilMACommeAmi = utilisateurCible.amis?.some(
+            (amiId) => amiId.toString() === userIdStr
+          );
+          peutVoir = Boolean(jeLeAiCommeAmi && ilMACommeAmi);
+        }
+      }
+    }
+
+    // Si non autorisé, retourner hasStories mais pas les stories
+    if (!peutVoir) {
+      res.json({
+        succes: true,
+        data: {
+          utilisateur: {
+            _id: utilisateurCible._id,
+            prenom: utilisateurCible.prenom,
+            nom: utilisateurCible.nom,
+            avatar: utilisateurCible.avatar,
+          },
+          hasStories,
+          peutVoir: false,
+          stories: [], // Pas de contenu si non-ami
+        },
+      });
+      return;
+    }
+
+    // Récupérer les stories si autorisé
     const stories = await Story.find({
       utilisateur: id,
       dateExpiration: { $gt: maintenant },
-    })
-      .sort({ dateCreation: -1 });
+    }).sort({ dateCreation: -1 });
 
     res.json({
       succes: true,
       data: {
-        utilisateur,
+        utilisateur: {
+          _id: utilisateurCible._id,
+          prenom: utilisateurCible.prenom,
+          nom: utilisateurCible.nom,
+          avatar: utilisateurCible.avatar,
+        },
+        hasStories,
+        peutVoir: true,
         stories,
       },
     });
@@ -265,6 +370,7 @@ export const supprimerStory = async (
 /**
  * GET /api/stories/:id
  * Récupérer une story spécifique
+ * RÈGLE DE CONFIDENTIALITÉ: Seul l'auteur ou un ami peut voir la story
  */
 export const getStory = async (
   req: Request,
@@ -274,6 +380,7 @@ export const getStory = async (
   try {
     const { id } = req.params;
     const maintenant = new Date();
+    const userId = req.utilisateur?._id;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new ErreurAPI('ID de story invalide.', 400);
@@ -282,16 +389,60 @@ export const getStory = async (
     const story = await Story.findOne({
       _id: id,
       dateExpiration: { $gt: maintenant },
-    }).populate('utilisateur', 'prenom nom avatar');
+    }).populate('utilisateur', 'prenom nom avatar amis');
 
     if (!story) {
       throw new ErreurAPI('Story non trouvée ou expirée.', 404);
     }
 
+    // Vérifier l'autorisation
+    const auteurId = story.utilisateur._id.toString();
+    let peutVoir = false;
+
+    if (userId) {
+      const userIdStr = userId.toString();
+
+      // Cas 1: C'est ma story
+      if (userIdStr === auteurId) {
+        peutVoir = true;
+      } else {
+        // Cas 2: Vérifier amitié bidirectionnelle
+        const utilisateurConnecte = await Utilisateur.findById(userId).select('amis');
+        const auteur = await Utilisateur.findById(auteurId).select('amis');
+
+        if (utilisateurConnecte && auteur) {
+          const jeLeAiCommeAmi = utilisateurConnecte.amis?.some(
+            (amiId) => amiId.toString() === auteurId
+          );
+          const ilMACommeAmi = auteur.amis?.some(
+            (amiId) => amiId.toString() === userIdStr
+          );
+          peutVoir = Boolean(jeLeAiCommeAmi && ilMACommeAmi);
+        }
+      }
+    }
+
+    if (!peutVoir) {
+      throw new ErreurAPI('Vous devez être ami avec cet utilisateur pour voir sa story.', 403);
+    }
+
     res.json({
       succes: true,
       data: {
-        story,
+        story: {
+          _id: story._id,
+          type: story.type,
+          mediaUrl: story.mediaUrl,
+          thumbnailUrl: story.thumbnailUrl,
+          dateCreation: story.dateCreation,
+          dateExpiration: story.dateExpiration,
+          utilisateur: {
+            _id: story.utilisateur._id,
+            prenom: (story.utilisateur as any).prenom,
+            nom: (story.utilisateur as any).nom,
+            avatar: (story.utilisateur as any).avatar,
+          },
+        },
       },
     });
   } catch (error) {
