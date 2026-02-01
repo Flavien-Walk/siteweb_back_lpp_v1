@@ -7,11 +7,52 @@ export interface ChatListParams {
   before?: string // cursor-based pagination
 }
 
+// Backend message format (uses 'sender' instead of 'author')
+interface BackendMessage {
+  _id: string
+  sender?: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    role?: string
+  }
+  author?: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    role?: string
+  }
+  content: string
+  linkedReport?: {
+    _id: string
+    targetType?: string
+    reason?: string
+    status?: string
+  }
+  dateCreation: string
+}
+
+/**
+ * Normalize backend message: map 'sender' to 'author'
+ */
+function normalizeMessage(msg: BackendMessage): StaffMessage {
+  return {
+    _id: msg._id,
+    author: msg.author ?? msg.sender,
+    content: msg.content,
+    linkedReport: msg.linkedReport,
+    dateCreation: msg.dateCreation,
+  }
+}
+
 export const chatService = {
   /**
    * Get staff chat messages
    * Backend: GET /api/admin/chat
-   * Response: { messages: StaffMessage[], hasMore: boolean }
+   * Response: { messages: BackendMessage[], hasMore: boolean }
+   * Note: Backend returns 'sender' field, we normalize to 'author'
    */
   async getMessages(params: ChatListParams = {}): Promise<PaginatedResponse<StaffMessage>> {
     const searchParams = new URLSearchParams()
@@ -23,8 +64,8 @@ export const chatService = {
     })
 
     const response = await api.get<ApiResponse<{
-      messages?: StaffMessage[]
-      items?: StaffMessage[]
+      messages?: BackendMessage[]
+      items?: BackendMessage[]
       hasMore?: boolean
       pagination?: { page: number; limit: number; total: number; pages: number }
     }>>(
@@ -36,8 +77,9 @@ export const chatService = {
     }
 
     const data = response.data.data
-    // Normalize: backend returns { messages, hasMore }
-    const items = data.items ?? data.messages ?? []
+    // Normalize: backend returns { messages, hasMore } with 'sender' field
+    const rawItems = data.items ?? data.messages ?? []
+    const items = rawItems.map(normalizeMessage)
     const pagination = data.pagination
 
     return {
@@ -53,9 +95,10 @@ export const chatService = {
    * Send a message
    * Backend: POST /api/admin/chat
    * Body: { content: string, linkedReportId?: string }
+   * Note: Backend returns 'sender' field, we normalize to 'author'
    */
   async sendMessage(content: string, linkedReportId?: string): Promise<StaffMessage> {
-    const response = await api.post<ApiResponse<{ message: StaffMessage }>>(
+    const response = await api.post<ApiResponse<{ message: BackendMessage }>>(
       '/admin/chat',
       { content, linkedReportId }
     )
@@ -64,7 +107,7 @@ export const chatService = {
       throw new Error(response.data.message || 'Erreur lors de l\'envoi du message')
     }
 
-    return response.data.data.message
+    return normalizeMessage(response.data.data.message)
   },
 
   /**
