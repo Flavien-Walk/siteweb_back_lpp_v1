@@ -185,4 +185,74 @@ export const uploadPublicationMedia = async (
   }
 };
 
+/**
+ * Résultat d'upload pour les stories (avec thumbnail pour vidéos)
+ */
+export interface StoryUploadResult {
+  url: string;
+  thumbnailUrl?: string;
+}
+
+/**
+ * Upload un média (image ou vidéo) pour une story
+ * Génère automatiquement une thumbnail pour les vidéos
+ * @param mediaData - Data URL base64 du média
+ * @param storyId - ID de la story (utilisé comme public_id)
+ */
+export const uploadStoryMedia = async (
+  mediaData: string,
+  storyId: string
+): Promise<StoryUploadResult> => {
+  try {
+    const isVideo = mediaData.startsWith('data:video/');
+
+    const options: Record<string, any> = {
+      folder: 'lpp/stories',
+      public_id: `story_${storyId}_${Date.now()}`,
+      resource_type: isVideo ? 'video' : 'image',
+      overwrite: true,
+    };
+
+    // Transformations pour stories (format 9:16 pour mobile)
+    if (!isVideo) {
+      options.transformation = [
+        { width: 1080, height: 1920, crop: 'limit' },
+        { quality: 'auto', fetch_format: 'auto' },
+      ];
+    } else {
+      options.transformation = [
+        { width: 1080, height: 1920, crop: 'limit' },
+        { quality: 'auto' },
+      ];
+    }
+
+    const result: UploadApiResponse = await cloudinary.uploader.upload(mediaData, options);
+
+    // Pour les vidéos, générer l'URL de la thumbnail
+    let thumbnailUrl: string | undefined;
+    if (isVideo && result.public_id) {
+      // Cloudinary permet de générer une thumbnail en remplaçant l'extension par .jpg
+      // et en ajoutant des transformations
+      thumbnailUrl = cloudinary.url(result.public_id, {
+        resource_type: 'video',
+        format: 'jpg',
+        transformation: [
+          { width: 400, height: 711, crop: 'fill', gravity: 'auto' },
+          { quality: 'auto' },
+          { start_offset: '0' }, // Première frame
+        ],
+      });
+    }
+
+    return {
+      url: result.secure_url,
+      thumbnailUrl,
+    };
+  } catch (error) {
+    const cloudinaryError = error as UploadApiErrorResponse;
+    console.error('Erreur upload story Cloudinary:', cloudinaryError.message || error);
+    throw new Error(`Erreur lors de l'upload de la story: ${cloudinaryError.message || 'Erreur inconnue'}`);
+  }
+};
+
 export default cloudinary;
