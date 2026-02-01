@@ -28,23 +28,24 @@ import {
   X,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
-import type { ReportStatus, ReportType } from '@/types'
+import type { ReportStatus, ReportReason } from '@/types'
 
 const statusLabels: Record<ReportStatus, string> = {
   pending: 'En attente',
-  in_progress: 'En cours',
-  escalated: 'Escaladé',
-  resolved: 'Résolu',
-  rejected: 'Rejeté',
+  reviewed: 'Examiné',
+  action_taken: 'Action prise',
+  dismissed: 'Rejeté',
 }
 
-const typeLabels: Record<ReportType, string> = {
+const reasonLabels: Record<ReportReason, string> = {
   spam: 'Spam',
-  harassment: 'Harcèlement',
-  hate_speech: 'Discours haineux',
-  inappropriate_content: 'Contenu inapproprié',
-  copyright: 'Droits d\'auteur',
-  other: 'Autre',
+  harcelement: 'Harcèlement',
+  contenu_inapproprie: 'Contenu inapproprié',
+  fausse_info: 'Fausse information',
+  nudite: 'Nudité',
+  violence: 'Violence',
+  haine: 'Discours haineux',
+  autre: 'Autre',
 }
 
 const priorityLabels: Record<string, string> = {
@@ -57,14 +58,13 @@ const priorityLabels: Record<string, string> = {
 function ReportStatusBadge({ status }: { status: ReportStatus }) {
   const variants: Record<ReportStatus, string> = {
     pending: 'warning',
-    in_progress: 'default',
-    escalated: 'escalated',
-    resolved: 'success',
-    rejected: 'secondary',
+    reviewed: 'default',
+    action_taken: 'success',
+    dismissed: 'secondary',
   }
   return (
     <Badge variant={variants[status] as never}>
-      {statusLabels[status]}
+      {statusLabels[status] || status}
     </Badge>
   )
 }
@@ -93,7 +93,7 @@ export function ReportsPage() {
     page: parseInt(searchParams.get('page') || '1'),
     limit: parseInt(searchParams.get('limit') || '20'),
     status: (searchParams.get('status') as ReportStatus) || undefined,
-    type: (searchParams.get('type') as ReportType) || undefined,
+    reason: (searchParams.get('reason') as ReportReason) || undefined,
     priority: (searchParams.get('priority') as 'low' | 'medium' | 'high' | 'critical') || undefined,
     sort: searchParams.get('sort') || 'createdAt',
     order: (searchParams.get('order') as 'asc' | 'desc') || 'desc',
@@ -141,7 +141,7 @@ export function ReportsPage() {
     setSearchParams({ page: '1', limit: '20' })
   }
 
-  const hasActiveFilters = params.status || params.type || params.priority
+  const hasActiveFilters = params.status || params.reason || params.priority
 
   return (
     <div className="p-6">
@@ -203,13 +203,13 @@ export function ReportsPage() {
                 </Select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Type</label>
+                <label className="mb-1 block text-sm font-medium">Raison</label>
                 <Select
-                  value={params.type || ''}
-                  onChange={(e) => updateParams({ type: e.target.value as ReportType || undefined })}
+                  value={params.reason || ''}
+                  onChange={(e) => updateParams({ reason: e.target.value as ReportReason || undefined })}
                 >
-                  <option value="">Tous</option>
-                  {Object.entries(typeLabels).map(([value, label]) => (
+                  <option value="">Toutes</option>
+                  {Object.entries(reasonLabels).map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
                   ))}
                 </Select>
@@ -267,7 +267,7 @@ export function ReportsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead>Raison</TableHead>
               <TableHead>Contenu signalé</TableHead>
               <TableHead>Signalé par</TableHead>
               <TableHead>Statut</TableHead>
@@ -304,16 +304,16 @@ export function ReportsPage() {
                     {report._id.slice(-8)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{typeLabels[report.type]}</Badge>
+                    <Badge variant="outline">{reasonLabels[report.reason] || report.reason}</Badge>
                   </TableCell>
                   <TableCell className="max-w-[200px]">
                     <p className="truncate text-sm">
-                      {report.targetType === 'publication' ? 'Publication' :
+                      {report.targetType === 'post' ? 'Publication' :
                        report.targetType === 'commentaire' ? 'Commentaire' : 'Utilisateur'}
                     </p>
-                    {report.reason && (
+                    {report.details && (
                       <p className="truncate text-xs text-muted-foreground">
-                        {report.reason}
+                        {report.details}
                       </p>
                     )}
                   </TableCell>

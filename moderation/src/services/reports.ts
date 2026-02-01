@@ -1,9 +1,9 @@
 import api from './api'
-import type { Report, ApiResponse, PaginatedResponse, ReportStatus, ReportType } from '@/types'
+import type { Report, ApiResponse, PaginatedResponse, ReportStatus, ReportReason } from '@/types'
 
 export interface ReportFilters {
   status?: ReportStatus
-  type?: ReportType
+  reason?: ReportReason
   priority?: 'low' | 'medium' | 'high' | 'critical'
   reporterId?: string
   targetUserId?: string

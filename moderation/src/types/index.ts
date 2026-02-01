@@ -56,17 +56,22 @@ export interface User {
 
 // ============ REPORTS ============
 
-export type ReportTargetType = 'publication' | 'commentaire' | 'utilisateur'
+export type ReportTargetType = 'post' | 'commentaire' | 'utilisateur'
 
-export type ReportType =
+export type ReportReason =
   | 'spam'
-  | 'harassment'
-  | 'hate_speech'
-  | 'inappropriate_content'
-  | 'copyright'
-  | 'other'
+  | 'harcelement'
+  | 'contenu_inapproprie'
+  | 'fausse_info'
+  | 'nudite'
+  | 'violence'
+  | 'haine'
+  | 'autre'
 
-export type ReportStatus = 'pending' | 'in_progress' | 'escalated' | 'resolved' | 'rejected'
+// Alias for backwards compatibility
+export type ReportType = ReportReason
+
+export type ReportStatus = 'pending' | 'reviewed' | 'action_taken' | 'dismissed'
 
 export type ReportPriority = 'low' | 'medium' | 'high' | 'critical'
 
@@ -101,8 +106,8 @@ export interface Report {
     status?: 'active' | 'suspended' | 'banned'
   }
   targetContent?: string
-  type: ReportType
-  reason?: string
+  reason: ReportReason
+  details?: string
   status: ReportStatus
   priority: ReportPriority
   assignedTo?: {
@@ -117,6 +122,35 @@ export interface Report {
   }
   notes?: ReportNote[]
   duplicateCount?: number
+  reportCount?: number
+  target?: {
+    _id: string
+    auteur?: {
+      _id: string
+      prenom: string
+      nom: string
+      avatar?: string
+    }
+    contenu?: string
+    media?: string[]
+    dateCreation?: string
+    isHidden?: boolean
+  }
+  escalatedAt?: string
+  escalationReason?: string
+  escalatedBy?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  moderatedBy?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  moderatedAt?: string
+  adminNote?: string
+  action?: string
   createdAt: string
   updatedAt?: string
   resolvedAt?: string
