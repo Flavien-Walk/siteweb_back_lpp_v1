@@ -22,23 +22,24 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
-import type { ReportStatus, ReportType } from '@/types'
+import type { ReportStatus, ReportReason } from '@/types'
 
 const statusLabels: Record<ReportStatus, string> = {
   pending: 'En attente',
-  in_progress: 'En cours',
-  escalated: 'Escaladé',
-  resolved: 'Résolu',
-  rejected: 'Rejeté',
+  reviewed: 'Examiné',
+  action_taken: 'Action prise',
+  dismissed: 'Rejeté',
 }
 
-const typeLabels: Record<ReportType, string> = {
+const reasonLabels: Record<ReportReason, string> = {
   spam: 'Spam',
-  harassment: 'Harcèlement',
-  hate_speech: 'Discours haineux',
-  inappropriate_content: 'Contenu inapproprié',
-  copyright: 'Droits d\'auteur',
-  other: 'Autre',
+  harcelement: 'Harcèlement',
+  contenu_inapproprie: 'Contenu inapproprié',
+  fausse_info: 'Fausse information',
+  nudite: 'Nudité',
+  violence: 'Violence',
+  haine: 'Discours haineux',
+  autre: 'Autre',
 }
 
 const priorityLabels: Record<string, string> = {
@@ -49,6 +50,7 @@ const priorityLabels: Record<string, string> = {
 }
 
 const targetTypeLabels: Record<string, string> = {
+  post: 'Publication',
   publication: 'Publication',
   commentaire: 'Commentaire',
   utilisateur: 'Utilisateur',
@@ -57,12 +59,11 @@ const targetTypeLabels: Record<string, string> = {
 function StatusBadge({ status }: { status: ReportStatus }) {
   const variants: Record<ReportStatus, string> = {
     pending: 'warning',
-    in_progress: 'default',
-    escalated: 'escalated',
-    resolved: 'success',
-    rejected: 'secondary',
+    reviewed: 'default',
+    action_taken: 'success',
+    dismissed: 'secondary',
   }
-  return <Badge variant={variants[status] as never}>{statusLabels[status]}</Badge>
+  return <Badge variant={variants[status] as never}>{statusLabels[status] || status}</Badge>
 }
 
 function PriorityBadge({ priority }: { priority: string }) {
@@ -72,7 +73,7 @@ function PriorityBadge({ priority }: { priority: string }) {
     high: 'warning',
     critical: 'destructive',
   }
-  return <Badge variant={variants[priority] as never}>{priorityLabels[priority]}</Badge>
+  return <Badge variant={(variants[priority] || 'default') as never}>{priorityLabels[priority] || priority}</Badge>
 }
 
 export function ReportDetailPage() {
@@ -118,7 +119,8 @@ export function ReportDetailPage() {
 
   const canProcess = hasPermission('reports:process')
   const canEscalate = hasPermission('reports:escalate')
-  const isPending = report?.status === 'pending' || report?.status === 'in_progress'
+  // Allow processing if status is pending or reviewed (not yet action_taken or dismissed)
+  const isPending = report?.status === 'pending' || report?.status === 'reviewed'
 
   if (isLoading) {
     return (
@@ -195,17 +197,17 @@ export function ReportDetailPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Type</p>
-                  <p className="font-medium">{typeLabels[report.type]}</p>
+                  <p className="font-medium">{reasonLabels[report.reason] || report.reason}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Contenu ciblé</p>
-                  <p className="font-medium">{targetTypeLabels[report.targetType]}</p>
+                  <p className="font-medium">{targetTypeLabels[report.targetType] || report.targetType}</p>
                 </div>
               </div>
-              {report.reason && (
+              {report.details && (
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Raison</p>
-                  <p className="mt-1 rounded-md bg-muted p-3">{report.reason}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Détails</p>
+                  <p className="mt-1 rounded-md bg-muted p-3">{report.details}</p>
                 </div>
               )}
               {report.targetContent && (

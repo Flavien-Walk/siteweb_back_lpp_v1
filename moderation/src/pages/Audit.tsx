@@ -282,14 +282,14 @@ export function AuditPage() {
                   <TableCell><div className="h-4 w-40 animate-pulse rounded bg-muted" /></TableCell>
                 </TableRow>
               ))
-            ) : data?.items.length === 0 ? (
+            ) : (data?.items?.length ?? 0) === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                   Aucun log trouvé
                 </TableCell>
               </TableRow>
             ) : (
-              data?.items.map((log) => (
+              (data?.items ?? []).map((log) => (
                 <TableRow key={log._id}>
                   <TableCell className="text-sm">
                     <div>{formatDate(log.dateCreation)}</div>
@@ -356,17 +356,17 @@ export function AuditPage() {
         </Table>
 
         {/* Pagination */}
-        {data && data.totalPages > 1 && (
+        {data && (data.totalPages ?? 1) > 1 && (
           <div className="flex items-center justify-between border-t px-4 py-3">
             <p className="text-sm text-muted-foreground">
-              Page {data.currentPage} sur {data.totalPages} ({data.totalCount} entrées)
+              Page {data.currentPage ?? 1} sur {data.totalPages ?? 1} ({data.totalCount ?? 0} entrées)
             </p>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateParams({ page: data.currentPage - 1 })}
-                disabled={data.currentPage <= 1}
+                onClick={() => updateParams({ page: (data.currentPage ?? 1) - 1 })}
+                disabled={(data.currentPage ?? 1) <= 1}
               >
                 <ChevronLeft className="h-4 w-4" />
                 Précédent
@@ -374,8 +374,8 @@ export function AuditPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateParams({ page: data.currentPage + 1 })}
-                disabled={data.currentPage >= data.totalPages}
+                onClick={() => updateParams({ page: (data.currentPage ?? 1) + 1 })}
+                disabled={(data.currentPage ?? 1) >= (data.totalPages ?? 1)}
               >
                 Suivant
                 <ChevronRight className="h-4 w-4" />

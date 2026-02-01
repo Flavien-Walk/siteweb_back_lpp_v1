@@ -20,7 +20,14 @@ export const chatService = {
       }
     })
 
-    const response = await api.get<ApiResponse<PaginatedResponse<StaffMessage>>>(
+    const response = await api.get<ApiResponse<{
+      messages?: StaffMessage[]
+      items?: StaffMessage[]
+      pagination?: { page: number; limit: number; total: number; pages: number }
+      currentPage?: number
+      totalPages?: number
+      totalCount?: number
+    }>>(
       `/admin/chat?${searchParams.toString()}`
     )
 
@@ -28,7 +35,17 @@ export const chatService = {
       throw new Error(response.data.message || 'Erreur lors du chargement des messages')
     }
 
-    return response.data.data
+    const data = response.data.data
+    // Normalize response format
+    const items = data.items ?? data.messages ?? []
+    const pagination = data.pagination
+
+    return {
+      items,
+      currentPage: data.currentPage ?? pagination?.page ?? 1,
+      totalPages: data.totalPages ?? pagination?.pages ?? 1,
+      totalCount: data.totalCount ?? pagination?.total ?? items.length,
+    }
   },
 
   /**
@@ -73,9 +90,17 @@ export const chatService = {
 
   /**
    * Mark messages as read
+   * Silently ignores errors (non-critical operation)
    */
   async markAsRead(): Promise<void> {
-    await api.post<ApiResponse<null>>('/admin/chat/read')
+    try {
+      await api.post<ApiResponse<null>>('/admin/chat/read', {})
+    } catch (err) {
+      // Non-critical - log in dev but don't throw
+      if (import.meta.env.DEV) {
+        console.warn('[Chat] markAsRead failed:', err)
+      }
+    }
   },
 }
 

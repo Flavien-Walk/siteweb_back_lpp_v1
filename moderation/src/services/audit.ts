@@ -29,7 +29,14 @@ export const auditService = {
       }
     })
 
-    const response = await api.get<ApiResponse<PaginatedResponse<AuditLog>>>(
+    const response = await api.get<ApiResponse<{
+      logs?: AuditLog[]
+      items?: AuditLog[]
+      pagination?: { page: number; limit: number; total: number; pages: number }
+      currentPage?: number
+      totalPages?: number
+      totalCount?: number
+    }>>(
       `/admin/audit?${searchParams.toString()}`
     )
 
@@ -37,7 +44,19 @@ export const auditService = {
       throw new Error(response.data.message || 'Erreur lors du chargement des logs')
     }
 
-    return response.data.data
+    const data = response.data.data
+    // Normalize backend response (could be { logs, pagination } or { items, ... })
+    const items = data.items ?? data.logs ?? []
+    const pagination = data.pagination
+
+    return {
+      items,
+      currentPage: data.currentPage ?? pagination?.page ?? 1,
+      totalPages: data.totalPages ?? pagination?.pages ?? 1,
+      totalCount: data.totalCount ?? pagination?.total ?? items.length,
+      hasNextPage: (data.currentPage ?? pagination?.page ?? 1) < (data.totalPages ?? pagination?.pages ?? 1),
+      hasPrevPage: (data.currentPage ?? pagination?.page ?? 1) > 1,
+    }
   },
 
   /**

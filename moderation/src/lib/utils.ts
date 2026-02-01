@@ -5,16 +5,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(date: string | Date): string {
-  const d = new Date(date)
+/**
+ * Safely parse a date value, returns null if invalid
+ */
+function safeDate(value: string | Date | null | undefined): Date | null {
+  if (!value) return null
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d
+}
+
+export function formatDate(date: string | Date | null | undefined): string {
+  const d = safeDate(date)
+  if (!d) return '—'
   return new Intl.DateTimeFormat('fr-FR', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(d)
 }
 
-export function formatRelativeTime(date: string | Date): string {
-  const d = new Date(date)
+export function formatRelativeTime(date: string | Date | null | undefined): string {
+  const d = safeDate(date)
+  if (!d) return '—'
+
   const now = new Date()
   const diffMs = now.getTime() - d.getTime()
   const diffMins = Math.floor(diffMs / 60000)
