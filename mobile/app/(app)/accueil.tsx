@@ -413,6 +413,7 @@ export default function Accueil() {
   const [storiesAVisionner, setStoriesAVisionner] = useState<Story[]>([]);
   const [storyUserName, setStoryUserName] = useState('');
   const [storyUserAvatar, setStoryUserAvatar] = useState<string | undefined>();
+  const [storyIsOwn, setStoryIsOwn] = useState(false);
   const [storiesRefreshKey, setStoriesRefreshKey] = useState(0);
 
   // Animations FAB
@@ -1854,7 +1855,7 @@ export default function Accueil() {
   );
 
   // Handlers pour les stories
-  const handleStoryPress = useCallback((userId: string, stories: Story[], userName: string) => {
+  const handleStoryPress = useCallback((userId: string, stories: Story[], userName: string, isOwnStory: boolean) => {
     // Trouver l'avatar de l'utilisateur (soit de notre utilisateur, soit des stories)
     let userAvatar: string | undefined;
     if (utilisateur && userId === utilisateur.id) {
@@ -1866,6 +1867,7 @@ export default function Accueil() {
     setStoriesAVisionner(stories);
     setStoryUserName(userName);
     setStoryUserAvatar(userAvatar);
+    setStoryIsOwn(isOwnStory);
     setStoryViewerVisible(true);
   }, [utilisateur]);
 
@@ -2986,9 +2988,12 @@ export default function Accueil() {
         stories={storiesAVisionner}
         userName={storyUserName}
         userAvatar={storyUserAvatar}
+        isOwnStory={storyIsOwn}
         onClose={() => {
           setStoryViewerVisible(false);
           setStoriesAVisionner([]);
+          // Rafraîchir les stories pour mettre à jour les vues
+          setStoriesRefreshKey((prev) => prev + 1);
         }}
       />
 

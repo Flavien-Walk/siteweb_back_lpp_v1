@@ -23,7 +23,7 @@ import {
 } from '../services/stories';
 
 interface StoriesRowProps {
-  onStoryPress: (userId: string, stories: Story[], userName: string) => void;
+  onStoryPress: (userId: string, stories: Story[], userName: string, isOwnStory: boolean) => void;
   onAddStoryPress: () => void;
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -122,7 +122,8 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
                 onStoryPress(
                   utilisateur.id,
                   mesStories,
-                  `${utilisateur.prenom} ${utilisateur.nom}`
+                  `${utilisateur.prenom} ${utilisateur.nom}`,
+                  true // isOwnStory
                 );
               }
             }}
@@ -143,9 +144,11 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
               onStoryPress(
                 groupe.utilisateur._id,
                 groupe.stories,
-                `${groupe.utilisateur.prenom} ${groupe.utilisateur.nom}`
+                `${groupe.utilisateur.prenom} ${groupe.utilisateur.nom}`,
+                false // isOwnStory
               )
             }
+            isSeen={groupe.toutesVues}
           />
         ))}
       </ScrollView>

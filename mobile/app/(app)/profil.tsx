@@ -1617,6 +1617,7 @@ export default function Profil() {
           stories={mesStories}
           userName={utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous'}
           userAvatar={utilisateur?.avatar}
+          isOwnStory={true}
           onClose={() => setStoryViewerVisible(false)}
         />
 

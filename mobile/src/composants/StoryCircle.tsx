@@ -23,6 +23,7 @@ interface StoryCircleProps {
   nom?: string;
   taille?: number;
   hasStory?: boolean;
+  isSeen?: boolean; // true si toutes les stories ont été vues (bordure grise)
   isOwn?: boolean;
   onPress?: () => void;
   onAddPress?: () => void;
@@ -40,6 +41,7 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
   nom = '',
   taille = 64,
   hasStory = false,
+  isSeen = false,
   isOwn = false,
   onPress,
   onAddPress,
@@ -68,8 +70,8 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
       onPress={handlePress}
       disabled={!hasStory && !isOwn}
     >
-      {/* Cercle extérieur avec gradient si story */}
-      {hasStory ? (
+      {/* Cercle extérieur avec gradient si story non vue, gris si vue */}
+      {hasStory && !isSeen ? (
         <LinearGradient
           colors={[couleurs.accent, couleurs.primaire, couleurs.secondaire]}
           start={{ x: 0, y: 0 }}
@@ -98,6 +100,36 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
             />
           </View>
         </LinearGradient>
+      ) : hasStory && isSeen ? (
+        <View
+          style={[
+            styles.seenBorder,
+            {
+              width: taille,
+              height: taille,
+              borderRadius: taille / 2,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.avatarWrapper,
+              {
+                width: taille - borderWidth * 2,
+                height: taille - borderWidth * 2,
+                borderRadius: (taille - borderWidth * 2) / 2,
+                backgroundColor: themeColors.fond,
+              },
+            ]}
+          >
+            <Avatar
+              uri={uri}
+              prenom={prenom}
+              nom={nom}
+              taille={innerSize}
+            />
+          </View>
+        </View>
       ) : (
         <View
           style={[
@@ -162,6 +194,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
+  },
+  seenBorder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#8E8E8E', // Gris Instagram pour stories vues
   },
   addButton: {
     position: 'absolute',

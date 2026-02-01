@@ -23,12 +23,14 @@ export interface Story {
   thumbnailUrl?: string;
   dateCreation: string;
   dateExpiration: string;
+  estVue?: boolean; // true si l'utilisateur connecté a vu cette story
 }
 
 export interface StoriesGroupeesParUtilisateur {
   utilisateur: StoryUtilisateur;
   stories: Story[];
   derniereStory: string;
+  toutesVues?: boolean; // true si toutes les stories du groupe ont été vues
 }
 
 /**
@@ -39,6 +41,7 @@ export interface StoriesUtilisateurResponse {
   utilisateur: StoryUtilisateur;
   hasStories: boolean;
   peutVoir: boolean;
+  toutesVues?: boolean; // true si toutes les stories ont été vues
   stories: Story[];
 }
 
@@ -102,6 +105,16 @@ export const supprimerStory = async (
   id: string
 ): Promise<ReponseAPI<{ message: string }>> => {
   return api.delete(`/stories/${id}`, true);
+};
+
+/**
+ * Marquer une story comme vue
+ * Appel atomic avec $addToSet côté backend pour éviter les doublons
+ */
+export const markStorySeen = async (
+  storyId: string
+): Promise<ReponseAPI<{ message: string }>> => {
+  return api.post(`/stories/${storyId}/seen`, {}, true);
 };
 
 /**

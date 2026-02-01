@@ -972,6 +972,7 @@ export default function ProfilUtilisateurPage() {
         stories={storiesUtilisateur}
         userName={profil ? `${profil.prenom} ${profil.nom}` : ''}
         userAvatar={profil?.avatar}
+        isOwnStory={id === moi?.id}
         onClose={() => setStoryViewerVisible(false)}
       />
     </View>

@@ -28,7 +28,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from './Avatar';
 import { couleurs, espacements, typographie } from '../constantes/theme';
-import { Story, formatTempsRestant } from '../services/stories';
+import { Story, formatTempsRestant, markStorySeen } from '../services/stories';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const STORY_DURATION = 5000; // 5 secondes pour les photos
@@ -39,6 +39,7 @@ interface StoryViewerProps {
   userName: string;
   userAvatar?: string;
   initialIndex?: number;
+  isOwnStory?: boolean; // true si ce sont ses propres stories (pas de marquage vue)
   onClose: () => void;
   onAllStoriesViewed?: () => void;
 }
@@ -49,6 +50,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   userName,
   userAvatar,
   initialIndex = 0,
+  isOwnStory = false,
   onClose,
   onAllStoriesViewed,
 }) => {
@@ -59,6 +61,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPaused, setIsPaused] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const markedSeenRef = useRef<Set<string>>(new Set()); // Stories déjà marquées comme vues
 
   // Animation de progression
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -79,8 +82,26 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
       setIsLoading(true);
       progressAnim.setValue(0);
       translateY.setValue(0);
+      markedSeenRef.current.clear(); // Reset le suivi des stories vues
     }
   }, [visible, initialIndex]);
+
+  // Marquer la story comme vue quand elle est affichée
+  useEffect(() => {
+    if (!visible || isOwnStory || !currentStory) return;
+
+    const storyId = currentStory._id;
+
+    // Ne pas re-marquer si déjà marquée dans cette session ou si déjà vue avant
+    if (markedSeenRef.current.has(storyId) || currentStory.estVue) return;
+
+    // Marquer comme vue côté API
+    markedSeenRef.current.add(storyId);
+    markStorySeen(storyId).catch((error) => {
+      console.error('Erreur markStorySeen:', error);
+      // On garde quand même dans le set pour éviter les retries
+    });
+  }, [visible, currentIndex, isOwnStory, currentStory]);
 
   // Démarrer/arrêter la progression
   const startProgress = useCallback((duration: number) => {
