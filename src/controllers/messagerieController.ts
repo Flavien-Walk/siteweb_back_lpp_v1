@@ -268,29 +268,26 @@ export const envoyerMessage = async (
         throw new ErreurAPI('Vous ne pouvez pas vous envoyer un message.', 400);
       }
 
-      // Trouver ou créer la conversation privée (opération atomique avec upsert)
+      // Trouver ou créer la conversation privée
       // Tri des participants pour garantir un ordre cohérent dans la requête
       const participantsTries = [userId.toString(), donnees.destinataireId].sort();
 
-      conversation = await Conversation.findOneAndUpdate(
-        {
-          participants: { $all: participantsTries, $size: 2 },
+      // Chercher d'abord une conversation existante
+      conversation = await Conversation.findOne({
+        participants: { $all: participantsTries, $size: 2 },
+        estGroupe: false,
+      });
+
+      // Si pas trouvée, créer une nouvelle conversation
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: participantsTries,
           estGroupe: false,
-        },
-        {
-          $setOnInsert: {
-            participants: participantsTries,
-            estGroupe: false,
-            admins: [],
-            muetPar: [],
-            dateMiseAJour: new Date(),
-          },
-        },
-        {
-          upsert: true,
-          new: true,
-        }
-      );
+          admins: [],
+          muetPar: [],
+          dateMiseAJour: new Date(),
+        });
+      }
     } else {
       throw new ErreurAPI('conversationId ou destinataireId requis.', 400);
     }
@@ -771,31 +768,28 @@ export const getOuCreerConversationPrivee = async (
       throw new ErreurAPI('Utilisateur non trouvé.', 404);
     }
 
-    // Trouver ou créer la conversation (opération atomique avec upsert)
+    // Trouver ou créer la conversation privée
     const participantsTries = [userId.toString(), autreUserId].sort();
 
-    let conversation = await Conversation.findOneAndUpdate(
-      {
-        participants: { $all: participantsTries, $size: 2 },
-        estGroupe: false,
-      },
-      {
-        $setOnInsert: {
-          participants: participantsTries,
-          estGroupe: false,
-          admins: [],
-          muetPar: [],
-          dateMiseAJour: new Date(),
-        },
-      },
-      {
-        upsert: true,
-        new: true,
-      }
-    );
+    // Chercher d'abord une conversation existante
+    let conversation = await Conversation.findOne({
+      participants: { $all: participantsTries, $size: 2 },
+      estGroupe: false,
+    });
 
-    // Peupler les participants après l'upsert
-    const conversationPeuplee = await Conversation.findById(conversation!._id)
+    // Si pas trouvée, créer une nouvelle conversation
+    if (!conversation) {
+      conversation = await Conversation.create({
+        participants: participantsTries,
+        estGroupe: false,
+        admins: [],
+        muetPar: [],
+        dateMiseAJour: new Date(),
+      });
+    }
+
+    // Peupler les participants
+    const conversationPeuplee = await Conversation.findById(conversation._id)
       .populate('participants', 'prenom nom avatar');
 
     res.json({
