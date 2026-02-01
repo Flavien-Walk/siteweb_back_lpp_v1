@@ -40,7 +40,7 @@ const storySchema = new Schema<IStory>(
     },
     dateExpiration: {
       type: Date,
-      required: true,
+      default: () => new Date(Date.now() + STORY_DURATION_MS),
       index: true,
     },
   },
@@ -51,14 +51,6 @@ const storySchema = new Schema<IStory>(
     },
   }
 );
-
-// Middleware pre-save pour calculer dateExpiration automatiquement
-storySchema.pre('save', function (next) {
-  if (this.isNew && !this.dateExpiration) {
-    this.dateExpiration = new Date(Date.now() + STORY_DURATION_MS);
-  }
-  next();
-});
 
 // Index pour récupérer les stories actives d'un utilisateur
 storySchema.index({ utilisateur: 1, dateExpiration: 1 });
