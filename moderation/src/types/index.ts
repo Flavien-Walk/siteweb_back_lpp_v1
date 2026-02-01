@@ -229,7 +229,7 @@ export interface UserReport {
   targetId: string
   reason: string
   status: ReportStatus
-  createdAt: string
+  dateCreation: string
   targetContent?: string
 }
 

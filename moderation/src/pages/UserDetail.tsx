@@ -307,7 +307,7 @@ export function UserDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Inscrit le</p>
-                  <p>{formatDate(user.createdAt)}</p>
+                  <p>{formatDate(user.dateCreation)}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Dernière activité</p>
@@ -490,7 +490,7 @@ export function UserDetailPage() {
                           </div>
                           <p className="text-sm line-clamp-1">{report.reason}</p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {formatRelativeTime(report.createdAt)}
+                            {formatRelativeTime(report.dateCreation)}
                           </p>
                         </div>
                       ))}
