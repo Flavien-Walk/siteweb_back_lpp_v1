@@ -97,10 +97,12 @@ export const usersService = {
 
   /**
    * Warn a user
+   * Backend: POST /api/admin/users/:id/warn
+   * Body: { reason: string }
    */
   async warnUser(id: string, reason: string): Promise<User> {
     const response = await api.post<ApiResponse<{ user: User }>>(
-      `/admin/moderation/${id}/warn`,
+      `/admin/users/${id}/warn`,
       { reason }
     )
 
@@ -113,10 +115,12 @@ export const usersService = {
 
   /**
    * Suspend a user
+   * Backend: POST /api/admin/users/:id/suspend
+   * Body: { reason: string, duration?: number (hours) }
    */
   async suspendUser(id: string, params: SanctionParams): Promise<User> {
     const response = await api.post<ApiResponse<{ user: User }>>(
-      `/admin/moderation/${id}/suspend`,
+      `/admin/users/${id}/suspend`,
       params
     )
 
@@ -129,10 +133,12 @@ export const usersService = {
 
   /**
    * Ban a user
+   * Backend: POST /api/admin/users/:id/ban
+   * Body: { reason: string }
    */
   async banUser(id: string, reason: string): Promise<User> {
     const response = await api.post<ApiResponse<{ user: User }>>(
-      `/admin/moderation/${id}/ban`,
+      `/admin/users/${id}/ban`,
       { reason }
     )
 
@@ -145,10 +151,11 @@ export const usersService = {
 
   /**
    * Unban a user
+   * Backend: POST /api/admin/users/:id/unban
    */
   async unbanUser(id: string): Promise<User> {
     const response = await api.post<ApiResponse<{ user: User }>>(
-      `/admin/moderation/${id}/unban`
+      `/admin/users/${id}/unban`
     )
 
     if (!response.data.succes || !response.data.data) {
