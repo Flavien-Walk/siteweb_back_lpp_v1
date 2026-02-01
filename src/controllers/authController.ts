@@ -58,6 +58,7 @@ export const inscription = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
+          nbAmis: utilisateur.amis?.length || 0,
         },
         token,
       },
@@ -122,6 +123,7 @@ export const connexion = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
+          nbAmis: utilisateur.amis?.length || 0,
         },
         token,
       },
@@ -162,6 +164,7 @@ export const moi = async (
           statut: utilisateur.statut,
           provider: utilisateur.provider,
           dateCreation: utilisateur.dateCreation,
+          nbAmis: utilisateur.amis?.length || 0,
         },
       },
     });
