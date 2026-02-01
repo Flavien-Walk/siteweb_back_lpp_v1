@@ -31,6 +31,17 @@ export interface StoriesGroupeesParUtilisateur {
   derniereStory: string;
 }
 
+/**
+ * Réponse pour les stories d'un utilisateur spécifique
+ * Inclut hasStories (indicateur visible) et peutVoir (autorisation)
+ */
+export interface StoriesUtilisateurResponse {
+  utilisateur: StoryUtilisateur;
+  hasStories: boolean;
+  peutVoir: boolean;
+  stories: Story[];
+}
+
 // ============ STORIES ============
 
 /**
@@ -54,10 +65,12 @@ export const getMesStories = async (): Promise<
 
 /**
  * Récupérer les stories d'un utilisateur spécifique
+ * Retourne hasStories (indicateur visible) et peutVoir (si ami)
+ * Si non-ami: stories sera vide mais hasStories indique si l'utilisateur a des stories
  */
 export const getStoriesUtilisateur = async (
   userId: string
-): Promise<ReponseAPI<{ utilisateur: StoryUtilisateur; stories: Story[] }>> => {
+): Promise<ReponseAPI<StoriesUtilisateurResponse>> => {
   return api.get(`/stories/utilisateur/${userId}`, true);
 };
 

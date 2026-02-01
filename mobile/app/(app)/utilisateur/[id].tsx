@@ -59,6 +59,8 @@ export default function ProfilUtilisateurPage() {
 
   // Stories de l'utilisateur
   const [storiesUtilisateur, setStoriesUtilisateur] = useState<Story[]>([]);
+  const [hasStories, setHasStories] = useState(false);
+  const [peutVoirStories, setPeutVoirStories] = useState(false);
   const [storyViewerVisible, setStoryViewerVisible] = useState(false);
 
   // Modal visionneuse média
@@ -223,6 +225,8 @@ export default function ProfilUtilisateurPage() {
     try {
       const reponse = await getStoriesUtilisateur(id);
       if (reponse.succes && reponse.data) {
+        setHasStories(reponse.data.hasStories);
+        setPeutVoirStories(reponse.data.peutVoir);
         setStoriesUtilisateur(reponse.data.stories);
       }
     } catch (error) {
@@ -490,15 +494,23 @@ export default function ProfilUtilisateurPage() {
           <Pressable
             style={styles.avatarSection}
             onPress={() => {
-              if (storiesUtilisateur.length > 0) {
-                setStoryViewerVisible(true);
+              if (hasStories) {
+                if (peutVoirStories) {
+                  setStoryViewerVisible(true);
+                } else {
+                  // Non-ami: bloquer l'accès avec message
+                  showToast('Devenez ami pour voir les stories');
+                }
               }
             }}
-            disabled={storiesUtilisateur.length === 0}
+            disabled={!hasStories}
           >
-            {storiesUtilisateur.length > 0 ? (
+            {hasStories ? (
               <LinearGradient
-                colors={[couleurs.accent, couleurs.primaire, couleurs.secondaire]}
+                colors={peutVoirStories
+                  ? [couleurs.accent, couleurs.primaire, couleurs.secondaire]
+                  : ['#666', '#888', '#666'] // Gris si non-ami
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.avatarGradient}
