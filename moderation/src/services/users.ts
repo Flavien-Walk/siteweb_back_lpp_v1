@@ -233,6 +233,43 @@ export const usersService = {
   },
 
   /**
+   * Get user's complete activity (publications, comments, reports sent, sanctions)
+   */
+  async getUserActivity(
+    id: string,
+    params: { page?: number; limit?: number; type?: 'all' | 'publication' | 'commentaire' | 'report' | 'sanction' } = {}
+  ): Promise<{
+    stats: { totalPublications: number; totalCommentaires: number; totalReportsSent: number; totalSanctions: number }
+    activities: Array<{
+      type: 'publication' | 'commentaire' | 'report_sent' | 'sanction'
+      date: string
+      data: Record<string, unknown>
+    }>
+    pagination: { page: number; limit: number; total: number; pages: number }
+  }> {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.append('page', String(params.page))
+    if (params.limit) searchParams.append('limit', String(params.limit))
+    if (params.type) searchParams.append('type', params.type)
+
+    const response = await api.get<ApiResponse<{
+      stats: { totalPublications: number; totalCommentaires: number; totalReportsSent: number; totalSanctions: number }
+      activities: Array<{
+        type: 'publication' | 'commentaire' | 'report_sent' | 'sanction'
+        date: string
+        data: Record<string, unknown>
+      }>
+      pagination: { page: number; limit: number; total: number; pages: number }
+    }>>(`/admin/users/${id}/activity?${searchParams.toString()}`)
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || "Erreur lors du chargement de l'activité")
+    }
+
+    return response.data.data
+  },
+
+  /**
    * Get reports created by this user
    */
   async getUserReports(id: string, params: { page?: number; limit?: number } = {}): Promise<{

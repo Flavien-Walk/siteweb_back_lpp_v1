@@ -54,7 +54,21 @@ const timelineEventIcons: Record<string, React.ReactNode> = {
   content_action: <FileText className="h-4 w-4 text-gray-500" />,
 }
 
-type HistoryTab = 'timeline' | 'reports' | 'audit'
+type HistoryTab = 'timeline' | 'reports' | 'audit' | 'activity'
+
+const activityTypeLabels: Record<string, string> = {
+  publication: 'Publication',
+  commentaire: 'Commentaire',
+  report_sent: 'Signalement émis',
+  sanction: 'Sanction reçue',
+}
+
+const activityTypeIcons: Record<string, React.ReactNode> = {
+  publication: <FileText className="h-4 w-4 text-blue-500" />,
+  commentaire: <FileText className="h-4 w-4 text-green-500" />,
+  report_sent: <Flag className="h-4 w-4 text-orange-500" />,
+  sanction: <AlertTriangle className="h-4 w-4 text-red-500" />,
+}
 
 function UserStatusBadge({ user }: { user: UserType }) {
   if (user.bannedAt) {
@@ -109,6 +123,13 @@ export function UserDetailPage() {
     queryKey: ['user-reports', id],
     queryFn: () => usersService.getUserReports(id!),
     enabled: !!id && historyTab === 'reports',
+  })
+
+  // Fetch user activity
+  const { data: userActivity, isLoading: isLoadingActivity } = useQuery({
+    queryKey: ['user-activity', id],
+    queryFn: () => usersService.getUserActivity(id!),
+    enabled: !!id && historyTab === 'activity',
   })
 
   // Warn mutation
@@ -376,6 +397,17 @@ export function UserDetailPage() {
                   <FileText className="h-4 w-4 inline mr-1" />
                   Audit logs
                 </button>
+                <button
+                  onClick={() => setHistoryTab('activity')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    historyTab === 'activity'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Activity className="h-4 w-4 inline mr-1" />
+                  Activité complète
+                </button>
               </div>
 
               {/* Timeline tab */}
@@ -514,6 +546,117 @@ export function UserDetailPage() {
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">
                       Aucun audit log
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Activity tab */}
+              {historyTab === 'activity' && (
+                <div className="space-y-4">
+                  {isLoadingActivity ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+                      ))}
+                    </div>
+                  ) : userActivity ? (
+                    <>
+                      {/* Stats summary */}
+                      <div className="grid grid-cols-4 gap-2 mb-4">
+                        <div className="text-center p-2 bg-muted rounded">
+                          <p className="text-lg font-semibold">{userActivity.stats.totalPublications}</p>
+                          <p className="text-xs text-muted-foreground">Publications</p>
+                        </div>
+                        <div className="text-center p-2 bg-muted rounded">
+                          <p className="text-lg font-semibold">{userActivity.stats.totalCommentaires}</p>
+                          <p className="text-xs text-muted-foreground">Commentaires</p>
+                        </div>
+                        <div className="text-center p-2 bg-muted rounded">
+                          <p className="text-lg font-semibold">{userActivity.stats.totalReportsSent}</p>
+                          <p className="text-xs text-muted-foreground">Signalements</p>
+                        </div>
+                        <div className="text-center p-2 bg-muted rounded">
+                          <p className="text-lg font-semibold">{userActivity.stats.totalSanctions}</p>
+                          <p className="text-xs text-muted-foreground">Sanctions</p>
+                        </div>
+                      </div>
+
+                      {/* Activity list */}
+                      {userActivity.activities && userActivity.activities.length > 0 ? (
+                        <div className="relative">
+                          <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-muted" />
+                          {userActivity.activities.map((activity, index) => (
+                            <div key={`${activity.type}-${index}`} className="relative pl-10 pb-4">
+                              <div className="absolute left-2 top-1 p-1 bg-background rounded-full border">
+                                {activityTypeIcons[activity.type] || <Activity className="h-4 w-4" />}
+                              </div>
+                              <div className="rounded-md border p-3">
+                                <div className="flex items-center justify-between mb-1">
+                                  <Badge variant="secondary">
+                                    {activityTypeLabels[activity.type] || activity.type}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatRelativeTime(activity.date)}
+                                  </span>
+                                </div>
+                                {activity.type === 'publication' && 'contenu' in activity.data && (
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {String(activity.data.contenu)}
+                                    {Boolean(activity.data.hasMedia) && (
+                                      <span className="ml-1 text-blue-500">
+                                        {' '}📎 {String(activity.data.mediaCount)} média(s)
+                                      </span>
+                                    )}
+                                  </p>
+                                )}
+                                {activity.type === 'commentaire' && 'contenu' in activity.data && (
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {String(activity.data.contenu)}
+                                  </p>
+                                )}
+                                {activity.type === 'report_sent' && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {String(activity.data.reason)} ({String(activity.data.status)})
+                                  </p>
+                                )}
+                                {activity.type === 'sanction' && (
+                                  <>
+                                    <p className="text-sm font-medium text-red-600">
+                                      {String(activity.data.action)}
+                                    </p>
+                                    {activity.data.reason && (
+                                      <p className="text-sm text-muted-foreground">
+                                        {String(activity.data.reason)}
+                                      </p>
+                                    )}
+                                    {activity.data.moderator && (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Par {(activity.data.moderator as { prenom: string; nom: string }).prenom}{' '}
+                                        {(activity.data.moderator as { prenom: string; nom: string }).nom}
+                                      </p>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          Aucune activité enregistrée
+                        </p>
+                      )}
+
+                      {userActivity.pagination.pages > 1 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          {userActivity.pagination.total} activités au total
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Impossible de charger l'activité
                     </p>
                   )}
                 </div>
