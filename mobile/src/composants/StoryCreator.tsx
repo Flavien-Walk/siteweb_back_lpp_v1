@@ -1,6 +1,6 @@
 /**
  * StoryCreator - Modal de création de story
- * Permet de sélectionner une photo ou vidéo et de la publier
+ * Permet de prendre une photo/vidéo avec la caméra ou choisir depuis la galerie
  */
 
 import React, { useState, useCallback } from 'react';
@@ -29,6 +29,8 @@ import { creerStory, TypeStory } from '../services/stories';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAX_VIDEO_SIZE_MB = 50;
 const MAX_IMAGE_SIZE_MB = 10;
+
+type MediaSource = 'camera_photo' | 'camera_video' | 'gallery';
 
 interface StoryCreatorProps {
   visible: boolean;
@@ -61,8 +63,8 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     onClose();
   }, [onClose]);
 
-  // Demander les permissions
-  const requestPermissions = async (): Promise<boolean> => {
+  // Demander les permissions galerie
+  const requestGalleryPermissions = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(
@@ -75,9 +77,127 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     return true;
   };
 
-  // Sélectionner un média
-  const selectMedia = async () => {
-    const hasPermission = await requestPermissions();
+  // Demander les permissions caméra (+ micro pour vidéo)
+  const requestCameraPermissions = async (needsMicrophone: boolean): Promise<boolean> => {
+    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+    if (cameraStatus !== 'granted') {
+      Alert.alert(
+        'Permission caméra requise',
+        'Veuillez autoriser l\'accès à la caméra pour prendre une photo ou vidéo.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+
+    // Pour la vidéo, on a besoin du micro (géré automatiquement par expo-image-picker)
+    if (needsMicrophone) {
+      const { status: micStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      // Note: expo-image-picker gère le micro automatiquement avec la caméra
+    }
+
+    return true;
+  };
+
+  // Traiter un asset média (commun à caméra et galerie)
+  const processMediaAsset = async (asset: ImagePicker.ImagePickerAsset): Promise<void> => {
+    const isVideo = asset.type === 'video';
+    const mediaType: TypeStory = isVideo ? 'video' : 'photo';
+
+    // Vérifier la taille du fichier
+    const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+    if (fileInfo.exists && 'size' in fileInfo) {
+      const sizeMB = fileInfo.size / (1024 * 1024);
+      const maxSize = isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
+
+      if (sizeMB > maxSize) {
+        Alert.alert(
+          'Fichier trop volumineux',
+          `Le fichier ne doit pas dépasser ${maxSize} MB. Votre fichier fait ${sizeMB.toFixed(1)} MB.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
+    // Convertir en base64
+    try {
+      const fileBase64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: 'base64',
+      });
+
+      // Déterminer le type MIME
+      let mimeType = asset.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg');
+      if (isVideo && !mimeType.startsWith('video/')) {
+        mimeType = 'video/mp4';
+      }
+      if (!isVideo && !mimeType.startsWith('image/')) {
+        mimeType = 'image/jpeg';
+      }
+
+      const base64 = `data:${mimeType};base64,${fileBase64}`;
+
+      setSelectedMedia({
+        uri: asset.uri,
+        type: mediaType,
+        base64,
+        mimeType,
+      });
+    } catch (error) {
+      console.error('Erreur conversion base64:', error);
+      Alert.alert('Erreur', 'Impossible de traiter ce fichier.');
+    }
+  };
+
+  // Prendre une photo avec la caméra
+  const takePhoto = async () => {
+    const hasPermission = await requestCameraPermissions(false);
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      await processMediaAsset(result.assets[0]);
+    } catch (error) {
+      console.error('Erreur capture photo:', error);
+      Alert.alert('Erreur', 'Impossible de prendre la photo.');
+    }
+  };
+
+  // Filmer une vidéo avec la caméra
+  const recordVideo = async () => {
+    const hasPermission = await requestCameraPermissions(true);
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: false,
+        quality: 0.8,
+        videoMaxDuration: 60, // Max 60 secondes
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      await processMediaAsset(result.assets[0]);
+    } catch (error) {
+      console.error('Erreur capture vidéo:', error);
+      Alert.alert('Erreur', 'Impossible de filmer la vidéo.');
+    }
+  };
+
+  // Choisir depuis la galerie
+  const selectFromGallery = async () => {
+    const hasPermission = await requestGalleryPermissions();
     if (!hasPermission) return;
 
     try {
@@ -92,54 +212,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
         return;
       }
 
-      const asset = result.assets[0];
-      const isVideo = asset.type === 'video';
-      const mediaType: TypeStory = isVideo ? 'video' : 'photo';
-
-      // Vérifier la taille du fichier
-      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
-      if (fileInfo.exists && 'size' in fileInfo) {
-        const sizeMB = fileInfo.size / (1024 * 1024);
-        const maxSize = isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
-
-        if (sizeMB > maxSize) {
-          Alert.alert(
-            'Fichier trop volumineux',
-            `Le fichier ne doit pas dépasser ${maxSize} MB. Votre fichier fait ${sizeMB.toFixed(1)} MB.`,
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-      }
-
-      // Convertir en base64
-      let base64: string | undefined;
-      try {
-        const fileBase64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: 'base64',
-        });
-
-        // Déterminer le type MIME
-        let mimeType = asset.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg');
-        if (isVideo && !mimeType.startsWith('video/')) {
-          mimeType = 'video/mp4';
-        }
-        if (!isVideo && !mimeType.startsWith('image/')) {
-          mimeType = 'image/jpeg';
-        }
-
-        base64 = `data:${mimeType};base64,${fileBase64}`;
-
-        setSelectedMedia({
-          uri: asset.uri,
-          type: mediaType,
-          base64,
-          mimeType,
-        });
-      } catch (error) {
-        console.error('Erreur conversion base64:', error);
-        Alert.alert('Erreur', 'Impossible de traiter ce fichier.');
-      }
+      await processMediaAsset(result.assets[0]);
     } catch (error) {
       console.error('Erreur sélection média:', error);
       Alert.alert('Erreur', 'Impossible de sélectionner le média.');
@@ -289,7 +362,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
                 end={{ x: 1, y: 1 }}
                 style={styles.selectIconContainer}
               >
-                <Ionicons name="images" size={48} color={couleurs.blanc} />
+                <Ionicons name="add-circle" size={48} color={couleurs.blanc} />
               </LinearGradient>
 
               <Text style={[styles.selectTitle, { color: themeColors.texte }]}>
@@ -301,23 +374,59 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
                 Votre story sera visible pendant 24h.
               </Text>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.selectButton,
-                  pressed && styles.selectButtonPressed,
-                ]}
-                onPress={selectMedia}
-              >
-                <LinearGradient
-                  colors={[couleurs.primaire, couleurs.primaireDark]}
-                  style={styles.selectButtonGradient}
+              {/* Boutons d'action */}
+              <View style={styles.actionButtonsContainer}>
+                {/* Prendre une photo */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionButton,
+                    { backgroundColor: themeColors.fondCard },
+                    pressed && styles.actionButtonPressed,
+                  ]}
+                  onPress={takePhoto}
                 >
-                  <Ionicons name="add" size={24} color={couleurs.blanc} />
-                  <Text style={styles.selectButtonText}>
-                    Choisir une photo ou vidéo
+                  <View style={[styles.actionIconContainer, { backgroundColor: couleurs.primaire }]}>
+                    <Ionicons name="camera" size={24} color={couleurs.blanc} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: themeColors.texte }]}>
+                    Prendre une photo
                   </Text>
-                </LinearGradient>
-              </Pressable>
+                </Pressable>
+
+                {/* Filmer une vidéo */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionButton,
+                    { backgroundColor: themeColors.fondCard },
+                    pressed && styles.actionButtonPressed,
+                  ]}
+                  onPress={recordVideo}
+                >
+                  <View style={[styles.actionIconContainer, { backgroundColor: couleurs.secondaire }]}>
+                    <Ionicons name="videocam" size={24} color={couleurs.blanc} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: themeColors.texte }]}>
+                    Filmer une vidéo
+                  </Text>
+                </Pressable>
+
+                {/* Choisir depuis la galerie */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionButton,
+                    { backgroundColor: themeColors.fondCard },
+                    pressed && styles.actionButtonPressed,
+                  ]}
+                  onPress={selectFromGallery}
+                >
+                  <View style={[styles.actionIconContainer, { backgroundColor: couleurs.accent }]}>
+                    <Ionicons name="images" size={24} color={couleurs.blanc} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: themeColors.texte }]}>
+                    Galerie
+                  </Text>
+                </Pressable>
+              </View>
 
               <View style={styles.infoContainer}>
                 <View style={styles.infoItem}>
@@ -449,24 +558,35 @@ const styles = StyleSheet.create({
     marginBottom: espacements.xxl,
     lineHeight: 22,
   },
-  selectButton: {
-    borderRadius: rayons.full,
-    overflow: 'hidden',
-  },
-  selectButtonPressed: {
-    opacity: 0.8,
-  },
-  selectButtonGradient: {
+  actionButtonsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: espacements.xl,
-    paddingVertical: espacements.md,
-    gap: espacements.sm,
+    justifyContent: 'center',
+    gap: espacements.md,
+    marginBottom: espacements.lg,
   },
-  selectButtonText: {
-    color: couleurs.blanc,
-    fontSize: typographie.tailles.base,
-    fontWeight: typographie.poids.semibold,
+  actionButton: {
+    alignItems: 'center',
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.md,
+    borderRadius: rayons.lg,
+    minWidth: 100,
+  },
+  actionButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.97 }],
+  },
+  actionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: espacements.sm,
+  },
+  actionButtonText: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.medium,
+    textAlign: 'center',
   },
   infoContainer: {
     marginTop: espacements.xxl,
