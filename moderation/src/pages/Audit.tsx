@@ -292,9 +292,9 @@ export function AuditPage() {
               data?.items.map((log) => (
                 <TableRow key={log._id}>
                   <TableCell className="text-sm">
-                    <div>{formatDate(log.createdAt)}</div>
+                    <div>{formatDate(log.dateCreation)}</div>
                     <div className="text-xs text-muted-foreground">
-                      {formatRelativeTime(log.createdAt)}
+                      {formatRelativeTime(log.dateCreation)}
                     </div>
                   </TableCell>
                   <TableCell>

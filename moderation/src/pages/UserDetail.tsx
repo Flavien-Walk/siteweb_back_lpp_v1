@@ -524,7 +524,7 @@ export function UserDetailPage() {
                           <div className="flex items-center justify-between mb-1">
                             <Badge variant="outline">{log.action}</Badge>
                             <span className="text-xs text-muted-foreground">
-                              {formatRelativeTime(log.createdAt)}
+                              {formatRelativeTime(log.dateCreation)}
                             </span>
                           </div>
                           {log.reason && (

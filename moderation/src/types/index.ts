@@ -83,7 +83,7 @@ export interface ReportNote {
     prenom: string
     nom: string
   }
-  createdAt: string
+  dateCreation: string
 }
 
 export interface Report {
@@ -190,7 +190,7 @@ export interface AuditLog {
   targetId?: string
   reason?: string
   metadata?: Record<string, unknown>
-  createdAt: string
+  dateCreation: string
 }
 
 // ============ USER TIMELINE / HISTORY ============
@@ -251,7 +251,7 @@ export interface StaffMessage {
     reason?: string
     status?: string
   }
-  createdAt: string
+  dateCreation: string
 }
 
 // ============ DASHBOARD ============

@@ -174,7 +174,7 @@ export function ReportDetailPage() {
               <PriorityBadge priority={report.priority} />
             </h1>
             <p className="text-muted-foreground">
-              Créé {formatRelativeTime(report.createdAt)}
+              Créé {formatRelativeTime(report.dateCreation)}
             </p>
           </div>
         </div>
@@ -347,7 +347,7 @@ export function ReportDetailPage() {
                           {note.author?.prenom} {note.author?.nom}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {formatRelativeTime(note.createdAt)}
+                          {formatRelativeTime(note.dateCreation)}
                         </span>
                       </div>
                       <p className="text-sm">{note.content}</p>
@@ -426,12 +426,12 @@ export function ReportDetailPage() {
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Créé le</span>
-                <span>{formatDate(report.createdAt)}</span>
+                <span>{formatDate(report.dateCreation)}</span>
               </div>
-              {report.updatedAt && report.updatedAt !== report.createdAt && (
+              {report.dateMiseAJour && report.dateMiseAJour !== report.dateCreation && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Mis à jour</span>
-                  <span>{formatDate(report.updatedAt)}</span>
+                  <span>{formatDate(report.dateMiseAJour)}</span>
                 </div>
               )}
               {report.resolvedAt && (

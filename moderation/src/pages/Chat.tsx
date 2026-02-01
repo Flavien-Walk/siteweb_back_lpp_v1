@@ -70,7 +70,7 @@ function MessageBubble({
             {roleLabels[message.author?.role || ''] || message.author?.role}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(message.createdAt)}
+            {formatRelativeTime(message.dateCreation)}
           </span>
         </div>
 
