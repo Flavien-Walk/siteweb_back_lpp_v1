@@ -542,3 +542,46 @@ export const marquerVue = async (
     next(error);
   }
 };
+
+/**
+ * GET /api/stories/:id/viewers
+ * Récupérer la liste des utilisateurs ayant vu une story
+ * SÉCURITÉ: Seul le propriétaire de la story peut voir cette information
+ */
+export const getStoryViewers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ErreurAPI('ID de story invalide.', 400);
+    }
+
+    // Récupérer la story avec les viewers populés
+    const story = await Story.findById(id)
+      .populate('viewers', 'prenom nom avatar');
+
+    if (!story) {
+      throw new ErreurAPI('Story non trouvée.', 404);
+    }
+
+    // SÉCURITÉ: Seul le propriétaire peut voir les vues
+    if (story.utilisateur.toString() !== userId.toString()) {
+      throw new ErreurAPI('Accès non autorisé. Seul le créateur peut voir les vues.', 403);
+    }
+
+    res.json({
+      succes: true,
+      data: {
+        nbVues: story.viewers.length,
+        viewers: story.viewers,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
