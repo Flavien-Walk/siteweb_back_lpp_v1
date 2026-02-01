@@ -51,7 +51,7 @@ type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite'
 
 export default function Profil() {
   const { couleurs, toggleTheme, isDark } = useTheme();
-  const { utilisateur, updateUser, logout } = useUser();
+  const { utilisateur, updateUser, logout, refreshUser } = useUser();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -516,6 +516,9 @@ export default function Profil() {
   const handleRefresh = useCallback(async () => {
     setRafraichissement(true);
     try {
+      // Rafraîchir les données utilisateur (dont nbAmis)
+      await refreshUser();
+
       // Charger publications et stories en parallèle
       const [pubResponse, storiesResponse] = await Promise.all([
         utilisateur?.id ? getPublicationsUtilisateur(utilisateur.id) : Promise.resolve(null),

@@ -48,7 +48,7 @@ export default function ProfilUtilisateurPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { utilisateur: moi } = useUser();
+  const { utilisateur: moi, refreshUser } = useUser();
 
   const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
   const [chargement, setChargement] = useState(true);
@@ -341,6 +341,8 @@ export default function ProfilUtilisateurPage() {
         const reponse = await accepterDemandeAmi(id);
         if (reponse.succes) {
           setProfil({ ...profil, estAmi: true, demandeRecue: false });
+          // Rafraîchir les données utilisateur pour mettre à jour nbAmis
+          refreshUser();
         } else {
           Alert.alert('Erreur', reponse.message || 'Erreur');
         }

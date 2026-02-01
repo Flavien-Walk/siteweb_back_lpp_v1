@@ -22,6 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
+import { useUser } from '../../src/contexts/UserContext';
 import { Avatar, AnimatedPressable, SkeletonList } from '../../src/composants';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import {
@@ -40,6 +41,7 @@ import {
 export default function Notifications() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { refreshUser } = useUser();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -146,6 +148,8 @@ export default function Notifications() {
       if (reponse.succes) {
         // Supprimer la notification après acceptation
         setNotifications(prev => prev.filter(n => n._id !== notif._id));
+        // Rafraîchir les données utilisateur pour mettre à jour nbAmis
+        refreshUser();
         Alert.alert('Succès', `Vous êtes maintenant ami avec ${notif.data.userPrenom} !`);
       } else {
         Alert.alert('Erreur', reponse.message || 'Impossible d\'accepter la demande');
