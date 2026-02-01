@@ -38,7 +38,10 @@ export const reportsService = {
       }
     })
 
-    const response = await api.get<ApiResponse<PaginatedResponse<Report>>>(
+    const response = await api.get<ApiResponse<{
+      reports: Report[]
+      pagination: { page: number; limit: number; total: number; pages: number }
+    }>>(
       `/admin/reports?${searchParams.toString()}`
     )
 
@@ -46,7 +49,16 @@ export const reportsService = {
       throw new Error(response.data.message || 'Erreur lors du chargement des signalements')
     }
 
-    return response.data.data
+    // Transform backend response to match PaginatedResponse interface
+    const { reports, pagination } = response.data.data
+    return {
+      items: reports,
+      currentPage: pagination.page,
+      totalPages: pagination.pages,
+      totalCount: pagination.total,
+      hasNextPage: pagination.page < pagination.pages,
+      hasPrevPage: pagination.page > 1,
+    }
   },
 
   /**
