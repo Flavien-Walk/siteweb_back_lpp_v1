@@ -54,7 +54,10 @@ export const getPublications = async (
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
     const skip = (pageNum - 1) * limitNum;
 
-    const filtre: Record<string, unknown> = {};
+    const filtre: Record<string, unknown> = {
+      // Exclure les posts masqués par modération
+      isHidden: { $ne: true },
+    };
 
     // Filtrer par type si spécifié
     if (type && ['post', 'annonce', 'update', 'editorial', 'live-extrait'].includes(type as string)) {
@@ -122,6 +125,15 @@ export const getPublication = async (
 
     if (!publication) {
       throw new ErreurAPI('Publication non trouvée.', 404);
+    }
+
+    // Vérifier si le post est masqué (sauf pour l'auteur ou un admin)
+    if (publication.isHidden) {
+      const isAuteur = req.utilisateur && publication.auteur._id.toString() === req.utilisateur._id.toString();
+      const isAdmin = req.utilisateur && req.utilisateur.role === 'admin';
+      if (!isAuteur && !isAdmin) {
+        throw new ErreurAPI('Cette publication n\'est plus disponible.', 404);
+      }
     }
 
     const pubObj = publication.toObject();

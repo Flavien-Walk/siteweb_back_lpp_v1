@@ -13,7 +13,10 @@ export const getFeed = async (req: Request, res: Response): Promise<void> => {
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
     const skip = (pageNum - 1) * limitNum;
 
-    const filtre: Record<string, unknown> = {};
+    const filtre: Record<string, unknown> = {
+      // Exclure les posts masqués par modération
+      isHidden: { $ne: true },
+    };
 
     // Si l'utilisateur est connecté, montrer les publications de ses projets suivis + annonces
     if (req.utilisateur) {

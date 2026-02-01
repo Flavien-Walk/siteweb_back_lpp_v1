@@ -13,6 +13,7 @@ export interface IPublication extends Document {
   projet?: mongoose.Types.ObjectId;
   likes: mongoose.Types.ObjectId[];
   nbCommentaires: number;
+  isHidden: boolean; // Post masqué par modération
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -54,6 +55,11 @@ const publicationSchema = new Schema<IPublication>(
     nbCommentaires: {
       type: Number,
       default: 0,
+    },
+    isHidden: {
+      type: Boolean,
+      default: false,
+      index: true, // Index pour filtrer efficacement les posts masqués
     },
   },
   {
