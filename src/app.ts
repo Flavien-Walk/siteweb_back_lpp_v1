@@ -18,6 +18,7 @@ import storyRoutes from './routes/storyRoutes.js';
 import liveRoutes from './routes/liveRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import moderationRoutes from './routes/moderationRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
 
@@ -150,6 +151,7 @@ export const creerApp = (): Application => {
   app.use('/api/live', liveRoutes);
   app.use('/api/reports', reportRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/moderation', moderationRoutes);
 
   // ============================================
   // GESTION DES ERREURS

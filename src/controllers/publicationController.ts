@@ -130,7 +130,7 @@ export const getPublication = async (
     // Vérifier si le post est masqué (sauf pour l'auteur ou un admin)
     if (publication.isHidden) {
       const isAuteur = req.utilisateur && publication.auteur._id.toString() === req.utilisateur._id.toString();
-      const isAdmin = req.utilisateur && req.utilisateur.role === 'admin';
+      const isAdmin = req.utilisateur && req.utilisateur.isAdmin();
       if (!isAuteur && !isAdmin) {
         throw new ErreurAPI('Cette publication n\'est plus disponible.', 404);
       }
@@ -238,7 +238,7 @@ export const supprimerPublication = async (
 
     // Vérifier que l'utilisateur est l'auteur ou admin
     const isAuteur = publication.auteur.toString() === userId.toString();
-    const isAdmin = req.utilisateur!.role === 'admin';
+    const isAdmin = req.utilisateur!.isAdmin();
 
     if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez supprimer que vos propres publications.', 403);
@@ -294,7 +294,7 @@ export const modifierPublication = async (
 
     // Vérifier que l'utilisateur est l'auteur ou admin
     const isAuteur = publication.auteur.toString() === userId.toString();
-    const isAdmin = req.utilisateur!.role === 'admin';
+    const isAdmin = req.utilisateur!.isAdmin();
 
     if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez modifier que vos propres publications.', 403);
@@ -606,7 +606,7 @@ export const modifierCommentaire = async (
 
     // Vérifier que l'utilisateur est l'auteur ou admin
     const isAuteur = commentaire.auteur.toString() === userId.toString();
-    const isAdmin = req.utilisateur!.role === 'admin';
+    const isAdmin = req.utilisateur!.isAdmin();
 
     if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez modifier que vos propres commentaires.', 403);
@@ -665,7 +665,7 @@ export const supprimerCommentaire = async (
 
     // Vérifier que l'utilisateur est l'auteur ou admin
     const isAuteur = commentaire.auteur.toString() === userId.toString();
-    const isAdmin = req.utilisateur!.role === 'admin';
+    const isAdmin = req.utilisateur!.isAdmin();
 
     if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez supprimer que vos propres commentaires.', 403);

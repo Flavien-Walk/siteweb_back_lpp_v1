@@ -391,7 +391,7 @@ export const supprimerStory = async (
 
     // Vérifier que l'utilisateur est l'auteur ou admin
     const isAuteur = story.utilisateur.toString() === userId.toString();
-    const isAdmin = req.utilisateur!.role === 'admin';
+    const isAdmin = req.utilisateur!.isAdmin();
 
     if (!isAuteur && !isAdmin) {
       throw new ErreurAPI('Vous ne pouvez supprimer que vos propres stories.', 403);
