@@ -25,7 +25,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -133,6 +133,13 @@ export default function Profil() {
       setBio(utilisateur.bio || '');
     }
   }, [utilisateur]);
+
+  // Rafraîchir les données utilisateur quand la page gagne le focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshUser();
+    }, [refreshUser])
+  );
 
   // Helper: générer thumbnail Cloudinary pour vidéo
   const getVideoThumbnail = (videoUrl: string): string => {
