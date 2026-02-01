@@ -5,6 +5,12 @@ import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/Login'
 import { DashboardPage } from '@/pages/Dashboard'
+import { ReportsPage } from '@/pages/Reports'
+import { ReportDetailPage } from '@/pages/ReportDetail'
+import { UsersPage } from '@/pages/Users'
+import { UserDetailPage } from '@/pages/UserDetail'
+import { AuditPage } from '@/pages/Audit'
+import { ChatPage } from '@/pages/Chat'
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -15,43 +21,6 @@ const queryClient = new QueryClient({
     },
   },
 })
-
-// Placeholder pages for now
-function ReportsPage() {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Signalements</h1>
-      <p className="text-muted-foreground">Page en cours de développement...</p>
-    </div>
-  )
-}
-
-function UsersPage() {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Utilisateurs</h1>
-      <p className="text-muted-foreground">Page en cours de développement...</p>
-    </div>
-  )
-}
-
-function AuditPage() {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Audit Logs</h1>
-      <p className="text-muted-foreground">Page en cours de développement...</p>
-    </div>
-  )
-}
-
-function ChatPage() {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Staff Chat</h1>
-      <p className="text-muted-foreground">Page en cours de développement...</p>
-    </div>
-  )
-}
 
 function NotFoundPage() {
   return (
@@ -84,9 +53,12 @@ function App() {
                 </ProtectedRoute>
               }
             >
+              {/* Dashboard */}
               <Route index element={<DashboardPage />} />
+
+              {/* Reports */}
               <Route
-                path="reports/*"
+                path="reports"
                 element={
                   <ProtectedRoute requiredPermission="reports:view">
                     <ReportsPage />
@@ -94,7 +66,17 @@ function App() {
                 }
               />
               <Route
-                path="users/*"
+                path="reports/:id"
+                element={
+                  <ProtectedRoute requiredPermission="reports:view">
+                    <ReportDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Users */}
+              <Route
+                path="users"
                 element={
                   <ProtectedRoute requiredPermission="users:view">
                     <UsersPage />
@@ -102,13 +84,25 @@ function App() {
                 }
               />
               <Route
-                path="audit/*"
+                path="users/:id"
+                element={
+                  <ProtectedRoute requiredPermission="users:view">
+                    <UserDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Audit */}
+              <Route
+                path="audit"
                 element={
                   <ProtectedRoute requiredPermission="audit:view">
                     <AuditPage />
                   </ProtectedRoute>
                 }
               />
+
+              {/* Chat */}
               <Route
                 path="chat"
                 element={

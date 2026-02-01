@@ -11,6 +11,7 @@ export type Permission =
   | 'users:suspend'
   | 'users:ban'
   | 'users:unban'
+  | 'users:role'
   | 'users:edit_roles'
   | 'content:hide'
   | 'content:delete'
@@ -19,6 +20,19 @@ export type Permission =
   | 'config:view'
   | 'config:edit'
   | 'staff:chat'
+  | 'staff:admin'
+
+export interface Warning {
+  _id?: string
+  reason: string
+  moderator?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  date: string
+  expiresAt?: string
+}
 
 export interface User {
   _id: string
@@ -28,46 +42,44 @@ export interface User {
   avatar?: string
   role: Role
   permissions: Permission[]
+  status?: 'active' | 'suspended' | 'banned'
   bannedAt?: string | null
   banReason?: string
   suspendedUntil?: string | null
   warnings?: Warning[]
-  dateCreation: string
-}
-
-export interface Warning {
-  _id?: string
-  reason: string
-  issuedBy: string | { _id: string; prenom: string; nom: string }
-  issuedAt: string
-  expiresAt?: string
+  createdAt: string
+  lastActive?: string
+  publicationsCount?: number
+  commentsCount?: number
+  reportsCount?: number
 }
 
 // ============ REPORTS ============
 
-export type ReportTargetType = 'post' | 'commentaire' | 'utilisateur'
+export type ReportTargetType = 'publication' | 'commentaire' | 'utilisateur'
 
-export type ReportReason =
+export type ReportType =
   | 'spam'
-  | 'harcelement'
-  | 'contenu_inapproprie'
-  | 'fausse_info'
-  | 'nudite'
-  | 'violence'
-  | 'haine'
-  | 'autre'
+  | 'harassment'
+  | 'hate_speech'
+  | 'inappropriate_content'
+  | 'copyright'
+  | 'other'
 
-export type ReportStatus = 'pending' | 'reviewed' | 'action_taken' | 'dismissed'
+export type ReportStatus = 'pending' | 'in_progress' | 'escalated' | 'resolved' | 'rejected'
 
 export type ReportPriority = 'low' | 'medium' | 'high' | 'critical'
 
-export type ReportAction =
-  | 'none'
-  | 'hide_post'
-  | 'delete_post'
-  | 'warn_user'
-  | 'suspend_user'
-  | 'ban_user'
+export interface ReportNote {
+  _id?: string
+  content: string
+  author?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  createdAt: string
+}
 
 export interface Report {
   _id: string
@@ -76,11 +88,21 @@ export interface Report {
     prenom: string
     nom: string
     avatar?: string
+    email?: string
   }
   targetType: ReportTargetType
   targetId: string
-  reason: ReportReason
-  details?: string
+  targetUser?: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    email?: string
+    status?: 'active' | 'suspended' | 'banned'
+  }
+  targetContent?: string
+  type: ReportType
+  reason?: string
   status: ReportStatus
   priority: ReportPriority
   assignedTo?: {
@@ -88,139 +110,66 @@ export interface Report {
     prenom: string
     nom: string
   }
-  assignedAt?: string
-  escalatedAt?: string
-  escalatedBy?: {
+  processedBy?: {
     _id: string
     prenom: string
     nom: string
   }
-  escalationReason?: string
-  moderatedBy?: {
-    _id: string
-    prenom: string
-    nom: string
-  }
-  moderatedAt?: string
-  action?: ReportAction
-  adminNote?: string
-  aggregateCount?: number
-  dateCreation: string
-  dateMiseAJour: string
-  // Enriched
-  target?: ReportTarget
-  reportCount?: number
-}
-
-export interface ReportTarget {
-  _id: string
-  type?: string
-  auteur?: {
-    _id: string
-    prenom: string
-    nom: string
-    avatar?: string
-  }
-  contenu?: string
-  media?: string[]
-  isHidden?: boolean
-  prenom?: string
-  nom?: string
-  avatar?: string
-  dateCreation?: string
-}
-
-export interface AggregatedReport {
-  targetType: ReportTargetType
-  targetId: string
-  target: ReportTarget | null
-  reportCount: number
-  reasons: ReportReason[]
-  maxPriority: ReportPriority
-  isEscalated: boolean
-  firstReportDate: string
-  lastReportDate: string
-  reportIds: string[]
+  notes?: ReportNote[]
+  duplicateCount?: number
+  createdAt: string
+  updatedAt?: string
+  resolvedAt?: string
 }
 
 // ============ AUDIT LOGS ============
 
 export type AuditAction =
-  | 'user:warn'
-  | 'user:warn_remove'
-  | 'user:suspend'
-  | 'user:unsuspend'
-  | 'user:ban'
-  | 'user:unban'
-  | 'user:role_change'
-  | 'user:permission_add'
-  | 'user:permission_remove'
-  | 'content:hide'
-  | 'content:unhide'
-  | 'content:delete'
-  | 'content:restore'
-  | 'report:process'
-  | 'report:escalate'
-  | 'report:dismiss'
-  | 'report:assign'
-  | 'config:update'
-  | 'staff:login'
-  | 'staff:logout'
-
-export type AuditTargetType =
-  | 'utilisateur'
-  | 'publication'
-  | 'commentaire'
-  | 'message'
-  | 'story'
-  | 'live'
-  | 'report'
-  | 'config'
-  | 'system'
+  | 'user_warn'
+  | 'user_suspend'
+  | 'user_ban'
+  | 'user_unban'
+  | 'user_role_change'
+  | 'report_approve'
+  | 'report_reject'
+  | 'report_escalate'
+  | 'report_assign'
+  | 'content_delete'
+  | 'content_restore'
+  | 'staff_chat'
 
 export interface AuditLog {
   _id: string
-  actor: {
+  action: string
+  moderator?: {
     _id: string
     prenom: string
     nom: string
     avatar?: string
     role?: string
   }
-  actorRole: string
-  actorIp?: string
-  action: AuditAction
-  targetType: AuditTargetType
-  targetId: string
+  targetUser?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  targetId?: string
   reason?: string
   metadata?: Record<string, unknown>
-  snapshot?: {
-    before?: Record<string, unknown>
-    after?: Record<string, unknown>
-  }
-  relatedReport?: {
-    _id: string
-    targetType?: string
-    reason?: string
-    status?: string
-  }
-  dateCreation: string
+  createdAt: string
 }
 
 // ============ STAFF CHAT ============
 
-export type StaffMessageType = 'text' | 'system' | 'report_link'
-
 export interface StaffMessage {
   _id: string
-  sender: {
+  author?: {
     _id: string
     prenom: string
     nom: string
     avatar?: string
     role?: string
   }
-  type: StaffMessageType
   content: string
   linkedReport?: {
     _id: string
@@ -228,8 +177,7 @@ export interface StaffMessage {
     reason?: string
     status?: string
   }
-  readBy: string[]
-  dateCreation: string
+  createdAt: string
 }
 
 // ============ DASHBOARD ============
@@ -249,19 +197,13 @@ export interface DashboardStats {
 
 // ============ PAGINATION ============
 
-export interface Pagination {
-  page: number
-  limit: number
-  total: number
-  pages: number
-}
-
 export interface PaginatedResponse<T> {
-  succes: boolean
-  data: {
-    [key: string]: T[] | Pagination
-    pagination: Pagination
-  }
+  items: T[]
+  currentPage: number
+  totalPages: number
+  totalCount: number
+  hasNextPage?: boolean
+  hasPrevPage?: boolean
 }
 
 // ============ API RESPONSES ============
