@@ -121,6 +121,7 @@ export function ChatPage() {
   const [showScrollButton, setShowScrollButton] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const markedAsReadRef = useRef<Set<string>>(new Set())
 
   // Fetch messages
   const {
@@ -152,10 +153,22 @@ export function ChatPage() {
     },
   })
 
-  // Mark as read on mount
+  // Mark messages as read when new ones are loaded
+  // Backend requires messageIds array - we collect IDs from loaded messages
   useEffect(() => {
-    chatService.markAsRead()
-  }, [])
+    if (!data?.items?.length || !user?._id) return
+
+    // Filter messages not written by current user and not already marked
+    const unreadIds = data.items
+      .filter(msg => msg.author?._id !== user._id && !markedAsReadRef.current.has(msg._id))
+      .map(msg => msg._id)
+
+    if (unreadIds.length > 0) {
+      chatService.markAsRead(unreadIds)
+      // Track marked IDs to avoid re-calling
+      unreadIds.forEach(id => markedAsReadRef.current.add(id))
+    }
+  }, [data?.items, user?._id])
 
   // Scroll to bottom on new messages
   const scrollToBottom = () => {

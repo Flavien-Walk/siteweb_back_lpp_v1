@@ -19,15 +19,34 @@ export interface ReportListParams extends ReportFilters {
   order?: 'asc' | 'desc'
 }
 
+/**
+ * Frontend action interface
+ * - approve: Mark as action_taken (content was moderated)
+ * - reject: Mark as dismissed (false positive)
+ * - escalate: Escalate to higher-level moderator (uses separate endpoint)
+ */
 export interface ReportAction {
-  action: 'approve' | 'reject' | 'escalate' | 'assign'
+  action: 'approve' | 'reject' | 'escalate'
   reason?: string
-  assignTo?: string
+}
+
+/**
+ * Backend expects for PATCH/POST /admin/reports/:id/process:
+ * - status: 'reviewed' | 'action_taken' | 'dismissed'
+ * - action?: 'none' | 'hide_post' | 'delete_post' | 'warn_user' | 'suspend_user'
+ * - adminNote?: string
+ */
+interface BackendProcessPayload {
+  status: 'reviewed' | 'action_taken' | 'dismissed'
+  action?: 'none' | 'hide_post' | 'delete_post' | 'warn_user' | 'suspend_user'
+  adminNote?: string
 }
 
 export const reportsService = {
   /**
    * Get paginated list of reports with filters
+   * Backend: GET /api/admin/reports
+   * Response: { reports: Report[], pagination: {...} }
    */
   async getReports(params: ReportListParams = {}): Promise<PaginatedResponse<Report>> {
     const searchParams = new URLSearchParams()
@@ -52,17 +71,18 @@ export const reportsService = {
     // Transform backend response to match PaginatedResponse interface
     const { reports, pagination } = response.data.data
     return {
-      items: reports,
-      currentPage: pagination.page,
-      totalPages: pagination.pages,
-      totalCount: pagination.total,
-      hasNextPage: pagination.page < pagination.pages,
-      hasPrevPage: pagination.page > 1,
+      items: reports ?? [],
+      currentPage: pagination?.page ?? 1,
+      totalPages: pagination?.pages ?? 1,
+      totalCount: pagination?.total ?? 0,
+      hasNextPage: (pagination?.page ?? 1) < (pagination?.pages ?? 1),
+      hasPrevPage: (pagination?.page ?? 1) > 1,
     }
   },
 
   /**
    * Get a single report by ID
+   * Backend: GET /api/admin/reports/:id
    */
   async getReport(id: string): Promise<Report> {
     const response = await api.get<ApiResponse<{ report: Report }>>(`/admin/reports/${id}`)
@@ -76,14 +96,70 @@ export const reportsService = {
 
   /**
    * Process a report (approve/reject/escalate)
+   *
+   * Backend endpoints:
+   * - POST /api/admin/reports/:id/process (for approve/reject)
+   *   Body: { status, action?, adminNote? }
+   * - POST /api/admin/reports/:id/escalate (for escalate)
+   *   Body: { reason? }
+   *
+   * Mapping:
+   * - approve → { status: 'action_taken', action: 'none', adminNote }
+   * - reject  → { status: 'dismissed', adminNote }
+   * - escalate → uses /escalate endpoint with { reason }
    */
-  async processReport(id: string, action: ReportAction): Promise<Report> {
+  async processReport(id: string, frontendAction: ReportAction): Promise<Report> {
+    // Handle escalate via separate endpoint
+    if (frontendAction.action === 'escalate') {
+      const response = await api.post<ApiResponse<{ report: Report }>>(
+        `/admin/reports/${id}/escalate`,
+        { reason: frontendAction.reason || undefined }
+      )
+
+      if (!response.data.succes || !response.data.data) {
+        throw new Error(response.data.message || 'Erreur lors de l\'escalade')
+      }
+
+      return response.data.data.report
+    }
+
+    // Map frontend action to backend payload
+    let payload: BackendProcessPayload
+
+    if (frontendAction.action === 'approve') {
+      // Approve = action was taken on the reported content
+      payload = {
+        status: 'action_taken',
+        action: 'none', // Default to 'none' - moderator can do specific actions elsewhere
+        adminNote: frontendAction.reason || undefined,
+      }
+    } else {
+      // Reject = dismissed as false positive
+      payload = {
+        status: 'dismissed',
+        adminNote: frontendAction.reason || undefined,
+      }
+    }
+
+    // Remove undefined values to keep payload clean
+    const cleanPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, v]) => v !== undefined)
+    )
+
+    if (import.meta.env.DEV) {
+      console.debug('[Reports] processReport payload:', { id, frontendAction, cleanPayload })
+    }
+
     const response = await api.post<ApiResponse<{ report: Report }>>(
       `/admin/reports/${id}/process`,
-      action
+      cleanPayload
     )
 
     if (!response.data.succes || !response.data.data) {
+      // Log detailed error in dev
+      if (import.meta.env.DEV) {
+        console.error('[Reports] processReport error:', response.data)
+      }
       throw new Error(response.data.message || 'Erreur lors du traitement')
     }
 
@@ -92,11 +168,13 @@ export const reportsService = {
 
   /**
    * Assign report to a moderator
+   * Backend: POST /api/admin/reports/:id/assign
+   * Body: { assigneeId: string }
    */
   async assignReport(id: string, moderatorId: string): Promise<Report> {
     const response = await api.post<ApiResponse<{ report: Report }>>(
       `/admin/reports/${id}/assign`,
-      { assignTo: moderatorId }
+      { assigneeId: moderatorId }
     )
 
     if (!response.data.succes || !response.data.data) {
@@ -108,21 +186,20 @@ export const reportsService = {
 
   /**
    * Get report statistics
+   * Backend: GET /api/admin/reports/stats
    */
   async getStats(): Promise<{
-    pending: number
-    inProgress: number
-    escalated: number
-    resolved: number
-    byType: Record<string, number>
+    totalPending: number
+    totalEscalated: number
+    byStatus: Record<string, number>
+    byReason: Array<{ _id: string; count: number }>
     byPriority: Record<string, number>
   }> {
     const response = await api.get<ApiResponse<{
-      pending: number
-      inProgress: number
-      escalated: number
-      resolved: number
-      byType: Record<string, number>
+      totalPending: number
+      totalEscalated: number
+      byStatus: Record<string, number>
+      byReason: Array<{ _id: string; count: number }>
       byPriority: Record<string, number>
     }>>('/admin/reports/stats')
 
@@ -135,8 +212,14 @@ export const reportsService = {
 
   /**
    * Add a note to a report
+   * NOTE: Backend endpoint /admin/reports/:id/notes does NOT exist.
+   * This will fail with 404. Kept for future implementation.
    */
   async addNote(id: string, content: string): Promise<Report> {
+    if (import.meta.env.DEV) {
+      console.warn('[Reports] addNote: endpoint not implemented in backend')
+    }
+
     const response = await api.post<ApiResponse<{ report: Report }>>(
       `/admin/reports/${id}/notes`,
       { content }

@@ -10,6 +10,8 @@ export interface ChatListParams {
 export const chatService = {
   /**
    * Get staff chat messages
+   * Backend: GET /api/admin/chat
+   * Response: { messages: StaffMessage[], hasMore: boolean }
    */
   async getMessages(params: ChatListParams = {}): Promise<PaginatedResponse<StaffMessage>> {
     const searchParams = new URLSearchParams()
@@ -23,10 +25,8 @@ export const chatService = {
     const response = await api.get<ApiResponse<{
       messages?: StaffMessage[]
       items?: StaffMessage[]
+      hasMore?: boolean
       pagination?: { page: number; limit: number; total: number; pages: number }
-      currentPage?: number
-      totalPages?: number
-      totalCount?: number
     }>>(
       `/admin/chat?${searchParams.toString()}`
     )
@@ -36,20 +36,23 @@ export const chatService = {
     }
 
     const data = response.data.data
-    // Normalize response format
+    // Normalize: backend returns { messages, hasMore }
     const items = data.items ?? data.messages ?? []
     const pagination = data.pagination
 
     return {
       items,
-      currentPage: data.currentPage ?? pagination?.page ?? 1,
-      totalPages: data.totalPages ?? pagination?.pages ?? 1,
-      totalCount: data.totalCount ?? pagination?.total ?? items.length,
+      currentPage: pagination?.page ?? 1,
+      totalPages: pagination?.pages ?? 1,
+      totalCount: pagination?.total ?? items.length,
+      hasNextPage: data.hasMore ?? false,
     }
   },
 
   /**
    * Send a message
+   * Backend: POST /api/admin/chat
+   * Body: { content: string, linkedReportId?: string }
    */
   async sendMessage(content: string, linkedReportId?: string): Promise<StaffMessage> {
     const response = await api.post<ApiResponse<{ message: StaffMessage }>>(
@@ -66,6 +69,7 @@ export const chatService = {
 
   /**
    * Delete a message (admin only)
+   * Backend: DELETE /api/admin/chat/:id
    */
   async deleteMessage(id: string): Promise<void> {
     const response = await api.delete<ApiResponse<null>>(`/admin/chat/${id}`)
@@ -77,24 +81,46 @@ export const chatService = {
 
   /**
    * Get unread count
+   * Backend: GET /api/admin/chat/unread
+   * Response: { unreadCount: number }
    */
   async getUnreadCount(): Promise<number> {
-    const response = await api.get<ApiResponse<{ count: number }>>('/admin/chat/unread')
+    try {
+      const response = await api.get<ApiResponse<{ unreadCount?: number; count?: number }>>('/admin/chat/unread')
 
-    if (!response.data.succes || !response.data.data) {
+      if (!response.data.succes || !response.data.data) {
+        return 0
+      }
+
+      // Backend returns { unreadCount } not { count }
+      return response.data.data.unreadCount ?? response.data.data.count ?? 0
+    } catch {
       return 0
     }
-
-    return response.data.data.count
   },
 
   /**
    * Mark messages as read
-   * Silently ignores errors (non-critical operation)
+   * Backend: POST /api/admin/chat/read
+   * Body: { messageIds: string[] } - REQUIRED non-empty array
+   *
+   * @param messageIds - Array of message IDs to mark as read. If empty, skips the call.
    */
-  async markAsRead(): Promise<void> {
+  async markAsRead(messageIds: string[]): Promise<void> {
+    // Guard: backend requires non-empty messageIds array
+    if (!messageIds || messageIds.length === 0) {
+      if (import.meta.env.DEV) {
+        console.debug('[Chat] markAsRead skipped: no messageIds provided')
+      }
+      return
+    }
+
     try {
-      await api.post<ApiResponse<null>>('/admin/chat/read', {})
+      if (import.meta.env.DEV) {
+        console.debug('[Chat] markAsRead payload:', { messageIds })
+      }
+
+      await api.post<ApiResponse<null>>('/admin/chat/read', { messageIds })
     } catch (err) {
       // Non-critical - log in dev but don't throw
       if (import.meta.env.DEV) {
