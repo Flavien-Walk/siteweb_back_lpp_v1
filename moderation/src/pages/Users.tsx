@@ -331,7 +331,7 @@ export function UsersPage() {
                     <UserStatusBadge user={user} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatRelativeTime(user.createdAt)}
+                    {formatRelativeTime(user.dateCreation)}
                   </TableCell>
                   <TableCell>
                     {user.warnings && user.warnings.length > 0 ? (

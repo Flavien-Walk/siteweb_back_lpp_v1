@@ -47,7 +47,7 @@ export interface User {
   banReason?: string
   suspendedUntil?: string | null
   warnings?: Warning[]
-  createdAt: string
+  dateCreation: string
   lastActive?: string
   publicationsCount?: number
   commentsCount?: number
@@ -151,8 +151,8 @@ export interface Report {
   moderatedAt?: string
   adminNote?: string
   action?: string
-  createdAt: string
-  updatedAt?: string
+  dateCreation: string
+  dateMiseAJour?: string
   resolvedAt?: string
 }
 
