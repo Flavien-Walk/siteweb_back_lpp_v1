@@ -1,6 +1,7 @@
 /**
  * StoryCreator - Modal de création de story
  * Permet de prendre une photo/vidéo avec la caméra ou choisir depuis la galerie
+ * UI inspirée d'Instagram : actions en bas, design épuré
  */
 
 import React, { useState, useCallback } from 'react';
@@ -14,7 +15,6 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
@@ -29,8 +29,6 @@ import { creerStory, TypeStory } from '../services/stories';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAX_VIDEO_SIZE_MB = 50;
 const MAX_IMAGE_SIZE_MB = 10;
-
-type MediaSource = 'camera_photo' | 'camera_video' | 'gallery';
 
 interface StoryCreatorProps {
   visible: boolean;
@@ -89,10 +87,8 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
       return false;
     }
 
-    // Pour la vidéo, on a besoin du micro (géré automatiquement par expo-image-picker)
     if (needsMicrophone) {
-      const { status: micStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      // Note: expo-image-picker gère le micro automatiquement avec la caméra
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     }
 
     return true;
@@ -125,7 +121,6 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
         encoding: 'base64',
       });
 
-      // Déterminer le type MIME
       let mimeType = asset.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg');
       if (isVideo && !mimeType.startsWith('video/')) {
         mimeType = 'video/mp4';
@@ -181,7 +176,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
         mediaTypes: ['videos'],
         allowsEditing: false,
         quality: 0.8,
-        videoMaxDuration: 60, // Max 60 secondes
+        videoMaxDuration: 60,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -205,7 +200,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
         mediaTypes: ['images', 'videos'],
         allowsEditing: false,
         quality: 0.8,
-        videoMaxDuration: 60, // Max 60 secondes pour les vidéos
+        videoMaxDuration: 60,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -257,6 +252,45 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     setSelectedMedia(null);
   };
 
+  // Composant bouton d'action
+  const ActionButton = ({
+    icon,
+    label,
+    sublabel,
+    onPress,
+    iconColor,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    sublabel?: string;
+    onPress: () => void;
+    iconColor: string;
+  }) => (
+    <Pressable
+      style={({ pressed }) => [
+        styles.actionButton,
+        { backgroundColor: themeColors.fondCard },
+        pressed && styles.actionButtonPressed,
+      ]}
+      onPress={onPress}
+    >
+      <View style={[styles.actionIconWrapper, { backgroundColor: iconColor }]}>
+        <Ionicons name={icon} size={22} color={couleurs.blanc} />
+      </View>
+      <View style={styles.actionTextContainer}>
+        <Text style={[styles.actionLabel, { color: themeColors.texte }]}>
+          {label}
+        </Text>
+        {sublabel && (
+          <Text style={[styles.actionSublabel, { color: themeColors.texteSecondaire }]}>
+            {sublabel}
+          </Text>
+        )}
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={themeColors.texteSecondaire} />
+    </Pressable>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -272,12 +306,12 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
             styles.header,
             {
               paddingTop: insets.top + espacements.sm,
-              backgroundColor: themeColors.fond,
+              borderBottomColor: themeColors.bordure,
             },
           ]}
         >
           <Pressable
-            style={styles.headerButton}
+            style={styles.closeButton}
             onPress={handleClose}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -304,7 +338,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
               )}
             </Pressable>
           ) : (
-            <View style={styles.headerButton} />
+            <View style={styles.headerPlaceholder} />
           )}
         </View>
 
@@ -330,117 +364,80 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
                 />
               )}
 
-              {/* Bouton pour changer le média */}
-              <Pressable
-                style={[styles.changeMediaButton, { backgroundColor: themeColors.fondCard }]}
-                onPress={cancelSelection}
-              >
-                <Ionicons name="refresh" size={20} color={themeColors.texte} />
-                <Text style={[styles.changeMediaText, { color: themeColors.texte }]}>
-                  Changer
-                </Text>
-              </Pressable>
-
-              {/* Indicateur de type */}
-              <View style={styles.mediaTypeIndicator}>
+              {/* Badge type de média */}
+              <View style={styles.mediaTypeBadge}>
                 <Ionicons
                   name={selectedMedia.type === 'video' ? 'videocam' : 'image'}
-                  size={16}
+                  size={14}
                   color={couleurs.blanc}
                 />
                 <Text style={styles.mediaTypeText}>
                   {selectedMedia.type === 'video' ? 'Vidéo' : 'Photo'}
                 </Text>
               </View>
+
+              {/* Bouton changer */}
+              <Pressable
+                style={[styles.changeButton, { backgroundColor: 'rgba(0,0,0,0.7)' }]}
+                onPress={cancelSelection}
+              >
+                <Ionicons name="refresh" size={18} color={couleurs.blanc} />
+                <Text style={styles.changeButtonText}>Changer</Text>
+              </Pressable>
             </View>
           ) : (
             // Sélection du média
             <View style={styles.selectContainer}>
-              <LinearGradient
-                colors={[couleurs.primaire, couleurs.secondaire]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.selectIconContainer}
-              >
-                <Ionicons name="add-circle" size={48} color={couleurs.blanc} />
-              </LinearGradient>
-
-              <Text style={[styles.selectTitle, { color: themeColors.texte }]}>
-                Créer une story
-              </Text>
-
-              <Text style={[styles.selectSubtitle, { color: themeColors.texteSecondaire }]}>
-                Partagez un moment avec vos amis.{'\n'}
-                Votre story sera visible pendant 24h.
-              </Text>
-
-              {/* Boutons d'action */}
-              <View style={styles.actionButtonsContainer}>
-                {/* Prendre une photo */}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.actionButton,
-                    { backgroundColor: themeColors.fondCard },
-                    pressed && styles.actionButtonPressed,
-                  ]}
-                  onPress={takePhoto}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: couleurs.primaire }]}>
-                    <Ionicons name="camera" size={24} color={couleurs.blanc} />
-                  </View>
-                  <Text style={[styles.actionButtonText, { color: themeColors.texte }]}>
-                    Prendre une photo
-                  </Text>
-                </Pressable>
-
-                {/* Filmer une vidéo */}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.actionButton,
-                    { backgroundColor: themeColors.fondCard },
-                    pressed && styles.actionButtonPressed,
-                  ]}
-                  onPress={recordVideo}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: couleurs.secondaire }]}>
-                    <Ionicons name="videocam" size={24} color={couleurs.blanc} />
-                  </View>
-                  <Text style={[styles.actionButtonText, { color: themeColors.texte }]}>
-                    Filmer une vidéo
-                  </Text>
-                </Pressable>
-
-                {/* Choisir depuis la galerie */}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.actionButton,
-                    { backgroundColor: themeColors.fondCard },
-                    pressed && styles.actionButtonPressed,
-                  ]}
-                  onPress={selectFromGallery}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: couleurs.accent }]}>
-                    <Ionicons name="images" size={24} color={couleurs.blanc} />
-                  </View>
-                  <Text style={[styles.actionButtonText, { color: themeColors.texte }]}>
-                    Galerie
-                  </Text>
-                </Pressable>
+              {/* Zone illustrative */}
+              <View style={styles.illustrationContainer}>
+                <LinearGradient
+                  colors={[couleurs.primaireLight, 'transparent']}
+                  style={styles.illustrationGlow}
+                />
+                <View style={[styles.illustrationCircle, { borderColor: themeColors.bordure }]}>
+                  <Ionicons name="sparkles" size={40} color={couleurs.primaire} />
+                </View>
+                <Text style={[styles.illustrationTitle, { color: themeColors.texte }]}>
+                  Partagez un moment
+                </Text>
+                <Text style={[styles.illustrationSubtitle, { color: themeColors.texteSecondaire }]}>
+                  Visible par vos amis pendant 24h
+                </Text>
               </View>
 
-              <View style={styles.infoContainer}>
-                <View style={styles.infoItem}>
-                  <Ionicons name="time-outline" size={18} color={themeColors.texteSecondaire} />
-                  <Text style={[styles.infoText, { color: themeColors.texteSecondaire }]}>
-                    Durée : 24 heures
-                  </Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <Ionicons name="videocam-outline" size={18} color={themeColors.texteSecondaire} />
-                  <Text style={[styles.infoText, { color: themeColors.texteSecondaire }]}>
-                    Vidéo : max 60 sec
-                  </Text>
-                </View>
+              {/* Actions */}
+              <View style={styles.actionsContainer}>
+                <ActionButton
+                  icon="camera"
+                  label="Prendre une photo"
+                  sublabel="Utiliser la caméra"
+                  onPress={takePhoto}
+                  iconColor={couleurs.primaire}
+                />
+
+                <ActionButton
+                  icon="videocam"
+                  label="Filmer une vidéo"
+                  sublabel="60 secondes max"
+                  onPress={recordVideo}
+                  iconColor={couleurs.secondaire}
+                />
+
+                <ActionButton
+                  icon="images"
+                  label="Choisir dans la galerie"
+                  sublabel="Photos et vidéos"
+                  onPress={selectFromGallery}
+                  iconColor={couleurs.accent}
+                />
+              </View>
+
+              {/* Footer info */}
+              <View style={[styles.footerInfo, { paddingBottom: insets.bottom + espacements.lg }]}>
+                <Ionicons name="shield-checkmark-outline" size={16} color={themeColors.texteMuted} />
+                <Text style={[styles.footerText, { color: themeColors.texteMuted }]}>
+                  Seuls vos amis peuvent voir vos stories
+                </Text>
               </View>
             </View>
           )}
@@ -458,20 +455,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: espacements.md,
+    paddingHorizontal: espacements.lg,
     paddingBottom: espacements.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
-  headerButton: {
+  closeButton: {
     width: 44,
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: -espacements.sm,
   },
   headerTitle: {
     fontSize: typographie.tailles.lg,
     fontWeight: typographie.poids.semibold,
+  },
+  headerPlaceholder: {
+    width: 80,
   },
   publishButton: {
     backgroundColor: couleurs.primaire,
@@ -491,12 +491,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
+
+  // Preview
   previewContainer: {
     flex: 1,
-    width: SCREEN_WIDTH,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -504,21 +503,7 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT * 0.7,
   },
-  changeMediaButton: {
-    position: 'absolute',
-    bottom: 100,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: espacements.lg,
-    paddingVertical: espacements.sm,
-    borderRadius: rayons.full,
-    gap: espacements.xs,
-  },
-  changeMediaText: {
-    fontSize: typographie.tailles.sm,
-    fontWeight: typographie.poids.medium,
-  },
-  mediaTypeIndicator: {
+  mediaTypeBadge: {
     position: 'absolute',
     top: espacements.lg,
     right: espacements.lg,
@@ -527,7 +512,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     paddingHorizontal: espacements.sm,
     paddingVertical: espacements.xs,
-    borderRadius: rayons.sm,
+    borderRadius: rayons.full,
     gap: espacements.xs,
   },
   mediaTypeText: {
@@ -535,69 +520,105 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.xs,
     fontWeight: typographie.poids.medium,
   },
-  selectContainer: {
+  changeButton: {
+    position: 'absolute',
+    bottom: espacements.xxxl,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.md,
+    borderRadius: rayons.full,
+    gap: espacements.sm,
+  },
+  changeButtonText: {
+    color: couleurs.blanc,
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.medium,
+  },
+
+  // Select
+  selectContainer: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  illustrationContainer: {
+    alignItems: 'center',
+    paddingTop: espacements.xxxl,
     paddingHorizontal: espacements.xl,
   },
-  selectIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  illustrationGlow: {
+    position: 'absolute',
+    top: espacements.xl,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    opacity: 0.5,
+  },
+  illustrationCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: espacements.xl,
-  },
-  selectTitle: {
-    fontSize: typographie.tailles.xl,
-    fontWeight: typographie.poids.bold,
-    marginBottom: espacements.sm,
-  },
-  selectSubtitle: {
-    fontSize: typographie.tailles.base,
-    textAlign: 'center',
-    marginBottom: espacements.xxl,
-    lineHeight: 22,
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: espacements.md,
     marginBottom: espacements.lg,
   },
+  illustrationTitle: {
+    fontSize: typographie.tailles.xl,
+    fontWeight: typographie.poids.bold,
+    marginBottom: espacements.xs,
+  },
+  illustrationSubtitle: {
+    fontSize: typographie.tailles.base,
+    textAlign: 'center',
+  },
+
+  // Actions
+  actionsContainer: {
+    paddingHorizontal: espacements.lg,
+    gap: espacements.sm,
+  },
   actionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: espacements.md,
     paddingHorizontal: espacements.md,
     borderRadius: rayons.lg,
-    minWidth: 100,
+    gap: espacements.md,
   },
   actionButtonPressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.97 }],
+    transform: [{ scale: 0.98 }],
   },
-  actionIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  actionIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: espacements.sm,
   },
-  actionButtonText: {
-    fontSize: typographie.tailles.sm,
+  actionTextContainer: {
+    flex: 1,
+  },
+  actionLabel: {
+    fontSize: typographie.tailles.base,
     fontWeight: typographie.poids.medium,
-    textAlign: 'center',
   },
-  infoContainer: {
-    marginTop: espacements.xxl,
-    gap: espacements.sm,
+  actionSublabel: {
+    fontSize: typographie.tailles.sm,
+    marginTop: 2,
   },
-  infoItem: {
+
+  // Footer
+  footerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: espacements.sm,
+    paddingHorizontal: espacements.lg,
+    paddingTop: espacements.xl,
   },
-  infoText: {
+  footerText: {
     fontSize: typographie.tailles.sm,
   },
 });
