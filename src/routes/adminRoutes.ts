@@ -34,6 +34,7 @@ import {
   getUserAuditHistory,
   getUserModerationTimeline,
   getUserReports,
+  getUserActivity,
   warnUser,
   suspendUser,
   banUser,
@@ -85,6 +86,9 @@ router.get('/users/:id/audit', verifierJwt, requirePermission('audit:view'), get
 
 // GET /api/admin/users/:id/timeline - Timeline de modération d'un utilisateur
 router.get('/users/:id/timeline', verifierJwt, requirePermission('users:view'), getUserModerationTimeline);
+
+// GET /api/admin/users/:id/activity - Activité complète d'un utilisateur
+router.get('/users/:id/activity', verifierJwt, requirePermission('users:view'), getUserActivity);
 
 // GET /api/admin/users/:id/reports - Reports créés par l'utilisateur
 router.get('/users/:id/reports', verifierJwt, requirePermission('users:view'), getUserReports);

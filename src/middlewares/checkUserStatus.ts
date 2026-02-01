@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Permission } from '../models/Utilisateur.js';
+import { Permission, ROLE_HIERARCHY, RoleWithLegacy } from '../models/Utilisateur.js';
 
 /**
  * Middleware pour vérifier le statut de l'utilisateur (ban/suspension)
@@ -225,15 +225,11 @@ export const requireAnyPermission = (permissions: Permission[]) => {
  * Middleware pour vérifier que l'utilisateur a un niveau de rôle minimum
  *
  * Usage: requireMinRole('modo') - requiert au moins le rôle modo
+ *
+ * Note: Le rôle legacy 'admin' est traité comme 'admin_modo'
+ * grâce à ROLE_HIERARCHY qui inclut les deux au même niveau (3)
  */
 export const requireMinRole = (minRole: 'modo_test' | 'modo' | 'admin_modo' | 'super_admin') => {
-  const roleLevel: Record<string, number> = {
-    modo_test: 1,
-    modo: 2,
-    admin_modo: 3,
-    super_admin: 4,
-  };
-
   return (req: Request, res: Response, next: NextFunction): void => {
     const utilisateur = req.utilisateur;
 
@@ -255,8 +251,9 @@ export const requireMinRole = (minRole: 'modo_test' | 'modo' | 'admin_modo' | 's
       return;
     }
 
+    // Utiliser ROLE_HIERARCHY qui gère le legacy 'admin'
     const userLevel = utilisateur.getRoleLevel();
-    const requiredLevel = roleLevel[minRole];
+    const requiredLevel = ROLE_HIERARCHY[minRole as RoleWithLegacy];
 
     if (userLevel < requiredLevel) {
       res.status(403).json({

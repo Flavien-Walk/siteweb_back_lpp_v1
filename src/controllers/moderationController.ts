@@ -1062,6 +1062,214 @@ export const getUserModerationTimeline = async (
 };
 
 /**
+ * Récupérer l'activité complète d'un utilisateur
+ * GET /api/admin/users/:id/activity
+ *
+ * Agrège:
+ * - Publications créées
+ * - Commentaires créés
+ * - Reports envoyés
+ * - Sanctions reçues (warnings, suspensions, bans)
+ * - Audit logs où l'utilisateur est la cible
+ *
+ * Filtres disponibles:
+ * - type: 'publication' | 'commentaire' | 'report' | 'sanction' | 'all'
+ * - dateFrom, dateTo: filtrage par période
+ */
+export const getUserActivity = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ErreurAPI('ID utilisateur invalide', 400);
+    }
+
+    // Vérifier que l'utilisateur existe
+    const user = await Utilisateur.findById(userId)
+      .select('_id prenom nom email avatar role bannedAt banReason suspendedUntil warnings dateCreation')
+      .lean();
+
+    if (!user) {
+      throw new ErreurAPI('Utilisateur non trouvé', 404);
+    }
+
+    // Pagination
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+
+    // Filtres
+    const typeFilter = req.query.type as string || 'all';
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+    const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : null;
+
+    // Construire le filtre de date commun
+    const dateFilter: Record<string, Date> = {};
+    if (dateFrom) dateFilter.$gte = dateFrom;
+    if (dateTo) dateFilter.$lte = dateTo;
+    const hasDateFilter = Object.keys(dateFilter).length > 0;
+
+    // Structure pour collecter les activités
+    interface ActivityItem {
+      type: 'publication' | 'commentaire' | 'report_sent' | 'sanction';
+      date: Date;
+      data: Record<string, unknown>;
+    }
+    const activities: ActivityItem[] = [];
+
+    // 1. Publications créées par l'utilisateur
+    if (typeFilter === 'all' || typeFilter === 'publication') {
+      const pubQuery: Record<string, unknown> = { auteur: new mongoose.Types.ObjectId(userId) };
+      if (hasDateFilter) pubQuery.dateCreation = dateFilter;
+
+      const publications = await Publication.find(pubQuery)
+        .select('_id contenu medias dateCreation')
+        .sort({ dateCreation: -1 })
+        .limit(100)
+        .lean();
+
+      for (const pub of publications) {
+        activities.push({
+          type: 'publication',
+          date: pub.dateCreation,
+          data: {
+            _id: pub._id,
+            contenu: (pub as any).contenu?.substring(0, 200) || '',
+            hasMedia: ((pub as any).medias?.length || 0) > 0,
+            mediaCount: (pub as any).medias?.length || 0,
+          },
+        });
+      }
+    }
+
+    // 2. Commentaires créés par l'utilisateur
+    if (typeFilter === 'all' || typeFilter === 'commentaire') {
+      const comQuery: Record<string, unknown> = { auteur: new mongoose.Types.ObjectId(userId) };
+      if (hasDateFilter) comQuery.dateCreation = dateFilter;
+
+      const commentaires = await Commentaire.find(comQuery)
+        .select('_id contenu publication dateCreation')
+        .populate('publication', '_id')
+        .sort({ dateCreation: -1 })
+        .limit(100)
+        .lean();
+
+      for (const com of commentaires) {
+        activities.push({
+          type: 'commentaire',
+          date: com.dateCreation,
+          data: {
+            _id: com._id,
+            contenu: (com as any).contenu?.substring(0, 200) || '',
+            publicationId: (com.publication as any)?._id || null,
+          },
+        });
+      }
+    }
+
+    // 3. Reports envoyés par l'utilisateur
+    if (typeFilter === 'all' || typeFilter === 'report') {
+      const reportQuery: Record<string, unknown> = { reporter: new mongoose.Types.ObjectId(userId) };
+      if (hasDateFilter) reportQuery.dateCreation = dateFilter;
+
+      const reports = await Report.find(reportQuery)
+        .select('_id targetType targetId reason status dateCreation')
+        .sort({ dateCreation: -1 })
+        .limit(100)
+        .lean();
+
+      for (const report of reports) {
+        activities.push({
+          type: 'report_sent',
+          date: report.dateCreation,
+          data: {
+            _id: report._id,
+            targetType: report.targetType,
+            targetId: report.targetId,
+            reason: report.reason,
+            status: report.status,
+          },
+        });
+      }
+    }
+
+    // 4. Sanctions reçues (via AuditLog)
+    if (typeFilter === 'all' || typeFilter === 'sanction') {
+      const sanctionQuery: Record<string, unknown> = {
+        targetType: 'utilisateur',
+        targetId: new mongoose.Types.ObjectId(userId),
+        action: { $in: ['user:warn', 'user:suspend', 'user:ban', 'user:unban', 'user:unsuspend'] },
+      };
+      if (hasDateFilter) sanctionQuery.dateCreation = dateFilter;
+
+      const sanctions = await AuditLog.find(sanctionQuery)
+        .populate('actor', '_id prenom nom')
+        .sort({ dateCreation: -1 })
+        .limit(100)
+        .lean();
+
+      for (const sanction of sanctions) {
+        const actorData = sanction.actor as unknown as { _id: string; prenom: string; nom: string } | null;
+        activities.push({
+          type: 'sanction',
+          date: sanction.dateCreation,
+          data: {
+            _id: sanction._id,
+            action: sanction.action,
+            reason: sanction.reason,
+            moderator: actorData ? { _id: actorData._id, prenom: actorData.prenom, nom: actorData.nom } : null,
+            snapshot: sanction.snapshot,
+          },
+        });
+      }
+    }
+
+    // Trier par date décroissante
+    activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Pagination manuelle sur les résultats agrégés
+    const total = activities.length;
+    const paginatedActivities = activities.slice((page - 1) * limit, page * limit);
+
+    // Stats résumé
+    const stats = {
+      totalPublications: activities.filter(a => a.type === 'publication').length,
+      totalCommentaires: activities.filter(a => a.type === 'commentaire').length,
+      totalReportsSent: activities.filter(a => a.type === 'report_sent').length,
+      totalSanctions: activities.filter(a => a.type === 'sanction').length,
+    };
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        user: {
+          _id: user._id,
+          prenom: user.prenom,
+          nom: user.nom,
+          email: user.email,
+          avatar: user.avatar,
+          role: user.role,
+          dateCreation: user.dateCreation,
+        },
+        stats,
+        activities: paginatedActivities,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Récupérer les reports créés par un utilisateur (safe)
  * GET /api/admin/users/:id/reports
  */
@@ -1082,13 +1290,13 @@ export const getUserReports = async (
     const skip = (page - 1) * limit;
 
     const [reports, total] = await Promise.all([
-      Report.find({ creePar: new mongoose.Types.ObjectId(userId) })
-        .select('_id cible raison status dateCreation dateTraitement')
+      Report.find({ reporter: new mongoose.Types.ObjectId(userId) })
+        .select('_id targetType targetId reason status dateCreation moderatedAt')
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      Report.countDocuments({ creePar: new mongoose.Types.ObjectId(userId) }),
+      Report.countDocuments({ reporter: new mongoose.Types.ObjectId(userId) }),
     ]);
 
     res.status(200).json({

@@ -4,7 +4,10 @@ import { Request, Response, NextFunction } from 'express';
  * Middleware pour vérifier que l'utilisateur est admin
  * Doit être utilisé APRÈS verifierJwt
  *
- * RÉTROCOMPATIBILITÉ: isAdmin() retourne true pour super_admin et admin_modo
+ * RÉTROCOMPATIBILITÉ: isAdmin() retourne true pour:
+ * - super_admin
+ * - admin_modo
+ * - admin (rôle legacy, traité comme admin_modo)
  *
  * Pour un contrôle plus fin, utiliser requirePermission() ou requireMinRole()
  * depuis checkUserStatus.ts

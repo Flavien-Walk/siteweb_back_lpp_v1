@@ -6,14 +6,18 @@ import { urlValidator } from '../utils/validators.js';
 export type ProviderOAuth = 'local' | 'google' | 'facebook' | 'apple';
 
 // Types pour les rôles (hiérarchie : super_admin > admin_modo > modo > modo_test > user)
+// Note: 'admin' est un rôle legacy qui sera traité comme 'admin_modo'
 export type Role = 'user' | 'modo_test' | 'modo' | 'admin_modo' | 'super_admin';
+export type RoleWithLegacy = Role | 'admin'; // Inclut le rôle legacy pour la rétrocompatibilité
 
 // Hiérarchie des rôles (niveau de pouvoir)
-export const ROLE_HIERARCHY: Record<Role, number> = {
+// 'admin' legacy est au même niveau que 'admin_modo'
+export const ROLE_HIERARCHY: Record<RoleWithLegacy, number> = {
   user: 0,
   modo_test: 1,
   modo: 2,
   admin_modo: 3,
+  admin: 3, // Legacy: même niveau que admin_modo
   super_admin: 4,
 };
 
@@ -37,11 +41,18 @@ export type Permission =
   | 'staff:chat';
 
 // Permissions par défaut selon le rôle
-export const DEFAULT_PERMISSIONS: Record<Role, Permission[]> = {
+// Note: 'admin' legacy a les mêmes permissions que 'admin_modo'
+export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
   user: [],
   modo_test: ['reports:view'],
   modo: ['reports:view', 'reports:process', 'users:view', 'users:warn', 'content:hide', 'staff:chat'],
   admin_modo: [
+    'reports:view', 'reports:process', 'reports:escalate',
+    'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
+    'content:hide', 'content:delete',
+    'audit:view', 'staff:chat',
+  ],
+  admin: [ // Legacy: mêmes permissions que admin_modo
     'reports:view', 'reports:process', 'reports:escalate',
     'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
     'content:hide', 'content:delete',
@@ -305,14 +316,18 @@ utilisateurSchema.methods.comparerMotDePasse = async function (
 };
 
 // Methode pour verifier si l'utilisateur est admin (rétrocompatibilité)
-// Retourne true pour super_admin et admin_modo
+// Retourne true pour super_admin, admin_modo, et 'admin' legacy
 utilisateurSchema.methods.isAdmin = function (): boolean {
-  return this.role === 'super_admin' || this.role === 'admin_modo';
+  return this.role === 'super_admin' || this.role === 'admin_modo' || this.role === 'admin';
 };
 
 // Méthode pour vérifier si l'utilisateur fait partie du staff (modo ou plus)
+// Inclut le rôle legacy 'admin'
 utilisateurSchema.methods.isStaff = function (): boolean {
-  return ROLE_HIERARCHY[this.role as Role] >= ROLE_HIERARCHY.modo_test;
+  const roleLevel = ROLE_HIERARCHY[this.role as RoleWithLegacy];
+  // Si le rôle n'est pas reconnu, retourner false
+  if (roleLevel === undefined) return false;
+  return roleLevel >= ROLE_HIERARCHY.modo_test;
 };
 
 // Méthode pour vérifier si l'utilisateur est banni
@@ -327,13 +342,15 @@ utilisateurSchema.methods.isSuspended = function (): boolean {
 };
 
 // Méthode pour obtenir le niveau de rôle
+// Gère le rôle legacy 'admin' (traité comme admin_modo)
 utilisateurSchema.methods.getRoleLevel = function (): number {
-  return ROLE_HIERARCHY[this.role as Role] || 0;
+  return ROLE_HIERARCHY[this.role as RoleWithLegacy] ?? 0;
 };
 
 // Méthode pour obtenir toutes les permissions effectives (rôle + override)
+// Gère le rôle legacy 'admin' (traité comme admin_modo)
 utilisateurSchema.methods.getEffectivePermissions = function (): Permission[] {
-  const rolePermissions = DEFAULT_PERMISSIONS[this.role as Role] || [];
+  const rolePermissions = DEFAULT_PERMISSIONS[this.role as RoleWithLegacy] || [];
   const userPermissions = this.permissions || [];
   // Fusionner et dédupliquer
   return [...new Set([...rolePermissions, ...userPermissions])] as Permission[];
