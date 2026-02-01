@@ -781,3 +781,123 @@ export const getAggregatedReports = async (
     next(error);
   }
 };
+
+/**
+ * Obtenir un signalement par ID
+ * GET /api/admin/reports/:id
+ */
+export const getReportById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const reportId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(reportId)) {
+      throw new ErreurAPI('ID de signalement invalide', 400);
+    }
+
+    const report = await Report.findById(reportId)
+      .populate('reporter', '_id prenom nom email avatar')
+      .populate('moderatedBy', '_id prenom nom')
+      .populate('assignedTo', '_id prenom nom')
+      .populate('escalatedBy', '_id prenom nom')
+      .lean();
+
+    if (!report) {
+      throw new ErreurAPI('Signalement non trouvé', 404);
+    }
+
+    // Enrichir avec les infos de la cible
+    let target = null;
+    let targetUser = null;
+
+    if (report.targetType === 'post') {
+      const publication = await Publication.findById(report.targetId)
+        .populate('auteur', '_id prenom nom avatar email')
+        .lean();
+      if (publication) {
+        target = {
+          _id: publication._id,
+          type: 'publication',
+          auteur: publication.auteur,
+          contenu: (publication as any).contenu,
+          media: (publication as any).media,
+          isHidden: (publication as any).isHidden || false,
+          dateCreation: (publication as any).dateCreation,
+        };
+        targetUser = publication.auteur;
+      }
+    } else if (report.targetType === 'commentaire') {
+      const commentaire = await Commentaire.findById(report.targetId)
+        .populate('auteur', '_id prenom nom avatar email')
+        .lean();
+      if (commentaire) {
+        target = {
+          _id: commentaire._id,
+          type: 'commentaire',
+          auteur: commentaire.auteur,
+          contenu: commentaire.contenu,
+          dateCreation: commentaire.dateCreation,
+        };
+        targetUser = commentaire.auteur;
+      }
+    } else if (report.targetType === 'utilisateur') {
+      const utilisateur = await Utilisateur.findById(report.targetId)
+        .select('_id prenom nom avatar email bannedAt suspendedUntil warnings')
+        .lean();
+      if (utilisateur) {
+        target = {
+          _id: utilisateur._id,
+          type: 'utilisateur',
+          prenom: utilisateur.prenom,
+          nom: utilisateur.nom,
+          avatar: utilisateur.avatar,
+          email: utilisateur.email,
+        };
+        targetUser = {
+          _id: utilisateur._id,
+          prenom: utilisateur.prenom,
+          nom: utilisateur.nom,
+          avatar: utilisateur.avatar,
+          email: utilisateur.email,
+          status: utilisateur.bannedAt ? 'banned' :
+                  (utilisateur.suspendedUntil && new Date(utilisateur.suspendedUntil) > new Date()) ? 'suspended' : 'active',
+        };
+      }
+    }
+
+    // Formater la réponse pour l'outil de modération
+    const formattedReport = {
+      _id: report._id,
+      reporter: report.reporter,
+      targetType: report.targetType === 'post' ? 'publication' : report.targetType,
+      targetId: report.targetId,
+      targetContent: target?.contenu || null,
+      targetUser,
+      type: report.reason,
+      reason: report.details,
+      status: report.status === 'pending' ? 'pending' :
+              report.status === 'reviewed' ? 'in_progress' :
+              report.status === 'action_taken' ? 'resolved' : 'rejected',
+      priority: report.priority,
+      assignedTo: report.assignedTo,
+      processedBy: report.moderatedBy,
+      notes: [], // Pas de notes dans le modèle actuel
+      duplicateCount: report.aggregateCount || 1,
+      createdAt: report.dateCreation,
+      updatedAt: report.dateMiseAJour,
+      resolvedAt: report.moderatedAt,
+    };
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        report: formattedReport,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

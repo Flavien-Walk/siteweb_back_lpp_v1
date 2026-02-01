@@ -40,29 +40,61 @@ export const creerApp = (): Application => {
   // Helmet - headers de sécurité
   app.use(helmet());
 
-  // CORS - autoriser les requêtes du frontend (prod + previews Vercel)
-  const allowedOrigins = [
+  // ============================================
+  // CORS CONFIGURATION (SÉCURISÉE)
+  // ============================================
+  //
+  // Origins autorisées (JAMAIS de "*"):
+  // 1. CLIENT_URL - Frontend production (Vercel)
+  // 2. LOCAL_MODERATION_ORIGINS - Outil modération local (staff uniquement)
+  // 3. Previews Vercel du projet frontend
+  // ============================================
+
+  // Origins de production
+  const prodOrigins = [
     process.env.CLIENT_URL, // ex: https://siteweb-front-lpp-v100.vercel.app
-    'http://localhost:5173',
-    'http://localhost:3000',
   ].filter(Boolean) as string[];
 
-  // Autorise les previews Vercel du projet (ex: https://siteweb-front-lpp-v100-xxxxx.vercel.app)
+  // Origins de l'outil de modération local (ex: "http://localhost:5173,http://127.0.0.1:5173")
+  // Défini via variable d'environnement pour ne pas exposer en dur
+  const localModerationOrigins = process.env.LOCAL_MODERATION_ORIGINS
+    ? process.env.LOCAL_MODERATION_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : [];
+
+  // Toutes les origins autorisées
+  const allowedOrigins = [...prodOrigins, ...localModerationOrigins];
+
+  // Regex pour les previews Vercel du projet frontend
   const vercelPreviewRegex =
     /^https:\/\/siteweb-front-lpp-v100-[a-z0-9-]+\.vercel\.app$/i;
+
+  // Log au démarrage (debug uniquement)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[CORS] Origins autorisées:', allowedOrigins);
+    console.log('[CORS] Outil modération local:', localModerationOrigins.length > 0 ? 'ACTIVÉ' : 'DÉSACTIVÉ');
+  }
 
   app.use(
     cors({
       origin: (origin, cb) => {
-        // Requêtes sans Origin (Postman, curl, server-to-server)
-        if (!origin) return cb(null, true);
-
-        // Prod / Local / Preview Vercel
-        if (allowedOrigins.includes(origin) || vercelPreviewRegex.test(origin)) {
+        // Requêtes sans Origin (apps mobiles natives, Postman en dev)
+        if (!origin) {
           return cb(null, true);
         }
 
-        return cb(new Error('Not allowed by CORS: ' + origin));
+        // Origins explicitement autorisées
+        if (allowedOrigins.includes(origin)) {
+          return cb(null, true);
+        }
+
+        // Previews Vercel du frontend
+        if (vercelPreviewRegex.test(origin)) {
+          return cb(null, true);
+        }
+
+        // Origin non autorisée - REFUSER
+        console.warn(`[CORS] Origin refusée: ${origin}`);
+        return cb(new Error(`Origin non autorisée: ${origin}`));
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -99,9 +131,40 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   });
 
+  // Rate limiter spécifique pour les actions admin/modération
+  // Plus restrictif pour éviter les abus
+  const limiterAdmin = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200, // max 200 requêtes par fenêtre (consultation intensive possible)
+    message: {
+      succes: false,
+      message: 'Trop de requêtes admin. Veuillez réessayer dans quelques minutes.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Rate limiter strict pour les actions de modération (sanctions)
+  const limiterModerationActions = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 heure
+    max: 50, // max 50 actions de sanction par heure
+    message: {
+      succes: false,
+      message: 'Trop d\'actions de modération. Veuillez patienter.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   app.use('/api/', limiter);
   app.use('/api/auth/connexion', limiterAuth);
   app.use('/api/auth/inscription', limiterAuth);
+  app.use('/api/admin/', limiterAdmin);
+  app.use('/api/moderation/', limiterAdmin);
+  // Actions de sanction spécifiques (warn, suspend, ban)
+  app.use('/api/moderation/users/:id/warn', limiterModerationActions);
+  app.use('/api/moderation/users/:id/suspend', limiterModerationActions);
+  app.use('/api/moderation/users/:id/ban', limiterModerationActions);
 
   // ============================================
   // MIDDLEWARES DE PARSING

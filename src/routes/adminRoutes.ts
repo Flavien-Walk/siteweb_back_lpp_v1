@@ -8,6 +8,7 @@ import {
   escalateReport,
   assignReport,
   getAggregatedReports,
+  getReportById,
 } from '../controllers/reportController.js';
 import {
   listAuditLogs,
@@ -21,11 +22,24 @@ import {
   sendStaffMessage,
   markMessagesAsRead,
   getUnreadCount,
+  deleteStaffMessage,
 } from '../controllers/staffChatController.js';
 import {
   getDashboard,
   getMe,
 } from '../controllers/dashboardController.js';
+import {
+  listUsers,
+  getUserModerationDetails,
+  getUserAuditHistory,
+  getUserModerationTimeline,
+  getUserReports,
+  warnUser,
+  suspendUser,
+  banUser,
+  unbanUser,
+  changeUserRole,
+} from '../controllers/moderationController.js';
 
 const router = Router();
 
@@ -33,14 +47,62 @@ const router = Router();
  * Routes d'administration
  * Toutes les routes nécessitent authentification + permissions appropriées
  *
- * Permissions utilisées :
- * - reports:view : voir les signalements
- * - reports:process : traiter les signalements
- * - reports:escalate : escalader les signalements
- * - audit:view : voir les audit logs
- * - audit:export : exporter les audit logs
- * - staff:chat : accéder au staff chat
+ * Mapping des routes pour l'outil de modération:
+ * - /api/admin/me → info modérateur connecté
+ * - /api/admin/dashboard → stats dashboard
+ * - /api/admin/dashboard/stats → alias dashboard
+ * - /api/admin/reports → signalements
+ * - /api/admin/users → utilisateurs (liste, détails, audit, timeline)
+ * - /api/admin/audit → audit logs
+ * - /api/admin/chat → staff chat (alias de staff-chat)
+ * - /api/admin/staff-chat → staff chat (original)
  */
+
+// ============ DASHBOARD / INFO ============
+
+// GET /api/admin/me - Info du modérateur connecté
+router.get('/me', verifierJwt, requireStaff, getMe);
+
+// GET /api/admin/dashboard - Données du dashboard (agrégées)
+router.get('/dashboard', verifierJwt, requireStaff, getDashboard);
+
+// GET /api/admin/dashboard/stats - Alias pour dashboard (compatibilité outil modération)
+router.get('/dashboard/stats', verifierJwt, requireStaff, getDashboard);
+
+// ============ UTILISATEURS ============
+
+// GET /api/admin/users - Lister les utilisateurs avec filtres
+router.get('/users', verifierJwt, requirePermission('users:view'), listUsers);
+
+// GET /api/admin/users/search - Recherche utilisateurs (même endpoint avec query param)
+router.get('/users/search', verifierJwt, requirePermission('users:view'), listUsers);
+
+// GET /api/admin/users/:id - Détails d'un utilisateur
+router.get('/users/:id', verifierJwt, requirePermission('users:view'), getUserModerationDetails);
+
+// GET /api/admin/users/:id/audit - Historique d'audit d'un utilisateur
+router.get('/users/:id/audit', verifierJwt, requirePermission('audit:view'), getUserAuditHistory);
+
+// GET /api/admin/users/:id/timeline - Timeline de modération d'un utilisateur
+router.get('/users/:id/timeline', verifierJwt, requirePermission('users:view'), getUserModerationTimeline);
+
+// GET /api/admin/users/:id/reports - Reports créés par l'utilisateur
+router.get('/users/:id/reports', verifierJwt, requirePermission('users:view'), getUserReports);
+
+// POST /api/admin/users/:id/warn - Avertir un utilisateur (alias)
+router.post('/users/:id/warn', verifierJwt, requirePermission('users:warn'), warnUser);
+
+// POST /api/admin/users/:id/suspend - Suspendre un utilisateur (alias)
+router.post('/users/:id/suspend', verifierJwt, requirePermission('users:suspend'), suspendUser);
+
+// POST /api/admin/users/:id/ban - Bannir un utilisateur (alias)
+router.post('/users/:id/ban', verifierJwt, requirePermission('users:ban'), banUser);
+
+// POST /api/admin/users/:id/unban - Débannir un utilisateur (alias)
+router.post('/users/:id/unban', verifierJwt, requirePermission('users:unban'), unbanUser);
+
+// PATCH /api/admin/users/:id/role - Changer le rôle d'un utilisateur (alias)
+router.patch('/users/:id/role', verifierJwt, requirePermission('users:edit_roles'), changeUserRole);
 
 // ============ SIGNALEMENTS ============
 
@@ -53,8 +115,14 @@ router.get('/reports/stats', verifierJwt, requirePermission('reports:view'), get
 // GET /api/admin/reports/aggregated - Signalements agrégés par cible
 router.get('/reports/aggregated', verifierJwt, requirePermission('reports:view'), getAggregatedReports);
 
+// GET /api/admin/reports/:id - Détail d'un signalement
+router.get('/reports/:id', verifierJwt, requirePermission('reports:view'), getReportById);
+
 // PATCH /api/admin/reports/:id - Traiter un signalement
 router.patch('/reports/:id', verifierJwt, requirePermission('reports:process'), traiterReport);
+
+// POST /api/admin/reports/:id/process - Traiter un signalement (alias pour l'outil)
+router.post('/reports/:id/process', verifierJwt, requirePermission('reports:process'), traiterReport);
 
 // POST /api/admin/reports/:id/escalate - Escalader un signalement
 router.post('/reports/:id/escalate', verifierJwt, requirePermission('reports:escalate'), escalateReport);
@@ -73,6 +141,23 @@ router.get('/audit/stats', verifierJwt, requirePermission('audit:view'), getAudi
 // GET /api/admin/audit/export - Exporter les audit logs en CSV
 router.get('/audit/export', verifierJwt, requirePermission('audit:export'), exportAuditLogs);
 
+// GET /api/admin/audit/actions - Liste des types d'actions (pour filtres)
+router.get('/audit/actions', verifierJwt, requirePermission('audit:view'), (_req, res) => {
+  res.status(200).json({
+    succes: true,
+    data: {
+      actions: [
+        'user:warn', 'user:warn_remove', 'user:suspend', 'user:unsuspend',
+        'user:ban', 'user:unban', 'user:role_change',
+        'user:permission_add', 'user:permission_remove',
+        'content:hide', 'content:unhide', 'content:delete', 'content:restore',
+        'report:process', 'report:escalate', 'report:dismiss', 'report:assign',
+        'config:update', 'staff:login', 'staff:logout',
+      ],
+    },
+  });
+});
+
 // GET /api/admin/audit/target/:targetType/:targetId - Historique d'une cible
 router.get('/audit/target/:targetType/:targetId', verifierJwt, requirePermission('audit:view'), getTargetHistory);
 
@@ -81,6 +166,7 @@ router.get('/audit/:id', verifierJwt, requirePermission('audit:view'), getAuditL
 
 // ============ STAFF CHAT ============
 
+// Original endpoints
 // GET /api/admin/staff-chat - Récupérer les messages
 router.get('/staff-chat', verifierJwt, requirePermission('staff:chat'), getStaffMessages);
 
@@ -93,12 +179,23 @@ router.get('/staff-chat/unread-count', verifierJwt, requirePermission('staff:cha
 // POST /api/admin/staff-chat/read - Marquer comme lus
 router.post('/staff-chat/read', verifierJwt, requirePermission('staff:chat'), markMessagesAsRead);
 
-// ============ DASHBOARD / INFO ============
+// DELETE /api/admin/staff-chat/:id - Supprimer un message
+router.delete('/staff-chat/:id', verifierJwt, requirePermission('staff:chat'), deleteStaffMessage);
 
-// GET /api/admin/dashboard - Données du dashboard (agrégées)
-router.get('/dashboard', verifierJwt, requireStaff, getDashboard);
+// Alias endpoints pour l'outil de modération (/api/admin/chat)
+// GET /api/admin/chat - Récupérer les messages (alias)
+router.get('/chat', verifierJwt, requirePermission('staff:chat'), getStaffMessages);
 
-// GET /api/admin/me - Info du modérateur connecté
-router.get('/me', verifierJwt, requireStaff, getMe);
+// POST /api/admin/chat - Envoyer un message (alias)
+router.post('/chat', verifierJwt, requirePermission('staff:chat'), sendStaffMessage);
+
+// GET /api/admin/chat/unread - Nombre de messages non lus (alias)
+router.get('/chat/unread', verifierJwt, requirePermission('staff:chat'), getUnreadCount);
+
+// POST /api/admin/chat/read - Marquer comme lus (alias)
+router.post('/chat/read', verifierJwt, requirePermission('staff:chat'), markMessagesAsRead);
+
+// DELETE /api/admin/chat/:id - Supprimer un message (alias)
+router.delete('/chat/:id', verifierJwt, requirePermission('staff:chat'), deleteStaffMessage);
 
 export default router;

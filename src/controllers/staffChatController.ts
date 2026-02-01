@@ -189,3 +189,47 @@ export const createSystemMessage = async (
     console.error('[StaffChat] Erreur création message système:', error);
   }
 };
+
+/**
+ * Supprimer un message du staff chat
+ * DELETE /api/admin/staff-chat/:id
+ *
+ * Un utilisateur peut supprimer ses propres messages.
+ * Un admin_modo ou super_admin peut supprimer n'importe quel message.
+ */
+export const deleteStaffMessage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const messageId = req.params.id;
+    const user = req.utilisateur!;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      throw new ErreurAPI('ID de message invalide', 400);
+    }
+
+    const message = await StaffMessage.findById(messageId);
+    if (!message) {
+      throw new ErreurAPI('Message non trouvé', 404);
+    }
+
+    // Vérifier les permissions
+    const isOwner = message.sender.toString() === user._id.toString();
+    const isAdmin = user.role === 'admin_modo' || user.role === 'super_admin';
+
+    if (!isOwner && !isAdmin) {
+      throw new ErreurAPI('Vous ne pouvez supprimer que vos propres messages', 403);
+    }
+
+    await message.deleteOne();
+
+    res.status(200).json({
+      succes: true,
+      message: 'Message supprimé.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};

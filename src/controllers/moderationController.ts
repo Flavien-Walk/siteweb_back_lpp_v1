@@ -4,6 +4,8 @@ import mongoose from 'mongoose';
 import Utilisateur, { IUtilisateur, IWarning, ROLE_HIERARCHY, Role, Permission } from '../models/Utilisateur.js';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
+import AuditLog from '../models/AuditLog.js';
+import Report from '../models/Report.js';
 import { auditLogger } from '../utils/auditLogger.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
@@ -778,6 +780,321 @@ export const listUsers = async (
       succes: true,
       data: {
         users: enrichedUsers,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============ AUDIT & HISTORIQUE UTILISATEUR ============
+
+/**
+ * Récupérer l'historique d'audit d'un utilisateur
+ * GET /api/admin/users/:id/audit
+ *
+ * Retourne toutes les entrées AuditLog où:
+ * - targetType = 'utilisateur' && targetId = userId
+ * - OU actions sur du contenu appartenant à cet utilisateur
+ */
+export const getUserAuditHistory = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ErreurAPI('ID utilisateur invalide', 400);
+    }
+
+    // Vérifier que l'utilisateur existe
+    const user = await Utilisateur.findById(userId).select('_id prenom nom');
+    if (!user) {
+      throw new ErreurAPI('Utilisateur non trouvé', 404);
+    }
+
+    // Pagination
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const skip = (page - 1) * limit;
+
+    // Filtres optionnels
+    const actionFilter = req.query.action as string;
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+    const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : null;
+
+    // Récupérer les publications/commentaires de l'utilisateur pour inclure les actions sur son contenu
+    const userPublications = await Publication.find({ auteur: userId }).select('_id').lean();
+    const userCommentaires = await Commentaire.find({ auteur: userId }).select('_id').lean();
+
+    const pubIds = userPublications.map(p => p._id);
+    const comIds = userCommentaires.map(c => c._id);
+
+    // Construire la query
+    const query: Record<string, unknown> = {
+      $or: [
+        // Actions directes sur l'utilisateur
+        { targetType: 'utilisateur', targetId: new mongoose.Types.ObjectId(userId) },
+        // Actions sur ses publications
+        ...(pubIds.length > 0 ? [{ targetType: 'publication', targetId: { $in: pubIds } }] : []),
+        // Actions sur ses commentaires
+        ...(comIds.length > 0 ? [{ targetType: 'commentaire', targetId: { $in: comIds } }] : []),
+      ],
+    };
+
+    // Filtre par action si spécifié
+    if (actionFilter) {
+      query.action = actionFilter;
+    }
+
+    // Filtre par dates
+    if (dateFrom || dateTo) {
+      query.dateCreation = {};
+      if (dateFrom) (query.dateCreation as Record<string, Date>).$gte = dateFrom;
+      if (dateTo) (query.dateCreation as Record<string, Date>).$lte = dateTo;
+    }
+
+    const [logs, total] = await Promise.all([
+      AuditLog.find(query)
+        .populate('actor', '_id prenom nom avatar role')
+        .populate('relatedReport', '_id raison status')
+        .sort({ dateCreation: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      AuditLog.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        user: {
+          _id: user._id,
+          prenom: user.prenom,
+          nom: user.nom,
+        },
+        logs: logs.map(log => ({
+          _id: log._id,
+          action: log.action,
+          targetType: log.targetType,
+          targetId: log.targetId,
+          reason: log.reason,
+          metadata: log.metadata,
+          snapshot: log.snapshot,
+          moderator: log.actor,
+          relatedReport: log.relatedReport,
+          createdAt: log.dateCreation,
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Récupérer une timeline synthétique de modération d'un utilisateur
+ * GET /api/admin/users/:id/timeline
+ *
+ * Vue synthétique et chronologique:
+ * - Avertissements
+ * - Suspensions
+ * - Bans/Débans
+ * - Reports majeurs (ayant abouti à une action)
+ */
+export const getUserModerationTimeline = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ErreurAPI('ID utilisateur invalide', 400);
+    }
+
+    // Récupérer l'utilisateur avec ses warnings
+    const user = await Utilisateur.findById(userId)
+      .select('_id prenom nom email avatar role bannedAt banReason suspendedUntil warnings dateCreation')
+      .populate('warnings.issuedBy', '_id prenom nom')
+      .lean();
+
+    if (!user) {
+      throw new ErreurAPI('Utilisateur non trouvé', 404);
+    }
+
+    // Récupérer les actions de modération importantes
+    const moderationActions = await AuditLog.find({
+      targetType: 'utilisateur',
+      targetId: new mongoose.Types.ObjectId(userId),
+      action: { $in: ['user:warn', 'user:suspend', 'user:unsuspend', 'user:ban', 'user:unban', 'user:role_change'] },
+    })
+      .populate('actor', '_id prenom nom')
+      .sort({ dateCreation: -1 })
+      .limit(100)
+      .lean();
+
+    // Récupérer les reports ayant abouti à une action sur cet utilisateur
+    const actionedReports = await Report.find({
+      targetType: 'utilisateur',
+      targetId: new mongoose.Types.ObjectId(userId),
+      status: 'action_taken',
+    })
+      .populate('moderatedBy', '_id prenom nom')
+      .sort({ moderatedAt: -1 })
+      .limit(50)
+      .lean();
+
+    // Construire la timeline
+    const timeline: Array<{
+      type: string;
+      date: Date;
+      action?: string;
+      reason?: string;
+      moderator?: { _id: string; prenom: string; nom: string } | null;
+      details?: Record<string, unknown>;
+    }> = [];
+
+    // Ajouter les warnings de l'utilisateur
+    if (user.warnings) {
+      for (const warning of user.warnings) {
+        const issuedByData = warning.issuedBy as unknown as { _id: string; prenom: string; nom: string } | null;
+        timeline.push({
+          type: 'warning',
+          date: new Date(warning.issuedAt),
+          action: 'user:warn',
+          reason: warning.reason,
+          moderator: issuedByData || null,
+          details: {
+            warningId: warning._id,
+            expiresAt: warning.expiresAt,
+          },
+        });
+      }
+    }
+
+    // Ajouter les actions de modération
+    for (const action of moderationActions) {
+      const actorData = action.actor as unknown as { _id: string; prenom: string; nom: string } | null;
+      timeline.push({
+        type: 'moderation_action',
+        date: action.dateCreation,
+        action: action.action,
+        reason: action.reason,
+        moderator: actorData || null,
+        details: {
+          snapshot: action.snapshot,
+          metadata: action.metadata,
+        },
+      });
+    }
+
+    // Ajouter les reports ayant abouti à une action
+    for (const report of actionedReports) {
+      const moderatedByData = report.moderatedBy as unknown as { _id: string; prenom: string; nom: string } | null;
+      timeline.push({
+        type: 'report_action',
+        date: report.moderatedAt || report.dateCreation,
+        action: 'report:action_taken',
+        reason: report.reason,
+        moderator: moderatedByData || null,
+        details: {
+          reportId: report._id,
+          reportReason: report.reason,
+          actionTaken: report.action,
+        },
+      });
+    }
+
+    // Trier par date décroissante
+    timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Stats résumé
+    const summary = {
+      totalWarnings: user.warnings?.length || 0,
+      activeWarnings: user.warnings?.filter(w => !w.expiresAt || new Date(w.expiresAt) > new Date()).length || 0,
+      totalSuspensions: moderationActions.filter(a => a.action === 'user:suspend').length,
+      totalBans: moderationActions.filter(a => a.action === 'user:ban').length,
+      currentlyBanned: !!user.bannedAt,
+      currentlySuspended: user.suspendedUntil ? new Date(user.suspendedUntil) > new Date() : false,
+      accountAge: Math.floor((Date.now() - new Date(user.dateCreation).getTime()) / (1000 * 60 * 60 * 24)),
+    };
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        user: {
+          _id: user._id,
+          prenom: user.prenom,
+          nom: user.nom,
+          email: user.email,
+          avatar: user.avatar,
+          role: user.role,
+          dateCreation: user.dateCreation,
+        },
+        status: {
+          bannedAt: user.bannedAt,
+          banReason: user.banReason,
+          suspendedUntil: user.suspendedUntil,
+        },
+        summary,
+        timeline: timeline.slice(0, 100), // Limiter à 100 entrées
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Récupérer les reports créés par un utilisateur (safe)
+ * GET /api/admin/users/:id/reports
+ */
+export const getUserReports = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ErreurAPI('ID utilisateur invalide', 400);
+    }
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const [reports, total] = await Promise.all([
+      Report.find({ creePar: new mongoose.Types.ObjectId(userId) })
+        .select('_id cible raison status dateCreation dateTraitement')
+        .sort({ dateCreation: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Report.countDocuments({ creePar: new mongoose.Types.ObjectId(userId) }),
+    ]);
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        reports,
         pagination: {
           page,
           limit,
