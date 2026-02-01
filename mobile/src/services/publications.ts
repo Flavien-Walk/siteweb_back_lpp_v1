@@ -186,6 +186,40 @@ export const toggleLikeCommentaire = async (
   return api.post(`/publications/${publicationId}/commentaires/${commentaireId}/like`, {}, true);
 };
 
+// ============ SIGNALEMENT ============
+
+// Raisons de signalement (alignées avec le backend)
+export type RaisonSignalement =
+  | 'spam'
+  | 'harcelement'
+  | 'contenu_inapproprie'
+  | 'fausse_info'
+  | 'nudite'
+  | 'violence'
+  | 'haine'
+  | 'autre';
+
+/**
+ * Signaler une publication
+ * POST /api/reports
+ */
+export const signalerPublication = async (
+  publicationId: string,
+  raison: RaisonSignalement,
+  details?: string
+): Promise<ReponseAPI<{ message: string }>> => {
+  return api.post<{ message: string }>(
+    '/reports',
+    {
+      targetType: 'post',
+      targetId: publicationId,
+      reason: raison,
+      details,
+    },
+    true
+  );
+};
+
 // ============ AVATARS ============
 
 /**

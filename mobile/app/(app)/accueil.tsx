@@ -46,6 +46,8 @@ import {
   modifierCommentaire,
   supprimerPublication,
   modifierPublication,
+  signalerPublication,
+  RaisonSignalement,
 } from '../../src/services/publications';
 import {
   Conversation,
@@ -81,6 +83,12 @@ import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
 import { Story } from '../../src/services/stories';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
+import {
+  Live as LiveAPI,
+  getActiveLives,
+  getAgoraToken,
+} from '../../src/services/live';
+import { LiveCard } from '../../src/composants';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -98,16 +106,6 @@ interface Startup {
   posts: number;
 }
 
-interface Live {
-  id: string;
-  titre: string;
-  startup: string;
-  datetime: string;
-  interesse: number;
-  enDirect: boolean;
-  viewers?: number;
-  image: string;
-}
 
 interface TrendingStartup {
   id: string;
@@ -157,28 +155,6 @@ const MOCK_STARTUPS: Startup[] = [
   },
 ];
 
-// Donnees mock pour Lives
-const MOCK_LIVES: Live[] = [
-  {
-    id: '1',
-    titre: 'AMA : Decouvrez notre equipe',
-    startup: 'GreenTech Lyon',
-    datetime: 'En direct',
-    interesse: 342,
-    enDirect: true,
-    viewers: 1247,
-    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=500&h=300&fit=crop',
-  },
-  {
-    id: '2',
-    titre: 'Backstage : Notre labo R&D',
-    startup: 'MedIA Diagnostics',
-    datetime: 'Demain, 18h00',
-    interesse: 189,
-    enDirect: false,
-    image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=500&h=300&fit=crop',
-  },
-];
 
 // Composant wrapper pour l'animation d'entrée des publications
 const AnimatedPublicationWrapper = ({ children, index }: { children: React.ReactNode; index: number }) => {
@@ -413,7 +389,14 @@ export default function Accueil() {
   const [storiesAVisionner, setStoriesAVisionner] = useState<Story[]>([]);
   const [storyUserName, setStoryUserName] = useState('');
   const [storyUserAvatar, setStoryUserAvatar] = useState<string | undefined>();
+  const [pendingStoryIndex, setPendingStoryIndex] = useState<number | null>(null);
+  const pendingStoryRestoreRef = useRef(false);
+
+  // Lives
+  const [lives, setLives] = useState<LiveAPI[]>([]);
+  const [chargementLives, setChargementLives] = useState(false);
   const [storyIsOwn, setStoryIsOwn] = useState(false);
+  const [storyUserId, setStoryUserId] = useState('');
   const [storiesRefreshKey, setStoriesRefreshKey] = useState(0);
 
   // Animations FAB
@@ -457,6 +440,13 @@ export default function Accueil() {
   useEffect(() => {
     chargerHistoriqueRecherche();
   }, []);
+
+  // Charger les lives quand l'onglet live est actif
+  useEffect(() => {
+    if (ongletActif === 'live') {
+      chargerLives();
+    }
+  }, [ongletActif]);
 
   // Scroll vers une publication ciblée (depuis notification)
   useEffect(() => {
@@ -660,6 +650,20 @@ export default function Accueil() {
       console.error('Erreur chargement evenements:', error);
     } finally {
       setChargementEvenements(false);
+    }
+  };
+
+  const chargerLives = async () => {
+    try {
+      setChargementLives(true);
+      const reponse = await getActiveLives();
+      if (reponse.succes && reponse.data) {
+        setLives(reponse.data.lives);
+      }
+    } catch (error) {
+      console.error('Erreur chargement lives:', error);
+    } finally {
+      setChargementLives(false);
     }
   };
 
@@ -1196,6 +1200,28 @@ export default function Accueil() {
       }
     };
 
+    const handleReportPost = async (raison: RaisonSignalement) => {
+      setShowPostMenu(false);
+      try {
+        const reponse = await signalerPublication(publication._id, raison);
+        if (reponse.succes) {
+          showNotification('succes', 'Merci, signalement envoyé');
+        } else {
+          showNotification('erreur', reponse.message || 'Erreur lors du signalement');
+        }
+      } catch (error) {
+        showNotification('erreur', 'Impossible de signaler ce contenu');
+      }
+    };
+
+    const raisonsSignalement: { value: RaisonSignalement; label: string; icon: string }[] = [
+      { value: 'spam', label: 'Spam', icon: 'mail-unread-outline' },
+      { value: 'harcelement', label: 'Harcèlement', icon: 'warning-outline' },
+      { value: 'contenu_inapproprie', label: 'Contenu inapproprié', icon: 'eye-off-outline' },
+      { value: 'fausse_info', label: 'Fausse information', icon: 'information-circle-outline' },
+      { value: 'autre', label: 'Autre', icon: 'flag-outline' },
+    ];
+
     const userAvatarUrl = utilisateur?.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${utilisateur?.id || 'default'}&backgroundColor=6366f1&size=128`;
 
     return (
@@ -1257,32 +1283,112 @@ export default function Accueil() {
             </View>
             <Text style={styles.postTimestamp}>{formatDate(publication.dateCreation)}</Text>
           </View>
-          {canEditDelete() && (
-            <Pressable style={styles.postMore} onPress={() => setShowPostMenu(!showPostMenu)}>
-              <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
-            </Pressable>
-          )}
+          <Pressable style={styles.postMore} onPress={() => setShowPostMenu(!showPostMenu)}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
+          </Pressable>
         </View>
 
-        {/* Menu contextuel pour modifier/supprimer */}
-        {showPostMenu && canEditDelete() && (
-          <View style={styles.postMenu}>
+        {/* Bottom Sheet Menu */}
+        <Modal
+          visible={showPostMenu}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowPostMenu(false)}
+        >
+          <Pressable
+            style={styles.bottomSheetOverlay}
+            onPress={() => setShowPostMenu(false)}
+          >
             <Pressable
-              style={styles.postMenuItem}
-              onPress={() => {
-                setShowPostMenu(false);
-                setEditingPost(true);
-              }}
+              style={styles.bottomSheetContainer}
+              onPress={(e) => e.stopPropagation()}
             >
-              <Ionicons name="pencil" size={18} color={couleurs.primaire} />
-              <Text style={styles.postMenuItemText}>Modifier</Text>
+              {/* Poignée */}
+              <View style={styles.bottomSheetHandle} />
+
+              {canEditDelete() ? (
+                <>
+                  {/* Menu pour mes posts */}
+                  <Text style={styles.bottomSheetTitle}>Options du post</Text>
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.bottomSheetItem,
+                      pressed && styles.bottomSheetItemPressed,
+                    ]}
+                    onPress={() => {
+                      setShowPostMenu(false);
+                      setEditingPost(true);
+                    }}
+                  >
+                    <View style={[styles.bottomSheetIconContainer, { backgroundColor: couleurs.primaireLight }]}>
+                      <Ionicons name="pencil" size={20} color={couleurs.primaire} />
+                    </View>
+                    <View style={styles.bottomSheetTextContainer}>
+                      <Text style={styles.bottomSheetItemText}>Modifier</Text>
+                      <Text style={styles.bottomSheetItemSubtext}>Éditer le contenu de votre publication</Text>
+                    </View>
+                  </Pressable>
+
+                  <View style={styles.bottomSheetSeparator} />
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.bottomSheetItem,
+                      pressed && styles.bottomSheetItemPressed,
+                    ]}
+                    onPress={handleDeletePost}
+                  >
+                    <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(255, 77, 109, 0.15)' }]}>
+                      <Ionicons name="trash-outline" size={20} color={couleurs.danger} />
+                    </View>
+                    <View style={styles.bottomSheetTextContainer}>
+                      <Text style={[styles.bottomSheetItemText, { color: couleurs.danger }]}>Supprimer</Text>
+                      <Text style={styles.bottomSheetItemSubtext}>Cette action est irréversible</Text>
+                    </View>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  {/* Menu pour posts des autres */}
+                  <Text style={styles.bottomSheetTitle}>Signaler ce post</Text>
+                  <Text style={styles.bottomSheetSubtitle}>Pourquoi signalez-vous cette publication ?</Text>
+
+                  {raisonsSignalement.map((raison, index) => (
+                    <Pressable
+                      key={raison.value}
+                      style={({ pressed }) => [
+                        styles.bottomSheetItem,
+                        pressed && styles.bottomSheetItemPressed,
+                        index === raisonsSignalement.length - 1 && { borderBottomWidth: 0 },
+                      ]}
+                      onPress={() => handleReportPost(raison.value)}
+                    >
+                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(255, 189, 89, 0.15)' }]}>
+                        <Ionicons name={raison.icon as any} size={20} color={couleurs.accent} />
+                      </View>
+                      <View style={styles.bottomSheetTextContainer}>
+                        <Text style={styles.bottomSheetItemText}>{raison.label}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
+                    </Pressable>
+                  ))}
+                </>
+              )}
+
+              {/* Bouton Annuler */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.bottomSheetCancelBtn,
+                  pressed && styles.bottomSheetItemPressed,
+                ]}
+                onPress={() => setShowPostMenu(false)}
+              >
+                <Text style={styles.bottomSheetCancelText}>Annuler</Text>
+              </Pressable>
             </Pressable>
-            <Pressable style={styles.postMenuItem} onPress={handleDeletePost}>
-              <Ionicons name="trash-outline" size={18} color={couleurs.erreur} />
-              <Text style={[styles.postMenuItemText, { color: couleurs.erreur }]}>Supprimer</Text>
-            </Pressable>
-          </View>
-        )}
+          </Pressable>
+        </Modal>
 
         {/* Mode edition du post */}
         {editingPost ? (
@@ -1724,49 +1830,6 @@ export default function Accueil() {
     );
   };
 
-  const LiveCard = ({ live }: { live: Live }) => (
-    <Pressable style={styles.liveCard}>
-      <Image source={{ uri: live.image }} style={styles.liveImage} />
-      <View style={styles.liveOverlay}>
-        {live.enDirect ? (
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveBadgeText}>LIVE</Text>
-          </View>
-        ) : (
-          <View style={styles.liveUpcoming}>
-            <Text style={styles.liveUpcomingText}>A venir</Text>
-          </View>
-        )}
-        {live.enDirect && live.viewers && (
-          <View style={styles.liveViewers}>
-            <Ionicons name="eye" size={14} color={couleurs.blanc} />
-            <Text style={styles.liveViewersText}>{live.viewers}</Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.liveContent}>
-        <Text style={styles.liveTitre} numberOfLines={2}>{live.titre}</Text>
-        <Text style={styles.liveStartup}>{live.startup}</Text>
-        <View style={styles.liveDetails}>
-          <View style={styles.liveDetail}>
-            <Ionicons name="calendar-outline" size={14} color={couleurs.texteSecondaire} />
-            <Text style={styles.liveDetailText}>{live.datetime}</Text>
-          </View>
-          <View style={styles.liveDetail}>
-            <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-            <Text style={styles.liveDetailText}>{live.interesse} interesses</Text>
-          </View>
-        </View>
-        <Pressable style={[styles.liveBtn, live.enDirect && styles.liveBtnActive]}>
-          <Text style={[styles.liveBtnText, live.enDirect && styles.liveBtnTextActive]}>
-            {live.enDirect ? 'Rejoindre' : 'Me rappeler'}
-          </Text>
-        </Pressable>
-      </View>
-    </Pressable>
-  );
-
   const TrendingItem = ({ item, rank }: { item: TrendingStartup; rank: number }) => (
     <Pressable style={styles.trendingItem}>
       <View style={[styles.trendingRank, rank <= 3 && styles.trendingRankTop]}>
@@ -1855,21 +1918,14 @@ export default function Accueil() {
   );
 
   // Handlers pour les stories
-  const handleStoryPress = useCallback((userId: string, stories: Story[], userName: string, isOwnStory: boolean) => {
-    // Trouver l'avatar de l'utilisateur (soit de notre utilisateur, soit des stories)
-    let userAvatar: string | undefined;
-    if (utilisateur && userId === utilisateur.id) {
-      userAvatar = utilisateur.avatar;
-    } else if (stories[0]?.utilisateur?.avatar) {
-      userAvatar = stories[0].utilisateur.avatar;
-    }
-
+  const handleStoryPress = useCallback((userId: string, stories: Story[], userName: string, userAvatar: string | undefined, isOwnStory: boolean) => {
+    setStoryUserId(userId);
     setStoriesAVisionner(stories);
     setStoryUserName(userName);
     setStoryUserAvatar(userAvatar);
     setStoryIsOwn(isOwnStory);
     setStoryViewerVisible(true);
-  }, [utilisateur]);
+  }, []);
 
   const handleAddStoryPress = useCallback(() => {
     setStoryCreatorVisible(true);
@@ -1879,6 +1935,28 @@ export default function Accueil() {
     // Rafraîchir les stories
     setStoriesRefreshKey(prev => prev + 1);
   }, []);
+
+  // Navigation vers le profil depuis une story (Bug #3: préserver l'état)
+  const handleStoryNavigateToProfile = useCallback((userId: string, currentIndex: number) => {
+    // Sauvegarder l'état pour restauration au retour
+    setPendingStoryIndex(currentIndex);
+    pendingStoryRestoreRef.current = true;
+    // Fermer le viewer
+    setStoryViewerVisible(false);
+    // Naviguer vers le profil
+    router.push(`/utilisateur/${userId}`);
+  }, []);
+
+  // Restaurer le story viewer au retour de navigation
+  useFocusEffect(
+    useCallback(() => {
+      if (pendingStoryRestoreRef.current && pendingStoryIndex !== null) {
+        // Réouvrir le story viewer à l'index sauvegardé
+        pendingStoryRestoreRef.current = false;
+        setStoryViewerVisible(true);
+      }
+    }, [pendingStoryIndex])
+  );
 
   const renderStories = () => (
     <StoriesRow
@@ -2004,23 +2082,88 @@ export default function Accueil() {
     </>
   );
 
+  const rejoindreUnLive = async (live: LiveAPI) => {
+    try {
+      // Obtenir un token Agora pour le viewer
+      const tokenRes = await getAgoraToken(live.channelName, 'subscriber');
+      if (!tokenRes.succes || !tokenRes.data) {
+        Alert.alert('Erreur', 'Impossible de rejoindre le live');
+        return;
+      }
+      const creds = tokenRes.data;
+      router.push({
+        pathname: '/live/viewer',
+        params: {
+          liveId: live._id,
+          channelName: creds.channelName,
+          appId: creds.appId,
+          token: creds.token,
+          uid: creds.uid.toString(),
+          hostPrenom: live.host.prenom,
+          hostNom: live.host.nom,
+          hostAvatar: live.host.avatar || '',
+          title: live.title || '',
+          viewerCount: live.viewerCount.toString(),
+        },
+      });
+    } catch (error) {
+      console.error('Erreur rejoindre live:', error);
+      Alert.alert('Erreur', 'Impossible de rejoindre le live');
+    }
+  };
+
   const renderLiveContent = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <View>
-          <Text style={styles.sectionTitle}>En direct & A venir</Text>
-          <Text style={styles.sectionSubtitle}>Rencontrez les equipes en live</Text>
+          <Text style={styles.sectionTitle}>En direct</Text>
+          <Text style={styles.sectionSubtitle}>Regardez les lives en cours</Text>
         </View>
+        <Pressable
+          style={styles.sectionAction}
+          onPress={() => router.push('/live/start')}
+        >
+          <Ionicons name="videocam" size={18} color={couleurs.primaire} />
+          <Text style={styles.sectionActionText}>Go Live</Text>
+        </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-        {MOCK_LIVES.map((live) => (
-          <LiveCard key={live.id} live={live} />
-        ))}
-      </ScrollView>
+
+      {chargementLives ? (
+        <View style={styles.liveEmptyState}>
+          <Text style={styles.liveEmptyText}>Chargement...</Text>
+        </View>
+      ) : lives.length === 0 ? (
+        <View style={styles.liveEmptyState}>
+          <Ionicons name="videocam-off-outline" size={48} color={couleurs.texteSecondaire} />
+          <Text style={styles.liveEmptyTitle}>Aucun live en cours</Text>
+          <Text style={styles.liveEmptyText}>
+            Soyez le premier a lancer un live !
+          </Text>
+          <Pressable
+            style={styles.liveStartBtn}
+            onPress={() => router.push('/live/start')}
+          >
+            <Ionicons name="videocam" size={20} color={couleurs.blanc} />
+            <Text style={styles.liveStartBtnText}>Demarrer un live</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+          {lives.map((live) => (
+            <View key={live._id} style={{ marginRight: espacements.md }}>
+              <LiveCard
+                live={live}
+                onPress={() => rejoindreUnLive(live)}
+              />
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
       <View style={styles.liveInfo}>
         <Ionicons name="information-circle-outline" size={20} color={couleurs.texteSecondaire} />
         <Text style={styles.liveInfoText}>
-          Les lives vous permettent de decouvrir les startups et de poser vos questions directement aux fondateurs.
+          Les lives vous permettent de partager des moments en direct avec la communaute.
         </Text>
       </View>
     </View>
@@ -2279,7 +2422,7 @@ export default function Accueil() {
   // Actions FAB
   const FAB_ACTIONS = [
     { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
-    { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => Alert.alert('Go Live', 'Bientot disponible !') },
+    { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => router.push('/live/start') },
     { id: 3, icon: 'camera-outline' as const, label: 'Story', color: '#10B981', action: () => setStoryCreatorVisible(true) },
     { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => Alert.alert('Startup', 'Bientot disponible !') },
   ];
@@ -2986,12 +3129,17 @@ export default function Accueil() {
       <StoryViewer
         visible={storyViewerVisible}
         stories={storiesAVisionner}
+        userId={storyUserId}
         userName={storyUserName}
         userAvatar={storyUserAvatar}
         isOwnStory={storyIsOwn}
+        initialIndex={pendingStoryIndex ?? 0}
+        onNavigateToProfile={handleStoryNavigateToProfile}
         onClose={() => {
           setStoryViewerVisible(false);
           setStoriesAVisionner([]);
+          setPendingStoryIndex(null);
+          pendingStoryRestoreRef.current = false;
           // Rafraîchir les stories pour mettre à jour les vues
           setStoriesRefreshKey((prev) => prev + 1);
         }}
@@ -3832,25 +3980,85 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     color: '#ef4444',
   },
 
-  // Post menu
-  postMenu: {
-    backgroundColor: couleurs.fondSecondaire,
-    borderRadius: rayons.md,
-    marginBottom: espacements.sm,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    overflow: 'hidden',
+  // Bottom Sheet Menu
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
   },
-  postMenuItem: {
+  bottomSheetContainer: {
+    backgroundColor: couleurs.fondCard,
+    borderTopLeftRadius: rayons.xl,
+    borderTopRightRadius: rayons.xl,
+    paddingTop: espacements.sm,
+    paddingBottom: espacements.xl,
+    paddingHorizontal: espacements.lg,
+    maxHeight: '80%',
+  },
+  bottomSheetHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: couleurs.bordure,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: espacements.lg,
+  },
+  bottomSheetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: couleurs.texte,
+    marginBottom: espacements.xs,
+  },
+  bottomSheetSubtitle: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    marginBottom: espacements.lg,
+  },
+  bottomSheetItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: espacements.md,
-    paddingVertical: espacements.sm,
-    gap: espacements.sm,
+    paddingVertical: espacements.md,
+    gap: espacements.md,
   },
-  postMenuItemText: {
-    fontSize: 14,
+  bottomSheetItemPressed: {
+    opacity: 0.7,
+  },
+  bottomSheetIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: rayons.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomSheetTextContainer: {
+    flex: 1,
+  },
+  bottomSheetItemText: {
+    fontSize: 16,
+    fontWeight: '500',
     color: couleurs.texte,
+  },
+  bottomSheetItemSubtext: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  bottomSheetSeparator: {
+    height: 1,
+    backgroundColor: couleurs.bordure,
+    marginVertical: espacements.sm,
+  },
+  bottomSheetCancelBtn: {
+    marginTop: espacements.lg,
+    paddingVertical: espacements.md,
+    backgroundColor: couleurs.fond,
+    borderRadius: rayons.md,
+    alignItems: 'center',
+  },
+  bottomSheetCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
   },
 
   // Edit post
@@ -4183,6 +4391,38 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 12,
     color: couleurs.texteSecondaire,
     lineHeight: 18,
+  },
+  liveEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.xxl,
+    gap: espacements.md,
+  },
+  liveEmptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: couleurs.texte,
+    marginTop: espacements.sm,
+  },
+  liveEmptyText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+  },
+  liveStartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.md,
+    borderRadius: rayons.md,
+    marginTop: espacements.sm,
+  },
+  liveStartBtnText: {
+    color: couleurs.blanc,
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   // Messages
