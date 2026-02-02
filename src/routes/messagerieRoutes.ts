@@ -7,11 +7,14 @@ import {
   getNombreNonLus,
 } from '../controllers/messagerieController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
 // Toutes les routes de messagerie nécessitent une authentification
+// + vérification du statut (banned/suspended)
 router.use(verifierJwt);
+router.use(checkUserStatus);
 
 /**
  * GET /api/messagerie/conversations

@@ -7,11 +7,13 @@ import {
   supprimerToutesNotifications,
 } from '../controllers/notificationController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
-// Toutes les routes nécessitent l'authentification
+// Toutes les routes nécessitent l'authentification + vérification statut
 router.use(verifierJwt);
+router.use(checkUserStatus);
 
 /**
  * GET /api/notifications

@@ -54,7 +54,11 @@ export const inscription = async (
           nom: utilisateur.nom,
           email: utilisateur.email,
           avatar: utilisateur.avatar,
+          bio: utilisateur.bio,
+          role: utilisateur.role,
+          statut: utilisateur.statut,
           provider: utilisateur.provider,
+          nbAmis: utilisateur.amis?.length || 0,
         },
         token,
       },
@@ -101,6 +105,28 @@ export const connexion = async (
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
+    // Vérifier si le compte est banni
+    if (utilisateur.isBanned()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte a été suspendu définitivement.',
+        code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
+      });
+      return;
+    }
+
+    // Vérifier si le compte est suspendu temporairement
+    if (utilisateur.isSuspended()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+        code: 'ACCOUNT_SUSPENDED',
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
+      });
+      return;
+    }
+
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
@@ -115,7 +141,11 @@ export const connexion = async (
           nom: utilisateur.nom,
           email: utilisateur.email,
           avatar: utilisateur.avatar,
+          bio: utilisateur.bio,
+          role: utilisateur.role,
+          statut: utilisateur.statut,
           provider: utilisateur.provider,
+          nbAmis: utilisateur.amis?.length || 0,
         },
         token,
       },
@@ -170,6 +200,18 @@ export const callbackOAuth = (req: Request, res: Response): void => {
 
     if (!utilisateur) {
       res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_echec`);
+      return;
+    }
+
+    // Vérifier si le compte est banni
+    if (utilisateur.isBanned && utilisateur.isBanned()) {
+      res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=compte_banni`);
+      return;
+    }
+
+    // Vérifier si le compte est suspendu
+    if (utilisateur.isSuspended && utilisateur.isSuspended()) {
+      res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=compte_suspendu`);
       return;
     }
 
