@@ -505,7 +505,8 @@ export default function PublicationDetailPage() {
           </AnimatedPressable>
         </View>
 
-        {/* Section commentaires */}
+        {/* Section commentaires - visible seulement quand le composer est ouvert */}
+        {(isCommentComposerOpen || replyingTo) && (
         <View style={styles.commentsSection}>
           <Text style={styles.commentsSectionTitle}>Commentaires</Text>
 
@@ -735,6 +736,7 @@ export default function PublicationDetailPage() {
             })
           )}
         </View>
+        )}
       </ScrollView>
 
       {/* Barre de saisie commentaire fixe en bas - visible seulement quand ouvert */}
