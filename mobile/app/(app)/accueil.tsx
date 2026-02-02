@@ -1313,8 +1313,13 @@ export default function Accueil() {
               {/* Poignée */}
               <View style={styles.bottomSheetHandle} />
 
-              {/* Titre selon contexte */}
-              <Text style={styles.bottomSheetTitle}>
+              <ScrollView
+                style={styles.bottomSheetScroll}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
+                {/* Titre selon contexte */}
+                <Text style={styles.bottomSheetTitle}>
                 {isMyPost() ? 'Options du post' : staff.isStaff ? 'Actions disponibles' : 'Signaler ce post'}
               </Text>
 
@@ -1452,6 +1457,7 @@ export default function Accueil() {
                   ))}
                 </>
               )}
+              </ScrollView>
 
               {/* Bouton Annuler */}
               <Pressable
@@ -4084,7 +4090,10 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     paddingTop: espacements.sm,
     paddingBottom: espacements.xl,
     paddingHorizontal: espacements.lg,
-    maxHeight: '80%',
+    maxHeight: '85%',
+  },
+  bottomSheetScroll: {
+    maxHeight: 400,
   },
   bottomSheetHandle: {
     width: 36,
