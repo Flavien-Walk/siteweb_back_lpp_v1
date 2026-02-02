@@ -212,15 +212,12 @@ export const reportsService = {
 
   /**
    * Add a note to a report
-   * NOTE: Backend endpoint /admin/reports/:id/notes does NOT exist.
-   * This will fail with 404. Kept for future implementation.
+   * Backend: POST /api/admin/reports/:id/notes
+   * Body: { content: string }
+   * Response: { note: ReportNote, totalNotes: number }
    */
-  async addNote(id: string, content: string): Promise<Report> {
-    if (import.meta.env.DEV) {
-      console.warn('[Reports] addNote: endpoint not implemented in backend')
-    }
-
-    const response = await api.post<ApiResponse<{ report: Report }>>(
+  async addNote(id: string, content: string): Promise<{ note: any; totalNotes: number }> {
+    const response = await api.post<ApiResponse<{ note: any; totalNotes: number }>>(
       `/admin/reports/${id}/notes`,
       { content }
     )
@@ -229,7 +226,7 @@ export const reportsService = {
       throw new Error(response.data.message || 'Erreur lors de l\'ajout de la note')
     }
 
-    return response.data.data.report
+    return response.data.data
   },
 }
 
