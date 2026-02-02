@@ -268,6 +268,18 @@ export const retirerParticipantGroupe = async (
 };
 
 /**
+ * Supprimer un groupe entier (créateur ou admin uniquement)
+ */
+export const supprimerGroupe = async (
+  groupeId: string
+): Promise<ReponseAPI<void>> => {
+  return api.delete<void>(
+    `/messagerie/groupes/${groupeId}`,
+    true
+  );
+};
+
+/**
  * Obtenir le profil public d'un utilisateur
  */
 export const getUtilisateur = async (
