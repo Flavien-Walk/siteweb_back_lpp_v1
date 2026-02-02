@@ -170,10 +170,11 @@ export default function PublicationDetailPage() {
   // Ouvrir le composer de commentaire
   const openCommentComposer = useCallback(() => {
     setIsCommentComposerOpen(true);
-    // Focus l'input après un court délai pour laisser le temps au layout de se mettre à jour
+    // Scroll vers les commentaires + focus input après un court délai
     setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
       commentInputRef.current?.focus();
-    }, 100);
+    }, 150);
   }, []);
 
   // Fermer le composer de commentaire
