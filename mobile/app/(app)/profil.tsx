@@ -789,10 +789,13 @@ export default function Profil() {
         ) : (
           <View style={styles.publicationsGrid}>
             {publications.map((pub, index) => {
-              const mediaIsVideo = isVideo(pub.media);
-              const thumbnailUri = pub.media
-                ? (mediaIsVideo ? getVideoThumbnail(pub.media) : pub.media)
+              // Support medias[] (nouveau) et media (legacy)
+              const firstMedia = pub.medias?.[0] || (pub.media ? { type: isVideo(pub.media) ? 'video' : 'image', url: pub.media } : null);
+              const mediaIsVideo = firstMedia?.type === 'video';
+              const thumbnailUri = firstMedia
+                ? (mediaIsVideo ? (firstMedia.thumbnailUrl || getVideoThumbnail(firstMedia.url)) : firstMedia.url)
                 : null;
+              const hasMultipleMedias = (pub.medias?.length || 0) > 1;
 
               const handlePress = () => {
                 // Naviguer vers la page de detail de la publication
@@ -820,7 +823,14 @@ export default function Profil() {
                         style={styles.publicationImage}
                         resizeMode="cover"
                       />
-                      {mediaIsVideo && (
+                      {/* Badge multi-médias */}
+                      {hasMultipleMedias && (
+                        <View style={styles.multiMediaBadge}>
+                          <Ionicons name="copy-outline" size={14} color={couleurs.blanc} />
+                        </View>
+                      )}
+                      {/* Badge vidéo (si pas multi) */}
+                      {mediaIsVideo && !hasMultipleMedias && (
                         <View style={styles.videoBadge}>
                           <Ionicons name="play" size={20} color={couleurs.blanc} />
                         </View>
@@ -2136,6 +2146,14 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  multiMediaBadge: {
+    position: 'absolute',
+    top: espacements.xs,
+    right: espacements.xs,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: rayons.xs,
+    padding: 4,
   },
   publicationItemOverlay: {
     position: 'absolute',

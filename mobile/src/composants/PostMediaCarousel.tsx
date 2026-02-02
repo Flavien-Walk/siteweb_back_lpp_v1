@@ -48,7 +48,7 @@ interface MediaItemRendererProps {
   autoPlayVideos: boolean;
 }
 
-const MediaItemRenderer: React.FC<MediaItemRendererProps> = ({
+const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   item,
   width,
   height,
@@ -60,14 +60,14 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [showPlayButton, setShowPlayButton] = useState(true);
 
-  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+  const handlePlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
       setShowPlayButton(!status.isPlaying);
     }
-  };
+  }, []);
 
-  const togglePlayPause = async () => {
+  const togglePlayPause = useCallback(async () => {
     if (videoRef.current) {
       if (isPlaying) {
         await videoRef.current.pauseAsync();
@@ -75,9 +75,9 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = ({
         await videoRef.current.playAsync();
       }
     }
-  };
+  }, [isPlaying]);
 
-  // Pause video when not active
+  // Pause video when not active or when component unmounts (scroll out of view)
   React.useEffect(() => {
     if (!isActive && videoRef.current && isPlaying) {
       videoRef.current.pauseAsync();
@@ -86,6 +86,15 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = ({
       videoRef.current.playAsync();
     }
   }, [isActive, autoPlayVideos, isPlaying]);
+
+  // Cleanup: pause on unmount
+  React.useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.pauseAsync().catch(() => {});
+      }
+    };
+  }, []);
 
   if (item.type === 'video') {
     return (
@@ -116,7 +125,7 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = ({
       <Image source={{ uri: item.url }} style={styles.media} resizeMode="cover" />
     </Pressable>
   );
-};
+});
 
 const PaginationDot: React.FC<{ isActive: boolean }> = ({ isActive }) => {
   const animatedStyle = useAnimatedStyle(() => ({
@@ -135,7 +144,7 @@ const PaginationDot: React.FC<{ isActive: boolean }> = ({ isActive }) => {
   );
 };
 
-const PostMediaCarousel: React.FC<PostMediaCarouselProps> = ({
+const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
   medias,
   width = SCREEN_WIDTH,
   height = SCREEN_WIDTH,
@@ -217,6 +226,11 @@ const PostMediaCarousel: React.FC<PostMediaCarouselProps> = ({
           offset: width * index,
           index,
         })}
+        // Performance optimizations
+        initialNumToRender={2}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        removeClippedSubviews
       />
 
       {/* Indicateur numérique "1/5" */}
@@ -240,7 +254,7 @@ const PostMediaCarousel: React.FC<PostMediaCarouselProps> = ({
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
