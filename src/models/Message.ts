@@ -1,70 +1,13 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import crypto from 'crypto';
+import {
+  chiffrerMessage,
+  dechiffrerMessage,
+  detectVersion,
+  migrateToV2,
+} from '../utils/cryptoMessage.js';
 
-// Clé de chiffrement (OBLIGATOIRE en variable d'environnement)
-const ENCRYPTION_KEY = process.env.MESSAGE_ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY) {
-  throw new Error('MESSAGE_ENCRYPTION_KEY est requis dans les variables d\'environnement');
-}
-const IV_LENGTH = 16;
-const ALGORITHM = 'aes-256-cbc';
-
-// Fonction pour chiffrer un message
-export const chiffrerMessage = (texte: string): string => {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  let encrypted = cipher.update(texte, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
-};
-
-// Fonction pour déchiffrer un message
-export const dechiffrerMessage = (texteCrypte: string): string => {
-  // Validation : chaîne non vide
-  if (!texteCrypte || typeof texteCrypte !== 'string') {
-    throw new Error('Contenu chiffré manquant');
-  }
-
-  // Validation du format : doit contenir exactement un ':'
-  const colonIndex = texteCrypte.indexOf(':');
-  if (colonIndex === -1) {
-    // Pas de séparateur = texte non chiffré (données legacy ou corruption)
-    // On retourne le texte tel quel pour compatibilité ascendante
-    console.warn('[Message] Format non chiffré détecté, retour du texte brut');
-    return texteCrypte;
-  }
-
-  const ivHex = texteCrypte.substring(0, colonIndex);
-  const encryptedText = texteCrypte.substring(colonIndex + 1);
-
-  // Validation : IV doit être exactement 32 caractères hex (16 bytes)
-  if (ivHex.length !== 32 || !/^[0-9a-fA-F]+$/.test(ivHex)) {
-    // Format invalide - peut-être du texte contenant ':'
-    console.warn('[Message] IV invalide, retour du texte brut');
-    return texteCrypte;
-  }
-
-  // Validation : le texte chiffré ne doit pas être vide
-  if (!encryptedText || encryptedText.length === 0) {
-    throw new Error('Contenu chiffré vide');
-  }
-
-  // Validation : le texte chiffré doit être du hex valide
-  if (!/^[0-9a-fA-F]+$/.test(encryptedText)) {
-    // Pas du hex = probablement pas chiffré
-    console.warn('[Message] Texte chiffré non-hex détecté, retour du texte brut');
-    return texteCrypte;
-  }
-
-  // Déchiffrement
-  const iv = Buffer.from(ivHex, 'hex');
-  const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-};
+// Ré-exporter les fonctions de chiffrement pour compatibilité avec les imports existants
+export { chiffrerMessage, dechiffrerMessage, detectVersion, migrateToV2 };
 
 // Types de messages
 export type TypeMessage = 'texte' | 'image' | 'systeme';
