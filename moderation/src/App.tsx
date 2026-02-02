@@ -9,6 +9,7 @@ import { ReportsPage } from '@/pages/Reports'
 import { ReportDetailPage } from '@/pages/ReportDetail'
 import { UsersPage } from '@/pages/Users'
 import { UserDetailPage } from '@/pages/UserDetail'
+import { SuspendedUsersPage } from '@/pages/SuspendedUsers'
 import { AuditPage } from '@/pages/Audit'
 import { ChatPage } from '@/pages/Chat'
 
@@ -88,6 +89,16 @@ function App() {
                 element={
                   <ProtectedRoute requiredPermission="users:view">
                     <UserDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Suspended Users */}
+              <Route
+                path="suspended"
+                element={
+                  <ProtectedRoute requiredPermission="users:view">
+                    <SuspendedUsersPage />
                   </ProtectedRoute>
                 }
               />

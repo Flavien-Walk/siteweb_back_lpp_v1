@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Flag,
   Users,
+  UserX,
   ScrollText,
   MessageSquare,
   LogOut,
@@ -40,6 +41,12 @@ const navItems: NavItem[] = [
     label: 'Utilisateurs',
     href: '/users',
     icon: <Users className="h-5 w-5" />,
+    permission: 'users:view',
+  },
+  {
+    label: 'Suspendus',
+    href: '/suspended',
+    icon: <UserX className="h-5 w-5" />,
     permission: 'users:view',
   },
   {

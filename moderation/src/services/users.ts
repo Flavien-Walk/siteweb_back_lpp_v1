@@ -166,6 +166,22 @@ export const usersService = {
   },
 
   /**
+   * Unsuspend a user (lift suspension)
+   * Backend: POST /api/moderation/users/:id/unsuspend
+   */
+  async unsuspendUser(id: string): Promise<User> {
+    const response = await api.post<ApiResponse<{ user: User }>>(
+      `/moderation/users/${id}/unsuspend`
+    )
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors de la levée de suspension')
+    }
+
+    return response.data.data.user
+  },
+
+  /**
    * Update user role
    */
   async updateRole(id: string, role: string): Promise<User> {
