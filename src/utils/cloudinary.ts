@@ -186,6 +186,112 @@ export const uploadPublicationMedia = async (
 };
 
 /**
+ * Upload un seul média pour publication avec retour enrichi (type + thumbnail)
+ * @param mediaData - Data URL base64 du média
+ * @param publicationId - ID de la publication
+ * @param index - Index du média dans le tableau
+ */
+const uploadSinglePublicationMedia = async (
+  mediaData: string,
+  publicationId: string,
+  index: number
+): Promise<MediaUploadResult> => {
+  const isVideo = mediaData.startsWith('data:video/');
+
+  const options: Record<string, any> = {
+    folder: 'lpp/publications',
+    public_id: `pub_${publicationId}_${index}_${Date.now()}`,
+    resource_type: isVideo ? 'video' : 'image',
+    overwrite: true,
+  };
+
+  if (!isVideo) {
+    options.transformation = [
+      { width: 1080, height: 1080, crop: 'limit' },
+      { quality: 'auto', fetch_format: 'auto' },
+    ];
+  } else {
+    options.transformation = [
+      { width: 1080, height: 1920, crop: 'limit' },
+      { quality: 'auto' },
+    ];
+  }
+
+  const result: UploadApiResponse = await cloudinary.uploader.upload(mediaData, options);
+
+  // Générer thumbnail pour les vidéos
+  let thumbnailUrl: string | undefined;
+  if (isVideo && result.public_id) {
+    thumbnailUrl = cloudinary.url(result.public_id, {
+      resource_type: 'video',
+      format: 'jpg',
+      transformation: [
+        { width: 400, height: 400, crop: 'fill', gravity: 'auto' },
+        { quality: 'auto' },
+        { start_offset: '0' },
+      ],
+    });
+  }
+
+  return {
+    type: isVideo ? 'video' : 'image',
+    url: result.secure_url,
+    thumbnailUrl,
+  };
+};
+
+/**
+ * Upload plusieurs médias (images et vidéos) pour une publication
+ * Uploads en parallèle avec limite de concurrence
+ * @param mediasData - Tableau de Data URLs base64
+ * @param publicationId - ID de la publication
+ * @param concurrencyLimit - Nombre d'uploads simultanés max (défaut: 3)
+ */
+export const uploadPublicationMedias = async (
+  mediasData: string[],
+  publicationId: string,
+  concurrencyLimit: number = 3
+): Promise<MediaUploadResult[]> => {
+  if (!mediasData.length) {
+    return [];
+  }
+
+  const results: MediaUploadResult[] = new Array(mediasData.length);
+  const errors: Error[] = [];
+
+  // Traitement par lots pour limiter la concurrence
+  for (let i = 0; i < mediasData.length; i += concurrencyLimit) {
+    const batch = mediasData.slice(i, i + concurrencyLimit);
+    const batchPromises = batch.map(async (mediaData, batchIndex) => {
+      const actualIndex = i + batchIndex;
+      try {
+        const result = await uploadSinglePublicationMedia(mediaData, publicationId, actualIndex);
+        results[actualIndex] = result;
+      } catch (error) {
+        errors.push(new Error(`Erreur upload média ${actualIndex + 1}: ${(error as Error).message}`));
+      }
+    });
+
+    await Promise.all(batchPromises);
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Erreur(s) lors de l'upload: ${errors.map(e => e.message).join('; ')}`);
+  }
+
+  return results;
+};
+
+/**
+ * Résultat d'upload pour les médias de publication
+ */
+export interface MediaUploadResult {
+  type: 'image' | 'video';
+  url: string;
+  thumbnailUrl?: string;
+}
+
+/**
  * Résultat d'upload pour les stories (avec thumbnail pour vidéos)
  */
 export interface StoryUploadResult {

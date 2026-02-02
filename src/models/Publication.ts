@@ -3,13 +3,22 @@ import { urlValidator } from '../utils/validators.js';
 
 export type TypePublication = 'post' | 'annonce' | 'update' | 'editorial' | 'live-extrait';
 
+export type MediaType = 'image' | 'video';
+
+export interface IMedia {
+  type: MediaType;
+  url: string;
+  thumbnailUrl?: string; // Thumbnail pour les vidéos
+}
+
 export interface IPublication extends Document {
   _id: mongoose.Types.ObjectId;
   auteur: mongoose.Types.ObjectId;
   auteurType: 'Utilisateur' | 'Projet';
   type: TypePublication;
   contenu: string;
-  media?: string;
+  media?: string; // LEGACY - conservé pour rétrocompatibilité
+  medias: IMedia[]; // Nouveau champ multi-média
   projet?: mongoose.Types.ObjectId;
   likes: mongoose.Types.ObjectId[];
   nbCommentaires: number;
@@ -44,6 +53,22 @@ const publicationSchema = new Schema<IPublication>(
       type: String,
       validate: urlValidator,
     },
+    medias: [{
+      type: {
+        type: String,
+        enum: ['image', 'video'],
+        required: true,
+      },
+      url: {
+        type: String,
+        required: true,
+        validate: urlValidator,
+      },
+      thumbnailUrl: {
+        type: String,
+        validate: urlValidator,
+      },
+    }],
     projet: {
       type: Schema.Types.ObjectId,
       ref: 'Projet',

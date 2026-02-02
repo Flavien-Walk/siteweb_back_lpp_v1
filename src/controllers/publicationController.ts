@@ -6,7 +6,8 @@ import Commentaire from '../models/Commentaire.js';
 import Notification from '../models/Notification.js';
 import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
-import { isBase64MediaDataUrl, isHttpUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
+import { isBase64MediaDataUrl, isHttpUrl, uploadPublicationMedia, uploadPublicationMedias, MediaUploadResult } from '../utils/cloudinary.js';
+import { IMedia } from '../models/Publication.js';
 
 // Schéma de validation pour créer une publication
 const schemaCreerPublication = z.object({
@@ -16,6 +17,7 @@ const schemaCreerPublication = z.object({
     .trim()
     .optional()
     .default(''),
+  // LEGACY: single media (rétrocompatibilité)
   media: z
     .string()
     .refine(
@@ -23,11 +25,50 @@ const schemaCreerPublication = z.object({
       { message: 'Média doit être une URL valide ou une image/vidéo base64' }
     )
     .optional(),
+  // NEW: multiple medias (max 10)
+  medias: z
+    .array(
+      z.string().refine(
+        (val) => isBase64MediaDataUrl(val) || isHttpUrl(val),
+        { message: 'Chaque média doit être une URL valide ou une image/vidéo base64' }
+      )
+    )
+    .max(10, 'Maximum 10 médias par publication')
+    .optional(),
   type: z.enum(['post', 'annonce', 'update', 'editorial', 'live-extrait']).default('post'),
 }).refine(
-  (data) => data.contenu?.trim() || data.media,
+  (data) => data.contenu?.trim() || data.media || (data.medias && data.medias.length > 0),
   { message: 'Le contenu ou un média est requis' }
 );
+
+/**
+ * Helper: Normalise les médias d'une publication pour rétrocompatibilité
+ * Si medias[] est vide mais media existe (anciennes publications), crée medias[] à partir de media
+ */
+const normalizePublicationMedias = (pub: any): any => {
+  const pubObj = typeof pub.toObject === 'function' ? pub.toObject() : pub;
+
+  // Si medias est déjà rempli, on ne fait rien
+  if (pubObj.medias && pubObj.medias.length > 0) {
+    return pubObj;
+  }
+
+  // Si media existe mais medias est vide (ancienne publication)
+  if (pubObj.media && (!pubObj.medias || pubObj.medias.length === 0)) {
+    const isVideo = /\.(mp4|mov|avi|webm|mkv)(\?.*)?$/i.test(pubObj.media);
+    pubObj.medias = [{
+      type: isVideo ? 'video' : 'image',
+      url: pubObj.media,
+    }];
+  }
+
+  // Assurer que medias est toujours un tableau
+  if (!pubObj.medias) {
+    pubObj.medias = [];
+  }
+
+  return pubObj;
+};
 
 // Schéma pour créer un commentaire
 const schemaCreerCommentaire = z.object({
@@ -74,9 +115,9 @@ export const getPublications = async (
       Publication.countDocuments(filtre),
     ]);
 
-    // Transformer pour inclure si l'utilisateur a liké
+    // Transformer pour inclure si l'utilisateur a liké + normaliser medias
     const publicationsFormatees = publications.map((pub) => {
-      const pubObj = pub.toObject();
+      const pubObj = normalizePublicationMedias(pub);
       return {
         ...pubObj,
         aLike: req.utilisateur
@@ -136,7 +177,7 @@ export const getPublication = async (
       }
     }
 
-    const pubObj = publication.toObject();
+    const pubObj = normalizePublicationMedias(publication);
 
     res.json({
       succes: true,
@@ -171,23 +212,71 @@ export const creerPublication = async (
     // Générer un ID temporaire pour le nom du fichier Cloudinary
     const tempId = new mongoose.Types.ObjectId().toString();
 
-    // Si le média est une data URL base64, uploader sur Cloudinary
-    let mediaUrl = donnees.media;
-    if (donnees.media && isBase64MediaDataUrl(donnees.media)) {
-      try {
-        mediaUrl = await uploadPublicationMedia(donnees.media, tempId);
-        console.log('Média uploadé sur Cloudinary:', mediaUrl);
-      } catch (uploadError) {
-        console.error('Erreur upload Cloudinary:', uploadError);
-        throw new ErreurAPI('Erreur lors de l\'upload du média. Veuillez réessayer.', 500);
+    let mediasToSave: IMedia[] = [];
+    let legacyMediaUrl: string | undefined;
+
+    // Priorité: medias[] > media (legacy)
+    if (donnees.medias && donnees.medias.length > 0) {
+      // Nouveau format: tableau de médias
+      const mediasBase64 = donnees.medias.filter((m) => isBase64MediaDataUrl(m));
+      const mediasUrls = donnees.medias.filter((m) => isHttpUrl(m));
+
+      // Upload les base64 sur Cloudinary
+      if (mediasBase64.length > 0) {
+        try {
+          const uploadResults = await uploadPublicationMedias(mediasBase64, tempId);
+          mediasToSave = uploadResults.map((r) => ({
+            type: r.type,
+            url: r.url,
+            thumbnailUrl: r.thumbnailUrl,
+          }));
+          console.log(`${uploadResults.length} médias uploadés sur Cloudinary`);
+        } catch (uploadError) {
+          console.error('Erreur upload multi-média Cloudinary:', uploadError);
+          throw new ErreurAPI('Erreur lors de l\'upload des médias. Veuillez réessayer.', 500);
+        }
       }
+
+      // Ajouter les URLs déjà existantes (déterminer le type par extension)
+      for (const url of mediasUrls) {
+        const isVideo = /\.(mp4|mov|avi|webm|mkv)(\?.*)?$/i.test(url);
+        mediasToSave.push({
+          type: isVideo ? 'video' : 'image',
+          url,
+        });
+      }
+
+      // Legacy: première URL pour rétrocompatibilité
+      if (mediasToSave.length > 0) {
+        legacyMediaUrl = mediasToSave[0].url;
+      }
+    } else if (donnees.media) {
+      // Format legacy: single media
+      let mediaUrl = donnees.media;
+      if (isBase64MediaDataUrl(donnees.media)) {
+        try {
+          mediaUrl = await uploadPublicationMedia(donnees.media, tempId);
+          console.log('Média uploadé sur Cloudinary:', mediaUrl);
+        } catch (uploadError) {
+          console.error('Erreur upload Cloudinary:', uploadError);
+          throw new ErreurAPI('Erreur lors de l\'upload du média. Veuillez réessayer.', 500);
+        }
+      }
+      legacyMediaUrl = mediaUrl;
+      // Convertir en format medias[] pour cohérence
+      const isVideo = donnees.media.startsWith('data:video/') || /\.(mp4|mov|avi|webm|mkv)(\?.*)?$/i.test(mediaUrl);
+      mediasToSave = [{
+        type: isVideo ? 'video' : 'image',
+        url: mediaUrl,
+      }];
     }
 
     const publication = await Publication.create({
       auteur: userId,
       auteurType: 'Utilisateur',
       contenu: donnees.contenu,
-      media: mediaUrl,
+      media: legacyMediaUrl, // Legacy
+      medias: mediasToSave,  // Nouveau format
       type: donnees.type,
       likes: [],
       nbCommentaires: 0,
@@ -202,7 +291,7 @@ export const creerPublication = async (
       message: 'Publication créée avec succès.',
       data: {
         publication: {
-          ...publicationComplete!.toObject(),
+          ...normalizePublicationMedias(publicationComplete),
           aLike: false,
           nbLikes: 0,
         },
@@ -313,7 +402,7 @@ export const modifierPublication = async (
       message: 'Publication modifiée avec succès.',
       data: {
         publication: {
-          ...publicationComplete!.toObject(),
+          ...normalizePublicationMedias(publicationComplete),
           aLike: publication.likes.some((lid) => lid.toString() === userId.toString()),
           nbLikes: publication.likes.length,
         },
