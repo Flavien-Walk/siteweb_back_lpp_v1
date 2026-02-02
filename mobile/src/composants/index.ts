@@ -23,3 +23,6 @@ export { default as VideoPlayerModal } from './VideoPlayerModal';
 
 // Composants Modération
 export { default as StaffActions } from './StaffActions';
+
+// Composants Publications
+export { default as PostMediaCarousel } from './PostMediaCarousel';

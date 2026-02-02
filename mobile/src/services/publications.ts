@@ -18,13 +18,22 @@ export interface Auteur {
   statut?: StatutUtilisateur;
 }
 
+export type MediaType = 'image' | 'video';
+
+export interface MediaItem {
+  type: MediaType;
+  url: string;
+  thumbnailUrl?: string;
+}
+
 export interface Publication {
   _id: string;
   auteur: Auteur;
   auteurType: 'Utilisateur' | 'Projet';
   type: 'post' | 'annonce' | 'update' | 'editorial' | 'live-extrait';
   contenu: string;
-  media?: string;
+  media?: string; // LEGACY - rétrocompatibilité
+  medias: MediaItem[]; // Nouveau format multi-média
   nbLikes: number;
   nbCommentaires: number;
   aLike: boolean;
@@ -87,11 +96,19 @@ export const getPublicationsUtilisateur = async (
 
 /**
  * Créer une publication
+ * @param contenu - Texte de la publication
+ * @param medias - Tableau d'URIs base64 (nouveau format multi-média)
+ * @param media - Single URI base64 (legacy, rétrocompatibilité)
  */
 export const creerPublication = async (
   contenu: string,
+  medias?: string[],
   media?: string
 ): Promise<ReponseAPI<{ publication: Publication }>> => {
+  // Priorité: medias[] > media
+  if (medias && medias.length > 0) {
+    return api.post('/publications', { contenu, medias, type: 'post' }, true);
+  }
   return api.post('/publications', { contenu, media, type: 'post' }, true);
 };
 

@@ -33,7 +33,7 @@ import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import { Utilisateur } from '../../src/services/auth';
 import { useStaff } from '../../src/hooks/useStaff';
-import { StaffActions } from '../../src/composants';
+import { StaffActions, PostMediaCarousel } from '../../src/composants';
 import {
   Publication,
   Commentaire as CommentaireAPI,
@@ -236,12 +236,14 @@ export default function Accueil() {
   const [modalCreerPost, setModalCreerPost] = useState(false);
   const [nouveauPostContenu, setNouveauPostContenu] = useState('');
   const [creationEnCours, setCreationEnCours] = useState(false);
-  const [mediaSelectionne, setMediaSelectionne] = useState<{
+  // Multi-média: support jusqu'à 10 médias par publication
+  const [mediasSelectionnes, setMediasSelectionnes] = useState<Array<{
     uri: string;
     type: 'image' | 'video';
     base64?: string;
     mimeType?: string;
-  } | null>(null);
+  }>>([]);
+  const MAX_MEDIAS = 10;
 
   // Video player modal
   const [videoModalVisible, setVideoModalVisible] = useState(false);
@@ -774,25 +776,28 @@ export default function Accueil() {
   };
 
   const handleCreerPost = async () => {
-    if ((!nouveauPostContenu.trim() && !mediaSelectionne) || creationEnCours) return;
+    if ((!nouveauPostContenu.trim() && mediasSelectionnes.length === 0) || creationEnCours) return;
 
     try {
       setCreationEnCours(true);
 
-      // Préparer le média en base64 si présent
-      let mediaData: string | undefined;
-      if (mediaSelectionne?.base64) {
-        const mimeType = mediaSelectionne.mimeType || (mediaSelectionne.type === 'video' ? 'video/mp4' : 'image/jpeg');
-        mediaData = `data:${mimeType};base64,${mediaSelectionne.base64}`;
-      } else if (mediaSelectionne?.uri) {
-        mediaData = mediaSelectionne.uri;
+      // Préparer les médias en base64
+      let mediasData: string[] | undefined;
+      if (mediasSelectionnes.length > 0) {
+        mediasData = mediasSelectionnes.map((m) => {
+          if (m.base64) {
+            const mimeType = m.mimeType || (m.type === 'video' ? 'video/mp4' : 'image/jpeg');
+            return `data:${mimeType};base64,${m.base64}`;
+          }
+          return m.uri;
+        });
       }
 
-      const reponse = await creerPublication(nouveauPostContenu.trim(), mediaData);
+      const reponse = await creerPublication(nouveauPostContenu.trim(), mediasData);
       if (reponse.succes && reponse.data) {
         setPublications(prev => [reponse.data!.publication, ...prev]);
         setNouveauPostContenu('');
-        setMediaSelectionne(null);
+        setMediasSelectionnes([]);
         setModalCreerPost(false);
         Alert.alert('Succes', 'Publication creee !');
       } else {
@@ -805,40 +810,51 @@ export default function Accueil() {
     }
   };
 
-  // Sélection d'une image depuis la galerie
+  // Sélection d'images depuis la galerie (multi-sélection)
   const handleSelectImage = async () => {
     try {
+      if (mediasSelectionnes.length >= MAX_MEDIAS) {
+        Alert.alert('Limite atteinte', `Maximum ${MAX_MEDIAS} médias par publication.`);
+        return;
+      }
+
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre galerie pour ajouter des photos.');
         return;
       }
 
+      const remainingSlots = MAX_MEDIAS - mediasSelectionnes.length;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsMultipleSelection: true,
+        selectionLimit: remainingSlots,
         quality: 0.8,
         base64: true,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        setMediaSelectionne({
+      if (!result.canceled && result.assets.length > 0) {
+        const newMedias = result.assets.map(asset => ({
           uri: asset.uri,
-          type: 'image',
+          type: 'image' as const,
           base64: asset.base64 || undefined,
           mimeType: asset.mimeType || 'image/jpeg',
-        });
+        }));
+        setMediasSelectionnes(prev => [...prev, ...newMedias].slice(0, MAX_MEDIAS));
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+      Alert.alert('Erreur', 'Impossible de sélectionner les images');
     }
   };
 
-  // Sélection d'une vidéo depuis la galerie
+  // Sélection d'une vidéo depuis la galerie (ajout au tableau)
   const handleSelectVideo = async () => {
     try {
+      if (mediasSelectionnes.length >= MAX_MEDIAS) {
+        Alert.alert('Limite atteinte', `Maximum ${MAX_MEDIAS} médias par publication.`);
+        return;
+      }
+
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre galerie pour ajouter des vidéos.');
@@ -849,7 +865,7 @@ export default function Accueil() {
         mediaTypes: ['videos'],
         allowsEditing: true,
         quality: 0.5,
-        videoMaxDuration: 30, // Limité à 30s pour éviter les fichiers trop volumineux
+        videoMaxDuration: 30,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -867,12 +883,12 @@ export default function Accueil() {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        setMediaSelectionne({
+        setMediasSelectionnes(prev => [...prev, {
           uri: asset.uri,
-          type: 'video',
+          type: 'video' as const,
           base64: base64,
           mimeType: asset.mimeType || 'video/mp4',
-        });
+        }].slice(0, MAX_MEDIAS));
       }
     } catch (error) {
       console.error('Erreur sélection vidéo:', error);
@@ -880,9 +896,14 @@ export default function Accueil() {
     }
   };
 
-  // Prendre une photo avec l'appareil photo
+  // Prendre une photo avec l'appareil photo (ajout au tableau)
   const handleTakePhoto = async () => {
     try {
+      if (mediasSelectionnes.length >= MAX_MEDIAS) {
+        Alert.alert('Limite atteinte', `Maximum ${MAX_MEDIAS} médias par publication.`);
+        return;
+      }
+
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre caméra pour prendre des photos.');
@@ -898,21 +919,21 @@ export default function Accueil() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        setMediaSelectionne({
+        setMediasSelectionnes(prev => [...prev, {
           uri: asset.uri,
-          type: 'image',
+          type: 'image' as const,
           base64: asset.base64 || undefined,
           mimeType: asset.mimeType || 'image/jpeg',
-        });
+        }].slice(0, MAX_MEDIAS));
       }
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de prendre la photo');
     }
   };
 
-  // Supprimer le média sélectionné
-  const handleRemoveMedia = () => {
-    setMediaSelectionne(null);
+  // Supprimer un média du tableau
+  const handleRemoveMedia = (index: number) => {
+    setMediasSelectionnes(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleProfil = () => {
@@ -1520,13 +1541,31 @@ export default function Accueil() {
         ) : (
           <Text style={styles.postContenu}>{publication.contenu}</Text>
         )}
-        {publication.media && (() => {
+        {/* Affichage des médias avec carrousel */}
+        {publication.medias && publication.medias.length > 0 ? (
+          <PostMediaCarousel
+            medias={publication.medias}
+            width={SCREEN_WIDTH - 32}
+            height={SCREEN_WIDTH - 32}
+            onMediaPress={(index) => {
+              const media = publication.medias[index];
+              if (media.type === 'video') {
+                setVideoUrl(media.url);
+                setVideoModalVisible(true);
+                resetControlsTimeout();
+              } else {
+                setImageUrl(media.url);
+                setImageModalVisible(true);
+              }
+            }}
+          />
+        ) : publication.media && (() => {
+          // Fallback pour anciennes publications sans medias[]
           const isVideo = publication.media.includes('.mp4') ||
             publication.media.includes('.mov') ||
             publication.media.includes('.webm') ||
             publication.media.includes('video');
 
-          // Utiliser thumbnail Cloudinary pour les vidéos
           const thumbnailUri = isVideo
             ? getVideoThumbnail(publication.media)
             : publication.media;
@@ -2760,7 +2799,7 @@ export default function Accueil() {
         transparent={true}
         onRequestClose={() => {
           setModalCreerPost(false);
-          setMediaSelectionne(null);
+          setMediasSelectionnes([]);
           setNouveauPostContenu('');
         }}
       >
@@ -2773,7 +2812,7 @@ export default function Accueil() {
               <Text style={styles.modalTitle}>Nouvelle publication</Text>
               <Pressable onPress={() => {
                 setModalCreerPost(false);
-                setMediaSelectionne(null);
+                setMediasSelectionnes([]);
                 setNouveauPostContenu('');
               }} style={styles.modalCloseBtn}>
                 <Ionicons name="close" size={24} color={couleurs.texte} />
@@ -2805,22 +2844,32 @@ export default function Accueil() {
                 autoFocus
               />
 
-              {/* Aperçu du média sélectionné */}
-              {mediaSelectionne && (
-                <View style={styles.mediaPreviewContainer}>
-                  <Image
-                    source={{ uri: mediaSelectionne.uri }}
-                    style={styles.mediaPreview}
-                    resizeMode="cover"
-                  />
-                  {mediaSelectionne.type === 'video' && (
-                    <View style={styles.mediaVideoIndicator}>
-                      <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
-                    </View>
-                  )}
-                  <Pressable style={styles.mediaRemoveBtn} onPress={handleRemoveMedia}>
-                    <Ionicons name="close-circle" size={28} color={couleurs.blanc} />
-                  </Pressable>
+              {/* Aperçu des médias sélectionnés (multi-média) */}
+              {mediasSelectionnes.length > 0 && (
+                <View style={styles.mediasPreviewRow}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {mediasSelectionnes.map((media, index) => (
+                      <View key={`media-${index}`} style={styles.mediaPreviewItem}>
+                        <Image
+                          source={{ uri: media.uri }}
+                          style={styles.mediaPreviewThumb}
+                          resizeMode="cover"
+                        />
+                        {media.type === 'video' && (
+                          <View style={styles.mediaVideoIndicatorSmall}>
+                            <Ionicons name="play-circle" size={24} color="rgba(255,255,255,0.9)" />
+                          </View>
+                        )}
+                        <Pressable style={styles.mediaRemoveBtnSmall} onPress={() => handleRemoveMedia(index)}>
+                          <Ionicons name="close-circle" size={20} color={couleurs.blanc} />
+                        </Pressable>
+                        <View style={styles.mediaIndexBadge}>
+                          <Text style={styles.mediaIndexText}>{index + 1}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <Text style={styles.mediasCount}>{mediasSelectionnes.length}/{MAX_MEDIAS} médias</Text>
                 </View>
               )}
 
@@ -2849,10 +2898,10 @@ export default function Accueil() {
               <Pressable
                 style={[
                   styles.modalPublishBtn,
-                  ((!nouveauPostContenu.trim() && !mediaSelectionne) || creationEnCours) && styles.modalPublishBtnDisabled,
+                  ((!nouveauPostContenu.trim() && mediasSelectionnes.length === 0) || creationEnCours) && styles.modalPublishBtnDisabled,
                 ]}
                 onPress={handleCreerPost}
-                disabled={(!nouveauPostContenu.trim() && !mediaSelectionne) || creationEnCours}
+                disabled={(!nouveauPostContenu.trim() && mediasSelectionnes.length === 0) || creationEnCours}
               >
                 {creationEnCours ? (
                   <Text style={styles.modalPublishBtnText}>Publication...</Text>
@@ -5180,6 +5229,59 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     right: espacements.sm,
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 14,
+  },
+
+  // Multi-média preview row
+  mediasPreviewRow: {
+    marginTop: espacements.md,
+  },
+  mediaPreviewItem: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    marginRight: espacements.sm,
+    borderRadius: rayons.sm,
+    overflow: 'hidden',
+  },
+  mediaPreviewThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  mediaVideoIndicatorSmall: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  mediaRemoveBtnSmall: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 10,
+  },
+  mediaIndexBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: rayons.xs,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  mediaIndexText: {
+    color: couleurs.blanc,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  mediasCount: {
+    color: couleurs.texteSecondaire,
+    fontSize: 12,
+    marginTop: espacements.xs,
   },
 
   // Barre d'actions médias dans Modal

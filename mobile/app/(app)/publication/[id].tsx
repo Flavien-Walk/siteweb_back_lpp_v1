@@ -41,6 +41,7 @@ import Avatar from '../../../src/composants/Avatar';
 import LikeButton, { LikeButtonCompact } from '../../../src/composants/LikeButton';
 import AnimatedPressable from '../../../src/composants/AnimatedPressable';
 import VideoPlayerModal from '../../../src/composants/VideoPlayerModal';
+import PostMediaCarousel from '../../../src/composants/PostMediaCarousel';
 import { sharePublication } from '../../../src/services/activity';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -73,6 +74,7 @@ export default function PublicationDetailPage() {
 
   // Etat modal video
   const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
 
   // Etat composer commentaire (visible seulement quand ouvert)
   const [isCommentComposerOpen, setIsCommentComposerOpen] = useState(false);
@@ -411,8 +413,8 @@ export default function PublicationDetailPage() {
   }
 
   const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
-  const hasMedia = !!publication.media;
-  const mediaIsVideo = isVideo(publication.media);
+  const hasMedia = (publication.medias && publication.medias.length > 0) || !!publication.media;
+  const mediaIsVideo = publication.medias?.length ? publication.medias[0].type === 'video' : isVideo(publication.media);
 
   return (
     <KeyboardAvoidingView
@@ -472,14 +474,32 @@ export default function PublicationDetailPage() {
         {/* Contenu texte */}
         {publication.contenu && <Text style={styles.postContent}>{publication.contenu}</Text>}
 
-        {/* Media */}
+        {/* Media - avec support carrousel multi-média */}
         {hasMedia && (
           <View style={styles.mediaContainer}>
-            {mediaIsVideo ? (
+            {publication.medias && publication.medias.length > 0 ? (
+              <PostMediaCarousel
+                medias={publication.medias}
+                width={SCREEN_WIDTH}
+                height={SCREEN_WIDTH}
+                onMediaPress={(index) => {
+                  const media = publication.medias[index];
+                  if (media.type === 'video') {
+                    setSelectedVideoUrl(media.url);
+                    setVideoModalVisible(true);
+                  }
+                }}
+              />
+            ) : mediaIsVideo ? (
               <Pressable
-                style={styles.videoThumbnailContainer}
-                onPress={() => setVideoModalVisible(true)}
-                activeOpacity={0.9}
+                style={({ pressed }) => [
+                  styles.videoThumbnailContainer,
+                  pressed && { opacity: 0.9 }
+                ]}
+                onPress={() => {
+                  setSelectedVideoUrl(publication.media || null);
+                  setVideoModalVisible(true);
+                }}
               >
                 <Image
                   source={{ uri: getVideoThumbnail(publication.media!) }}
@@ -810,8 +830,11 @@ export default function PublicationDetailPage() {
       {/* Modal lecteur video - Style Instagram */}
       <VideoPlayerModal
         visible={videoModalVisible}
-        videoUrl={publication?.media || null}
-        onClose={() => setVideoModalVisible(false)}
+        videoUrl={selectedVideoUrl || publication?.media || null}
+        onClose={() => {
+          setVideoModalVisible(false);
+          setSelectedVideoUrl(null);
+        }}
       />
     </KeyboardAvoidingView>
   );
