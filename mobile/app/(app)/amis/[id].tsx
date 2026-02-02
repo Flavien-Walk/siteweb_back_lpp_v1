@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { Avatar } from '../../../src/composants';
 import { getAmisUtilisateur, ProfilUtilisateur } from '../../../src/services/utilisateurs';
+import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
 
 export default function ListeAmisPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -84,21 +85,21 @@ export default function ListeAmisPage() {
       />
       <View style={styles.amiInfo}>
         <Text style={styles.amiNom}>{item.prenom} {item.nom}</Text>
-        {item.statut && (
-          <View style={styles.amiStatutContainer}>
-            <Ionicons
-              name={item.statut === 'entrepreneur' ? 'rocket' : 'compass'}
-              size={12}
-              color={item.statut === 'entrepreneur' ? couleurs.primaire : couleurs.texteSecondaire}
-            />
-            <Text style={[
-              styles.amiStatut,
-              item.statut === 'entrepreneur' && styles.amiStatutEntrepreneur,
-            ]}>
-              {item.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
-            </Text>
-          </View>
-        )}
+        {(() => {
+          const badgeConfig = getUserBadgeConfig(item.role, item.statut);
+          return (
+            <View style={styles.amiStatutContainer}>
+              <Ionicons
+                name={badgeConfig.icon}
+                size={12}
+                color={badgeConfig.color}
+              />
+              <Text style={[styles.amiStatut, { color: badgeConfig.color }]}>
+                {badgeConfig.label}
+              </Text>
+            </View>
+          );
+        })()}
       </View>
       <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
     </Pressable>

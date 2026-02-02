@@ -78,6 +78,7 @@ import Avatar from '../../src/composants/Avatar';
 const HISTORIQUE_RECHERCHE_KEY = '@lpp_historique_recherche';
 const MAX_HISTORIQUE = 10;
 import LikeButton, { LikeButtonCompact } from '../../src/composants/LikeButton';
+import { getUserBadgeConfig } from '../../src/utils/userDisplay';
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
 import StoriesRow from '../../src/composants/StoriesRow';
@@ -1257,27 +1258,18 @@ export default function Accueil() {
               <Pressable onPress={naviguerVersProfilAuteur}>
                 <Text style={styles.postAuteur}>{auteurNom}</Text>
               </Pressable>
-              {publication.auteur.role === 'admin' && (
-                <View style={styles.adminBadge}>
-                  <Ionicons name="shield-checkmark" size={12} color="#fff" />
-                  <Text style={styles.adminBadgeText}>Admin LPP</Text>
-                </View>
-              )}
-              {publication.auteur.role !== 'admin' && publication.auteur.statut && (
-                <View style={[
-                  styles.statutBadge,
-                  publication.auteur.statut === 'entrepreneur' && styles.statutBadgeEntrepreneur
-                ]}>
-                  <Ionicons
-                    name={publication.auteur.statut === 'entrepreneur' ? 'rocket' : 'compass'}
-                    size={10}
-                    color="#fff"
-                  />
-                  <Text style={styles.statutBadgeText}>
-                    {publication.auteur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
-                  </Text>
-                </View>
-              )}
+              {(() => {
+                const badgeConfig = getUserBadgeConfig(publication.auteur.role, publication.auteur.statut);
+                return (
+                  <View style={[
+                    styles.statutBadge,
+                    { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
+                  ]}>
+                    <Ionicons name={badgeConfig.icon} size={10} color="#fff" />
+                    <Text style={styles.statutBadgeText}>{badgeConfig.label}</Text>
+                  </View>
+                );
+              })()}
               {publication.auteurType === 'Projet' && (
                 <View style={styles.startupBadge}>
                   <Text style={styles.startupBadgeText}>Startup</Text>
@@ -1644,7 +1636,6 @@ export default function Accueil() {
             ) : (
               commentaires.map((comment) => {
                 const commentAuteur = `${comment.auteur.prenom} ${comment.auteur.nom}`;
-                const commentIsAdmin = comment.auteur.role === 'admin';
                 const canEditDeleteComment = isMyComment(comment.auteur._id) || isAdmin();
                 const isEditing = editingComment === comment._id;
                 return (
@@ -1686,22 +1677,17 @@ export default function Accueil() {
                               <View style={styles.commentBubbleHeader}>
                                 <View style={styles.commentAuteurRow}>
                                   <Text style={styles.commentAuteur}>{commentAuteur}</Text>
-                                  {commentIsAdmin && (
-                                    <View style={styles.adminBadgeSmall}>
-                                      <Ionicons name="shield-checkmark" size={10} color="#fff" />
-                                      <Text style={styles.adminBadgeSmallText}>Admin</Text>
-                                    </View>
-                                  )}
-                                  {!commentIsAdmin && comment.auteur.statut && (
-                                    <View style={[
-                                      styles.statutBadgeSmall,
-                                      comment.auteur.statut === 'entrepreneur' && styles.statutBadgeSmallEntrepreneur
-                                    ]}>
-                                      <Text style={styles.statutBadgeSmallText}>
-                                        {comment.auteur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
-                                      </Text>
-                                    </View>
-                                  )}
+                                  {(() => {
+                                    const badgeConfig = getUserBadgeConfig(comment.auteur.role, comment.auteur.statut);
+                                    return (
+                                      <View style={[
+                                        styles.statutBadgeSmall,
+                                        { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
+                                      ]}>
+                                        <Text style={styles.statutBadgeSmallText}>{badgeConfig.label}</Text>
+                                      </View>
+                                    );
+                                  })()}
                                 </View>
                                 {canEditDeleteComment && (
                                   <View style={styles.commentActionsMenu}>
@@ -1762,7 +1748,6 @@ export default function Accueil() {
                     {expandedReplies[comment._id] && comment.reponses?.map((reponse) => {
                       const repAuteur = `${reponse.auteur.prenom} ${reponse.auteur.nom}`;
                       const isEditingReply = editingComment === reponse._id;
-                      const replyIsAdmin = reponse.auteur.role === 'admin';
                       const canEditDeleteReply = isMyComment(reponse.auteur._id) || isAdmin();
                       return (
                         <View key={reponse._id} style={styles.replyItem}>
@@ -1803,22 +1788,17 @@ export default function Accueil() {
                                   <View style={styles.commentBubbleHeader}>
                                     <View style={styles.commentAuteurRow}>
                                       <Text style={styles.commentAuteur}>{repAuteur}</Text>
-                                      {replyIsAdmin && (
-                                        <View style={styles.adminBadgeSmall}>
-                                          <Ionicons name="shield-checkmark" size={10} color="#fff" />
-                                          <Text style={styles.adminBadgeSmallText}>Admin</Text>
-                                        </View>
-                                      )}
-                                      {!replyIsAdmin && reponse.auteur.statut && (
-                                        <View style={[
-                                          styles.statutBadgeSmall,
-                                          reponse.auteur.statut === 'entrepreneur' && styles.statutBadgeSmallEntrepreneur
-                                        ]}>
-                                          <Text style={styles.statutBadgeSmallText}>
-                                            {reponse.auteur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
-                                          </Text>
-                                        </View>
-                                      )}
+                                      {(() => {
+                                        const badgeConfig = getUserBadgeConfig(reponse.auteur.role, reponse.auteur.statut);
+                                        return (
+                                          <View style={[
+                                            styles.statutBadgeSmall,
+                                            { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
+                                          ]}>
+                                            <Text style={styles.statutBadgeSmallText}>{badgeConfig.label}</Text>
+                                          </View>
+                                        );
+                                      })()}
                                     </View>
                                     {canEditDeleteReply && (
                                       <View style={styles.commentActionsMenu}>

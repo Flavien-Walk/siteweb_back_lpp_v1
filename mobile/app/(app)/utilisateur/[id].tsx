@@ -44,6 +44,7 @@ import { getOuCreerConversationPrivee } from '../../../src/services/messagerie';
 import { getPublicationsUtilisateur, Publication } from '../../../src/services/publications';
 import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
 import StoryViewer from '../../../src/composants/StoryViewer';
+import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
 
 export default function ProfilUtilisateurPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -399,22 +400,6 @@ export default function ProfilUtilisateurPage() {
     showToast('Devenez ami pour voir la liste d\'amis');
   };
 
-  // Configuration du statut (avec gestion du rôle admin)
-  const getStatutConfig = (role?: string, statut?: string) => {
-    // Admin en priorité
-    if (role === 'admin') {
-      return { label: 'Admin LPP', icon: 'shield-checkmark' as const, color: '#dc2626' };
-    }
-    // Sinon statut utilisateur
-    switch (statut) {
-      case 'entrepreneur':
-        return { label: 'Entrepreneur', icon: 'rocket' as const, color: couleurs.primaire };
-      case 'visiteur':
-      default:
-        return { label: 'Visiteur', icon: 'compass' as const, color: couleurs.texteSecondaire };
-    }
-  };
-
   // Formater la date d'inscription
   const formatDateInscription = (date: string) => {
     const d = new Date(date);
@@ -466,7 +451,7 @@ export default function ProfilUtilisateurPage() {
 
   const estMonProfil = moi?.id === profil._id;
   const boutonConfig = getBoutonAmiConfig();
-  const statutConfig = getStatutConfig(profil.role, profil.statut);
+  const statutConfig = getUserBadgeConfig(profil.role, profil.statut);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

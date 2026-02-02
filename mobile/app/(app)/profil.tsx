@@ -45,6 +45,7 @@ import { getMesStories, Story } from '../../src/services/stories';
 import Avatar from '../../src/composants/Avatar';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
+import { getUserBadgeConfig } from '../../src/utils/userDisplay';
 
 type Onglet = 'profil-public' | 'parametres';
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
@@ -555,19 +556,8 @@ export default function Profil() {
     return `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase();
   };
 
-  // Configuration du statut (avec gestion du rôle admin)
-  const getStatutConfig = (role?: string, statut?: string) => {
-    if (role === 'admin') {
-      return { label: 'Admin LPP', icon: 'shield-checkmark' as const, color: '#dc2626' };
-    }
-    switch (statut) {
-      case 'entrepreneur':
-        return { label: 'Entrepreneur', icon: 'rocket' as const, color: couleurs.primaire };
-      case 'visiteur':
-      default:
-        return { label: 'Visiteur', icon: 'compass' as const, color: couleurs.texteSecondaire };
-    }
-  };
+  // Configuration du badge utilisateur (rôle staff ou statut)
+  const statutConfig = getUserBadgeConfig(utilisateur?.role, utilisateur?.statut);
 
   const formatDateInscription = (date?: string) => {
     if (!date) return '';
@@ -577,8 +567,6 @@ export default function Profil() {
 
   // Styles dynamiques
   const styles = createStyles(couleurs, isDark);
-
-  const statutConfig = getStatutConfig(utilisateur?.role, utilisateur?.statut);
 
   // =====================
   // ONGLET PROFIL PUBLIC
