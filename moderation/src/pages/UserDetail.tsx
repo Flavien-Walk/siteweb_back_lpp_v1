@@ -478,8 +478,8 @@ export function UserDetailPage() {
                               <Badge variant="secondary">{report.targetType}</Badge>
                               <Badge
                                 variant={
-                                  report.status === 'resolved' ? 'success' :
-                                  report.status === 'rejected' ? 'destructive' :
+                                  report.status === 'action_taken' ? 'success' :
+                                  report.status === 'dismissed' ? 'destructive' :
                                   'default'
                                 }
                               >
