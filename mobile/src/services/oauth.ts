@@ -71,8 +71,64 @@ export const lancerOAuth = async (provider: OAuthProvider): Promise<OAuthResult>
 };
 
 /**
+ * Echanger un code temporaire contre un token JWT
+ * POST /api/auth/exchange-code
+ */
+const echangerCodeContreToken = async (
+  code: string
+): Promise<{ succes: boolean; data?: { utilisateur: Utilisateur; token: string }; message?: string }> => {
+  try {
+    const response = await fetch(`${API_URL}/auth/exchange-code`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.succes) {
+      return {
+        succes: true,
+        data: data.data,
+      };
+    }
+
+    // Gerer les erreurs specifiques (ban, suspension)
+    if (data.code === 'ACCOUNT_BANNED') {
+      return {
+        succes: false,
+        message: 'Votre compte a été suspendu définitivement.',
+      };
+    }
+
+    if (data.code === 'ACCOUNT_SUSPENDED') {
+      return {
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+      };
+    }
+
+    return {
+      succes: false,
+      message: data.message || 'Code invalide ou expiré',
+    };
+  } catch (error) {
+    console.error('Erreur exchange-code:', error);
+    return {
+      succes: false,
+      message: 'Erreur de connexion au serveur',
+    };
+  }
+};
+
+/**
  * Traiter le callback OAuth
- * Extrait le token de l'URL et récupère les infos utilisateur
+ * Extrait le code de l'URL et l'échange contre un token sécurisé
+ *
+ * SECURITE: Le token n'est jamais exposé dans l'URL
+ * Le backend renvoie un code temporaire one-time que nous échangeons
  */
 export const traiterCallbackOAuth = async (url: string): Promise<OAuthResult> => {
   try {
@@ -88,33 +144,59 @@ export const traiterCallbackOAuth = async (url: string): Promise<OAuthResult> =>
       };
     }
 
-    // Récupérer le token
-    const token = params.token as string;
-    if (!token) {
+    // Récupérer le code temporaire (nouveau flux sécurisé)
+    const code = params.code as string;
+
+    // Rétrocompatibilité: supporter l'ancien flux avec token direct (à supprimer plus tard)
+    const legacyToken = params.token as string;
+
+    if (code) {
+      // Nouveau flux sécurisé: échanger le code contre un token
+      const exchangeResult = await echangerCodeContreToken(code);
+
+      if (exchangeResult.succes && exchangeResult.data) {
+        const { utilisateur, token } = exchangeResult.data;
+
+        // Sauvegarder le token et l'utilisateur
+        await setToken(token);
+        await setUtilisateurLocal(utilisateur);
+
+        return {
+          succes: true,
+          utilisateur,
+        };
+      }
+
       return {
         succes: false,
-        message: 'Token manquant dans la réponse',
+        message: exchangeResult.message || 'Erreur lors de l\'échange du code',
       };
     }
 
-    // Sauvegarder le token
-    await setToken(token);
+    // Rétrocompatibilité: ancien flux avec token direct (deprecié)
+    if (legacyToken) {
+      console.warn('[OAuth] Flux legacy détecté - mise à jour backend recommandée');
+      await setToken(legacyToken);
 
-    // Récupérer les infos utilisateur depuis l'API
-    const response = await getMoi();
-    if (response.succes && response.data) {
-      const utilisateur = response.data.utilisateur;
-      await setUtilisateurLocal(utilisateur);
+      const response = await getMoi();
+      if (response.succes && response.data) {
+        const utilisateur = response.data.utilisateur;
+        await setUtilisateurLocal(utilisateur);
+        return {
+          succes: true,
+          utilisateur,
+        };
+      }
 
       return {
-        succes: true,
-        utilisateur,
+        succes: false,
+        message: 'Impossible de récupérer les informations du compte',
       };
     }
 
     return {
       succes: false,
-      message: 'Impossible de récupérer les informations du compte',
+      message: 'Code ou token manquant dans la réponse',
     };
   } catch (error) {
     console.error('Erreur traitement callback OAuth:', error);
@@ -134,10 +216,16 @@ const getErreurMessage = (code: string): string => {
       return 'Échec de la connexion. Réessaie.';
     case 'oauth_erreur':
       return 'Une erreur est survenue. Réessaie.';
+    case 'oauth_csrf_invalide':
+      return 'Session expirée. Réessaie.';
     case 'google_echec':
       return 'Connexion Google impossible. Réessaie.';
     case 'apple_echec':
       return 'Connexion Apple impossible. Réessaie.';
+    case 'compte_banni':
+      return 'Ton compte a été suspendu définitivement.';
+    case 'compte_suspendu':
+      return 'Ton compte est temporairement suspendu.';
     default:
       return 'Erreur de connexion';
   }
