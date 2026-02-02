@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersService } from '@/services/users'
+import { activityService } from '@/services/activity'
 import { useAuth } from '@/auth/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import {
   FileText,
   Activity,
   ChevronRight,
+  Share2,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import type { User as UserType, TimelineEvent, AuditLog, UserReport } from '@/types'
@@ -61,6 +63,7 @@ const activityTypeLabels: Record<string, string> = {
   commentaire: 'Commentaire',
   report_sent: 'Signalement émis',
   sanction: 'Sanction reçue',
+  share: 'Partage',
 }
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
@@ -68,6 +71,7 @@ const activityTypeIcons: Record<string, React.ReactNode> = {
   commentaire: <FileText className="h-4 w-4 text-green-500" />,
   report_sent: <Flag className="h-4 w-4 text-orange-500" />,
   sanction: <AlertTriangle className="h-4 w-4 text-red-500" />,
+  share: <Share2 className="h-4 w-4 text-indigo-500" />,
 }
 
 function UserStatusBadge({ user }: { user: UserType }) {
@@ -92,6 +96,7 @@ export function UserDetailPage() {
   const [banReason, setBanReason] = useState('')
   const [newRole, setNewRole] = useState('')
   const [historyTab, setHistoryTab] = useState<HistoryTab>('timeline')
+  const [activityFilter, setActivityFilter] = useState<'all' | 'share'>('all')
 
   // Fetch user
   const {
@@ -129,7 +134,14 @@ export function UserDetailPage() {
   const { data: userActivity, isLoading: isLoadingActivity } = useQuery({
     queryKey: ['user-activity', id],
     queryFn: () => usersService.getUserActivity(id!),
-    enabled: !!id && historyTab === 'activity',
+    enabled: !!id && historyTab === 'activity' && activityFilter === 'all',
+  })
+
+  // Fetch share activities (from ActivityLog)
+  const { data: shareActivity, isLoading: isLoadingShares } = useQuery({
+    queryKey: ['user-shares', id],
+    queryFn: () => activityService.getUserActivity(id!, { action: 'share', limit: 50 }),
+    enabled: !!id && historyTab === 'activity' && activityFilter === 'share',
   })
 
   // Warn mutation
@@ -554,110 +566,201 @@ export function UserDetailPage() {
               {/* Activity tab */}
               {historyTab === 'activity' && (
                 <div className="space-y-4">
-                  {isLoadingActivity ? (
-                    <div className="space-y-2">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-16 animate-pulse rounded bg-muted" />
-                      ))}
-                    </div>
-                  ) : userActivity ? (
-                    <>
-                      {/* Stats summary */}
-                      <div className="grid grid-cols-4 gap-2 mb-4">
-                        <div className="text-center p-2 bg-muted rounded">
-                          <p className="text-lg font-semibold">{userActivity.stats.totalPublications}</p>
-                          <p className="text-xs text-muted-foreground">Publications</p>
-                        </div>
-                        <div className="text-center p-2 bg-muted rounded">
-                          <p className="text-lg font-semibold">{userActivity.stats.totalCommentaires}</p>
-                          <p className="text-xs text-muted-foreground">Commentaires</p>
-                        </div>
-                        <div className="text-center p-2 bg-muted rounded">
-                          <p className="text-lg font-semibold">{userActivity.stats.totalReportsSent}</p>
-                          <p className="text-xs text-muted-foreground">Signalements</p>
-                        </div>
-                        <div className="text-center p-2 bg-muted rounded">
-                          <p className="text-lg font-semibold">{userActivity.stats.totalSanctions}</p>
-                          <p className="text-xs text-muted-foreground">Sanctions</p>
-                        </div>
-                      </div>
+                  {/* Filter buttons */}
+                  <div className="flex gap-2 mb-4">
+                    <Button
+                      variant={activityFilter === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActivityFilter('all')}
+                    >
+                      <Activity className="h-4 w-4 mr-1" />
+                      Tout
+                    </Button>
+                    <Button
+                      variant={activityFilter === 'share' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActivityFilter('share')}
+                    >
+                      <Share2 className="h-4 w-4 mr-1" />
+                      Partages
+                    </Button>
+                  </div>
 
-                      {/* Activity list */}
-                      {userActivity.activities && userActivity.activities.length > 0 ? (
-                        <div className="relative">
-                          <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-muted" />
-                          {userActivity.activities.map((activity, index) => (
-                            <div key={`${activity.type}-${index}`} className="relative pl-10 pb-4">
-                              <div className="absolute left-2 top-1 p-1 bg-background rounded-full border">
-                                {activityTypeIcons[activity.type] || <Activity className="h-4 w-4" />}
-                              </div>
-                              <div className="rounded-md border p-3">
-                                <div className="flex items-center justify-between mb-1">
-                                  <Badge variant="secondary">
-                                    {activityTypeLabels[activity.type] || activity.type}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    {formatRelativeTime(activity.date)}
-                                  </span>
-                                </div>
-                                {activity.type === 'publication' && 'contenu' in activity.data && (
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {String(activity.data.contenu)}
-                                    {Boolean(activity.data.hasMedia) && (
-                                      <span className="ml-1 text-blue-500">
-                                        {' '}📎 {String(activity.data.mediaCount)} média(s)
-                                      </span>
-                                    )}
-                                  </p>
-                                )}
-                                {activity.type === 'commentaire' && 'contenu' in activity.data && (
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {String(activity.data.contenu)}
-                                  </p>
-                                )}
-                                {activity.type === 'report_sent' && (
-                                  <p className="text-sm text-muted-foreground">
-                                    {String(activity.data.reason)} ({String(activity.data.status)})
-                                  </p>
-                                )}
-                                {activity.type === 'sanction' && (
-                                  <>
-                                    <p className="text-sm font-medium text-red-600">
-                                      {String(activity.data.action)}
-                                    </p>
-                                    {activity.data.reason && (
-                                      <p className="text-sm text-muted-foreground">
-                                        {String(activity.data.reason)}
-                                      </p>
-                                    )}
-                                    {activity.data.moderator && (
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        Par {(activity.data.moderator as { prenom: string; nom: string }).prenom}{' '}
-                                        {(activity.data.moderator as { prenom: string; nom: string }).nom}
-                                      </p>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </div>
+                  {/* All activity view */}
+                  {activityFilter === 'all' && (
+                    <>
+                      {isLoadingActivity ? (
+                        <div className="space-y-2">
+                          {[1, 2, 3].map((i) => (
+                            <div key={i} className="h-16 animate-pulse rounded bg-muted" />
                           ))}
                         </div>
+                      ) : userActivity ? (
+                        <>
+                          {/* Stats summary */}
+                          <div className="grid grid-cols-4 gap-2 mb-4">
+                            <div className="text-center p-2 bg-muted rounded">
+                              <p className="text-lg font-semibold">{userActivity.stats.totalPublications}</p>
+                              <p className="text-xs text-muted-foreground">Publications</p>
+                            </div>
+                            <div className="text-center p-2 bg-muted rounded">
+                              <p className="text-lg font-semibold">{userActivity.stats.totalCommentaires}</p>
+                              <p className="text-xs text-muted-foreground">Commentaires</p>
+                            </div>
+                            <div className="text-center p-2 bg-muted rounded">
+                              <p className="text-lg font-semibold">{userActivity.stats.totalReportsSent}</p>
+                              <p className="text-xs text-muted-foreground">Signalements</p>
+                            </div>
+                            <div className="text-center p-2 bg-muted rounded">
+                              <p className="text-lg font-semibold">{userActivity.stats.totalSanctions}</p>
+                              <p className="text-xs text-muted-foreground">Sanctions</p>
+                            </div>
+                          </div>
+
+                          {/* Activity list */}
+                          {userActivity.activities && userActivity.activities.length > 0 ? (
+                            <div className="relative">
+                              <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-muted" />
+                              {userActivity.activities.map((activity, index) => (
+                                <div key={`${activity.type}-${index}`} className="relative pl-10 pb-4">
+                                  <div className="absolute left-2 top-1 p-1 bg-background rounded-full border">
+                                    {activityTypeIcons[activity.type] || <Activity className="h-4 w-4" />}
+                                  </div>
+                                  <div className="rounded-md border p-3">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <Badge variant="secondary">
+                                        {activityTypeLabels[activity.type] || activity.type}
+                                      </Badge>
+                                      <span className="text-xs text-muted-foreground">
+                                        {formatRelativeTime(activity.date)}
+                                      </span>
+                                    </div>
+                                    {activity.type === 'publication' && 'contenu' in activity.data && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">
+                                        {String(activity.data.contenu)}
+                                        {Boolean(activity.data.hasMedia) && (
+                                          <span className="ml-1 text-blue-500">
+                                            {' '}📎 {String(activity.data.mediaCount)} média(s)
+                                          </span>
+                                        )}
+                                      </p>
+                                    )}
+                                    {activity.type === 'commentaire' && 'contenu' in activity.data && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">
+                                        {String(activity.data.contenu)}
+                                      </p>
+                                    )}
+                                    {activity.type === 'report_sent' && (
+                                      <p className="text-sm text-muted-foreground">
+                                        {String(activity.data.reason)} ({String(activity.data.status)})
+                                      </p>
+                                    )}
+                                    {activity.type === 'sanction' && (
+                                      <>
+                                        <p className="text-sm font-medium text-red-600">
+                                          {String(activity.data.action)}
+                                        </p>
+                                        {activity.data.reason && (
+                                          <p className="text-sm text-muted-foreground">
+                                            {String(activity.data.reason)}
+                                          </p>
+                                        )}
+                                        {activity.data.moderator && (
+                                          <p className="text-xs text-muted-foreground mt-1">
+                                            Par {(activity.data.moderator as { prenom: string; nom: string }).prenom}{' '}
+                                            {(activity.data.moderator as { prenom: string; nom: string }).nom}
+                                          </p>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              Aucune activité enregistrée
+                            </p>
+                          )}
+
+                          {userActivity.pagination.pages > 1 && (
+                            <p className="text-xs text-muted-foreground text-center">
+                              {userActivity.pagination.total} activités au total
+                            </p>
+                          )}
+                        </>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-4">
-                          Aucune activité enregistrée
-                        </p>
-                      )}
-
-                      {userActivity.pagination.pages > 1 && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          {userActivity.pagination.total} activités au total
+                          Impossible de charger l'activité
                         </p>
                       )}
                     </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Impossible de charger l'activité
-                    </p>
+                  )}
+
+                  {/* Shares only view */}
+                  {activityFilter === 'share' && (
+                    <>
+                      {isLoadingShares ? (
+                        <div className="space-y-2">
+                          {[1, 2, 3].map((i) => (
+                            <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+                          ))}
+                        </div>
+                      ) : shareActivity && shareActivity.activities.length > 0 ? (
+                        <>
+                          <div className="text-center p-3 bg-indigo-50 dark:bg-indigo-950 rounded mb-4">
+                            <p className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400">
+                              {shareActivity.pagination.total}
+                            </p>
+                            <p className="text-sm text-muted-foreground">Partages effectués</p>
+                          </div>
+
+                          <div className="relative">
+                            <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-indigo-200 dark:bg-indigo-800" />
+                            {shareActivity.activities.map((activity, index) => (
+                              <div key={activity._id || index} className="relative pl-10 pb-4">
+                                <div className="absolute left-2 top-1 p-1 bg-background rounded-full border border-indigo-300">
+                                  <Share2 className="h-4 w-4 text-indigo-500" />
+                                </div>
+                                <div className="rounded-md border border-indigo-200 dark:border-indigo-800 p-3">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                                        Partage
+                                      </Badge>
+                                      <Badge variant="outline" className="text-xs">
+                                        {activity.source}
+                                      </Badge>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                      {formatRelativeTime(activity.dateCreation)}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    {activity.targetType === 'publication' && (
+                                      <>Publication ID: <code className="text-xs bg-muted px-1 rounded">{activity.targetId}</code></>
+                                    )}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Rôle: {activity.actorRole}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {shareActivity.pagination.pages > 1 && (
+                            <p className="text-xs text-muted-foreground text-center">
+                              {shareActivity.pagination.total} partages au total
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          Aucun partage enregistré
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               )}
