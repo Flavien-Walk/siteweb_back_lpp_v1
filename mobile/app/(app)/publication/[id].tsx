@@ -409,6 +409,9 @@ export default function PublicationDetailPage() {
           </View>
         </Pressable>
 
+        {/* Contenu texte */}
+        {publication.contenu && <Text style={styles.postContent}>{publication.contenu}</Text>}
+
         {/* Media */}
         {hasMedia && (
           <View style={styles.mediaContainer}>
@@ -434,9 +437,6 @@ export default function PublicationDetailPage() {
             )}
           </View>
         )}
-
-        {/* Contenu texte */}
-        {publication.contenu && <Text style={styles.postContent}>{publication.contenu}</Text>}
 
         {/* Stats et actions */}
         <View style={styles.statsRow}>
