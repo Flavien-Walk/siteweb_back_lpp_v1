@@ -196,7 +196,7 @@ export function UserDetailPage() {
   const canWarn = hasPermission('users:warn')
   const canSuspend = hasPermission('users:suspend')
   const canBan = hasPermission('users:ban')
-  const canModifyRole = hasPermission('users:role')
+  const canModifyRole = hasPermission('users:edit_roles')
 
   const isStaffMember = user && ['modo_test', 'modo', 'admin_modo', 'super_admin'].includes(user.role)
   const isSelf = user && currentUser && user._id === currentUser._id

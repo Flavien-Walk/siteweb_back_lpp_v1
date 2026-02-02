@@ -11,7 +11,6 @@ export type Permission =
   | 'users:suspend'
   | 'users:ban'
   | 'users:unban'
-  | 'users:role'
   | 'users:edit_roles'
   | 'content:hide'
   | 'content:delete'
@@ -20,7 +19,6 @@ export type Permission =
   | 'config:view'
   | 'config:edit'
   | 'staff:chat'
-  | 'staff:admin'
 
 export interface Warning {
   _id?: string

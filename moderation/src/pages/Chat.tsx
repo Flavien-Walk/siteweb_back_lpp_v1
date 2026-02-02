@@ -116,7 +116,7 @@ function MessageBubble({
 
 export function ChatPage() {
   const queryClient = useQueryClient()
-  const { user, hasPermission } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [newMessage, setNewMessage] = useState('')
   const [showScrollButton, setShowScrollButton] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -195,7 +195,7 @@ export function ChatPage() {
     sendMutation.mutate(newMessage)
   }
 
-  const canDeleteOthers = hasPermission('staff:admin')
+  const canDeleteOthers = isAdmin
   const messages = data?.items || []
 
   return (
