@@ -30,6 +30,10 @@ import {
   Ban,
   Flag,
   MessageSquare,
+  Smartphone,
+  Monitor,
+  Globe,
+  Server,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 
@@ -61,6 +65,30 @@ const actionIcons: Record<string, React.ReactNode> = {
   content_delete: <X className="h-4 w-4 text-destructive" />,
   content_restore: <RefreshCw className="h-4 w-4 text-success" />,
   staff_chat: <MessageSquare className="h-4 w-4 text-primary" />,
+}
+
+const sourceLabels: Record<string, string> = {
+  web: 'Web',
+  mobile: 'Mobile',
+  api: 'API',
+  system: 'Système',
+}
+
+const sourceIcons: Record<string, React.ReactNode> = {
+  web: <Monitor className="h-3.5 w-3.5" />,
+  mobile: <Smartphone className="h-3.5 w-3.5" />,
+  api: <Globe className="h-3.5 w-3.5" />,
+  system: <Server className="h-3.5 w-3.5" />,
+}
+
+function SourceBadge({ source }: { source?: string }) {
+  const src = source || 'web'
+  return (
+    <Badge variant="outline" className="gap-1 text-xs">
+      {sourceIcons[src]}
+      {sourceLabels[src] || src}
+    </Badge>
+  )
 }
 
 function ActionBadge({ action }: { action: string }) {
@@ -96,6 +124,7 @@ export function AuditPage() {
     page: parseInt(searchParams.get('page') || '1'),
     limit: parseInt(searchParams.get('limit') || '50'),
     action: searchParams.get('action') || undefined,
+    source: searchParams.get('source') || undefined,
     dateFrom: searchParams.get('dateFrom') || undefined,
     dateTo: searchParams.get('dateTo') || undefined,
     sort: 'createdAt',
@@ -137,6 +166,7 @@ export function AuditPage() {
     try {
       const blob = await auditService.exportCsv({
         action: params.action,
+        source: params.source,
         dateFrom: params.dateFrom,
         dateTo: params.dateTo,
       })
@@ -153,7 +183,7 @@ export function AuditPage() {
     }
   }
 
-  const hasActiveFilters = params.action || params.dateFrom || params.dateTo
+  const hasActiveFilters = params.action || params.source || params.dateFrom || params.dateTo
   const canExport = hasPermission('audit:export')
 
   return (
@@ -224,6 +254,19 @@ export function AuditPage() {
                 </Select>
               </div>
               <div>
+                <label className="mb-1 block text-sm font-medium">Source</label>
+                <Select
+                  value={params.source || ''}
+                  onChange={(e) => updateParams({ source: e.target.value || undefined })}
+                >
+                  <option value="">Toutes</option>
+                  <option value="web">Web (Modération)</option>
+                  <option value="mobile">Mobile</option>
+                  <option value="api">API</option>
+                  <option value="system">Système</option>
+                </Select>
+              </div>
+              <div>
                 <label className="mb-1 block text-sm font-medium">Date début</label>
                 <Input
                   type="date"
@@ -266,6 +309,7 @@ export function AuditPage() {
             <TableRow>
               <TableHead>Date</TableHead>
               <TableHead>Action</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Modérateur</TableHead>
               <TableHead>Cible</TableHead>
               <TableHead>Détails</TableHead>
@@ -277,6 +321,7 @@ export function AuditPage() {
                 <TableRow key={i}>
                   <TableCell><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-5 w-28 animate-pulse rounded bg-muted" /></TableCell>
+                  <TableCell><div className="h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-4 w-40 animate-pulse rounded bg-muted" /></TableCell>
@@ -284,7 +329,7 @@ export function AuditPage() {
               ))
             ) : (data?.items?.length ?? 0) === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                   Aucun log trouvé
                 </TableCell>
               </TableRow>
@@ -299,6 +344,9 @@ export function AuditPage() {
                   </TableCell>
                   <TableCell>
                     <ActionBadge action={log.action} />
+                  </TableCell>
+                  <TableCell>
+                    <SourceBadge source={log.source} />
                   </TableCell>
                   <TableCell>
                     {log.moderator ? (

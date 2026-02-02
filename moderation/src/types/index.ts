@@ -172,6 +172,8 @@ export type AuditAction =
   | 'content_restore'
   | 'staff_chat'
 
+export type AuditSource = 'web' | 'mobile' | 'api' | 'system'
+
 export interface AuditLog {
   _id: string
   action: string
@@ -190,6 +192,7 @@ export interface AuditLog {
   targetId?: string
   reason?: string
   metadata?: Record<string, unknown>
+  source?: AuditSource
   dateCreation: string
 }
 

@@ -1,12 +1,15 @@
 import api from './api'
 import type { AuditLog, ApiResponse, PaginatedResponse } from '@/types'
 
+export type AuditSource = 'web' | 'mobile' | 'api' | 'system'
+
 export interface AuditFilters {
   action?: string
   moderatorId?: string
   targetUserId?: string
   dateFrom?: string
   dateTo?: string
+  source?: AuditSource
 }
 
 export interface AuditListParams extends AuditFilters {
