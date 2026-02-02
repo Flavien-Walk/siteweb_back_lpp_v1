@@ -3,7 +3,7 @@
  * Affiche images et vidéos avec pagination dots et indicateur "1/5"
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -12,17 +12,11 @@ import {
   StyleSheet,
   Pressable,
   ViewToken,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
+  Animated,
+  Text,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  interpolate,
-} from 'react-native-reanimated';
 import { couleurs, rayons, espacements } from '../constantes/theme';
 import { MediaItem } from '../services/publications';
 
@@ -78,7 +72,7 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   }, [isPlaying]);
 
   // Pause video when not active or when component unmounts (scroll out of view)
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isActive && videoRef.current && isPlaying) {
       videoRef.current.pauseAsync();
     }
@@ -88,7 +82,7 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   }, [isActive, autoPlayVideos, isPlaying]);
 
   // Cleanup: pause on unmount
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (videoRef.current) {
         videoRef.current.pauseAsync().catch(() => {});
@@ -127,22 +121,39 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   );
 });
 
-const PaginationDot: React.FC<{ isActive: boolean }> = ({ isActive }) => {
-  const animatedStyle = useAnimatedStyle(() => ({
-    width: withTiming(isActive ? 24 : 8, { duration: 200 }),
-    opacity: withTiming(isActive ? 1 : 0.5, { duration: 200 }),
-  }));
+// PaginationDot avec Animated natif React Native
+const PaginationDot: React.FC<{ isActive: boolean }> = React.memo(({ isActive }) => {
+  const widthAnim = useRef(new Animated.Value(isActive ? 24 : 8)).current;
+  const opacityAnim = useRef(new Animated.Value(isActive ? 1 : 0.5)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(widthAnim, {
+        toValue: isActive ? 24 : 8,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: isActive ? 1 : 0.5,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [isActive, widthAnim, opacityAnim]);
 
   return (
     <Animated.View
       style={[
         styles.dot,
-        animatedStyle,
-        isActive && styles.dotActive,
+        {
+          width: widthAnim,
+          opacity: opacityAnim,
+          backgroundColor: isActive ? couleurs.primaire : couleurs.blanc,
+        },
       ]}
     />
   );
-};
+});
 
 const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
   medias,
@@ -237,9 +248,9 @@ const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
       {showIndicator && medias.length > 1 && (
         <View style={styles.indicatorContainer}>
           <View style={styles.indicator}>
-            <Animated.Text style={styles.indicatorText}>
+            <Text style={styles.indicatorText}>
               {activeIndex + 1}/{medias.length}
-            </Animated.Text>
+            </Text>
           </View>
         </View>
       )}
@@ -312,10 +323,6 @@ const styles = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: couleurs.blanc,
-  },
-  dotActive: {
-    backgroundColor: couleurs.primaire,
   },
 });
 
