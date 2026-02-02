@@ -172,6 +172,10 @@ export const moi = async (
       throw new ErreurAPI('Utilisateur non trouve.', 404);
     }
 
+    // Calculer les permissions effectives pour les clients
+    const effectivePermissions = utilisateur.getEffectivePermissions();
+    const isStaff = utilisateur.isStaff();
+
     res.status(200).json({
       succes: true,
       data: {
@@ -187,6 +191,9 @@ export const moi = async (
           provider: utilisateur.provider,
           dateCreation: utilisateur.dateCreation,
           nbAmis: utilisateur.amis?.length || 0,
+          // Données staff (pour mobile et moderation tool)
+          isStaff,
+          permissions: effectivePermissions,
         },
       },
     });

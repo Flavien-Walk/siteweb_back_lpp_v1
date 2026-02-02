@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import AuditLog, {
   AuditAction,
   AuditTargetType,
+  AuditSource,
   IAuditSnapshot,
   LogActionParams,
 } from '../models/AuditLog.js';
@@ -34,6 +35,7 @@ export interface AuditLogOptions {
   metadata?: Record<string, unknown>;
   snapshot?: IAuditSnapshot;
   relatedReport?: mongoose.Types.ObjectId | string;
+  source?: AuditSource;
 }
 
 /**
@@ -49,12 +51,41 @@ const extractIp = (req: Request): string | undefined => {
 };
 
 /**
+ * Extraire la source depuis la requête (header ou body)
+ * Priorité: body.source > header X-Audit-Source > défaut 'web'
+ */
+const extractSource = (req: Request, optionSource?: AuditSource): AuditSource => {
+  // 1. Option passée explicitement
+  if (optionSource) return optionSource;
+
+  // 2. Source dans le body de la requête
+  if (req.body?.source && ['web', 'mobile', 'api', 'system'].includes(req.body.source)) {
+    return req.body.source as AuditSource;
+  }
+
+  // 3. Header X-Audit-Source
+  const headerSource = req.headers['x-audit-source'];
+  if (headerSource && ['web', 'mobile', 'api', 'system'].includes(headerSource as string)) {
+    return headerSource as AuditSource;
+  }
+
+  // 4. Détecter automatiquement via User-Agent
+  const userAgent = req.headers['user-agent']?.toLowerCase() || '';
+  if (userAgent.includes('expo') || userAgent.includes('react-native') || userAgent.includes('okhttp')) {
+    return 'mobile';
+  }
+
+  // 5. Défaut: web
+  return 'web';
+};
+
+/**
  * Logger principal pour les actions d'audit
  */
 export const auditLogger = {
   /**
    * Créer un log d'audit à partir d'une requête Express
-   * Extrait automatiquement l'acteur, son rôle et son IP
+   * Extrait automatiquement l'acteur, son rôle, son IP et la source
    */
   async log(req: Request, options: AuditLogOptions) {
     const utilisateur = req.utilisateur as IUtilisateur;
@@ -77,6 +108,7 @@ export const auditLogger = {
       relatedReport: options.relatedReport
         ? new mongoose.Types.ObjectId(options.relatedReport.toString())
         : undefined,
+      source: extractSource(req, options.source),
     };
 
     try {
@@ -110,6 +142,7 @@ export const auditLogger = {
       relatedReport: options.relatedReport
         ? new mongoose.Types.ObjectId(options.relatedReport.toString())
         : undefined,
+      source: options.source || 'system',
     };
 
     try {

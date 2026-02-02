@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import AuditLog, { AuditAction, AuditTargetType } from '../models/AuditLog.js';
+import AuditLog, { AuditAction, AuditTargetType, AuditSource } from '../models/AuditLog.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
 /**
@@ -42,6 +42,12 @@ export const listAuditLogs = async (
     const targetId = req.query.targetId as string;
     if (targetId && mongoose.Types.ObjectId.isValid(targetId)) {
       filter.targetId = new mongoose.Types.ObjectId(targetId);
+    }
+
+    // Filtre par source (web, mobile, api, system)
+    const source = req.query.source as AuditSource;
+    if (source && ['web', 'mobile', 'api', 'system'].includes(source)) {
+      filter.source = source;
     }
 
     // Filtre par plage de dates
@@ -284,6 +290,12 @@ export const exportAuditLogs = async (
       }
     }
 
+    // Filtre par source
+    const source = req.query.source as AuditSource;
+    if (source && ['web', 'mobile', 'api', 'system'].includes(source)) {
+      filter.source = source;
+    }
+
     // Limite à 10000 pour l'export
     const logs = await AuditLog.find(filter)
       .sort({ dateCreation: -1 })
@@ -292,7 +304,7 @@ export const exportAuditLogs = async (
       .lean();
 
     // Générer CSV
-    const csvHeader = 'Date,Action,Acteur,Email,Rôle,Type Cible,ID Cible,Raison,IP\n';
+    const csvHeader = 'Date,Action,Acteur,Email,Rôle,Type Cible,ID Cible,Raison,Source,IP\n';
     const csvRows = logs.map((log) => {
       const actor = log.actor as any;
       return [
@@ -304,6 +316,7 @@ export const exportAuditLogs = async (
         log.targetType,
         log.targetId.toString(),
         (log.reason || '').replace(/"/g, '""'),
+        (log as any).source || 'web',
         log.actorIp || '',
       ]
         .map((v) => `"${v}"`)

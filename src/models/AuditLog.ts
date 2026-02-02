@@ -45,6 +45,11 @@ export type AuditTargetType =
   | 'system';
 
 /**
+ * Source de l'action (d'où provient l'action de modération)
+ */
+export type AuditSource = 'web' | 'mobile' | 'api' | 'system';
+
+/**
  * Interface pour les données avant/après modification
  */
 export interface IAuditSnapshot {
@@ -72,6 +77,8 @@ export interface IAuditLog extends Document {
   snapshot?: IAuditSnapshot;
   // Lien vers un signalement si applicable
   relatedReport?: mongoose.Types.ObjectId;
+  // Source de l'action (web, mobile, api, system)
+  source: AuditSource;
   // Timestamp
   dateCreation: Date;
 }
@@ -97,6 +104,7 @@ export interface LogActionParams {
   metadata?: Record<string, unknown>;
   snapshot?: IAuditSnapshot;
   relatedReport?: mongoose.Types.ObjectId;
+  source?: AuditSource;
 }
 
 const auditLogSchema = new Schema<IAuditLog>(
@@ -153,6 +161,12 @@ const auditLogSchema = new Schema<IAuditLog>(
     relatedReport: {
       type: Schema.Types.ObjectId,
       ref: 'Report',
+      index: true,
+    },
+    source: {
+      type: String,
+      enum: ['web', 'mobile', 'api', 'system'],
+      default: 'web',
       index: true,
     },
   },
