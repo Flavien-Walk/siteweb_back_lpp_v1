@@ -13,12 +13,14 @@
  *   --delay=N         Délai en ms entre les batchs (défaut: 1000)
  *   --limit=N         Nombre max de messages à migrer (défaut: illimité)
  *   --resume          Reprendre depuis le dernier checkpoint
+ *   --retry-failed    Réessayer uniquement les messages en erreur
  *   --checkpoint=FILE Fichier de checkpoint (défaut: .migration-checkpoint.json)
  *
  * Exemple:
  *   npx ts-node scripts/migrate-encryption-v2.ts --dry-run
  *   npx ts-node scripts/migrate-encryption-v2.ts --batch-size=50 --delay=2000
  *   npx ts-node scripts/migrate-encryption-v2.ts --resume
+ *   npx ts-node scripts/migrate-encryption-v2.ts --retry-failed
  */
 
 import mongoose from 'mongoose';
@@ -44,11 +46,13 @@ interface MigrationConfig {
   delayMs: number;
   limit: number | null;
   resume: boolean;
+  retryFailed: boolean;
   checkpointFile: string;
 }
 
 interface Checkpoint {
-  lastProcessedId: string | null;
+  lastSuccessId: string | null; // Dernier ID migré avec SUCCÈS
+  failedIds: string[];          // IDs en erreur à réessayer
   processedCount: number;
   stats: MigrationStats;
   startedAt: string;
@@ -63,6 +67,7 @@ const parseArgs = (): MigrationConfig => {
     delayMs: 1000,
     limit: null,
     resume: false,
+    retryFailed: false,
     checkpointFile: '.migration-checkpoint.json',
   };
 
@@ -71,6 +76,8 @@ const parseArgs = (): MigrationConfig => {
       config.dryRun = true;
     } else if (arg === '--resume') {
       config.resume = true;
+    } else if (arg === '--retry-failed') {
+      config.retryFailed = true;
     } else if (arg.startsWith('--batch-size=')) {
       config.batchSize = parseInt(arg.split('=')[1], 10);
     } else if (arg.startsWith('--delay=')) {
@@ -96,7 +103,16 @@ const loadCheckpoint = (filePath: string): Checkpoint | null => {
   }
   try {
     const data = fs.readFileSync(fullPath, 'utf-8');
-    return JSON.parse(data) as Checkpoint;
+    const checkpoint = JSON.parse(data) as Checkpoint;
+    // Migration: ancien format sans failedIds
+    if (!checkpoint.failedIds) {
+      checkpoint.failedIds = [];
+    }
+    // Migration: ancien format lastProcessedId -> lastSuccessId
+    if ((checkpoint as unknown as { lastProcessedId?: string }).lastProcessedId && !checkpoint.lastSuccessId) {
+      checkpoint.lastSuccessId = (checkpoint as unknown as { lastProcessedId: string }).lastProcessedId;
+    }
+    return checkpoint;
   } catch {
     console.warn(`[WARN] Impossible de lire le checkpoint: ${fullPath}`);
     return null;
@@ -128,6 +144,7 @@ interface MigrationStats {
   migrated: number;
   errors: number;
   skipped: number;
+  retried: number;
 }
 
 const createStats = (): MigrationStats => ({
@@ -138,6 +155,7 @@ const createStats = (): MigrationStats => ({
   migrated: 0,
   errors: 0,
   skipped: 0,
+  retried: 0,
 });
 
 // ============================================
@@ -146,13 +164,30 @@ const createStats = (): MigrationStats => ({
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Migre un seul message
+ * @returns true si succès ou skip, false si erreur
+ */
 const migrateMessage = async (
   messageId: mongoose.Types.ObjectId,
-  contenuCrypte: string,
+  contenuCrypte: string | null | undefined,
   dryRun: boolean,
   stats: MigrationStats
 ): Promise<boolean> => {
   try {
+    // Gestion des cas null/undefined
+    if (contenuCrypte === null || contenuCrypte === undefined) {
+      console.warn(`\n[WARN] Message ${messageId}: contenuCrypte est null/undefined`);
+      stats.skipped++;
+      return true; // On considère comme traité (pas d'erreur à retry)
+    }
+
+    if (typeof contenuCrypte !== 'string') {
+      console.warn(`\n[WARN] Message ${messageId}: contenuCrypte n'est pas une string`);
+      stats.skipped++;
+      return true;
+    }
+
     const version = detectVersion(contenuCrypte);
 
     if (version === 2) {
@@ -184,14 +219,13 @@ const migrateMessage = async (
         stats.errors++;
         return false;
       }
-    } catch (decryptError) {
+    } catch {
       console.error(`\n[ERROR] Message ${messageId}: échec roundtrip test`);
       stats.errors++;
       return false;
     }
 
     if (dryRun) {
-      // En dry-run, on ne log pas chaque message pour éviter le spam
       stats.migrated++;
       return true;
     }
@@ -204,45 +238,118 @@ const migrateMessage = async (
 
     stats.migrated++;
     return true;
-  } catch (error) {
-    // Ne pas logger le contenu du message (sensible)
+  } catch {
     console.error(`\n[ERROR] Message ${messageId}: migration échouée`);
     stats.errors++;
     return false;
   }
 };
 
-const migrateBatch = async (
-  lastId: string | null,
-  limit: number,
+/**
+ * Réessaye les messages en erreur
+ */
+const retryFailedMessages = async (
+  failedIds: string[],
   dryRun: boolean,
   stats: MigrationStats
-): Promise<{ messages: { _id: mongoose.Types.ObjectId; contenuCrypte: string }[]; lastId: string | null }> => {
-  // Requête optimisée: filtre les messages qui ne sont PAS déjà en v2
-  // v2 commence par "v2:" donc on exclut ceux-là
-  const query: Record<string, unknown> = {
-    contenuCrypte: { $not: /^v2:/ }, // Exclure les messages déjà en v2
-  };
-
-  // Si on a un lastId, on continue après celui-ci (cursor-based pagination)
-  if (lastId) {
-    query._id = { $gt: new mongoose.Types.ObjectId(lastId) };
+): Promise<string[]> => {
+  if (failedIds.length === 0) {
+    return [];
   }
 
+  console.log(`\nRéessai de ${failedIds.length} messages en erreur...`);
+  const stillFailed: string[] = [];
+
+  for (const idStr of failedIds) {
+    try {
+      const msg = await Message.findById(idStr, { _id: 1, contenuCrypte: 1 }).lean();
+      if (!msg) {
+        console.warn(`\n[WARN] Message ${idStr}: introuvable (peut-être supprimé)`);
+        continue; // Ne pas remettre en failedIds
+      }
+
+      const success = await migrateMessage(msg._id, msg.contenuCrypte, dryRun, stats);
+      if (success) {
+        stats.retried++;
+      } else {
+        stillFailed.push(idStr);
+      }
+    } catch {
+      stillFailed.push(idStr);
+    }
+  }
+
+  return stillFailed;
+};
+
+/**
+ * Filtre MongoDB robuste pour les messages non-v2
+ */
+const buildNonV2Query = (lastSuccessId: string | null): Record<string, unknown> => {
+  const query: Record<string, unknown> = {
+    // Filtre robuste: string uniquement, pas null/undefined, pas déjà v2
+    contenuCrypte: {
+      $type: 'string',
+      $not: /^v2:/,
+    },
+  };
+
+  // Si on a un lastSuccessId, on continue après celui-ci
+  if (lastSuccessId) {
+    query._id = { $gt: new mongoose.Types.ObjectId(lastSuccessId) };
+  }
+
+  return query;
+};
+
+/**
+ * Migre un batch de messages
+ * IMPORTANT: lastSuccessId n'avance que si le message est migré avec succès
+ */
+const migrateBatch = async (
+  checkpoint: Checkpoint,
+  limit: number,
+  dryRun: boolean
+): Promise<{ processedCount: number; hasMore: boolean }> => {
+  const query = buildNonV2Query(checkpoint.lastSuccessId);
+
   const messages = await Message.find(query, { _id: 1, contenuCrypte: 1 })
-    .sort({ _id: 1 }) // Tri par _id pour pagination stable
+    .sort({ _id: 1 })
     .limit(limit)
     .lean();
 
-  let newLastId: string | null = null;
-
-  for (const msg of messages) {
-    await migrateMessage(msg._id, msg.contenuCrypte, dryRun, stats);
-    stats.total++;
-    newLastId = msg._id.toString();
+  if (messages.length === 0) {
+    return { processedCount: 0, hasMore: false };
   }
 
-  return { messages, lastId: newLastId };
+  let processedCount = 0;
+
+  for (const msg of messages) {
+    const success = await migrateMessage(msg._id, msg.contenuCrypte, dryRun, checkpoint.stats);
+    checkpoint.stats.total++;
+    processedCount++;
+
+    if (success) {
+      // SUCCÈS: on avance le curseur
+      checkpoint.lastSuccessId = msg._id.toString();
+      // Retirer des failedIds si présent
+      const failedIndex = checkpoint.failedIds.indexOf(msg._id.toString());
+      if (failedIndex !== -1) {
+        checkpoint.failedIds.splice(failedIndex, 1);
+      }
+    } else {
+      // ÉCHEC: on ajoute aux failedIds (sans avancer le curseur pour ce message)
+      // Mais on continue quand même avec le prochain message
+      if (!checkpoint.failedIds.includes(msg._id.toString())) {
+        checkpoint.failedIds.push(msg._id.toString());
+      }
+      // On avance quand même le curseur pour ne pas reboucler sur le même
+      // Les failedIds seront réessayés séparément
+      checkpoint.lastSuccessId = msg._id.toString();
+    }
+  }
+
+  return { processedCount, hasMore: messages.length === limit };
 };
 
 const runMigration = async (config: MigrationConfig) => {
@@ -255,6 +362,7 @@ const runMigration = async (config: MigrationConfig) => {
   console.log(`Limite: ${config.limit || 'Aucune'}`);
   console.log(`Checkpoint: ${config.checkpointFile}`);
   console.log(`Resume: ${config.resume ? 'Oui' : 'Non'}`);
+  console.log(`Retry failed: ${config.retryFailed ? 'Oui' : 'Non'}`);
   console.log('='.repeat(60));
   console.log('');
 
@@ -271,14 +379,17 @@ const runMigration = async (config: MigrationConfig) => {
 
   // Charger ou créer le checkpoint
   let checkpoint: Checkpoint;
-  const existingCheckpoint = config.resume ? loadCheckpoint(config.checkpointFile) : null;
+  const existingCheckpoint = (config.resume || config.retryFailed) ? loadCheckpoint(config.checkpointFile) : null;
 
-  if (existingCheckpoint && config.resume) {
-    console.log(`Reprise depuis le checkpoint: ${existingCheckpoint.processedCount} messages déjà traités`);
+  if (existingCheckpoint && (config.resume || config.retryFailed)) {
+    console.log(`Reprise depuis le checkpoint:`);
+    console.log(`  - ${existingCheckpoint.processedCount} messages traités`);
+    console.log(`  - ${existingCheckpoint.failedIds.length} messages en erreur`);
     checkpoint = existingCheckpoint;
   } else {
     checkpoint = {
-      lastProcessedId: null,
+      lastSuccessId: null,
+      failedIds: [],
       processedCount: 0,
       stats: createStats(),
       startedAt: new Date().toISOString(),
@@ -286,43 +397,68 @@ const runMigration = async (config: MigrationConfig) => {
     };
   }
 
-  // Compter les messages à migrer (non-v2)
-  const v1Count = await Message.countDocuments({ contenuCrypte: { $not: /^v2:/ } });
+  // Compter les messages à migrer (filtre robuste)
+  const v1Count = await Message.countDocuments({
+    contenuCrypte: { $type: 'string', $not: /^v2:/ },
+  });
   const totalMessages = await Message.countDocuments();
-  const v2Count = totalMessages - v1Count;
 
   console.log(`Total messages en base: ${totalMessages}`);
-  console.log(`  - Déjà en v2 (GCM): ${v2Count}`);
   console.log(`  - À migrer (v1/v0): ${v1Count}`);
+  console.log(`  - En erreur (failedIds): ${checkpoint.failedIds.length}`);
   console.log('');
 
-  if (v1Count === 0) {
+  // Mode --retry-failed: uniquement réessayer les erreurs
+  if (config.retryFailed && checkpoint.failedIds.length > 0) {
+    console.log('Mode RETRY-FAILED: réessai des messages en erreur uniquement');
+    const stillFailed = await retryFailedMessages(
+      checkpoint.failedIds,
+      config.dryRun,
+      checkpoint.stats
+    );
+    checkpoint.failedIds = stillFailed;
+
+    if (!config.dryRun) {
+      saveCheckpoint(config.checkpointFile, checkpoint);
+    }
+
+    console.log('\n');
+    console.log('='.repeat(60));
+    console.log('RÉSULTATS RETRY');
+    console.log('='.repeat(60));
+    console.log(`Réessayés avec succès: ${checkpoint.stats.retried}`);
+    console.log(`Encore en erreur: ${stillFailed.length}`);
+    console.log('='.repeat(60));
+
+    await mongoose.disconnect();
+    return;
+  }
+
+  if (v1Count === 0 && checkpoint.failedIds.length === 0) {
     console.log('✅ Tous les messages sont déjà en v2. Rien à migrer.');
     await mongoose.disconnect();
     deleteCheckpoint(config.checkpointFile);
     return;
   }
 
-  // Migration par batch avec cursor-based pagination
+  // Migration par batch
   const maxToProcess = config.limit || v1Count;
   let processedInSession = 0;
 
   while (processedInSession < maxToProcess) {
     const batchLimit = Math.min(config.batchSize, maxToProcess - processedInSession);
-    const { messages, lastId } = await migrateBatch(
-      checkpoint.lastProcessedId,
+    const { processedCount, hasMore } = await migrateBatch(
+      checkpoint,
       batchLimit,
-      config.dryRun,
-      checkpoint.stats
+      config.dryRun
     );
 
-    if (messages.length === 0) {
-      break; // Plus de messages à migrer
+    if (processedCount === 0) {
+      break;
     }
 
-    processedInSession += messages.length;
-    checkpoint.processedCount += messages.length;
-    checkpoint.lastProcessedId = lastId;
+    processedInSession += processedCount;
+    checkpoint.processedCount += processedCount;
 
     // Sauvegarder le checkpoint (sauf en dry-run)
     if (!config.dryRun) {
@@ -336,8 +472,8 @@ const runMigration = async (config: MigrationConfig) => {
       `Migrés: ${checkpoint.stats.migrated} - Erreurs: ${checkpoint.stats.errors}`
     );
 
-    // Délai entre batchs pour ne pas surcharger la DB
-    if (processedInSession < maxToProcess && messages.length === batchLimit) {
+    // Délai entre batchs
+    if (hasMore && processedInSession < maxToProcess) {
       await sleep(config.delayMs);
     }
   }
@@ -354,24 +490,24 @@ const runMigration = async (config: MigrationConfig) => {
   console.log(`Migrés v1 → v2: ${checkpoint.stats.migrated}`);
   console.log(`Ignorés: ${checkpoint.stats.skipped}`);
   console.log(`Erreurs: ${checkpoint.stats.errors}`);
+  console.log(`Messages en erreur (failedIds): ${checkpoint.failedIds.length}`);
   console.log('='.repeat(60));
 
   if (config.dryRun) {
     console.log('');
     console.log('⚠️  Mode DRY-RUN: aucune modification effectuée.');
     console.log('    Relancez sans --dry-run pour appliquer les migrations.');
-  } else if (checkpoint.stats.errors === 0 && processedInSession > 0) {
-    // Migration réussie, supprimer le checkpoint
+  } else if (checkpoint.failedIds.length === 0 && checkpoint.stats.errors === 0) {
     deleteCheckpoint(config.checkpointFile);
     console.log('');
     console.log('✅ Checkpoint supprimé (migration terminée avec succès).');
-  } else if (checkpoint.stats.errors > 0) {
+  } else if (checkpoint.failedIds.length > 0) {
     console.log('');
-    console.log(`⚠️  ${checkpoint.stats.errors} erreurs. Checkpoint conservé pour reprise.`);
-    console.log(`    Relancez avec --resume pour continuer.`);
+    console.log(`⚠️  ${checkpoint.failedIds.length} messages en erreur.`);
+    console.log('    Relancez avec --retry-failed pour réessayer.');
+    console.log('    Relancez avec --resume pour continuer la migration normale.');
   }
 
-  // Déconnexion
   await mongoose.disconnect();
   console.log('');
   console.log('Migration terminée.');
@@ -388,7 +524,6 @@ const main = async () => {
     await runMigration(config);
     process.exit(0);
   } catch (error) {
-    // Ne pas logger de données sensibles
     const message = error instanceof Error ? error.message : 'Erreur inconnue';
     console.error('Erreur fatale:', message);
     process.exit(1);
