@@ -1,6 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
@@ -40,6 +41,9 @@ export const creerApp = (): Application => {
 
   // Helmet - headers de sécurité
   app.use(helmet());
+
+  // Compression gzip pour réduire la taille des réponses
+  app.use(compression());
 
   // ============================================
   // CORS CONFIGURATION (SÉCURISÉE)
