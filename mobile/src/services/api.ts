@@ -95,7 +95,32 @@ export const requeteAPI = async <T>(
       };
     }
 
-    const data: ReponseAPI<T> = await response.json();
+    const data: ReponseAPI<T> & { code?: string; suspendedUntil?: string } = await response.json();
+
+    // Gérer les comptes bannis/suspendus (403)
+    if (response.status === 403) {
+      if (data.code === 'ACCOUNT_BANNED') {
+        // Déconnexion forcée et notification
+        await removeToken();
+        return {
+          succes: false,
+          message: data.message || 'Votre compte a été suspendu définitivement.',
+          erreurs: { code: 'ACCOUNT_BANNED' },
+        };
+      }
+      if (data.code === 'ACCOUNT_SUSPENDED') {
+        // Déconnexion forcée avec info de suspension
+        await removeToken();
+        return {
+          succes: false,
+          message: data.message || 'Votre compte est temporairement suspendu.',
+          erreurs: {
+            code: 'ACCOUNT_SUSPENDED',
+            suspendedUntil: data.suspendedUntil || '',
+          },
+        };
+      }
+    }
 
     // Gérer les erreurs HTTP
     if (!response.ok) {
