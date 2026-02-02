@@ -43,6 +43,10 @@ export const inscription = async (
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
+    // Calculer les permissions (sera vide pour un nouvel utilisateur)
+    const effectivePermissions = utilisateur.getEffectivePermissions();
+    const isStaff = utilisateur.isStaff();
+
     // Repondre avec l'utilisateur et le token
     res.status(201).json({
       succes: true,
@@ -59,6 +63,9 @@ export const inscription = async (
           statut: utilisateur.statut,
           provider: utilisateur.provider,
           nbAmis: utilisateur.amis?.length || 0,
+          // Données staff (cohérence avec /connexion et /moi)
+          isStaff,
+          permissions: effectivePermissions,
         },
         token,
       },
@@ -130,6 +137,10 @@ export const connexion = async (
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
+    // Calculer les permissions effectives pour les clients (comme dans /moi)
+    const effectivePermissions = utilisateur.getEffectivePermissions();
+    const isStaff = utilisateur.isStaff();
+
     // Repondre avec l'utilisateur et le token
     res.status(200).json({
       succes: true,
@@ -146,6 +157,9 @@ export const connexion = async (
           statut: utilisateur.statut,
           provider: utilisateur.provider,
           nbAmis: utilisateur.amis?.length || 0,
+          // Données staff (pour que le mobile ait les permissions immédiatement)
+          isStaff,
+          permissions: effectivePermissions,
         },
         token,
       },
