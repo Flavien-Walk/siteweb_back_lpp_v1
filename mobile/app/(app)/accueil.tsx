@@ -33,6 +33,8 @@ import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import { Utilisateur } from '../../src/services/auth';
+import { useStaff } from '../../src/hooks/useStaff';
+import { StaffActions } from '../../src/composants';
 import {
   Publication,
   Commentaire as CommentaireAPI,
@@ -933,7 +935,12 @@ export default function Accueil() {
     }, [publication.aLike, publication.nbLikes, publication.nbCommentaires, publication._id]);
     const [editingPostContent, setEditingPostContent] = useState(publication.contenu);
     const [showPostMenu, setShowPostMenu] = useState(false);
+    const [showStaffActions, setShowStaffActions] = useState(false);
+    const [staffActionTarget, setStaffActionTarget] = useState<'publication' | 'user'>('publication');
     const [notification, setNotification] = useState<{ type: 'succes' | 'erreur'; message: string } | null>(null);
+
+    // Hook staff pour les actions de modération
+    const staff = useStaff();
 
     const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
 
@@ -1306,11 +1313,14 @@ export default function Accueil() {
               {/* Poignée */}
               <View style={styles.bottomSheetHandle} />
 
-              {canEditDelete() ? (
-                <>
-                  {/* Menu pour mes posts */}
-                  <Text style={styles.bottomSheetTitle}>Options du post</Text>
+              {/* Titre selon contexte */}
+              <Text style={styles.bottomSheetTitle}>
+                {isMyPost() ? 'Options du post' : staff.isStaff ? 'Actions disponibles' : 'Signaler ce post'}
+              </Text>
 
+              {/* Options propriétaire */}
+              {isMyPost() && (
+                <>
                   <Pressable
                     style={({ pressed }) => [
                       styles.bottomSheetItem,
@@ -1348,11 +1358,78 @@ export default function Accueil() {
                     </View>
                   </Pressable>
                 </>
-              ) : (
+              )}
+
+              {/* Options STAFF (modération) - affichées si staff et pas son propre post */}
+              {staff.isStaff && !isMyPost() && (
                 <>
-                  {/* Menu pour posts des autres */}
-                  <Text style={styles.bottomSheetTitle}>Signaler ce post</Text>
-                  <Text style={styles.bottomSheetSubtitle}>Pourquoi signalez-vous cette publication ?</Text>
+                  {/* Badge staff */}
+                  <View style={styles.staffBadge}>
+                    <Ionicons name="shield" size={14} color="#6366f1" />
+                    <Text style={styles.staffBadgeText}>MODÉRATION</Text>
+                  </View>
+
+                  {/* Actions sur le contenu */}
+                  {(staff.canHideContent || staff.canDeleteContent) && (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.bottomSheetItem,
+                        pressed && styles.bottomSheetItemPressed,
+                      ]}
+                      onPress={() => {
+                        setShowPostMenu(false);
+                        setStaffActionTarget('publication');
+                        setShowStaffActions(true);
+                      }}
+                    >
+                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
+                        <Ionicons name="document-text-outline" size={20} color="#6366f1" />
+                      </View>
+                      <View style={styles.bottomSheetTextContainer}>
+                        <Text style={styles.bottomSheetItemText}>Modérer ce contenu</Text>
+                        <Text style={styles.bottomSheetItemSubtext}>Masquer ou supprimer la publication</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
+                    </Pressable>
+                  )}
+
+                  {/* Actions sur l'utilisateur */}
+                  {(staff.canWarnUsers || staff.canSuspendUsers || staff.canBanUsers) && (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.bottomSheetItem,
+                        pressed && styles.bottomSheetItemPressed,
+                      ]}
+                      onPress={() => {
+                        setShowPostMenu(false);
+                        setStaffActionTarget('user');
+                        setShowStaffActions(true);
+                      }}
+                    >
+                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                        <Ionicons name="person-outline" size={20} color="#ef4444" />
+                      </View>
+                      <View style={styles.bottomSheetTextContainer}>
+                        <Text style={styles.bottomSheetItemText}>Sanctionner l'auteur</Text>
+                        <Text style={styles.bottomSheetItemSubtext}>Avertir, suspendre ou bannir</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
+                    </Pressable>
+                  )}
+
+                  <View style={styles.bottomSheetSeparator} />
+                </>
+              )}
+
+              {/* Options signalement (pour tout le monde sauf propriétaire) */}
+              {!isMyPost() && (
+                <>
+                  {!staff.isStaff && (
+                    <Text style={styles.bottomSheetSubtitle}>Pourquoi signalez-vous cette publication ?</Text>
+                  )}
+                  {staff.isStaff && (
+                    <Text style={[styles.bottomSheetSubtitle, { marginTop: 8 }]}>Ou signaler manuellement :</Text>
+                  )}
 
                   {raisonsSignalement.map((raison, index) => (
                     <Pressable
@@ -1389,6 +1466,20 @@ export default function Accueil() {
             </Pressable>
           </Pressable>
         </Modal>
+
+        {/* Modal Staff Actions */}
+        <StaffActions
+          visible={showStaffActions}
+          onClose={() => setShowStaffActions(false)}
+          targetType={staffActionTarget}
+          targetId={staffActionTarget === 'user' ? publication.auteur._id : publication._id}
+          targetName={staffActionTarget === 'user' ? auteurNom : publication.contenu.slice(0, 50)}
+          onActionComplete={() => {
+            if (staffActionTarget === 'publication') {
+              onDelete(publication._id);
+            }
+          }}
+        />
 
         {/* Mode edition du post */}
         {editingPost ? (
@@ -4013,6 +4104,23 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 14,
     color: couleurs.texteSecondaire,
     marginBottom: espacements.lg,
+  },
+  staffBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: espacements.md,
+  },
+  staffBadgeText: {
+    color: '#6366f1',
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 6,
+    letterSpacing: 0.5,
   },
   bottomSheetItem: {
     flexDirection: 'row',

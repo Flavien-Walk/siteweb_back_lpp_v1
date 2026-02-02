@@ -30,7 +30,8 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
-import { Avatar } from '../../../src/composants';
+import { Avatar, StaffActions } from '../../../src/composants';
+import { useStaff } from '../../../src/hooks/useStaff';
 import {
   getProfilUtilisateur,
   envoyerDemandeAmi,
@@ -82,6 +83,10 @@ export default function ProfilUtilisateurPage() {
   // Calcul largeur item grille (3 colonnes avec gap de 1px)
   const GRID_GAP = 1;
   const gridItemWidth = (SCREEN_WIDTH - (GRID_GAP * 2)) / 3;
+
+  // Staff modération
+  const staff = useStaff();
+  const [showStaffActions, setShowStaffActions] = useState(false);
 
   // Ref pour tracker si le profil a déjà été chargé
   const profilChargeRef = useRef(false);
@@ -654,6 +659,20 @@ export default function ProfilUtilisateurPage() {
               <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
               <Text style={styles.actionBtnTextDark}>Message</Text>
             </Pressable>
+
+            {/* Bouton modération (staff uniquement) */}
+            {staff.isStaff && (staff.canWarnUsers || staff.canSuspendUsers || staff.canBanUsers) && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  styles.actionBtnStaff,
+                  pressed && styles.actionBtnPressed,
+                ]}
+                onPress={() => setShowStaffActions(true)}
+              >
+                <Ionicons name="shield" size={18} color="#6366f1" />
+              </Pressable>
+            )}
           </View>
         ) : (
           <View style={styles.actionsSection}>
@@ -977,6 +996,20 @@ export default function ProfilUtilisateurPage() {
         isOwnStory={id === moi?.id}
         onClose={() => setStoryViewerVisible(false)}
       />
+
+      {/* Modal Staff Actions */}
+      {profil && (
+        <StaffActions
+          visible={showStaffActions}
+          onClose={() => setShowStaffActions(false)}
+          targetType="user"
+          targetId={profil._id}
+          targetName={`${profil.prenom} ${profil.nom}`}
+          onActionComplete={() => {
+            chargerProfil();
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -1240,6 +1273,14 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.fondCard,
     borderWidth: 1,
     borderColor: couleurs.bordure,
+  },
+  actionBtnStaff: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    width: 44,
+    flex: 0,
+    paddingHorizontal: 0,
   },
   actionBtnPressed: {
     opacity: 0.7,
