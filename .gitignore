@@ -1,36 +1,38 @@
 # ============================================
-# Dependencies
+# La Premiere Pierre - Mobile App (Expo)
+# .gitignore
 # ============================================
+
+# Dependencies
 node_modules/
 .pnp/
 .pnp.js
 
-# ============================================
 # Environment Variables - NEVER COMMIT!
-# ============================================
 .env
 .env.local
 .env.development
-.env.development.local
-.env.test
-.env.test.local
 .env.production
-.env.production.local
-backend/.env
-backend/.env.local
-backend/.env.development
-backend/.env.production
 
-# ============================================
 # Build outputs
-# ============================================
 dist/
 build/
 *.tsbuildinfo
 
-# ============================================
+# Expo / React Native
+.expo/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Metro
+.metro-health-check*
+
 # IDE / Editor
-# ============================================
 .vscode/
 .idea/
 *.swp
@@ -38,24 +40,18 @@ build/
 *~
 .DS_Store
 
-# ============================================
 # Logs
-# ============================================
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# ============================================
 # Testing
-# ============================================
 coverage/
 .nyc_output/
 
-# ============================================
 # Misc
-# ============================================
 .claude/
 *.local
 Thumbs.db
