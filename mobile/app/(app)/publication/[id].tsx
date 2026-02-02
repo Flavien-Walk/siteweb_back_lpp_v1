@@ -18,6 +18,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,6 +41,7 @@ import Avatar from '../../../src/composants/Avatar';
 import LikeButton, { LikeButtonCompact } from '../../../src/composants/LikeButton';
 import AnimatedPressable from '../../../src/composants/AnimatedPressable';
 import VideoPlayerModal from '../../../src/composants/VideoPlayerModal';
+import { logShare } from '../../../src/services/activity';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -155,6 +157,30 @@ export default function PublicationDetailPage() {
     } catch (error) {
       setLiked(!liked);
       setNbLikes(publication.nbLikes);
+    }
+  };
+
+  // Partager la publication
+  const handleShare = async () => {
+    if (!publication) return;
+
+    const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
+    const contenuExtrait = publication.contenu
+      ? `"${publication.contenu.substring(0, 100)}${publication.contenu.length > 100 ? '...' : ''}"\n\n`
+      : '';
+
+    try {
+      const result = await Share.share({
+        message: `Découvre ce post de ${auteurNom} sur LPP !\n\n${contenuExtrait}Télécharge LPP pour suivre les startups innovantes !`,
+        title: `Post de ${auteurNom}`,
+      });
+
+      // Logger le partage pour l'audit (si l'utilisateur a vraiment partagé)
+      if (result.action === Share.sharedAction) {
+        logShare(publication._id);
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de partager ce contenu');
     }
   };
 
@@ -455,6 +481,10 @@ export default function PublicationDetailPage() {
             <Ionicons name="chatbubble-outline" size={24} color={couleurs.texteSecondaire} />
             <Text style={styles.actionText}>Commenter</Text>
           </View>
+          <AnimatedPressable style={styles.actionBtn} onPress={handleShare}>
+            <Ionicons name="share-outline" size={24} color={couleurs.texteSecondaire} />
+            <Text style={styles.actionText}>Partager</Text>
+          </AnimatedPressable>
         </View>
 
         {/* Section commentaires */}

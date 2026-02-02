@@ -70,6 +70,7 @@ import {
   getEvenements,
 } from '../../src/services/evenements';
 import { getNotifications } from '../../src/services/notifications';
+import { logShare } from '../../src/services/activity';
 import { rechercherUtilisateurs as rechercherUtilisateursAPI, ProfilUtilisateur, getDemandesAmis } from '../../src/services/utilisateurs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Avatar from '../../src/composants/Avatar';
@@ -1198,10 +1199,15 @@ export default function Accueil() {
 
     const handleShare = async () => {
       try {
-        await Share.share({
+        const result = await Share.share({
           message: `Decouvre ce post de ${auteurNom} sur LPP !\n\n"${publication.contenu.substring(0, 100)}${publication.contenu.length > 100 ? '...' : ''}"\n\nTelecharge LPP pour suivre les startups innovantes !`,
           title: `Post de ${auteurNom}`,
         });
+
+        // Logger le partage pour l'audit (si l'utilisateur a vraiment partagé)
+        if (result.action === Share.sharedAction) {
+          logShare(publication._id);
+        }
       } catch (error) {
         showNotification('erreur', 'Impossible de partager ce contenu');
       }
