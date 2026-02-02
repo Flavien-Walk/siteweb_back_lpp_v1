@@ -12,6 +12,7 @@ import {
   Platform,
   ViewStyle,
   ImageStyle,
+  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { couleurs, typographie } from '../constantes/theme';
@@ -23,6 +24,8 @@ interface AvatarProps {
   taille?: number;
   style?: ViewStyle;
   gradientColors?: readonly [string, string];
+  /** Callback appelé au clic sur l'avatar (rend l'avatar cliquable) */
+  onPress?: () => void;
 }
 
 /**
@@ -36,6 +39,7 @@ const Avatar: React.FC<AvatarProps> = ({
   taille = 50,
   style,
   gradientColors = [couleurs.primaire, couleurs.primaireDark],
+  onPress,
 }) => {
   const [erreurImage, setErreurImage] = useState(false);
   const [imageKey, setImageKey] = useState(0);
@@ -120,33 +124,50 @@ const Avatar: React.FC<AvatarProps> = ({
     borderRadius: taille / 2,
   };
 
+  // Contenu de l'avatar (image ou initiales)
+  const avatarContent = afficherImage ? (
+    <Image
+      key={`avatar-${imageKey}`}
+      source={{
+        uri: getImageUri(),
+        cache: Platform.OS === 'ios' ? 'reload' : 'default',
+        headers: {
+          'Accept': 'image/*',
+        },
+      }}
+      style={[styles.image, imageStyle]}
+      onError={handleError}
+      onLoad={handleLoad}
+      resizeMode="cover"
+    />
+  ) : (
+    <LinearGradient
+      colors={[...gradientColors]}
+      style={[styles.placeholder, containerStyle]}
+    >
+      <Text style={[styles.initiales, { fontSize: tailleFonte }]}>
+        {initiales}
+      </Text>
+    </LinearGradient>
+  );
+
+  // Si onPress est fourni, rendre l'avatar cliquable
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={[containerStyle, style]}
+        hitSlop={8}
+      >
+        {avatarContent}
+      </Pressable>
+    );
+  }
+
+  // Sinon, retourner une View simple
   return (
     <View style={[containerStyle, style]}>
-      {afficherImage ? (
-        <Image
-          key={`avatar-${imageKey}`}
-          source={{
-            uri: getImageUri(),
-            cache: Platform.OS === 'ios' ? 'reload' : 'default',
-            headers: {
-              'Accept': 'image/*',
-            },
-          }}
-          style={[styles.image, imageStyle]}
-          onError={handleError}
-          onLoad={handleLoad}
-          resizeMode="cover"
-        />
-      ) : (
-        <LinearGradient
-          colors={[...gradientColors]}
-          style={[styles.placeholder, containerStyle]}
-        >
-          <Text style={[styles.initiales, { fontSize: tailleFonte }]}>
-            {initiales}
-          </Text>
-        </LinearGradient>
-      )}
+      {avatarContent}
     </View>
   );
 };

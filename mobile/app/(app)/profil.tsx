@@ -611,6 +611,7 @@ export default function Profil() {
                     prenom={utilisateur?.prenom}
                     nom={utilisateur?.nom}
                     taille={86}
+                    onPress={handleOuvrirModalAvatar}
                   />
                 </View>
               </LinearGradient>
@@ -622,6 +623,7 @@ export default function Profil() {
                     prenom={utilisateur?.prenom}
                     nom={utilisateur?.nom}
                     taille={86}
+                    onPress={handleOuvrirModalAvatar}
                   />
                 </View>
               </View>

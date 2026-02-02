@@ -325,13 +325,28 @@ export default function PublicationDetailPage() {
   const isMyComment = (auteurId: string) => utilisateur && utilisateur.id === auteurId;
   const isAdmin = () => utilisateur && utilisateur.role === 'admin';
 
-  // Navigation vers profil auteur
-  const naviguerVersProfilAuteur = () => {
-    if (publication) {
+  // Navigation vers profil utilisateur (mon profil ou profil public)
+  const naviguerVersProfil = useCallback((userId?: string) => {
+    if (!userId) {
+      console.warn('naviguerVersProfil: userId manquant');
+      return;
+    }
+    // Si c'est mon profil, aller sur /profil
+    if (utilisateur && utilisateur.id === userId) {
+      router.push('/(app)/profil');
+    } else {
+      // Sinon, aller sur le profil public
       router.push({
         pathname: '/(app)/utilisateur/[id]',
-        params: { id: publication.auteur._id },
+        params: { id: userId },
       });
+    }
+  }, [utilisateur, router]);
+
+  // Navigation vers profil auteur de la publication
+  const naviguerVersProfilAuteur = () => {
+    if (publication) {
+      naviguerVersProfil(publication.auteur._id);
     }
   };
 
@@ -536,6 +551,7 @@ export default function PublicationDetailPage() {
                       prenom={comment.auteur.prenom}
                       nom={comment.auteur.nom}
                       taille={36}
+                      onPress={() => naviguerVersProfil(comment.auteur._id)}
                     />
                     <View style={styles.commentContent}>
                       {isEditing ? (
@@ -651,6 +667,7 @@ export default function PublicationDetailPage() {
                                     prenom={reponse.auteur.prenom}
                                     nom={reponse.auteur.nom}
                                     taille={28}
+                                    onPress={() => naviguerVersProfil(reponse.auteur._id)}
                                   />
                                   <View style={styles.commentContent}>
                                     {isEditingReply ? (
@@ -762,7 +779,13 @@ export default function PublicationDetailPage() {
 
           {/* Input commentaire */}
           <View style={styles.commentInputContainer}>
-            <Avatar uri={utilisateur?.avatar} prenom={utilisateur?.prenom} nom={utilisateur?.nom} taille={36} />
+            <Avatar
+              uri={utilisateur?.avatar}
+              prenom={utilisateur?.prenom}
+              nom={utilisateur?.nom}
+              taille={36}
+              onPress={() => naviguerVersProfil(utilisateur?.id)}
+            />
             <TextInput
               ref={commentInputRef}
               style={styles.commentInput}

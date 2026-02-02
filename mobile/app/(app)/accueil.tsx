@@ -198,6 +198,24 @@ export default function Accueil() {
   const insets = useSafeAreaInsets();
   const styles = createStyles(couleurs);
 
+  // Navigation vers profil utilisateur (mon profil ou profil public)
+  const naviguerVersProfil = useCallback((userId?: string) => {
+    if (!userId) {
+      console.warn('naviguerVersProfil: userId manquant');
+      return;
+    }
+    // Si c'est mon profil, aller sur /profil
+    if (utilisateur && utilisateur.id === userId) {
+      router.push('/(app)/profil');
+    } else {
+      // Sinon, aller sur le profil public
+      router.push({
+        pathname: '/(app)/utilisateur/[id]',
+        params: { id: userId },
+      });
+    }
+  }, [utilisateur]);
+
   // Paramètres de navigation (pour scroll vers une publication depuis notification)
   const { publicationId } = useLocalSearchParams<{ publicationId?: string }>();
   const publicationLayoutsRef = useRef<Map<string, number>>(new Map());
@@ -1598,6 +1616,7 @@ export default function Accueil() {
                 prenom={utilisateur?.prenom}
                 nom={utilisateur?.nom}
                 taille={32}
+                onPress={() => naviguerVersProfil(utilisateur?.id)}
               />
               <TextInput
                 style={styles.commentInput}
@@ -1646,6 +1665,7 @@ export default function Accueil() {
                         prenom={comment.auteur.prenom}
                         nom={comment.auteur.nom}
                         taille={32}
+                        onPress={() => naviguerVersProfil(comment.auteur._id)}
                       />
                       <View style={styles.commentContent}>
                         {isEditing ? (
@@ -1757,6 +1777,7 @@ export default function Accueil() {
                             prenom={reponse.auteur.prenom}
                             nom={reponse.auteur.nom}
                             taille={28}
+                            onPress={() => naviguerVersProfil(reponse.auteur._id)}
                           />
                           <View style={styles.commentContent}>
                             {isEditingReply ? (
@@ -2766,6 +2787,7 @@ export default function Accueil() {
                   prenom={utilisateur?.prenom}
                   nom={utilisateur?.nom}
                   taille={40}
+                  onPress={() => naviguerVersProfil(utilisateur?.id)}
                 />
                 <Text style={styles.modalAuthorName}>
                   {utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous'}
