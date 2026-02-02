@@ -1270,6 +1270,139 @@ export const getUserActivity = async (
 };
 
 /**
+ * Statistiques globales des utilisateurs
+ * GET /api/admin/users/stats
+ */
+export const getUsersStats = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const now = new Date();
+
+    // Exécuter toutes les requêtes en parallèle pour la performance
+    const [
+      totalUsers,
+      activeUsers,
+      suspendedUsers,
+      bannedUsers,
+      roleStats,
+      registrationStats,
+      warningStats,
+    ] = await Promise.all([
+      // Total des utilisateurs
+      Utilisateur.countDocuments(),
+
+      // Utilisateurs actifs (ni bannis, ni suspendus)
+      Utilisateur.countDocuments({
+        bannedAt: null,
+        $or: [
+          { suspendedUntil: null },
+          { suspendedUntil: { $lte: now } },
+        ],
+      }),
+
+      // Utilisateurs suspendus
+      Utilisateur.countDocuments({
+        suspendedUntil: { $gt: now },
+        bannedAt: null,
+      }),
+
+      // Utilisateurs bannis
+      Utilisateur.countDocuments({
+        bannedAt: { $ne: null },
+      }),
+
+      // Répartition par rôle
+      Utilisateur.aggregate([
+        { $group: { _id: '$role', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+
+      // Inscriptions des 30 derniers jours
+      Utilisateur.aggregate([
+        {
+          $match: {
+            dateCreation: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$dateCreation' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+
+      // Utilisateurs avec des avertissements actifs
+      Utilisateur.aggregate([
+        { $unwind: '$warnings' },
+        {
+          $match: {
+            $or: [
+              { 'warnings.expiresAt': null },
+              { 'warnings.expiresAt': { $gt: now } },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            usersWithActiveWarnings: { $addToSet: '$_id' },
+            totalActiveWarnings: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    // Formater les stats par rôle
+    const byRole = roleStats.reduce(
+      (acc: Record<string, number>, stat: { _id: string; count: number }) => {
+        acc[stat._id] = stat.count;
+        return acc;
+      },
+      {}
+    );
+
+    // Stats des avertissements
+    const warningData = warningStats[0] || { usersWithActiveWarnings: [], totalActiveWarnings: 0 };
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        total: totalUsers,
+        active: activeUsers,
+        suspended: suspendedUsers,
+        banned: bannedUsers,
+        byRole,
+        byStatus: {
+          active: activeUsers,
+          suspended: suspendedUsers,
+          banned: bannedUsers,
+        },
+        warnings: {
+          usersWithActiveWarnings: warningData.usersWithActiveWarnings.length,
+          totalActiveWarnings: warningData.totalActiveWarnings,
+        },
+        registrations: {
+          last30Days: registrationStats,
+          total30Days: registrationStats.reduce(
+            (sum: number, day: { count: number }) => sum + day.count,
+            0
+          ),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Récupérer les reports créés par un utilisateur (safe)
  * GET /api/admin/users/:id/reports
  */

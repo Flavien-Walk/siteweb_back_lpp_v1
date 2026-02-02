@@ -49,6 +49,14 @@ export const AUTO_ESCALATION_THRESHOLDS: Record<ReportPriority, number> = {
   critical: 1, // Escalade immédiate
 };
 
+// Note interne d'un modérateur sur un report
+export interface IReportNote {
+  _id?: mongoose.Types.ObjectId;
+  author: mongoose.Types.ObjectId;
+  content: string;
+  createdAt: Date;
+}
+
 export interface IReport extends Document {
   _id: mongoose.Types.ObjectId;
   reporter: mongoose.Types.ObjectId;
@@ -70,6 +78,8 @@ export interface IReport extends Document {
   moderatedAt?: Date;
   action?: ReportAction;
   adminNote?: string;
+  // Notes internes des modérateurs
+  notes: IReportNote[];
   // Agrégats (nombre de signalements sur cette cible)
   aggregateCount?: number;
   // Timestamps
@@ -163,6 +173,23 @@ const reportSchema = new Schema<IReport>(
       type: String,
       maxlength: [1000, 'La note admin ne peut pas dépasser 1000 caractères'],
     },
+    // Notes internes des modérateurs
+    notes: [{
+      author: {
+        type: Schema.Types.ObjectId,
+        ref: 'Utilisateur',
+        required: true,
+      },
+      content: {
+        type: String,
+        required: true,
+        maxlength: [1000, 'La note ne peut pas dépasser 1000 caractères'],
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+    }],
     // Agrégats (mis à jour lors de la création d'un nouveau report sur la même cible)
     aggregateCount: {
       type: Number,

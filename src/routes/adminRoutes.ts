@@ -9,6 +9,7 @@ import {
   assignReport,
   getAggregatedReports,
   getReportById,
+  addReportNote,
 } from '../controllers/reportController.js';
 import {
   listAuditLogs,
@@ -35,6 +36,7 @@ import {
   getUserModerationTimeline,
   getUserReports,
   getUserActivity,
+  getUsersStats,
   warnUser,
   suspendUser,
   banUser,
@@ -71,6 +73,9 @@ router.get('/dashboard', verifierJwt, requireStaff, getDashboard);
 router.get('/dashboard/stats', verifierJwt, requireStaff, getDashboard);
 
 // ============ UTILISATEURS ============
+
+// GET /api/admin/users/stats - Statistiques globales des utilisateurs
+router.get('/users/stats', verifierJwt, requirePermission('users:view'), getUsersStats);
 
 // GET /api/admin/users - Lister les utilisateurs avec filtres
 router.get('/users', verifierJwt, requirePermission('users:view'), listUsers);
@@ -133,6 +138,9 @@ router.post('/reports/:id/escalate', verifierJwt, requirePermission('reports:esc
 
 // POST /api/admin/reports/:id/assign - Assigner un signalement
 router.post('/reports/:id/assign', verifierJwt, requirePermission('reports:process'), assignReport);
+
+// POST /api/admin/reports/:id/notes - Ajouter une note interne à un signalement
+router.post('/reports/:id/notes', verifierJwt, requirePermission('reports:process'), addReportNote);
 
 // ============ AUDIT LOGS ============
 

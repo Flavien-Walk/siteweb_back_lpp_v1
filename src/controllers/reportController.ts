@@ -3,6 +3,7 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import Report, {
   IReport,
+  IReportNote,
   ReportReason,
   ReportStatus,
   ReportAction,
@@ -884,7 +885,7 @@ export const getReportById = async (
       priority: report.priority,
       assignedTo: report.assignedTo,
       processedBy: report.moderatedBy,
-      notes: [], // Pas de notes dans le modèle actuel
+      notes: report.notes || [],
       duplicateCount: report.aggregateCount || 1,
       createdAt: report.dateCreation,
       updatedAt: report.dateMiseAJour,
@@ -895,6 +896,66 @@ export const getReportById = async (
       succes: true,
       data: {
         report: formattedReport,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Schema pour ajouter une note
+const schemaAddNote = z.object({
+  content: z.string().min(1, 'Le contenu est requis').max(1000, 'La note ne peut pas dépasser 1000 caractères'),
+});
+
+/**
+ * Ajouter une note interne à un signalement
+ * POST /api/admin/reports/:id/notes
+ */
+export const addReportNote = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const reportId = req.params.id;
+    const moderatorId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(reportId)) {
+      throw new ErreurAPI('ID de signalement invalide', 400);
+    }
+
+    const donnees = schemaAddNote.parse(req.body);
+
+    const report = await Report.findById(reportId);
+    if (!report) {
+      throw new ErreurAPI('Signalement non trouvé', 404);
+    }
+
+    // Créer la nouvelle note
+    const newNote: IReportNote = {
+      author: moderatorId,
+      content: donnees.content,
+      createdAt: new Date(),
+    };
+
+    // Ajouter la note au report
+    report.notes.push(newNote);
+    await report.save();
+
+    // Récupérer le report mis à jour avec les notes populées
+    const updatedReport = await Report.findById(reportId)
+      .populate('notes.author', '_id prenom nom avatar')
+      .lean();
+
+    const addedNote = updatedReport?.notes[updatedReport.notes.length - 1];
+
+    res.status(201).json({
+      succes: true,
+      message: 'Note ajoutée avec succès.',
+      data: {
+        note: addedNote,
+        totalNotes: report.notes.length,
       },
     });
   } catch (error) {

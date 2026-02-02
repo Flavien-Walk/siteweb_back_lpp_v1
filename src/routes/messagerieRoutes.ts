@@ -12,6 +12,9 @@ import {
   toggleMuet,
   getOuCreerConversationPrivee,
   rechercherUtilisateurs,
+  modifierMessage,
+  supprimerMessage,
+  supprimerGroupe,
 } from '../controllers/messagerieController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 
@@ -43,6 +46,18 @@ router.patch('/conversations/:conversationId/lire', marquerConversationLue);
  * Toggle sourdine sur une conversation
  */
 router.patch('/conversations/:conversationId/muet', toggleMuet);
+
+/**
+ * PATCH /api/messagerie/conversations/:conversationId/messages/:messageId
+ * Modifier un message (expediteur uniquement, 15 min max)
+ */
+router.patch('/conversations/:conversationId/messages/:messageId', modifierMessage);
+
+/**
+ * DELETE /api/messagerie/conversations/:conversationId/messages/:messageId
+ * Supprimer un message (expediteur uniquement)
+ */
+router.delete('/conversations/:conversationId/messages/:messageId', supprimerMessage);
 
 /**
  * POST /api/messagerie/envoyer
@@ -93,5 +108,11 @@ router.post('/groupes/:groupeId/participants', ajouterParticipants);
  * Retirer un participant d'un groupe (ou quitter soi-même)
  */
 router.delete('/groupes/:groupeId/participants/:participantId', retirerParticipant);
+
+/**
+ * DELETE /api/messagerie/groupes/:groupeId
+ * Supprimer un groupe entier (createur ou admin uniquement)
+ */
+router.delete('/groupes/:groupeId', supprimerGroupe);
 
 export default router;

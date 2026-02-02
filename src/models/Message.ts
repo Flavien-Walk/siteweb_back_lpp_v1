@@ -77,6 +77,7 @@ export interface IMessage extends Document {
   contenuCrypte: string; // Contenu chiffré en base (texte ou URL image)
   lecteurs: mongoose.Types.ObjectId[]; // Utilisateurs ayant lu le message
   dateCreation: Date;
+  dateModification?: Date; // Date de derniere modification (si edite)
   // Méthode virtuelle pour récupérer le contenu déchiffré
   contenu: string;
 }
@@ -122,6 +123,10 @@ const messageSchema = new Schema<IMessage>(
       type: Schema.Types.ObjectId,
       ref: 'Utilisateur',
     }],
+    dateModification: {
+      type: Date,
+      default: undefined,
+    },
   },
   {
     timestamps: {

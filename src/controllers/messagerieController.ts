@@ -41,6 +41,15 @@ const schemaModifierGroupe = z.object({
   imageGroupe: z.string().url().nullable().optional(),
 });
 
+// Schéma pour modifier un message
+const schemaModifierMessage = z.object({
+  contenu: z
+    .string()
+    .min(1, 'Le contenu est requis')
+    .max(2000, 'Le message ne peut pas dépasser 2000 caractères')
+    .trim(),
+});
+
 /**
  * GET /api/messagerie/conversations
  * Liste des conversations de l'utilisateur
@@ -842,6 +851,199 @@ export const rechercherUtilisateurs = async (
     res.json({
       succes: true,
       data: { utilisateurs },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/messagerie/conversations/:conversationId/messages/:messageId
+ * Modifier un message (seulement par l'expediteur, dans les 15 minutes)
+ */
+export const modifierMessage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { conversationId, messageId } = req.params;
+    const donnees = schemaModifierMessage.parse(req.body);
+    const userId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId) || !mongoose.Types.ObjectId.isValid(messageId)) {
+      throw new ErreurAPI('IDs invalides.', 400);
+    }
+
+    // Verifier que la conversation existe et que l'utilisateur y participe
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new ErreurAPI('Conversation non trouvee.', 404);
+    }
+
+    if (!conversation.participants.some((p) => p.toString() === userId.toString())) {
+      throw new ErreurAPI('Vous ne faites pas partie de cette conversation.', 403);
+    }
+
+    // Recuperer le message
+    const message = await Message.findById(messageId);
+    if (!message || message.conversation.toString() !== conversationId) {
+      throw new ErreurAPI('Message non trouve.', 404);
+    }
+
+    // Verifier que l'utilisateur est l'expediteur
+    if (message.expediteur.toString() !== userId.toString()) {
+      throw new ErreurAPI('Vous ne pouvez modifier que vos propres messages.', 403);
+    }
+
+    // Verifier que le message n'est pas un message systeme
+    if (message.type === 'systeme') {
+      throw new ErreurAPI('Les messages systeme ne peuvent pas etre modifies.', 400);
+    }
+
+    // Verifier que le message n'est pas trop ancien (15 minutes)
+    const LIMITE_MODIFICATION_MS = 15 * 60 * 1000;
+    const ageMessage = Date.now() - message.dateCreation.getTime();
+    if (ageMessage > LIMITE_MODIFICATION_MS) {
+      throw new ErreurAPI('Vous ne pouvez plus modifier ce message (delai de 15 minutes depasse).', 400);
+    }
+
+    // Chiffrer le nouveau contenu
+    const contenuCrypte = chiffrerMessage(donnees.contenu);
+
+    // Mettre a jour le message
+    message.contenuCrypte = contenuCrypte;
+    message.dateModification = new Date();
+    await message.save();
+
+    // Retourner le message mis a jour
+    const messageComplet = await Message.findById(messageId)
+      .populate('expediteur', 'prenom nom avatar');
+
+    res.json({
+      succes: true,
+      message: 'Message modifie avec succes.',
+      data: {
+        message: {
+          _id: messageComplet!._id,
+          expediteur: messageComplet!.expediteur,
+          type: messageComplet!.type,
+          contenu: messageComplet!.contenu,
+          dateCreation: messageComplet!.dateCreation,
+          dateModification: messageComplet!.dateModification,
+          estModifie: true,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/messagerie/conversations/:conversationId/messages/:messageId
+ * Supprimer un message (seulement par l'expediteur)
+ */
+export const supprimerMessage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { conversationId, messageId } = req.params;
+    const userId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId) || !mongoose.Types.ObjectId.isValid(messageId)) {
+      throw new ErreurAPI('IDs invalides.', 400);
+    }
+
+    // Verifier que la conversation existe et que l'utilisateur y participe
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new ErreurAPI('Conversation non trouvee.', 404);
+    }
+
+    if (!conversation.participants.some((p) => p.toString() === userId.toString())) {
+      throw new ErreurAPI('Vous ne faites pas partie de cette conversation.', 403);
+    }
+
+    // Recuperer le message
+    const message = await Message.findById(messageId);
+    if (!message || message.conversation.toString() !== conversationId) {
+      throw new ErreurAPI('Message non trouve.', 404);
+    }
+
+    // Verifier que l'utilisateur est l'expediteur
+    if (message.expediteur.toString() !== userId.toString()) {
+      throw new ErreurAPI('Vous ne pouvez supprimer que vos propres messages.', 403);
+    }
+
+    // Verifier que le message n'est pas un message systeme
+    if (message.type === 'systeme') {
+      throw new ErreurAPI('Les messages systeme ne peuvent pas etre supprimes.', 400);
+    }
+
+    // Supprimer le message
+    await Message.findByIdAndDelete(messageId);
+
+    // Si c'etait le dernier message, mettre a jour la conversation
+    if (conversation.dernierMessage?.toString() === messageId) {
+      const dernierMessage = await Message.findOne({ conversation: conversationId })
+        .sort({ dateCreation: -1 });
+
+      conversation.dernierMessage = dernierMessage?._id || undefined;
+      conversation.dateMiseAJour = new Date();
+      await conversation.save();
+    }
+
+    res.json({
+      succes: true,
+      message: 'Message supprime avec succes.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/messagerie/groupes/:groupeId
+ * Supprimer un groupe (seulement par le createur ou un admin)
+ */
+export const supprimerGroupe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { groupeId } = req.params;
+    const userId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(groupeId)) {
+      throw new ErreurAPI('ID groupe invalide.', 400);
+    }
+
+    const groupe = await Conversation.findById(groupeId);
+    if (!groupe || !groupe.estGroupe) {
+      throw new ErreurAPI('Groupe non trouve.', 404);
+    }
+
+    // Verifier que l'utilisateur est le createur ou un admin
+    const estCreateur = groupe.createur?.toString() === userId.toString();
+    const estAdmin = groupe.admins.some((a) => a.toString() === userId.toString());
+
+    if (!estCreateur && !estAdmin) {
+      throw new ErreurAPI('Seul le createur ou un admin peut supprimer le groupe.', 403);
+    }
+
+    // Supprimer tous les messages du groupe
+    await Message.deleteMany({ conversation: groupeId });
+
+    // Supprimer le groupe
+    await Conversation.findByIdAndDelete(groupeId);
+
+    res.json({
+      succes: true,
+      message: 'Groupe supprime avec succes.',
     });
   } catch (error) {
     next(error);
