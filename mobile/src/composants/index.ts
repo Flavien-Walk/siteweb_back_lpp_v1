@@ -20,3 +20,6 @@ export { default as StoriesRow } from './StoriesRow';
 export { default as StoryViewer } from './StoryViewer';
 export { default as StoryCreator } from './StoryCreator';
 export { default as VideoPlayerModal } from './VideoPlayerModal';
+
+// Composants Modération
+export { default as StaffActions } from './StaffActions';

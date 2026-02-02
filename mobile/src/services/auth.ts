@@ -7,8 +7,27 @@ import api, { setToken, removeToken, getToken, ReponseAPI } from './api';
 import { STORAGE_KEYS } from '../constantes/config';
 
 // Types
-export type Role = 'user' | 'admin';
+export type Role = 'user' | 'modo_test' | 'modo' | 'admin_modo' | 'admin' | 'super_admin';
 export type StatutUtilisateur = 'visiteur' | 'entrepreneur';
+
+// Permissions disponibles pour le staff
+export type Permission =
+  | 'reports:view'
+  | 'reports:process'
+  | 'reports:escalate'
+  | 'users:view'
+  | 'users:warn'
+  | 'users:suspend'
+  | 'users:ban'
+  | 'users:unban'
+  | 'users:edit_roles'
+  | 'content:hide'
+  | 'content:delete'
+  | 'audit:view'
+  | 'audit:export'
+  | 'config:view'
+  | 'config:edit'
+  | 'staff:chat';
 
 export interface Utilisateur {
   id: string;
@@ -24,6 +43,9 @@ export interface Utilisateur {
   dateInscription?: string;
   nbAmis?: number;
   projetsSuivis?: number;
+  // Champs staff (renvoyés par /api/auth/moi si staff)
+  isStaff?: boolean;
+  permissions?: Permission[];
 }
 
 interface DonneesConnexion {
@@ -64,6 +86,9 @@ const normaliserUtilisateur = (data: any): Utilisateur => {
     dateInscription: data.dateInscription || data.createdAt || undefined,
     nbAmis: data.nbAmis ?? 0,
     projetsSuivis: data.projetsSuivis ?? 0,
+    // Champs staff
+    isStaff: data.isStaff ?? false,
+    permissions: data.permissions || [],
   };
 };
 
