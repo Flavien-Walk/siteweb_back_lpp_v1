@@ -105,6 +105,28 @@ export const connexion = async (
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
+    // Vérifier si le compte est banni
+    if (utilisateur.isBanned()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte a été suspendu définitivement.',
+        code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
+      });
+      return;
+    }
+
+    // Vérifier si le compte est suspendu temporairement
+    if (utilisateur.isSuspended()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+        code: 'ACCOUNT_SUSPENDED',
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
+      });
+      return;
+    }
+
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
@@ -211,6 +233,28 @@ export const callbackOAuth = (req: Request, res: Response): void => {
         res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=oauth_echec`);
       } else {
         res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_echec`);
+      }
+      return;
+    }
+
+    // Vérifier si le compte est banni
+    if (utilisateur.isBanned && utilisateur.isBanned()) {
+      const isMobile = isMobileClient(req);
+      if (isMobile) {
+        res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=compte_banni`);
+      } else {
+        res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=compte_banni`);
+      }
+      return;
+    }
+
+    // Vérifier si le compte est suspendu
+    if (utilisateur.isSuspended && utilisateur.isSuspended()) {
+      const isMobile = isMobileClient(req);
+      if (isMobile) {
+        res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=compte_suspendu`);
+      } else {
+        res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=compte_suspendu`);
       }
       return;
     }
