@@ -70,8 +70,9 @@ const Avatar: React.FC<AvatarProps> = ({
   }, []);
 
   // Vérifier si l'URL est valide (pas un fichier local temporaire)
-  const isValidUrl = (url: string | null | undefined): boolean => {
-    if (!url || url.length === 0) return false;
+  const isValidUrl = (url: unknown): boolean => {
+    // Vérification de type robuste (url peut être un objet Story, null, undefined, etc.)
+    if (!url || typeof url !== 'string' || url.length === 0) return false;
     // Les fichiers locaux temporaires (file://) ne sont pas persistants
     if (url.startsWith('file://')) return false;
     // Accepter http://, https://, et data: (base64)

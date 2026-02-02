@@ -23,7 +23,7 @@ import {
 } from '../services/stories';
 
 interface StoriesRowProps {
-  onStoryPress: (userId: string, stories: Story[], userName: string, isOwnStory: boolean) => void;
+  onStoryPress: (userId: string, stories: Story[], userName: string, userAvatar: string | undefined, isOwnStory: boolean) => void;
   onAddStoryPress: () => void;
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -123,6 +123,7 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
                   utilisateur.id,
                   mesStories,
                   `${utilisateur.prenom} ${utilisateur.nom}`,
+                  utilisateur.avatar,
                   true // isOwnStory
                 );
               }
@@ -145,6 +146,7 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
                 groupe.utilisateur._id,
                 groupe.stories,
                 `${groupe.utilisateur.prenom} ${groupe.utilisateur.nom}`,
+                groupe.utilisateur.avatar,
                 false // isOwnStory
               )
             }
