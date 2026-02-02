@@ -389,6 +389,7 @@ export default function PublicationDetailPage() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={rafraichissement}
@@ -477,48 +478,6 @@ export default function PublicationDetailPage() {
         {/* Section commentaires */}
         <View style={styles.commentsSection}>
           <Text style={styles.commentsSectionTitle}>Commentaires</Text>
-
-          {/* Barre de reponse */}
-          {replyingTo && (
-            <View style={styles.replyingToBanner}>
-              <View style={styles.replyingToContent}>
-                <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
-                <Text style={styles.replyingToText}>
-                  Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  setReplyingTo(null);
-                  setNewComment('');
-                }}
-                style={styles.cancelReplyBtn}
-              >
-                <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
-              </Pressable>
-            </View>
-          )}
-
-          {/* Input commentaire */}
-          <View style={styles.commentInputContainer}>
-            <Avatar uri={utilisateur?.avatar} prenom={utilisateur?.prenom} nom={utilisateur?.nom} taille={36} />
-            <TextInput
-              style={styles.commentInput}
-              placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
-              placeholderTextColor={couleurs.texteSecondaire}
-              value={newComment}
-              onChangeText={setNewComment}
-              multiline
-              maxLength={500}
-            />
-            <Pressable
-              style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
-              onPress={handleAddComment}
-              disabled={!newComment.trim()}
-            >
-              <Ionicons name="send" size={20} color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire} />
-            </Pressable>
-          </View>
 
           {/* Liste des commentaires */}
           {chargementCommentaires ? (
@@ -745,6 +704,51 @@ export default function PublicationDetailPage() {
         </View>
       </ScrollView>
 
+      {/* Barre de saisie commentaire fixe en bas */}
+      <View style={[styles.bottomInputWrapper, { paddingBottom: insets.bottom || espacements.sm }]}>
+        {/* Barre de reponse */}
+        {replyingTo && (
+          <View style={styles.replyingToBanner}>
+            <View style={styles.replyingToContent}>
+              <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
+              <Text style={styles.replyingToText}>
+                Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                setReplyingTo(null);
+                setNewComment('');
+              }}
+              style={styles.cancelReplyBtn}
+            >
+              <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
+            </Pressable>
+          </View>
+        )}
+
+        {/* Input commentaire */}
+        <View style={styles.commentInputContainer}>
+          <Avatar uri={utilisateur?.avatar} prenom={utilisateur?.prenom} nom={utilisateur?.nom} taille={36} />
+          <TextInput
+            style={styles.commentInput}
+            placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
+            placeholderTextColor={couleurs.texteSecondaire}
+            value={newComment}
+            onChangeText={setNewComment}
+            multiline
+            maxLength={500}
+          />
+          <Pressable
+            style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
+            onPress={handleAddComment}
+            disabled={!newComment.trim()}
+          >
+            <Ionicons name="send" size={20} color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire} />
+          </Pressable>
+        </View>
+      </View>
+
       {/* Modal lecteur video - Style Instagram */}
       <VideoPlayerModal
         visible={videoModalVisible}
@@ -952,11 +956,17 @@ const createStyles = (couleurs: any) =>
     cancelReplyBtn: {
       padding: espacements.xs,
     },
+    bottomInputWrapper: {
+      borderTopWidth: 1,
+      borderTopColor: couleurs.bordure,
+      backgroundColor: couleurs.fond,
+      paddingHorizontal: espacements.md,
+      paddingTop: espacements.sm,
+    },
     commentInputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: espacements.sm,
-      marginBottom: espacements.lg,
     },
     commentInput: {
       flex: 1,
