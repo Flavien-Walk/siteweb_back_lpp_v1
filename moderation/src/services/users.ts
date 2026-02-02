@@ -18,7 +18,7 @@ export interface UserListParams extends UserFilters {
 
 export interface SanctionParams {
   reason: string
-  duration?: number // in hours, for suspend
+  durationHours?: number // Backend expects 'durationHours' (1-8760)
 }
 
 export interface UserStats {

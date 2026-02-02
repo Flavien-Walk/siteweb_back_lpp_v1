@@ -143,8 +143,8 @@ export function UserDetailPage() {
 
   // Suspend mutation
   const suspendMutation = useMutation({
-    mutationFn: ({ reason, duration }: { reason: string; duration: number }) =>
-      usersService.suspendUser(id!, { reason, duration }),
+    mutationFn: ({ reason, durationHours }: { reason: string; durationHours: number }) =>
+      usersService.suspendUser(id!, { reason, durationHours }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', id] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -720,7 +720,7 @@ export function UserDetailPage() {
                       variant="warning"
                       onClick={() => suspendMutation.mutate({
                         reason: suspendReason,
-                        duration: parseInt(suspendDuration),
+                        durationHours: parseInt(suspendDuration),
                       })}
                       disabled={!suspendReason.trim() || suspendMutation.isPending}
                     >
