@@ -68,6 +68,7 @@ export function SuspendedUsersPage() {
   const unbanMutation = useMutation({
     mutationFn: (id: string) => usersService.unbanUser(id),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users', 'banned'] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
     },
@@ -77,6 +78,7 @@ export function SuspendedUsersPage() {
   const unsuspendMutation = useMutation({
     mutationFn: (id: string) => usersService.unsuspendUser(id),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users', 'suspended'] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
     },
