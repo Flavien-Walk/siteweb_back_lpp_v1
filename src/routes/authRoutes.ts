@@ -6,22 +6,26 @@ import {
   moi,
   callbackOAuth,
   getOAuthToken,
+  exchangeOAuthCode,
 } from '../controllers/authController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
+import { generateOAuthState } from '../utils/oauthStore.js';
 
 const router = Router();
 
 /**
- * Middleware pour capturer la plateforme (web/mobile) et la passer dans le state OAuth
+ * Middleware pour generer un state OAuth securise avec nonce CSRF
+ * Le nonce est stocke cote serveur et valide au callback (anti-CSRF)
  */
-const capturerPlateforme = (provider: string) => (req: Request, res: Response, next: NextFunction) => {
-  const platform = req.query.platform as string;
+const genererStateSecurise = () => (req: Request, res: Response, next: NextFunction) => {
+  // Determiner la plateforme (web par defaut, mobile si specifie)
+  const platformParam = req.query.platform as string;
+  const platform: 'web' | 'mobile' = platformParam === 'mobile' ? 'mobile' : 'web';
 
-  // Encoder la plateforme dans le state OAuth (base64 pour compatibilite)
-  const stateData = { platform: platform || 'web' };
-  const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
+  // Generer un state securise avec nonce CSRF
+  const state = generateOAuthState(platform);
 
-  // Passer le state a passport via query
+  // Passer le state a passport
   (req as any).authState = state;
   next();
 };
@@ -59,7 +63,7 @@ router.get('/moi', verifierJwt, moi);
  */
 router.get(
   '/google',
-  capturerPlateforme('google'),
+  genererStateSecurise(),
   (req, res, next) => {
     passport.authenticate('google', {
       scope: ['profile', 'email'],
@@ -93,7 +97,7 @@ router.get(
  */
 router.get(
   '/facebook',
-  capturerPlateforme('facebook'),
+  genererStateSecurise(),
   (req, res, next) => {
     passport.authenticate('facebook', {
       scope: ['public_profile'],
@@ -127,7 +131,7 @@ router.get(
  */
 router.get(
   '/apple',
-  capturerPlateforme('apple'),
+  genererStateSecurise(),
   (req, res, next) => {
     passport.authenticate('apple', {
       scope: ['name', 'email'],
@@ -160,5 +164,12 @@ router.post(
  * Le frontend appelle cette route apres redirection OAuth
  */
 router.get('/oauth/token', getOAuthToken);
+
+/**
+ * POST /api/auth/exchange-code
+ * Echanger un code temporaire contre un token JWT
+ * Utilise par le mobile apres le callback OAuth (securise: code one-time)
+ */
+router.post('/exchange-code', exchangeOAuthCode);
 
 export default router;

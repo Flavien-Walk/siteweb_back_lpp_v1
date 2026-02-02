@@ -3,6 +3,11 @@ import Utilisateur from '../models/Utilisateur.js';
 import { genererToken } from '../utils/tokens.js';
 import { schemaInscription, schemaConnexion } from '../utils/validation.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
+import {
+  validateOAuthState,
+  generateTemporaryCode,
+  validateTemporaryCode,
+} from '../utils/oauthStore.js';
 
 /**
  * Inscription d'un nouvel utilisateur
@@ -220,36 +225,33 @@ export const moi = async (
 const MOBILE_SCHEME = process.env.MOBILE_SCHEME || 'lpp';
 
 /**
- * Detecter si la requete provient d'un client mobile
- */
-const isMobileClient = (req: Request): boolean => {
-  // Verifier le state OAuth qui contient platform=mobile
-  const state = req.query.state as string;
-  if (state) {
-    try {
-      const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-      if (stateData.platform === 'mobile') return true;
-    } catch {
-      // State non parsable, continuer avec d'autres checks
-    }
-  }
-
-  // Fallback: verifier le User-Agent
-  const userAgent = req.headers['user-agent'] || '';
-  return /expo|react-native|okhttp/i.test(userAgent);
-};
-
-/**
- * Callback OAuth - genere le token et redirige vers le frontend
- * Web: token via cookie httpOnly securise
- * Mobile: token via deep link URL
+ * Callback OAuth - SECURISE
+ *
+ * Securite implementee:
+ * 1. Validation du state CSRF (nonce stocke cote serveur)
+ * 2. Mobile: code temporaire one-time (pas de token dans l'URL)
+ * 3. Web: token via cookie httpOnly securise
+ *
+ * Le mobile doit ensuite appeler /auth/exchange-code pour obtenir le token
  */
 export const callbackOAuth = (req: Request, res: Response): void => {
   try {
+    // 1. VALIDATION CSRF - Verifier le state OAuth
+    const state = req.query.state as string;
+    const stateData = state ? validateOAuthState(state) : null;
+
+    if (!stateData) {
+      // State invalide ou expire = possible attaque CSRF
+      console.warn('[OAuth] State CSRF invalide ou expire');
+      res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_csrf_invalide`);
+      return;
+    }
+
+    const isMobile = stateData.platform === 'mobile';
     const utilisateur = req.user as any;
 
+    // 2. Verifier que l'utilisateur est authentifie
     if (!utilisateur) {
-      const isMobile = isMobileClient(req);
       if (isMobile) {
         res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=oauth_echec`);
       } else {
@@ -258,9 +260,8 @@ export const callbackOAuth = (req: Request, res: Response): void => {
       return;
     }
 
-    // Vérifier si le compte est banni
+    // 3. Verifier si le compte est banni
     if (utilisateur.isBanned && utilisateur.isBanned()) {
-      const isMobile = isMobileClient(req);
       if (isMobile) {
         res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=compte_banni`);
       } else {
@@ -269,9 +270,8 @@ export const callbackOAuth = (req: Request, res: Response): void => {
       return;
     }
 
-    // Vérifier si le compte est suspendu
+    // 4. Verifier si le compte est suspendu
     if (utilisateur.isSuspended && utilisateur.isSuspended()) {
-      const isMobile = isMobileClient(req);
       if (isMobile) {
         res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=compte_suspendu`);
       } else {
@@ -280,36 +280,131 @@ export const callbackOAuth = (req: Request, res: Response): void => {
       return;
     }
 
-    // Generer le token JWT
-    const token = genererToken(utilisateur);
-
-    // Verifier si c'est un client mobile
-    if (isMobileClient(req)) {
-      // Mobile: redirection via deep link avec token dans l'URL
-      // C'est securise car le deep link n'est interceptable que par l'app native
-      res.redirect(`${MOBILE_SCHEME}://auth/callback?token=${token}`);
+    // 5. Gerer selon la plateforme
+    if (isMobile) {
+      // MOBILE: Generer un code temporaire (one-time, 5 min TTL)
+      // Le token n'est JAMAIS expose dans l'URL
+      const code = generateTemporaryCode(utilisateur._id.toString());
+      res.redirect(`${MOBILE_SCHEME}://auth/callback?code=${code}`);
       return;
     }
 
-    // Web: Definir le token dans un cookie httpOnly securise
+    // WEB: Definir le token dans un cookie httpOnly securise
+    const token = genererToken(utilisateur);
     res.cookie('oauth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 5 * 60 * 1000, // 5 minutes - juste le temps de recuperer le token
+      maxAge: 5 * 60 * 1000, // 5 minutes
       path: '/',
     });
 
-    // Rediriger vers le frontend (le token sera recupere via le cookie)
     res.redirect(`${process.env.CLIENT_URL}/auth/callback`);
   } catch (error) {
     console.error('Erreur callback OAuth:', error);
-    const isMobile = isMobileClient(req);
-    if (isMobile) {
-      res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=oauth_erreur`);
-    } else {
-      res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_erreur`);
+    res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_erreur`);
+  }
+};
+
+/**
+ * Echanger un code temporaire contre un token JWT
+ * POST /api/auth/exchange-code
+ *
+ * Securite:
+ * - Code usage unique (supprime apres utilisation)
+ * - TTL 5 minutes
+ * - Pas de token dans l'URL
+ */
+export const exchangeOAuthCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { code } = req.body;
+
+    if (!code || typeof code !== 'string') {
+      res.status(400).json({
+        succes: false,
+        message: 'Code manquant ou invalide',
+      });
+      return;
     }
+
+    // Valider et consommer le code (usage unique)
+    const userId = validateTemporaryCode(code);
+
+    if (!userId) {
+      res.status(401).json({
+        succes: false,
+        message: 'Code invalide ou expire',
+        code: 'INVALID_CODE',
+      });
+      return;
+    }
+
+    // Recuperer l'utilisateur
+    const utilisateur = await Utilisateur.findById(userId);
+
+    if (!utilisateur) {
+      res.status(404).json({
+        succes: false,
+        message: 'Utilisateur non trouve',
+      });
+      return;
+    }
+
+    // Verifier le statut du compte
+    if (utilisateur.isBanned()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte a ete suspendu definitivement.',
+        code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
+      });
+      return;
+    }
+
+    if (utilisateur.isSuspended()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+        code: 'ACCOUNT_SUSPENDED',
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
+      });
+      return;
+    }
+
+    // Generer le token JWT
+    const token = genererToken(utilisateur);
+
+    // Calculer les permissions
+    const effectivePermissions = utilisateur.getEffectivePermissions();
+    const isStaff = utilisateur.isStaff();
+
+    res.status(200).json({
+      succes: true,
+      message: 'Authentification reussie',
+      data: {
+        utilisateur: {
+          id: utilisateur._id,
+          prenom: utilisateur.prenom,
+          nom: utilisateur.nom,
+          email: utilisateur.email,
+          avatar: utilisateur.avatar,
+          bio: utilisateur.bio,
+          role: utilisateur.role,
+          statut: utilisateur.statut,
+          provider: utilisateur.provider,
+          nbAmis: utilisateur.amis?.length || 0,
+          isStaff,
+          permissions: effectivePermissions,
+        },
+        token,
+      },
+    });
+  } catch (error) {
+    next(error);
   }
 };
 
