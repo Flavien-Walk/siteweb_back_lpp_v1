@@ -3,6 +3,20 @@ import Publication from '../models/Publication.js';
 import Projet from '../models/Projet.js';
 
 /**
+ * Helper: Normalise les médias d'une publication pour rétrocompatibilité
+ */
+const normalizePublicationMedias = (pub: any): any => {
+  const pubObj = typeof pub.toObject === 'function' ? pub.toObject() : pub;
+  if (pubObj.medias && pubObj.medias.length > 0) return pubObj;
+  if (pubObj.media && (!pubObj.medias || pubObj.medias.length === 0)) {
+    const isVideo = /\.(mp4|mov|avi|webm|mkv)(\?.*)?$/i.test(pubObj.media);
+    pubObj.medias = [{ type: isVideo ? 'video' : 'image', url: pubObj.media }];
+  }
+  if (!pubObj.medias) pubObj.medias = [];
+  return pubObj;
+};
+
+/**
  * GET /api/feed
  * Fil d'actualité : publications des projets suivis + annonces
  */
@@ -50,10 +64,22 @@ export const getFeed = async (req: Request, res: Response): Promise<void> => {
       Publication.countDocuments(filtre),
     ]);
 
+    // Normaliser medias pour rétrocompatibilité
+    const publicationsNormalisees = publications.map((pub) => {
+      const pubObj = normalizePublicationMedias(pub);
+      return {
+        ...pubObj,
+        aLike: req.utilisateur
+          ? pub.likes.some((id) => id.toString() === req.utilisateur!._id.toString())
+          : false,
+        nbLikes: pub.likes.length,
+      };
+    });
+
     res.json({
       succes: true,
       data: {
-        publications,
+        publications: publicationsNormalisees,
         pagination: {
           page: pageNum,
           limit: limitNum,
