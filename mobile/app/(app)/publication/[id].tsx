@@ -3,7 +3,7 @@
  * Style Instagram : media en grand, likes, commentaires
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Keyboard,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -72,6 +73,13 @@ export default function PublicationDetailPage() {
 
   // Etat modal video
   const [videoModalVisible, setVideoModalVisible] = useState(false);
+
+  // Etat composer commentaire (visible seulement quand ouvert)
+  const [isCommentComposerOpen, setIsCommentComposerOpen] = useState(false);
+
+  // Refs
+  const scrollViewRef = useRef<ScrollView>(null);
+  const commentInputRef = useRef<TextInput>(null);
 
   // Charger la publication
   const chargerPublication = useCallback(async (refresh = false) => {
@@ -159,6 +167,23 @@ export default function PublicationDetailPage() {
     }
   };
 
+  // Ouvrir le composer de commentaire
+  const openCommentComposer = useCallback(() => {
+    setIsCommentComposerOpen(true);
+    // Focus l'input après un court délai pour laisser le temps au layout de se mettre à jour
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 100);
+  }, []);
+
+  // Fermer le composer de commentaire
+  const closeCommentComposer = useCallback(() => {
+    Keyboard.dismiss();
+    setIsCommentComposerOpen(false);
+    setNewComment('');
+    setReplyingTo(null);
+  }, []);
+
   // Partager la publication (utilise le service centralisé avec gestion iOS/Android)
   const handleShare = async () => {
     if (!publication) return;
@@ -193,6 +218,9 @@ export default function PublicationDetailPage() {
         }
         setNewComment('');
         setReplyingTo(null);
+        // Fermer le composer après envoi
+        Keyboard.dismiss();
+        setIsCommentComposerOpen(false);
       }
     } catch (error) {
       Alert.alert('Erreur', "Impossible d'ajouter le commentaire");
@@ -373,8 +401,8 @@ export default function PublicationDetailPage() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -386,10 +414,12 @@ export default function PublicationDetailPage() {
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         refreshControl={
           <RefreshControl
             refreshing={rafraichissement}
@@ -465,10 +495,10 @@ export default function PublicationDetailPage() {
             <LikeButton isLiked={liked} count={nbLikes} onPress={handleLike} size={24} showCount={false} />
             <Text style={[styles.actionText, liked && { color: couleurs.danger }]}>J'aime</Text>
           </AnimatedPressable>
-          <View style={styles.actionBtn}>
+          <AnimatedPressable style={styles.actionBtn} onPress={openCommentComposer}>
             <Ionicons name="chatbubble-outline" size={24} color={couleurs.texteSecondaire} />
             <Text style={styles.actionText}>Commenter</Text>
-          </View>
+          </AnimatedPressable>
           <AnimatedPressable style={styles.actionBtn} onPress={handleShare}>
             <Ionicons name="share-outline" size={24} color={couleurs.texteSecondaire} />
             <Text style={styles.actionText}>Partager</Text>
@@ -573,7 +603,10 @@ export default function PublicationDetailPage() {
                             />
                             <Pressable
                               style={styles.commentReplyBtn}
-                              onPress={() => setReplyingTo({ id: comment._id, auteur: commentAuteur })}
+                              onPress={() => {
+                                setReplyingTo({ id: comment._id, auteur: commentAuteur });
+                                openCommentComposer();
+                              }}
                             >
                               <Text style={styles.commentReplyText}>Repondre</Text>
                             </Pressable>
@@ -704,50 +737,49 @@ export default function PublicationDetailPage() {
         </View>
       </ScrollView>
 
-      {/* Barre de saisie commentaire fixe en bas */}
-      <View style={[styles.bottomInputWrapper, { paddingBottom: insets.bottom || espacements.sm }]}>
-        {/* Barre de reponse */}
-        {replyingTo && (
-          <View style={styles.replyingToBanner}>
-            <View style={styles.replyingToContent}>
-              <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
-              <Text style={styles.replyingToText}>
-                Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => {
-                setReplyingTo(null);
-                setNewComment('');
-              }}
-              style={styles.cancelReplyBtn}
-            >
-              <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
+      {/* Barre de saisie commentaire fixe en bas - visible seulement quand ouvert */}
+      {(isCommentComposerOpen || replyingTo) && (
+        <View style={[styles.bottomInputWrapper, { paddingBottom: insets.bottom || espacements.sm }]}>
+          {/* Barre de reponse ou header du composer */}
+          <View style={styles.composerHeader}>
+            {replyingTo ? (
+              <View style={styles.replyingToContent}>
+                <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
+                <Text style={styles.replyingToText}>
+                  Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.composerTitle}>Nouveau commentaire</Text>
+            )}
+            <Pressable onPress={closeCommentComposer} style={styles.closeComposerBtn} hitSlop={8}>
+              <Ionicons name="close" size={20} color={couleurs.texteSecondaire} />
             </Pressable>
           </View>
-        )}
 
-        {/* Input commentaire */}
-        <View style={styles.commentInputContainer}>
-          <Avatar uri={utilisateur?.avatar} prenom={utilisateur?.prenom} nom={utilisateur?.nom} taille={36} />
-          <TextInput
-            style={styles.commentInput}
-            placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
-            placeholderTextColor={couleurs.texteSecondaire}
-            value={newComment}
-            onChangeText={setNewComment}
-            multiline
-            maxLength={500}
-          />
-          <Pressable
-            style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
-            onPress={handleAddComment}
-            disabled={!newComment.trim()}
-          >
-            <Ionicons name="send" size={20} color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire} />
-          </Pressable>
+          {/* Input commentaire */}
+          <View style={styles.commentInputContainer}>
+            <Avatar uri={utilisateur?.avatar} prenom={utilisateur?.prenom} nom={utilisateur?.nom} taille={36} />
+            <TextInput
+              ref={commentInputRef}
+              style={styles.commentInput}
+              placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
+              placeholderTextColor={couleurs.texteSecondaire}
+              value={newComment}
+              onChangeText={setNewComment}
+              multiline
+              maxLength={500}
+            />
+            <Pressable
+              style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
+              onPress={handleAddComment}
+              disabled={!newComment.trim()}
+            >
+              <Ionicons name="send" size={20} color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire} />
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Modal lecteur video - Style Instagram */}
       <VideoPlayerModal
@@ -931,19 +963,25 @@ const createStyles = (couleurs: any) =>
       color: couleurs.texte,
       marginBottom: espacements.md,
     },
-    replyingToBanner: {
+    composerHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      backgroundColor: `${couleurs.primaire}15`,
-      borderRadius: rayons.sm,
-      padding: espacements.sm,
       marginBottom: espacements.sm,
+    },
+    composerTitle: {
+      fontSize: typographie.tailles.sm,
+      fontWeight: typographie.poids.medium,
+      color: couleurs.texteSecondaire,
+    },
+    closeComposerBtn: {
+      padding: espacements.xs,
     },
     replyingToContent: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: espacements.xs,
+      flex: 1,
     },
     replyingToText: {
       fontSize: typographie.tailles.sm,
@@ -952,9 +990,6 @@ const createStyles = (couleurs: any) =>
     replyingToName: {
       fontWeight: typographie.poids.semibold,
       color: couleurs.primaire,
-    },
-    cancelReplyBtn: {
-      padding: espacements.xs,
     },
     bottomInputWrapper: {
       borderTopWidth: 1,
