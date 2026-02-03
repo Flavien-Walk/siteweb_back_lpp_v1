@@ -308,7 +308,7 @@ export default function SanctionsScreen() {
       if (response.succes && response.data) {
         setSanctions(response.data.sanctions || []);
       } else {
-        setError(response.erreur || 'Erreur lors du chargement');
+        setError(response.message || 'Erreur lors du chargement');
       }
     } catch (err) {
       setError('Erreur de connexion');
@@ -356,7 +356,7 @@ export default function SanctionsScreen() {
       case 'danger':
         return { main: colors.erreur || defaultCouleurs.danger, light: 'rgba(255, 77, 109, 0.15)' };
       case 'warning':
-        return { main: colors.warning || defaultCouleurs.warning, light: 'rgba(255, 189, 89, 0.15)' };
+        return { main: colors.attention || defaultCouleurs.warning, light: 'rgba(255, 189, 89, 0.15)' };
       case 'success':
         return { main: colors.succes || defaultCouleurs.succes, light: 'rgba(0, 214, 143, 0.15)' };
     }
@@ -467,7 +467,7 @@ export default function SanctionsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.fond }]}>
         <LinearGradient
-          colors={[colors.fond, colors.fondSecondaire || colors.fondElevated, colors.fond]}
+          colors={[colors.fond, colors.fondSecondaire, colors.fond]}
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -489,7 +489,7 @@ export default function SanctionsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.fond }]}>
         <LinearGradient
-          colors={[colors.fond, colors.fondSecondaire || colors.fondElevated, colors.fond]}
+          colors={[colors.fond, colors.fondSecondaire, colors.fond]}
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -516,7 +516,7 @@ export default function SanctionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.fond }]}>
       <LinearGradient
-        colors={[colors.fond, colors.fondSecondaire || colors.fondElevated, colors.fond]}
+        colors={[colors.fond, colors.fondSecondaire, colors.fond]}
         style={StyleSheet.absoluteFill}
       />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
