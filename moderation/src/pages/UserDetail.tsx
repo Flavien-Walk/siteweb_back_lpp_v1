@@ -893,16 +893,32 @@ export function UserDetailPage() {
                 <span>{user.reportsCount ?? 0}</span>
               </div>
               {user.bannedAt && (
-                <div className="flex justify-between text-destructive">
-                  <span>Banni le</span>
-                  <span>{formatDate(user.bannedAt)}</span>
-                </div>
+                <>
+                  <div className="flex justify-between text-destructive">
+                    <span>Banni le</span>
+                    <span>{formatDate(user.bannedAt)}</span>
+                  </div>
+                  {user.banReason && (
+                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-950 rounded text-sm">
+                      <span className="font-medium text-destructive">Raison: </span>
+                      <span className="text-muted-foreground">{user.banReason}</span>
+                    </div>
+                  )}
+                </>
               )}
               {user.suspendedUntil && new Date(user.suspendedUntil) > new Date() && (
-                <div className="flex justify-between text-warning">
-                  <span>Suspendu jusqu'au</span>
-                  <span>{formatDate(user.suspendedUntil)}</span>
-                </div>
+                <>
+                  <div className="flex justify-between text-warning">
+                    <span>Suspendu jusqu'au</span>
+                    <span>{formatDate(user.suspendedUntil)}</span>
+                  </div>
+                  {user.suspendReason && (
+                    <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-950 rounded text-sm">
+                      <span className="font-medium text-orange-600 dark:text-orange-400">Raison: </span>
+                      <span className="text-muted-foreground">{user.suspendReason}</span>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

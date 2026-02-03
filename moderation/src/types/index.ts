@@ -44,6 +44,7 @@ export interface User {
   bannedAt?: string | null
   banReason?: string
   suspendedUntil?: string | null
+  suspendReason?: string
   warnings?: Warning[]
   dateCreation: string
   lastActive?: string
