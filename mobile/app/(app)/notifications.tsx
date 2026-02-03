@@ -206,6 +206,13 @@ export default function Notifications() {
         return 'heart';
       case 'projet_update':
         return 'rocket';
+      // Types de sanctions
+      case 'sanction_ban':
+        return 'ban';
+      case 'sanction_suspend':
+        return 'time';
+      case 'sanction_warn':
+        return 'warning';
       case 'systeme':
       default:
         return 'notifications';
@@ -229,9 +236,21 @@ export default function Notifications() {
         return '#8B5CF6';
       case 'projet_update':
         return '#F59E0B';
+      // Types de sanctions
+      case 'sanction_ban':
+        return couleurs.danger;
+      case 'sanction_suspend':
+        return '#F59E0B'; // Orange/Alerte
+      case 'sanction_warn':
+        return '#FBBF24'; // Jaune/Warning
       default:
         return couleurs.texteSecondaire;
     }
+  };
+
+  // Vérifier si c'est une notification de sanction
+  const isSanctionNotif = (type: TypeNotification): boolean => {
+    return type === 'sanction_ban' || type === 'sanction_suspend' || type === 'sanction_warn';
   };
 
   // Formater la date relative

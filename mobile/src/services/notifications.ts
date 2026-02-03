@@ -14,7 +14,11 @@ export type TypeNotification =
   | 'nouveau_like'
   | 'like_commentaire'
   | 'projet_update'
-  | 'systeme';
+  | 'systeme'
+  // Types de sanctions
+  | 'sanction_ban'
+  | 'sanction_suspend'
+  | 'sanction_warn';
 
 export interface Notification {
   _id: string;
@@ -33,6 +37,17 @@ export interface Notification {
     projetId?: string;
     publicationId?: string;
     commentaireId?: string;
+    // Données de sanction
+    sanctionType?: 'ban' | 'suspend' | 'warn';
+    reason?: string;
+    suspendedUntil?: string;
+    postId?: string;
+    postSnapshot?: {
+      contenu?: string;
+      mediaUrl?: string;
+    };
+    actorId?: string;
+    actorRole?: string;
   };
 }
 
