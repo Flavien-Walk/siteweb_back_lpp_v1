@@ -39,6 +39,8 @@ import {
   supprimerCompte,
   getAvatarsDefaut,
   modifierAvatar,
+  getModerationStatus,
+  ModerationStatus,
 } from '../../src/services/auth';
 import { getPublicationsUtilisateur, Publication } from '../../src/services/publications';
 import { getMesStories, Story } from '../../src/services/stories';
@@ -106,6 +108,9 @@ export default function Profil() {
   const [storyViewerVisible, setStoryViewerVisible] = useState(false);
   const [storyCreatorVisible, setStoryCreatorVisible] = useState(false);
 
+  // Statut de moderation (pour afficher les avertissements)
+  const [moderationStatus, setModerationStatus] = useState<ModerationStatus | null>(null);
+
   // Modal visionneuse média
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -141,6 +146,21 @@ export default function Profil() {
       refreshUser();
     }, [refreshUser])
   );
+
+  // Charger le statut de moderation (compteur d'avertissements)
+  useEffect(() => {
+    const fetchModerationStatus = async () => {
+      try {
+        const response = await getModerationStatus();
+        if (response.succes && response.data) {
+          setModerationStatus(response.data);
+        }
+      } catch (error) {
+        console.log('[Profil] Erreur chargement statut moderation:', error);
+      }
+    };
+    fetchModerationStatus();
+  }, []);
 
   // Helper: générer thumbnail Cloudinary pour vidéo
   const getVideoThumbnail = (videoUrl: string): string => {
@@ -1211,6 +1231,28 @@ export default function Profil() {
 
   const renderParametres = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {/* Carte d'avertissements si l'utilisateur a des warnings */}
+      {moderationStatus && moderationStatus.warnCountSinceLastAutoSuspension > 0 && (
+        <View style={[styles.warningCard, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFF8E1', borderColor: couleurs.attention }]}>
+          <View style={styles.warningHeader}>
+            <Ionicons name="warning" size={24} color={couleurs.attention} />
+            <Text style={[styles.warningTitle, { color: couleurs.attention }]}>
+              Avertissements actifs
+            </Text>
+          </View>
+          <View style={styles.warningContent}>
+            <Text style={[styles.warningCount, { color: couleurs.texte }]}>
+              {moderationStatus.warnCountSinceLastAutoSuspension} / 3
+            </Text>
+            <Text style={[styles.warningText, { color: couleurs.texteSecondaire }]}>
+              {moderationStatus.warningsBeforeNextSanction === 0
+                ? `Prochain avertissement = ${moderationStatus.nextAutoAction === 'ban' ? 'bannissement definitif' : 'suspension de 7 jours'}`
+                : `${moderationStatus.warningsBeforeNextSanction} avertissement${moderationStatus.warningsBeforeNextSanction > 1 ? 's' : ''} avant ${moderationStatus.nextAutoAction === 'ban' ? 'bannissement' : 'suspension'}`}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Menu des sections */}
       <View style={styles.menu}>
         {renderMenuItem('person-outline', 'Profil', 'profil', 'Modifiez vos informations')}
@@ -1234,6 +1276,14 @@ export default function Profil() {
             <Text style={styles.menuLabel}>Mes sanctions</Text>
             <Text style={styles.menuDescription}>Historique des sanctions</Text>
           </View>
+          {/* Badge compteur avertissements */}
+          {moderationStatus && moderationStatus.warnCountSinceLastAutoSuspension > 0 && (
+            <View style={[styles.warningBadge, { backgroundColor: couleurs.attention }]}>
+              <Text style={styles.warningBadgeText}>
+                {moderationStatus.warnCountSinceLastAutoSuspension}/3
+              </Text>
+            </View>
+          )}
           <Ionicons
             name="chevron-forward"
             size={20}
@@ -2439,6 +2489,52 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     color: couleurs.texteSecondaire,
     marginTop: 2,
   },
+
+  // Styles pour carte et badge d'avertissements
+  warningCard: {
+    marginHorizontal: espacements.lg,
+    marginBottom: espacements.md,
+    padding: espacements.md,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+  },
+  warningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+    marginBottom: espacements.sm,
+  },
+  warningTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  warningContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  warningCount: {
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  warningText: {
+    fontSize: 12,
+    flex: 1,
+    marginLeft: espacements.md,
+    textAlign: 'right',
+  },
+  warningBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rayons.full,
+    marginRight: espacements.sm,
+  },
+  warningBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
   sectionCard: {
     marginHorizontal: espacements.lg,
     backgroundColor: couleurs.fondSecondaire,

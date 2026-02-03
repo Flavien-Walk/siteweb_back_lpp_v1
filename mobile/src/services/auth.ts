@@ -350,4 +350,30 @@ export const getMySanctions = async (): Promise<ReponseAPI<{ sanctions: Sanction
   return await api.get<{ sanctions: SanctionHistoryItem[] }>('/auth/my-sanctions', true);
 };
 
+/**
+ * Type pour le statut de modération
+ */
+export interface ModerationStatus {
+  status: 'active' | 'suspended' | 'banned';
+  warnCountSinceLastAutoSuspension: number;
+  warningsBeforeNextSanction: number;
+  autoSuspensionsCount: number;
+  nextAutoAction: 'suspend' | 'ban';
+  // Infos supplémentaires si suspendu
+  suspendedUntil?: string;
+  suspendReason?: string;
+  // Infos supplémentaires si banni
+  bannedAt?: string;
+  banReason?: string;
+}
+
+/**
+ * Récupérer le statut de modération de l'utilisateur connecté
+ * Accessible même si le compte est banni/suspendu
+ * Utilisé pour afficher le compteur d'avertissements (ex: "2/3")
+ */
+export const getModerationStatus = async (): Promise<ReponseAPI<ModerationStatus>> => {
+  return await api.get<ModerationStatus>('/auth/moderation-status', true);
+};
+
 export { getToken };
