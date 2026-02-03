@@ -9,6 +9,9 @@ export interface PayloadJWT {
 
 /**
  * Génère un token JWT pour un utilisateur
+ *
+ * SECURITE: L'algorithme HS256 est explicitement spécifié pour éviter
+ * les attaques "algorithm confusion" (ex: "alg": "none")
  */
 export const genererToken = (utilisateur: IUtilisateur): string => {
   const secret = process.env.JWT_SECRET;
@@ -24,6 +27,7 @@ export const genererToken = (utilisateur: IUtilisateur): string => {
 
   const options: jwt.SignOptions = {
     expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'],
+    algorithm: 'HS256', // P0-2: Algorithme explicite pour eviter confusion attacks
   };
 
   return jwt.sign(payload, secret, options);
@@ -31,6 +35,9 @@ export const genererToken = (utilisateur: IUtilisateur): string => {
 
 /**
  * Vérifie et décode un token JWT
+ *
+ * SECURITE: Seul l'algorithme HS256 est accepté pour éviter
+ * les attaques "algorithm confusion" (ex: "alg": "none" ou RS256→HS256)
  */
 export const verifierToken = (token: string): PayloadJWT => {
   const secret = process.env.JWT_SECRET;
@@ -39,7 +46,8 @@ export const verifierToken = (token: string): PayloadJWT => {
     throw new Error('JWT_SECRET non défini dans les variables d\'environnement');
   }
 
-  return jwt.verify(token, secret) as PayloadJWT;
+  // P0-2: Algorithmes acceptés explicitement - rejette "none" et autres
+  return jwt.verify(token, secret, { algorithms: ['HS256'] }) as PayloadJWT;
 };
 
 /**

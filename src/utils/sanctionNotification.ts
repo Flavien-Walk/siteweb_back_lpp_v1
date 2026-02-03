@@ -16,6 +16,8 @@ export interface SanctionNotificationParams {
   postId?: mongoose.Types.ObjectId | string;
   actorId: mongoose.Types.ObjectId | string;
   actorRole: string;
+  // EventId pour idempotency - si fourni, empeche les doublons
+  eventId?: mongoose.Types.ObjectId | string;
 }
 
 export interface ReverseSanctionNotificationParams {
@@ -24,16 +26,33 @@ export interface ReverseSanctionNotificationParams {
   reason?: string;
   actorId: mongoose.Types.ObjectId | string;
   actorRole: string;
+  // EventId pour idempotency - si fourni, empeche les doublons
+  eventId?: mongoose.Types.ObjectId | string;
 }
 
 /**
  * Creer une notification de sanction pour un utilisateur
  * Capture un snapshot du post AVANT suppression si applicable
+ *
+ * IDEMPOTENCY: Si eventId est fourni et qu'une notification existe deja
+ * avec ce eventId, retourne l'ID existant sans creer de doublon.
  */
 export async function createSanctionNotification(params: SanctionNotificationParams): Promise<mongoose.Types.ObjectId | null> {
-  const { targetUserId, sanctionType, reason, suspendedUntil, postId, actorId, actorRole } = params;
+  const { targetUserId, sanctionType, reason, suspendedUntil, postId, actorId, actorRole, eventId } = params;
 
   try {
+    // Si eventId fourni, verifier si notification existe deja (idempotency)
+    if (eventId) {
+      const existingNotification = await Notification.findOne({
+        'data.eventId': eventId.toString(),
+      }).lean();
+
+      if (existingNotification) {
+        console.log(`[SanctionNotification] Notification deja existante pour eventId ${eventId}, idempotency OK`);
+        return existingNotification._id;
+      }
+    }
+
     // Determiner le type et titre de la notification
     let type: TypeNotification;
     let titre: string;
@@ -68,6 +87,11 @@ export async function createSanctionNotification(params: SanctionNotificationPar
       actorRole,
     };
 
+    // Ajouter eventId si fourni (pour idempotency)
+    if (eventId) {
+      notificationData.eventId = eventId.toString();
+    }
+
     // Ajouter la date de fin de suspension si applicable
     if (suspendedUntil) {
       notificationData.suspendedUntil = suspendedUntil.toISOString();
@@ -101,9 +125,17 @@ export async function createSanctionNotification(params: SanctionNotificationPar
       lue: false,
     });
 
-    console.log(`[SanctionNotification] Notification creee: ${notification._id} pour user ${targetUserId}`);
+    console.log(`[SanctionNotification] Notification creee: ${notification._id} pour user ${targetUserId} (eventId: ${eventId || 'none'})`);
     return notification._id;
-  } catch (error) {
+  } catch (error: any) {
+    // Gerer le cas de doublon MongoDB (erreur E11000)
+    if (error?.code === 11000 && eventId) {
+      console.log(`[SanctionNotification] Doublon detecte pour eventId ${eventId}, recuperation existante`);
+      const existingNotification = await Notification.findOne({
+        'data.eventId': eventId.toString(),
+      }).lean();
+      return existingNotification?._id || null;
+    }
     console.error('[SanctionNotification] Erreur creation notification:', error);
     return null;
   }
@@ -141,13 +173,28 @@ const roleLabels: Record<string, string> = {
 /**
  * Creer une notification de levee de sanction PAR UN STAFF
  * Inclut le role du staff dans le message
+ *
+ * IDEMPOTENCY: Si eventId est fourni et qu'une notification existe deja
+ * avec ce eventId, retourne l'ID existant sans creer de doublon.
  */
 export async function createReverseSanctionNotification(
   params: ReverseSanctionNotificationParams
 ): Promise<mongoose.Types.ObjectId | null> {
-  const { targetUserId, reverseSanctionType, reason, actorId, actorRole } = params;
+  const { targetUserId, reverseSanctionType, reason, actorId, actorRole, eventId } = params;
 
   try {
+    // Si eventId fourni, verifier si notification existe deja (idempotency)
+    if (eventId) {
+      const existingNotification = await Notification.findOne({
+        'data.eventId': eventId.toString(),
+      }).lean();
+
+      if (existingNotification) {
+        console.log(`[SanctionNotification] Notification reverse deja existante pour eventId ${eventId}, idempotency OK`);
+        return existingNotification._id;
+      }
+    }
+
     // Determiner le type et titre de la notification
     let type: TypeNotification;
     let titre: string;
@@ -189,6 +236,11 @@ export async function createReverseSanctionNotification(
       actorRole,
     };
 
+    // Ajouter eventId si fourni (pour idempotency)
+    if (eventId) {
+      notificationData.eventId = eventId.toString();
+    }
+
     // Creer la notification
     const notification = await Notification.create({
       destinataire: new mongoose.Types.ObjectId(targetUserId.toString()),
@@ -199,9 +251,17 @@ export async function createReverseSanctionNotification(
       lue: false,
     });
 
-    console.log(`[SanctionNotification] Notification reverse creee: ${notification._id} pour user ${targetUserId}`);
+    console.log(`[SanctionNotification] Notification reverse creee: ${notification._id} pour user ${targetUserId} (eventId: ${eventId || 'none'})`);
     return notification._id;
-  } catch (error) {
+  } catch (error: any) {
+    // Gerer le cas de doublon MongoDB (erreur E11000)
+    if (error?.code === 11000 && eventId) {
+      console.log(`[SanctionNotification] Doublon reverse detecte pour eventId ${eventId}, recuperation existante`);
+      const existingNotification = await Notification.findOne({
+        'data.eventId': eventId.toString(),
+      }).lean();
+      return existingNotification?._id || null;
+    }
     console.error('[SanctionNotification] Erreur creation notification reverse:', error);
     return null;
   }

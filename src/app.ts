@@ -103,7 +103,7 @@ export const creerApp = (): Application => {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Event-Id'], // P0-1: X-Event-Id pour idempotency
     })
   );
 
@@ -161,9 +161,24 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   });
 
+  // P0-4: Rate limiter pour heartbeat /auth/moi
+  // Mobile fait un call toutes les 90s, donc ~40/h normal
+  // 20/min permet usage normal + marge, bloque abus
+  const limiterHeartbeat = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 20, // max 20 requêtes par minute (très généreux)
+    message: {
+      succes: false,
+      message: 'Trop de requêtes heartbeat. Veuillez patienter.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   app.use('/api/', limiter);
   app.use('/api/auth/connexion', limiterAuth);
   app.use('/api/auth/inscription', limiterAuth);
+  app.use('/api/auth/moi', limiterHeartbeat); // P0-4: Rate limit sur heartbeat
   app.use('/api/admin/', limiterAdmin);
   app.use('/api/moderation/', limiterAdmin);
   // Actions de sanction spécifiques (warn, suspend, ban)

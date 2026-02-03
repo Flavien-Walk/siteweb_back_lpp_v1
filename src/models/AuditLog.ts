@@ -62,6 +62,8 @@ export interface IAuditSnapshot {
  */
 export interface IAuditLog extends Document {
   _id: mongoose.Types.ObjectId;
+  // Identifiant unique d'evenement pour idempotency (anti-doublon)
+  eventId?: mongoose.Types.ObjectId;
   // Qui a fait l'action
   actor: mongoose.Types.ObjectId;
   actorRole: string;
@@ -94,6 +96,7 @@ export interface IAuditLogModel extends Model<IAuditLog> {
  * Paramètres pour créer un log
  */
 export interface LogActionParams {
+  eventId?: mongoose.Types.ObjectId;
   actor: mongoose.Types.ObjectId;
   actorRole: string;
   actorIp?: string;
@@ -109,6 +112,11 @@ export interface LogActionParams {
 
 const auditLogSchema = new Schema<IAuditLog>(
   {
+    // EventId pour idempotency - si fourni, empeche les doublons
+    eventId: {
+      type: Schema.Types.ObjectId,
+      sparse: true,
+    },
     actor: {
       type: Schema.Types.ObjectId,
       ref: 'Utilisateur',
@@ -183,6 +191,9 @@ auditLogSchema.index({ dateCreation: -1 }); // Tri par date
 auditLogSchema.index({ actor: 1, dateCreation: -1 }); // Actions d'un modérateur
 auditLogSchema.index({ targetType: 1, targetId: 1, dateCreation: -1 }); // Historique d'une cible
 auditLogSchema.index({ action: 1, dateCreation: -1 }); // Filtrer par type d'action
+
+// Index unique sur eventId pour idempotency (sparse = ignore les docs sans eventId)
+auditLogSchema.index({ eventId: 1 }, { unique: true, sparse: true });
 
 // TTL optionnel - conserver les logs 2 ans (commenté par défaut)
 // auditLogSchema.index({ dateCreation: 1 }, { expireAfterSeconds: 2 * 365 * 24 * 60 * 60 });

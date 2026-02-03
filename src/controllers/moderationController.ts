@@ -53,6 +53,28 @@ const canModerate = (moderator: IUtilisateur, target: IUtilisateur): boolean => 
   return moderator.getRoleLevel() > target.getRoleLevel();
 };
 
+/**
+ * Generer ou extraire un eventId pour idempotency
+ * Si le header X-Event-Id est fourni, l'utiliser
+ * Sinon, generer un nouveau ObjectId
+ */
+const getOrCreateEventId = (req: Request): mongoose.Types.ObjectId => {
+  const headerEventId = req.headers['x-event-id'] as string | undefined;
+  if (headerEventId && mongoose.Types.ObjectId.isValid(headerEventId)) {
+    return new mongoose.Types.ObjectId(headerEventId);
+  }
+  return new mongoose.Types.ObjectId();
+};
+
+/**
+ * Verifier si un eventId a deja ete traite (idempotency check)
+ * Retourne true si l'action a deja ete executee
+ */
+const isEventIdAlreadyProcessed = async (eventId: mongoose.Types.ObjectId): Promise<boolean> => {
+  const existing = await AuditLog.findOne({ eventId }).lean();
+  return !!existing;
+};
+
 // ============ CONSTANTES SYSTEME AUTO-ESCALADE ============
 
 const AUTO_SUSPENSION_DURATION_HOURS = 7 * 24; // 7 jours en heures
@@ -82,6 +104,20 @@ export const warnUser = async (
     }
 
     const donnees = schemaWarnUser.parse(req.body);
+
+    // Generer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Verifier si cet eventId a deja ete traite (idempotency)
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] warnUser eventId ${eventId} deja traite, retour OK sans action`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
 
     const target = await Utilisateur.findById(userId);
     if (!target) {
@@ -131,16 +167,27 @@ export const warnUser = async (
 
     await target.save();
 
-    // Log de l'action du moderateur
-    await auditLogger.actions.warnUser(req, target._id, donnees.reason, {
-      warningId: target.warnings[target.warnings.length - 1]._id,
-      expiresAt: warning.expiresAt?.toISOString(),
-      totalWarnings: target.warnings.length,
-      warnCountSinceLastAutoSuspension: target.moderation.warnCountSinceLastAutoSuspension,
-      autoSuspensionsCount: target.moderation.autoSuspensionsCount,
+    // Log de l'action du moderateur avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
+      action: 'user:warn',
+      targetType: 'utilisateur',
+      targetId: target._id,
+      reason: donnees.reason,
+      metadata: {
+        warningId: target.warnings[target.warnings.length - 1]._id,
+        expiresAt: warning.expiresAt?.toISOString(),
+        totalWarnings: target.warnings.length,
+        warnCountSinceLastAutoSuspension: target.moderation.warnCountSinceLastAutoSuspension,
+        autoSuspensionsCount: target.moderation.autoSuspensionsCount,
+      },
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
     });
 
-    // Creer une notification pour l'avertissement
+    // Creer une notification pour l'avertissement avec eventId pour idempotency
     const postId = req.body.postId;
     const warningNotificationId = await createSanctionNotification({
       targetUserId: target._id,
@@ -149,6 +196,7 @@ export const warnUser = async (
       postId,
       actorId: moderator._id,
       actorRole: moderator.role,
+      eventId,
     });
 
     // ============ LOGIQUE D'AUTO-ESCALADE ============
@@ -163,6 +211,9 @@ export const warnUser = async (
         // === CAS 1: Premiere auto-suspension (3 warnings atteints) ===
         autoAction = 'auto_suspend';
 
+        // EventId distinct pour l'action auto-suspend
+        const autoSuspendEventId = new mongoose.Types.ObjectId();
+
         const suspendedUntil = new Date(Date.now() + AUTO_SUSPENSION_DURATION_HOURS * 60 * 60 * 1000);
         const autoReason = `Suspension automatique: ${WARNINGS_BEFORE_AUTO_SUSPENSION} avertissements cumules`;
 
@@ -175,8 +226,9 @@ export const warnUser = async (
 
         await target.save();
 
-        // Log AuditLog avec actor = system
+        // Log AuditLog avec actor = system et eventId distinct
         await AuditLog.create({
+          eventId: autoSuspendEventId,
           actor: moderator._id, // Le modo qui a declenche
           actorRole: 'system', // Marque comme action systeme
           action: 'user:suspend',
@@ -190,6 +242,7 @@ export const warnUser = async (
             suspendedUntil: suspendedUntil.toISOString(),
             durationHours: AUTO_SUSPENSION_DURATION_HOURS,
             triggeredByWarnFrom: moderator._id,
+            triggeredByEventId: eventId.toString(),
           },
           snapshot: {
             before: { status: 'active' },
@@ -198,7 +251,7 @@ export const warnUser = async (
           source: 'system',
         });
 
-        // Notification de suspension automatique
+        // Notification de suspension automatique avec eventId
         autoActionNotificationId = await createSanctionNotification({
           targetUserId: target._id,
           sanctionType: 'suspend',
@@ -206,13 +259,17 @@ export const warnUser = async (
           suspendedUntil,
           actorId: moderator._id, // Le modo qui a declenche le warning
           actorRole: 'system', // Indique que c'est une action automatique
+          eventId: autoSuspendEventId,
         });
 
-        console.log(`[AUTO-ESCALADE] User ${target._id} suspendu automatiquement pour 7 jours (3 warnings)`);
+        console.log(`[AUTO-ESCALADE] User ${target._id} suspendu automatiquement pour 7 jours (3 warnings) eventId: ${autoSuspendEventId}`);
 
       } else {
         // === CAS 2: Ban definitif (3 warnings apres suspension) ===
         autoAction = 'auto_ban';
+
+        // EventId distinct pour l'action auto-ban
+        const autoBanEventId = new mongoose.Types.ObjectId();
 
         const autoReason = `Bannissement automatique: ${WARNINGS_BEFORE_AUTO_SUSPENSION} avertissements supplementaires apres suspension`;
 
@@ -224,8 +281,9 @@ export const warnUser = async (
 
         await target.save();
 
-        // Log AuditLog avec actor = system
+        // Log AuditLog avec actor = system et eventId distinct
         await AuditLog.create({
+          eventId: autoBanEventId,
           actor: moderator._id, // Le modo qui a declenche
           actorRole: 'system', // Marque comme action systeme
           action: 'user:ban',
@@ -238,6 +296,7 @@ export const warnUser = async (
             warningsAtTrigger: target.warnings.length,
             previousAutoSuspensions: autoSuspensions,
             triggeredByWarnFrom: moderator._id,
+            triggeredByEventId: eventId.toString(),
           },
           snapshot: {
             before: { status: target.moderation.status },
@@ -246,16 +305,17 @@ export const warnUser = async (
           source: 'system',
         });
 
-        // Notification de ban automatique
+        // Notification de ban automatique avec eventId
         autoActionNotificationId = await createSanctionNotification({
           targetUserId: target._id,
           sanctionType: 'ban',
           reason: autoReason,
           actorId: moderator._id, // Le modo qui a declenche le warning
           actorRole: 'system', // Indique que c'est une action automatique
+          eventId: autoBanEventId,
         });
 
-        console.log(`[AUTO-ESCALADE] User ${target._id} banni automatiquement (3 warnings apres suspension)`);
+        console.log(`[AUTO-ESCALADE] User ${target._id} banni automatiquement (3 warnings apres suspension) eventId: ${autoBanEventId}`);
       }
     }
 
@@ -267,6 +327,7 @@ export const warnUser = async (
           ? 'Avertissement envoyé. Bannissement automatique declenche.'
           : 'Avertissement envoyé.',
       data: {
+        eventId: eventId.toString(),
         warning: target.warnings[target.warnings.length - 1],
         totalWarnings: target.warnings.length,
         notificationId: warningNotificationId,
@@ -306,6 +367,20 @@ export const removeWarning = async (
       throw new ErreurAPI('ID invalide', 400);
     }
 
+    // Generer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Verifier si cet eventId a deja ete traite
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] removeWarning eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
     const target = await Utilisateur.findById(userId);
     if (!target) {
       throw new ErreurAPI('Utilisateur non trouvé', 404);
@@ -323,6 +398,7 @@ export const removeWarning = async (
       throw new ErreurAPI('Avertissement non trouvé', 404);
     }
 
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
     const removedWarning = target.warnings[warningIndex];
     target.warnings.splice(warningIndex, 1);
 
@@ -334,8 +410,12 @@ export const removeWarning = async (
 
     await target.save();
 
-    // Log de l'action
-    await auditLogger.log(req, {
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
       action: 'user:warn_remove',
       targetType: 'utilisateur',
       targetId: target._id,
@@ -344,21 +424,24 @@ export const removeWarning = async (
         removedWarning,
         warnCountSinceLastAutoSuspension: target.moderation?.warnCountSinceLastAutoSuspension || 0,
       },
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
     });
 
-    // Notification de levée d'avertissement
+    // Notification de levée d'avertissement avec eventId
     await createReverseSanctionNotification({
       targetUserId: target._id,
       reverseSanctionType: 'unwarn',
       reason: removedWarning.reason,
       actorId: moderator._id,
       actorRole: moderator.role,
+      eventId,
     });
 
     res.status(200).json({
       succes: true,
       message: 'Avertissement retiré.',
       data: {
+        eventId: eventId.toString(),
         remainingWarnings: target.warnings.length,
         moderation: {
           warnCountSinceLastAutoSuspension: target.moderation?.warnCountSinceLastAutoSuspension || 0,
@@ -391,6 +474,20 @@ export const suspendUser = async (
 
     const donnees = schemaSuspendUser.parse(req.body);
 
+    // Generer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Verifier si cet eventId a deja ete traite
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] suspendUser eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
     const target = await Utilisateur.findById(userId);
     if (!target) {
       throw new ErreurAPI('Utilisateur non trouvé', 404);
@@ -405,6 +502,7 @@ export const suspendUser = async (
       throw new ErreurAPI('Cet utilisateur est déjà banni définitivement', 400);
     }
 
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
     const suspendedUntil = new Date(Date.now() + donnees.durationHours * 60 * 60 * 1000);
     const snapshot = {
       before: { suspendedUntil: target.suspendedUntil?.toISOString() || null, suspendReason: target.suspendReason || null },
@@ -415,11 +513,23 @@ export const suspendUser = async (
     target.suspendReason = donnees.reason;
     await target.save();
 
-    // Log de l'action
-    await auditLogger.actions.suspendUser(req, target._id, donnees.reason, suspendedUntil, snapshot);
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
+      action: 'user:suspend',
+      targetType: 'utilisateur',
+      targetId: target._id,
+      reason: donnees.reason,
+      metadata: { durationHours: donnees.durationHours },
+      snapshot,
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
+    });
 
-    // Creer une notification pour l'utilisateur sanctionne
-    const postId = req.body.postId; // Optionnel: ID du post concerne
+    // Creer une notification avec eventId pour idempotency
+    const postId = req.body.postId;
     const notificationId = await createSanctionNotification({
       targetUserId: target._id,
       sanctionType: 'suspend',
@@ -428,12 +538,14 @@ export const suspendUser = async (
       postId,
       actorId: moderator._id,
       actorRole: moderator.role,
+      eventId,
     });
 
     res.status(200).json({
       succes: true,
       message: `Utilisateur suspendu jusqu'au ${suspendedUntil.toLocaleString('fr-FR')}.`,
       data: {
+        eventId: eventId.toString(),
         suspendedUntil: suspendedUntil.toISOString(),
         durationHours: donnees.durationHours,
         notificationId,
@@ -461,6 +573,20 @@ export const unsuspendUser = async (
       throw new ErreurAPI('ID utilisateur invalide', 400);
     }
 
+    // Generer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Verifier si cet eventId a deja ete traite
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] unsuspendUser eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
     const target = await Utilisateur.findById(userId);
     if (!target) {
       throw new ErreurAPI('Utilisateur non trouvé', 404);
@@ -474,6 +600,7 @@ export const unsuspendUser = async (
       throw new ErreurAPI("Cet utilisateur n'est pas suspendu", 400);
     }
 
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
     const snapshot = {
       before: { suspendedUntil: target.suspendedUntil?.toISOString(), suspendReason: target.suspendReason || null },
       after: { suspendedUntil: null, suspendReason: null },
@@ -483,26 +610,33 @@ export const unsuspendUser = async (
     target.suspendReason = undefined;
     await target.save();
 
-    // Log de l'action
-    await auditLogger.log(req, {
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
       action: 'user:unsuspend',
       targetType: 'utilisateur',
       targetId: target._id,
       reason: 'Suspension levée',
       snapshot,
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
     });
 
-    // Notification de levée de suspension
+    // Notification de levée de suspension avec eventId
     await createReverseSanctionNotification({
       targetUserId: target._id,
       reverseSanctionType: 'unsuspend',
       actorId: moderator._id,
       actorRole: moderator.role,
+      eventId,
     });
 
     res.status(200).json({
       succes: true,
       message: 'Suspension levée.',
+      data: { eventId: eventId.toString() },
     });
   } catch (error) {
     next(error);
@@ -528,6 +662,20 @@ export const banUser = async (
 
     const donnees = schemaBanUser.parse(req.body);
 
+    // Generer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Verifier si cet eventId a deja ete traite
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] banUser eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
     const target = await Utilisateur.findById(userId);
     if (!target) {
       throw new ErreurAPI('Utilisateur non trouvé', 404);
@@ -541,6 +689,7 @@ export const banUser = async (
       throw new ErreurAPI('Cet utilisateur est déjà banni', 400);
     }
 
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
     const snapshot = {
       before: { bannedAt: null, banReason: null },
       after: { bannedAt: new Date().toISOString(), banReason: donnees.reason },
@@ -551,11 +700,22 @@ export const banUser = async (
     target.suspendedUntil = null; // Annuler toute suspension en cours
     await target.save();
 
-    // Log de l'action
-    await auditLogger.actions.banUser(req, target._id, donnees.reason, snapshot);
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
+      action: 'user:ban',
+      targetType: 'utilisateur',
+      targetId: target._id,
+      reason: donnees.reason,
+      snapshot,
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
+    });
 
-    // Creer une notification pour l'utilisateur sanctionne
-    const postId = req.body.postId; // Optionnel: ID du post concerne
+    // Creer une notification avec eventId
+    const postId = req.body.postId;
     const notificationId = await createSanctionNotification({
       targetUserId: target._id,
       sanctionType: 'ban',
@@ -563,12 +723,14 @@ export const banUser = async (
       postId,
       actorId: moderator._id,
       actorRole: moderator.role,
+      eventId,
     });
 
     res.status(200).json({
       succes: true,
       message: 'Utilisateur banni définitivement.',
       data: {
+        eventId: eventId.toString(),
         bannedAt: target.bannedAt.toISOString(),
         banReason: target.banReason,
         notificationId,
@@ -598,6 +760,20 @@ export const unbanUser = async (
 
     const donnees = schemaUnbanUser.parse(req.body);
 
+    // Generer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Verifier si cet eventId a deja ete traite
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] unbanUser eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
     const target = await Utilisateur.findById(userId);
     if (!target) {
       throw new ErreurAPI('Utilisateur non trouvé', 404);
@@ -612,6 +788,7 @@ export const unbanUser = async (
       throw new ErreurAPI("Cet utilisateur n'est pas banni", 400);
     }
 
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
     const snapshot = {
       before: { bannedAt: target.bannedAt?.toISOString(), banReason: target.banReason },
       after: { bannedAt: null, banReason: null },
@@ -621,21 +798,34 @@ export const unbanUser = async (
     target.banReason = undefined;
     await target.save();
 
-    // Log de l'action
-    await auditLogger.actions.unbanUser(req, target._id, donnees.reason, snapshot);
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
+      action: 'user:unban',
+      targetType: 'utilisateur',
+      targetId: target._id,
+      reason: donnees.reason || 'Débannissement',
+      snapshot,
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
+    });
 
-    // Notification de débannissement
+    // Notification de débannissement avec eventId
     await createReverseSanctionNotification({
       targetUserId: target._id,
       reverseSanctionType: 'unban',
       reason: donnees.reason,
       actorId: moderator._id,
       actorRole: moderator.role,
+      eventId,
     });
 
     res.status(200).json({
       succes: true,
       message: 'Utilisateur débanni.',
+      data: { eventId: eventId.toString() },
     });
   } catch (error) {
     next(error);

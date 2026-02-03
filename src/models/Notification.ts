@@ -37,6 +37,8 @@ export interface INotificationData {
   };
   actorId?: string;
   actorRole?: string;
+  // EventId pour idempotency des sanctions (anti-doublon)
+  eventId?: string;
 }
 
 export interface INotification extends Document {
@@ -97,6 +99,8 @@ const notificationSchema = new Schema<INotification>(
         },
         actorId: String,
         actorRole: String,
+        // EventId pour idempotency des sanctions (anti-doublon)
+        eventId: String,
       },
       default: null,
     },
@@ -125,6 +129,20 @@ notificationSchema.index(
     partialFilterExpression: {
       type: { $in: ['demande_ami', 'ami_accepte'] },
       'data.userId': { $exists: true, $ne: null },
+    },
+  }
+);
+
+// Index unique partiel pour éviter les doublons de notifications de sanctions
+// Utilise eventId comme clé unique - si même eventId, c'est un doublon
+notificationSchema.index(
+  { 'data.eventId': 1 },
+  {
+    unique: true,
+    sparse: true,
+    partialFilterExpression: {
+      type: { $in: ['sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn'] },
+      'data.eventId': { $exists: true, $ne: null },
     },
   }
 );
