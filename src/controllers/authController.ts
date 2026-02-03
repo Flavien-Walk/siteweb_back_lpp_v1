@@ -686,20 +686,22 @@ export const getMySanctions = async (
       source: 'notification' | 'auditlog';
     };
 
-    // On utilise une Map avec cle basee sur (type + date arrondie a la seconde)
+    // On utilise une Map avec cle basee sur (type + date arrondie a la MINUTE)
     // pour eviter les doublons entre notifications et audit logs
+    // Une sanction du meme type dans la meme minute = probablement la meme sanction
     const sanctionsMap = new Map<string, SanctionWithSource>();
 
     // D'abord ajouter les notifications (prioritaires car plus detaillees)
     for (const s of sanctionsFromNotifications) {
-      const dateKey = new Date(s.createdAt).toISOString().slice(0, 19);
+      // Tronquer a la minute (slice(0, 16) = YYYY-MM-DDTHH:MM)
+      const dateKey = new Date(s.createdAt).toISOString().slice(0, 16);
       const key = `${s.type}-${dateKey}`;
       sanctionsMap.set(key, s as SanctionWithSource);
     }
 
     // Ensuite ajouter les audit logs seulement si pas deja present
     for (const s of sanctionsFromAuditLog) {
-      const dateKey = new Date(s.createdAt).toISOString().slice(0, 19);
+      const dateKey = new Date(s.createdAt).toISOString().slice(0, 16);
       const key = `${s.type}-${dateKey}`;
       if (!sanctionsMap.has(key)) {
         sanctionsMap.set(key, s);
