@@ -155,6 +155,32 @@ export const getMoi = async (): Promise<ReponseAPI<{ utilisateur: Utilisateur }>
 };
 
 /**
+ * Type pour les infos de sanction
+ */
+export interface SanctionInfo {
+  isRestricted: boolean;
+  type?: 'ACCOUNT_BANNED' | 'ACCOUNT_SUSPENDED';
+  reason?: string;
+  bannedAt?: string;
+  suspendedUntil?: string;
+  notificationId?: string;
+  notificationDate?: string;
+  postId?: string;
+  postSnapshot?: {
+    contenu?: string;
+    mediaUrl?: string;
+  };
+}
+
+/**
+ * Récupérer les informations de sanction
+ * Accessible même si le compte est banni/suspendu
+ */
+export const getSanctionInfo = async (): Promise<ReponseAPI<SanctionInfo>> => {
+  return await api.get<SanctionInfo>('/auth/sanction-info', true);
+};
+
+/**
  * Déconnexion
  */
 export const deconnexion = async (): Promise<void> => {
