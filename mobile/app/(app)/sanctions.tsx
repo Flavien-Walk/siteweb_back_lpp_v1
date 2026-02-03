@@ -299,34 +299,53 @@ const styles = StyleSheet.create({
 export default function SanctionsScreen() {
   const { couleurs } = useTheme();
   const colors = couleurs || defaultCouleurs;
-  const { tokenReady } = useUser();
+  const { tokenReady, userHydrated, isAuthenticated } = useUser();
 
   const [sanctions, setSanctions] = useState<SanctionHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Flag: hydratation complete = tokenReady ET userHydrated
+  const isHydrated = tokenReady && userHydrated;
+
   const fetchSanctions = useCallback(async () => {
-    // Ne pas appeler l'API si le token n'est pas pret
-    if (!tokenReady) {
-      console.log('[SanctionsScreen] Token pas encore pret, attente...');
+    console.log('[SanctionsScreen] fetchSanctions - tokenReady:', tokenReady, 'userHydrated:', userHydrated, 'isAuthenticated:', isAuthenticated);
+
+    // IMPORTANT: Ne pas appeler l'API tant que l'hydratation n'est pas complete
+    if (!isHydrated) {
+      console.log('[SanctionsScreen] Hydratation incomplete, attente...');
+      return;
+    }
+
+    // Si l'utilisateur n'est pas authentifie apres hydratation, afficher erreur
+    if (!isAuthenticated) {
+      console.log('[SanctionsScreen] User non authentifie apres hydratation');
+      setError('Vous devez etre connecte pour voir vos sanctions.');
+      setIsLoading(false);
       return;
     }
 
     try {
       setError(null);
+      console.log('[SanctionsScreen] Appel getMySanctions()...');
       const response = await getMySanctions();
 
-      // Gerer le cas ou le token est absent (AUTH_MISSING_TOKEN)
+      // NE PLUS REDIRIGER vers login sur AUTH_MISSING_TOKEN
+      // C'est une erreur, pas une deconnexion volontaire
       if (response.erreurs?.code === 'AUTH_MISSING_TOKEN') {
-        console.log('[SanctionsScreen] Token absent, redirection login');
-        router.replace('/(auth)/connexion');
+        console.warn('[SanctionsScreen] AUTH_MISSING_TOKEN recu - affichage erreur (PAS de redirect)');
+        setError('Session non disponible. Reessayez dans quelques instants.');
+        setIsLoading(false);
+        setIsRefreshing(false);
         return;
       }
 
       if (response.succes && response.data) {
+        console.log('[SanctionsScreen] Sanctions recues:', response.data.sanctions?.length || 0);
         setSanctions(response.data.sanctions || []);
       } else {
+        console.log('[SanctionsScreen] Echec:', response.message);
         setError(response.message || 'Erreur lors du chargement');
       }
     } catch (err) {
@@ -336,14 +355,15 @@ export default function SanctionsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [tokenReady]);
+  }, [isHydrated, isAuthenticated, tokenReady, userHydrated]);
 
-  // Charger les sanctions quand le token est pret
+  // Charger les sanctions quand l'hydratation est complete
   useEffect(() => {
-    if (tokenReady) {
+    console.log('[SanctionsScreen] useEffect - isHydrated:', isHydrated);
+    if (isHydrated) {
       fetchSanctions();
     }
-  }, [tokenReady, fetchSanctions]);
+  }, [isHydrated, fetchSanctions]);
 
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -484,8 +504,8 @@ export default function SanctionsScreen() {
     );
   };
 
-  // Contenu principal - afficher loader si token pas pret OU chargement en cours
-  if (!tokenReady || isLoading) {
+  // Contenu principal - afficher loader si hydratation incomplete OU chargement en cours
+  if (!isHydrated || isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.fond }]}>
         <LinearGradient

@@ -40,6 +40,8 @@ interface UserContextType {
   needsStatut: boolean;
   // Flag indiquant si le token est pret (hydrate)
   tokenReady: boolean;
+  // Flag indiquant si loadUser() est termine (user hydrate)
+  userHydrated: boolean;
   // Info de restriction de compte (banni/suspendu)
   accountRestriction: AccountRestrictionInfo | null;
   // Reessayer apres unban/unsuspend (ne supprime PAS le token)
@@ -61,6 +63,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [utilisateur, setUtilisateur] = useState<Utilisateur | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tokenReady, setTokenReady] = useState(false);
+  const [userHydrated, setUserHydrated] = useState(false);
   const [accountRestriction, setAccountRestriction] = useState<AccountRestrictionInfo | null>(null);
   const appState = useRef(AppState.currentState);
   const heartbeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -164,39 +167,50 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [utilisateur, accountRestriction, startHeartbeat, stopHeartbeat]);
 
   const loadUser = async () => {
+    console.log('[UserContext:loadUser] Debut...');
     try {
       // 1. HYDRATER LE TOKEN D'ABORD (critique pour eviter race conditions)
       const token = await hydrateToken();
       setTokenReady(true);
-      console.log('[UserContext] Token hydrate:', token ? 'present' : 'absent');
+      console.log('[UserContext:loadUser] Token hydrate:', token ? 'present' : 'absent');
 
       // 2. Charger l'utilisateur depuis le stockage local
       const localUser = await getUtilisateurLocal();
+      console.log('[UserContext:loadUser] User local:', localUser ? localUser.pseudo : 'null');
+
       if (localUser) {
         setUtilisateur(localUser);
 
         // 3. Rafraichir depuis l'API si on a un token
         if (token) {
           try {
+            console.log('[UserContext:loadUser] Appel getMoi()...');
             const response = await getMoi();
             if (response.succes && response.data) {
               setUtilisateur(response.data.utilisateur);
               await setUtilisateurLocal(response.data.utilisateur);
               // Si on arrive ici, le compte n'est plus restreint
               setAccountRestriction(null);
+              console.log('[UserContext:loadUser] User rafraichi OK');
+            } else {
+              console.log('[UserContext:loadUser] getMoi() echec:', response.message);
             }
             // Si erreur 403 banni/suspendu, le callback sera declenche
           } catch (apiError) {
             // Garder les donnees locales si l'API echoue (erreur reseau)
-            console.log('Erreur rafraichissement utilisateur:', apiError);
+            console.log('[UserContext:loadUser] Erreur rafraichissement:', apiError);
           }
         }
+      } else {
+        console.log('[UserContext:loadUser] Pas de user local');
       }
     } catch (error) {
-      console.log('Erreur chargement utilisateur:', error);
+      console.log('[UserContext:loadUser] Erreur:', error);
       setTokenReady(true); // Marquer comme ready meme en cas d'erreur
     } finally {
       setIsLoading(false);
+      setUserHydrated(true);
+      console.log('[UserContext:loadUser] Termine - userHydrated=true');
     }
   };
 
@@ -277,6 +291,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         isAuthenticated,
         needsStatut,
         tokenReady,
+        userHydrated,
         accountRestriction,
         retryRestriction,
         logoutFromRestriction,

@@ -45,7 +45,10 @@ let hydrationPromise: Promise<void> | null = null;
  * Doit être appelé une seule fois par UserContext
  */
 export const hydrateToken = async (): Promise<string | null> => {
+  console.log('[API:hydrateToken] Debut - tokenHydrated:', tokenHydrated, 'memoryToken:', memoryToken ? 'present' : 'null');
+
   if (tokenHydrated) {
+    console.log('[API:hydrateToken] Deja hydrate, retour memoryToken:', memoryToken ? 'present' : 'null');
     return memoryToken;
   }
 
@@ -53,10 +56,10 @@ export const hydrateToken = async (): Promise<string | null> => {
     const storedToken = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
     memoryToken = storedToken;
     tokenHydrated = true;
-    console.log('[API] Token hydraté:', memoryToken ? 'présent' : 'absent');
+    console.log('[API:hydrateToken] Hydratation OK - token:', memoryToken ? 'present' : 'absent');
     return memoryToken;
   } catch (error) {
-    console.error('[API] Erreur hydratation token:', error);
+    console.error('[API:hydrateToken] Erreur:', error);
     tokenHydrated = true;
     return null;
   }
@@ -85,6 +88,9 @@ export const waitForTokenReady = async (): Promise<void> => {
 // Callback global pour les restrictions de compte
 // Sera défini par le UserContext pour déclencher la déconnexion forcée
 let onAccountRestricted: ((info: AccountRestrictionInfo) => void) | null = null;
+
+// Flag pour eviter les retry en boucle
+let isRetrying401 = false;
 
 /**
  * Enregistrer le callback de restriction de compte
@@ -179,9 +185,14 @@ export const requeteAPI = async <T>(
 
   // Ajouter le token si nécessaire
   if (avecAuth) {
+    console.log('[API:requete] avecAuth=true, endpoint:', endpoint);
+    console.log('[API:requete] tokenHydrated:', tokenHydrated, 'memoryToken:', memoryToken ? 'present' : 'null');
+
     // S'assurer que le token est hydraté
     if (!tokenHydrated) {
+      console.log('[API:requete] Token pas hydrate, attente...');
       await waitForTokenReady();
+      console.log('[API:requete] Apres hydratation - memoryToken:', memoryToken ? 'present' : 'null');
     }
 
     const token = memoryToken;
@@ -189,7 +200,7 @@ export const requeteAPI = async <T>(
     // Si avecAuth=true et pas de token, retourner erreur contrôlée
     // SANS appeler l'API (évite 401 "Token manquant")
     if (!token) {
-      console.warn('[API] Requête auth sans token:', endpoint);
+      console.warn('[API:requete] AUTH_MISSING_TOKEN pour:', endpoint);
       return {
         succes: false,
         message: 'Session expirée. Veuillez vous reconnecter.',
@@ -197,6 +208,7 @@ export const requeteAPI = async <T>(
       };
     }
 
+    console.log('[API:requete] Token OK, appel API...');
     headersComplets['Authorization'] = `Bearer ${token}`;
   }
 
@@ -226,6 +238,35 @@ export const requeteAPI = async <T>(
     }
 
     const data: ReponseAPI<T> & { code?: string; reason?: string; suspendedUntil?: string } = await response.json();
+
+    // Gérer les 401 Unauthorized avec retry une fois
+    // IMPORTANT: On rehydrate le token et on retente UNE SEULE fois
+    if (response.status === 401 && avecAuth && !isRetrying401) {
+      console.log('[API:requete] 401 recu, tentative de rehydratation...');
+      isRetrying401 = true;
+
+      // Forcer la rehydratation depuis SecureStore
+      tokenHydrated = false;
+      memoryToken = null;
+      await hydrateToken();
+
+      // Si on a un token apres rehydratation, retenter
+      if (memoryToken) {
+        console.log('[API:requete] Token rehydrate, retry...');
+        isRetrying401 = false;
+        // Retenter la requete (recursive, mais avec flag reset)
+        return requeteAPI<T>(endpoint, options);
+      } else {
+        console.log('[API:requete] Pas de token apres rehydratation');
+        isRetrying401 = false;
+        return {
+          succes: false,
+          message: 'Session expiree. Veuillez vous reconnecter.',
+          erreurs: { code: 'AUTH_TOKEN_EXPIRED' },
+        };
+      }
+    }
+    isRetrying401 = false;
 
     // Gérer les comptes bannis/suspendus (403)
     // Note: on ne supprime PAS le token ici pour permettre à AccountRestrictedScreen
