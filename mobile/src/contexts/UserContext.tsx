@@ -24,6 +24,7 @@ import {
 import {
   setAccountRestrictionCallback,
   AccountRestrictionInfo,
+  removeToken,
 } from '../services/api';
 
 interface UserContextType {
@@ -33,7 +34,7 @@ interface UserContextType {
   needsStatut: boolean;
   // Info de restriction de compte (banni/suspendu)
   accountRestriction: AccountRestrictionInfo | null;
-  clearRestriction: () => void;
+  clearRestriction: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateUser: (user: Utilisateur) => Promise<void>;
   logout: () => Promise<void>;
@@ -195,7 +196,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     setAccountRestriction(null);
   }, []);
 
-  const clearRestriction = useCallback(() => {
+  const clearRestriction = useCallback(async () => {
+    // Supprimer le token maintenant que l'utilisateur quitte l'écran de restriction
+    await removeToken();
     setAccountRestriction(null);
   }, []);
 

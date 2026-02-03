@@ -121,10 +121,11 @@ export const requeteAPI = async <T>(
     const data: ReponseAPI<T> & { code?: string; reason?: string; suspendedUntil?: string } = await response.json();
 
     // Gérer les comptes bannis/suspendus (403)
+    // Note: on ne supprime PAS le token ici pour permettre à AccountRestrictedScreen
+    // de charger les détails de la sanction via /auth/sanction-info.
+    // Le token sera supprimé quand l'utilisateur clique "Retour à la connexion".
     if (response.status === 403) {
       if (data.code === 'ACCOUNT_BANNED') {
-        // Déconnexion forcée et notification globale
-        await removeToken();
         const info: AccountRestrictionInfo = {
           type: 'ACCOUNT_BANNED',
           message: data.message || 'Votre compte a été suspendu définitivement.',
@@ -141,8 +142,6 @@ export const requeteAPI = async <T>(
         };
       }
       if (data.code === 'ACCOUNT_SUSPENDED') {
-        // Déconnexion forcée avec info de suspension
-        await removeToken();
         const info: AccountRestrictionInfo = {
           type: 'ACCOUNT_SUSPENDED',
           message: data.message || 'Votre compte est temporairement suspendu.',
