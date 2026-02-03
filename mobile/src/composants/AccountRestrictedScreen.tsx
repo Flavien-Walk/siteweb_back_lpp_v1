@@ -5,19 +5,27 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Image, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  Image,
+  ScrollView,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccountRestrictionInfo } from '../services/api';
 import { getSanctionInfo, SanctionInfo } from '../services/auth';
-import { couleurs, typographie, espacements } from '../constantes/theme';
+import { couleurs, typographie, espacements, rayons } from '../constantes/theme';
 
 // Mapping des rôles vers des labels lisibles
 const roleLabels: Record<string, string> = {
   user: 'Utilisateur',
-  modo_test: 'Modérateur Test',
-  modo: 'Modérateur',
+  modo_test: 'Moderateur Test',
+  modo: 'Moderateur',
   admin_modo: 'Administrateur',
   super_admin: 'Fondateur',
   admin: 'Administrateur', // Legacy
@@ -36,6 +44,10 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   const isBanned = restriction.type === 'ACCOUNT_BANNED';
+
+  // Couleurs selon le type de sanction
+  const statusColor = isBanned ? couleurs.danger : couleurs.warning;
+  const statusColorLight = isBanned ? couleurs.dangerLight : couleurs.accentLight;
 
   // Charger les details de la sanction au montage
   useEffect(() => {
@@ -72,6 +84,23 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
     }
   };
 
+  // Formater la date de fin de suspension
+  const formatSuspendedUntil = (dateStr?: string): string => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Obtenir le label lisible du rôle
   const getRoleLabel = (role?: string): string => {
     if (!role) return '';
@@ -86,28 +115,43 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   const actorRole = sanctionDetails?.actorRole;
 
   return (
-    <LinearGradient
-      colors={[couleurs.fond, '#1a1a2e']}
-      style={styles.container}
-    >
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[couleurs.fond, couleurs.fondElevated, couleurs.fond]}
+        style={StyleSheet.absoluteFill}
+      />
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
+            {/* Header avec gradient */}
+            <LinearGradient
+              colors={[statusColorLight, 'transparent']}
+              style={styles.headerGradient}
+            />
+
             {/* Icone */}
-            <View style={[styles.iconContainer, isBanned ? styles.bannedIcon : styles.suspendedIcon]}>
+            <View style={[styles.iconContainer, { backgroundColor: statusColorLight }]}>
               <Ionicons
-                name={isBanned ? 'ban' : 'time'}
-                size={64}
-                color={isBanned ? couleurs.erreur : couleurs.alerte}
+                name={isBanned ? 'ban' : 'time-outline'}
+                size={56}
+                color={statusColor}
               />
+            </View>
+
+            {/* Badge status */}
+            <View style={[styles.statusBadge, { backgroundColor: statusColorLight }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {isBanned ? 'BANNI' : 'SUSPENDU'}
+              </Text>
             </View>
 
             {/* Titre */}
             <Text style={styles.title}>
-              {isBanned ? 'Compte suspendu' : 'Compte temporairement suspendu'}
+              {isBanned ? 'Compte suspendu' : 'Acces temporairement restreint'}
             </Text>
 
             {/* Message */}
@@ -117,71 +161,119 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
 
             {/* Loading indicator */}
             {isLoading && (
-              <ActivityIndicator size="small" color={couleurs.texteSecondaire} style={styles.loader} />
+              <ActivityIndicator
+                size="small"
+                color={couleurs.texteSecondaire}
+                style={styles.loader}
+              />
             )}
 
-            {/* Infos de la sanction (date et role) */}
-            {(sanctionDate || actorRole) && !isLoading && (
-              <View style={styles.sanctionInfoContainer}>
-                {sanctionDate && (
-                  <View style={styles.sanctionInfoRow}>
-                    <Ionicons name="calendar-outline" size={16} color={couleurs.texteDesactive} />
-                    <Text style={styles.sanctionInfoText}>
-                      Decision prise le {formatDate(sanctionDate)}
-                    </Text>
+            {/* Card principale avec les details */}
+            {!isLoading && (reason || sanctionDate || actorRole || postSnapshot) && (
+              <View style={styles.detailsCard}>
+                {/* Infos de la sanction (date et role) */}
+                {(sanctionDate || actorRole) && (
+                  <View style={styles.metaSection}>
+                    {sanctionDate && (
+                      <View style={styles.metaRow}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={16}
+                          color={couleurs.texteMuted}
+                        />
+                        <Text style={styles.metaText}>
+                          {formatDate(sanctionDate)}
+                        </Text>
+                      </View>
+                    )}
+                    {actorRole && (
+                      <View style={styles.metaRow}>
+                        <Ionicons
+                          name="shield-checkmark-outline"
+                          size={16}
+                          color={couleurs.texteMuted}
+                        />
+                        <Text style={styles.metaText}>
+                          Decision par : {getRoleLabel(actorRole)}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
-                {actorRole && (
-                  <View style={styles.sanctionInfoRow}>
-                    <Ionicons name="shield-outline" size={16} color={couleurs.texteDesactive} />
-                    <Text style={styles.sanctionInfoText}>
-                      Par : {getRoleLabel(actorRole)}
-                    </Text>
+
+                {/* Separateur */}
+                {(sanctionDate || actorRole) && reason && (
+                  <View style={styles.separator} />
+                )}
+
+                {/* Raison de la sanction */}
+                {reason && (
+                  <View style={styles.reasonSection}>
+                    <View style={styles.reasonHeader}>
+                      <Ionicons
+                        name="document-text-outline"
+                        size={16}
+                        color={statusColor}
+                      />
+                      <Text style={[styles.reasonLabel, { color: statusColor }]}>
+                        Motif de la sanction
+                      </Text>
+                    </View>
+                    <Text style={styles.reasonText}>{reason}</Text>
                   </View>
                 )}
-              </View>
-            )}
 
-            {/* Raison de la sanction (si fournie) */}
-            {reason && (
-              <View style={[styles.reasonContainer, !isBanned && styles.suspendedReasonContainer]}>
-                <Text style={[styles.reasonLabel, !isBanned && styles.suspendedReasonLabel]}>Raison :</Text>
-                <Text style={styles.reasonText}>{reason}</Text>
-              </View>
-            )}
-
-            {/* Post concerne (si disponible) */}
-            {postSnapshot && (
-              <View style={styles.postContainer}>
-                <Text style={styles.postLabel}>Contenu concerne :</Text>
-                {postSnapshot.mediaUrl && (
-                  <Image
-                    source={{ uri: postSnapshot.mediaUrl }}
-                    style={styles.postImage}
-                    resizeMode="cover"
-                  />
-                )}
-                {postSnapshot.contenu && (
-                  <Text style={styles.postContent} numberOfLines={3}>
-                    {postSnapshot.contenu}
-                  </Text>
+                {/* Post concerne (si disponible) */}
+                {postSnapshot && (
+                  <>
+                    <View style={styles.separator} />
+                    <View style={styles.postSection}>
+                      <View style={styles.postHeader}>
+                        <Ionicons
+                          name="image-outline"
+                          size={16}
+                          color={couleurs.texteMuted}
+                        />
+                        <Text style={styles.postLabel}>Contenu concerne</Text>
+                      </View>
+                      {postSnapshot.mediaUrl && (
+                        <Image
+                          source={{ uri: postSnapshot.mediaUrl }}
+                          style={styles.postImage}
+                          resizeMode="cover"
+                        />
+                      )}
+                      {postSnapshot.contenu && (
+                        <Text style={styles.postContent} numberOfLines={3}>
+                          "{postSnapshot.contenu}"
+                        </Text>
+                      )}
+                    </View>
+                  </>
                 )}
               </View>
             )}
 
             {/* Date de fin de suspension */}
             {!isBanned && suspendedUntil && (
-              <View style={styles.suspensionContainer}>
-                <Ionicons name="calendar-outline" size={20} color={couleurs.texteSecondaire} />
-                <Text style={styles.suspensionText}>
-                  Suspension levee le {formatSuspendedUntil(suspendedUntil)}
-                </Text>
+              <View style={styles.suspensionCard}>
+                <Ionicons
+                  name="hourglass-outline"
+                  size={20}
+                  color={couleurs.warning}
+                />
+                <View style={styles.suspensionTextContainer}>
+                  <Text style={styles.suspensionLabel}>Fin de suspension</Text>
+                  <Text style={styles.suspensionDate}>
+                    {formatSuspendedUntil(suspendedUntil)}
+                  </Text>
+                </View>
               </View>
             )}
 
             {/* Info contact */}
             <Text style={styles.contactInfo}>
-              Si vous pensez qu'il s'agit d'une erreur, veuillez contacter le support.
+              Si vous pensez qu'il s'agit d'une erreur, contactez le support.
             </Text>
 
             {/* Bouton retour connexion */}
@@ -192,18 +284,27 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
               ]}
               onPress={onDismiss}
             >
-              <Text style={styles.buttonText}>Retour a la connexion</Text>
+              <LinearGradient
+                colors={couleurs.gradientPrimaire}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.buttonGradient}
+              >
+                <Ionicons name="log-out-outline" size={20} color={couleurs.blanc} />
+                <Text style={styles.buttonText}>Retour a la connexion</Text>
+              </LinearGradient>
             </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: couleurs.fond,
   },
   safeArea: {
     flex: 1,
@@ -215,144 +316,179 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     paddingHorizontal: espacements.xl,
-    paddingVertical: espacements.xl,
+    paddingVertical: espacements.xxl,
+  },
+  headerGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    opacity: 0.5,
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: espacements.xl,
+    marginBottom: espacements.lg,
   },
-  bannedIcon: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.full,
+    marginBottom: espacements.lg,
+    gap: espacements.xs,
   },
-  suspendedIcon: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: typographie.tailles.xs,
+    fontWeight: typographie.poids.bold,
+    letterSpacing: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: typographie.tailles.xxl,
     fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
+    color: couleurs.texte,
     textAlign: 'center',
-    marginBottom: espacements.md,
+    marginBottom: espacements.sm,
   },
   message: {
-    fontSize: 16,
+    fontSize: typographie.tailles.base,
     color: couleurs.texteSecondaire,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: espacements.lg,
+    marginBottom: espacements.xl,
   },
   loader: {
     marginBottom: espacements.lg,
   },
-  sanctionInfoContainer: {
-    backgroundColor: 'rgba(100, 100, 100, 0.1)',
-    borderRadius: 12,
-    padding: espacements.md,
+  detailsCard: {
+    backgroundColor: couleurs.fondCard,
+    borderRadius: rayons.lg,
+    padding: espacements.lg,
     marginBottom: espacements.lg,
     width: '100%',
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  metaSection: {
     gap: espacements.sm,
   },
-  sanctionInfoRow: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: espacements.sm,
   },
-  sanctionInfoText: {
-    fontSize: 13,
-    color: couleurs.texteDesactive,
+  metaText: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteMuted,
   },
-  reasonContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 12,
-    padding: espacements.md,
-    marginBottom: espacements.lg,
-    width: '100%',
+  separator: {
+    height: 1,
+    backgroundColor: couleurs.bordure,
+    marginVertical: espacements.md,
+  },
+  reasonSection: {
+    gap: espacements.sm,
+  },
+  reasonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
   },
   reasonLabel: {
-    fontSize: 14,
-    fontWeight: typographie.poids.semiBold,
-    color: couleurs.erreur,
-    marginBottom: espacements.xs,
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
   },
   reasonText: {
-    fontSize: 14,
+    fontSize: typographie.tailles.sm,
     color: couleurs.texteSecondaire,
     lineHeight: 20,
   },
-  suspendedReasonContainer: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  postSection: {
+    gap: espacements.sm,
   },
-  suspendedReasonLabel: {
-    color: couleurs.alerte,
-  },
-  postContainer: {
-    backgroundColor: 'rgba(100, 100, 100, 0.1)',
-    borderRadius: 12,
-    padding: espacements.md,
-    marginBottom: espacements.lg,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 100, 100, 0.3)',
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
   },
   postLabel: {
-    fontSize: 12,
-    fontWeight: typographie.poids.semiBold,
-    color: couleurs.texteDesactive,
-    marginBottom: espacements.sm,
-    textTransform: 'uppercase',
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.medium,
+    color: couleurs.texteMuted,
   },
   postImage: {
     width: '100%',
     height: 120,
-    borderRadius: 8,
-    marginBottom: espacements.sm,
+    borderRadius: rayons.md,
   },
   postContent: {
-    fontSize: 14,
+    fontSize: typographie.tailles.sm,
     color: couleurs.texteSecondaire,
     fontStyle: 'italic',
     lineHeight: 20,
   },
-  suspensionContainer: {
+  suspensionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 12,
-    padding: espacements.md,
+    backgroundColor: couleurs.accentLight,
+    borderRadius: rayons.lg,
+    padding: espacements.lg,
     marginBottom: espacements.lg,
-    gap: espacements.sm,
+    gap: espacements.md,
     width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 189, 89, 0.3)',
   },
-  suspensionText: {
-    fontSize: 14,
-    color: couleurs.texteSecondaire,
+  suspensionTextContainer: {
     flex: 1,
   },
+  suspensionLabel: {
+    fontSize: typographie.tailles.xs,
+    color: couleurs.texteMuted,
+    marginBottom: 2,
+  },
+  suspensionDate: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texte,
+    fontWeight: typographie.poids.medium,
+  },
   contactInfo: {
-    fontSize: 13,
-    color: couleurs.texteDesactive,
+    fontSize: typographie.tailles.xs,
+    color: couleurs.texteMuted,
     textAlign: 'center',
     marginBottom: espacements.xl,
   },
   button: {
-    backgroundColor: couleurs.primaire,
-    paddingVertical: espacements.md,
-    paddingHorizontal: espacements.xl,
-    borderRadius: 12,
-    minWidth: 200,
+    width: '100%',
+    borderRadius: rayons.lg,
+    overflow: 'hidden',
   },
   buttonPressed: {
-    opacity: 0.8,
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.xl,
+    gap: espacements.sm,
   },
   buttonText: {
-    fontSize: 16,
-    fontWeight: typographie.poids.semiBold,
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
     color: couleurs.blanc,
-    textAlign: 'center',
   },
 });
 
