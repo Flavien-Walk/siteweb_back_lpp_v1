@@ -208,11 +208,12 @@ export const suspendUser = async (
 
     const suspendedUntil = new Date(Date.now() + donnees.durationHours * 60 * 60 * 1000);
     const snapshot = {
-      before: { suspendedUntil: target.suspendedUntil?.toISOString() || null },
-      after: { suspendedUntil: suspendedUntil.toISOString() },
+      before: { suspendedUntil: target.suspendedUntil?.toISOString() || null, suspendReason: target.suspendReason || null },
+      after: { suspendedUntil: suspendedUntil.toISOString(), suspendReason: donnees.reason },
     };
 
     target.suspendedUntil = suspendedUntil;
+    target.suspendReason = donnees.reason;
     await target.save();
 
     // Log de l'action
@@ -262,11 +263,12 @@ export const unsuspendUser = async (
     }
 
     const snapshot = {
-      before: { suspendedUntil: target.suspendedUntil?.toISOString() },
-      after: { suspendedUntil: null },
+      before: { suspendedUntil: target.suspendedUntil?.toISOString(), suspendReason: target.suspendReason || null },
+      after: { suspendedUntil: null, suspendReason: null },
     };
 
     target.suspendedUntil = null;
+    target.suspendReason = undefined;
     await target.save();
 
     // Log de l'action
@@ -667,7 +669,7 @@ export const getUserModerationDetails = async (
     }
 
     const user = await Utilisateur.findById(userId)
-      .select('prenom nom email avatar role permissions bannedAt banReason suspendedUntil warnings dateCreation')
+      .select('prenom nom email avatar role permissions bannedAt banReason suspendedUntil suspendReason warnings dateCreation')
       .populate('warnings.issuedBy', '_id prenom nom');
 
     if (!user) {
@@ -699,6 +701,7 @@ export const getUserModerationDetails = async (
           banReason: user.banReason,
           isSuspended: user.isSuspended(),
           suspendedUntil: user.suspendedUntil,
+          suspendReason: user.suspendReason,
           warnings: user.warnings,
           activeWarningsCount: activeWarnings.length,
           totalWarningsCount: user.warnings.length,
@@ -760,7 +763,7 @@ export const listUsers = async (
 
     const [users, total] = await Promise.all([
       Utilisateur.find(filter)
-        .select('_id prenom nom email avatar role bannedAt suspendedUntil warnings dateCreation')
+        .select('_id prenom nom email avatar role bannedAt banReason suspendedUntil suspendReason warnings dateCreation')
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limit)
@@ -930,7 +933,7 @@ export const getUserModerationTimeline = async (
 
     // Récupérer l'utilisateur avec ses warnings
     const user = await Utilisateur.findById(userId)
-      .select('_id prenom nom email avatar role bannedAt banReason suspendedUntil warnings dateCreation')
+      .select('_id prenom nom email avatar role bannedAt banReason suspendedUntil suspendReason warnings dateCreation')
       .populate('warnings.issuedBy', '_id prenom nom')
       .lean();
 
@@ -1051,6 +1054,7 @@ export const getUserModerationTimeline = async (
           bannedAt: user.bannedAt,
           banReason: user.banReason,
           suspendedUntil: user.suspendedUntil,
+          suspendReason: user.suspendReason,
         },
         summary,
         timeline: timeline.slice(0, 100), // Limiter à 100 entrées
@@ -1090,7 +1094,7 @@ export const getUserActivity = async (
 
     // Vérifier que l'utilisateur existe
     const user = await Utilisateur.findById(userId)
-      .select('_id prenom nom email avatar role bannedAt banReason suspendedUntil warnings dateCreation')
+      .select('_id prenom nom email avatar role bannedAt banReason suspendedUntil suspendReason warnings dateCreation')
       .lean();
 
     if (!user) {

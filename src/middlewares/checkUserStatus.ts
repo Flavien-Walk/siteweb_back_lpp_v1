@@ -37,12 +37,12 @@ export const checkUserStatus = (
 
   // Vérifier si l'utilisateur est suspendu temporairement
   if (utilisateur.isSuspended()) {
-    const suspendedUntil = utilisateur.suspendedUntil;
     res.status(403).json({
       succes: false,
       message: 'Votre compte est temporairement suspendu.',
       code: 'ACCOUNT_SUSPENDED',
-      suspendedUntil: suspendedUntil?.toISOString(),
+      reason: utilisateur.suspendReason || undefined,
+      suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
     });
     return;
   }
@@ -108,6 +108,7 @@ export const requirePermission = (permission: Permission) => {
         succes: false,
         message: 'Votre compte a été suspendu définitivement.',
         code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
       });
       return;
     }
@@ -117,6 +118,8 @@ export const requirePermission = (permission: Permission) => {
         succes: false,
         message: 'Votre compte est temporairement suspendu.',
         code: 'ACCOUNT_SUSPENDED',
+        reason: utilisateur.suspendReason || undefined,
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
       });
       return;
     }
@@ -153,11 +156,22 @@ export const requireAllPermissions = (permissions: Permission[]) => {
     }
 
     // Vérifier le statut
-    if (utilisateur.isBanned() || utilisateur.isSuspended()) {
+    if (utilisateur.isBanned()) {
       res.status(403).json({
         succes: false,
-        message: 'Compte suspendu ou banni.',
-        code: utilisateur.isBanned() ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
+        message: 'Votre compte a été suspendu définitivement.',
+        code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
+      });
+      return;
+    }
+    if (utilisateur.isSuspended()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+        code: 'ACCOUNT_SUSPENDED',
+        reason: utilisateur.suspendReason || undefined,
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
       });
       return;
     }
@@ -196,11 +210,22 @@ export const requireAnyPermission = (permissions: Permission[]) => {
     }
 
     // Vérifier le statut
-    if (utilisateur.isBanned() || utilisateur.isSuspended()) {
+    if (utilisateur.isBanned()) {
       res.status(403).json({
         succes: false,
-        message: 'Compte suspendu ou banni.',
-        code: utilisateur.isBanned() ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
+        message: 'Votre compte a été suspendu définitivement.',
+        code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
+      });
+      return;
+    }
+    if (utilisateur.isSuspended()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+        code: 'ACCOUNT_SUSPENDED',
+        reason: utilisateur.suspendReason || undefined,
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
       });
       return;
     }
@@ -242,11 +267,22 @@ export const requireMinRole = (minRole: 'modo_test' | 'modo' | 'admin_modo' | 's
     }
 
     // Vérifier le statut
-    if (utilisateur.isBanned() || utilisateur.isSuspended()) {
+    if (utilisateur.isBanned()) {
       res.status(403).json({
         succes: false,
-        message: 'Compte suspendu ou banni.',
-        code: utilisateur.isBanned() ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
+        message: 'Votre compte a été suspendu définitivement.',
+        code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
+      });
+      return;
+    }
+    if (utilisateur.isSuspended()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+        code: 'ACCOUNT_SUSPENDED',
+        reason: utilisateur.suspendReason || undefined,
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
       });
       return;
     }

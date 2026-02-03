@@ -134,6 +134,7 @@ export const connexion = async (
         succes: false,
         message: 'Votre compte est temporairement suspendu.',
         code: 'ACCOUNT_SUSPENDED',
+        reason: utilisateur.suspendReason || undefined,
         suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
       });
       return;
@@ -208,6 +209,7 @@ export const moi = async (
         succes: false,
         message: 'Votre compte est temporairement suspendu.',
         code: 'ACCOUNT_SUSPENDED',
+        reason: utilisateur.suspendReason || undefined,
         suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
       });
       return;
@@ -394,6 +396,7 @@ export const exchangeOAuthCode = async (
         succes: false,
         message: 'Votre compte est temporairement suspendu.',
         code: 'ACCOUNT_SUSPENDED',
+        reason: utilisateur.suspendReason || undefined,
         suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
       });
       return;

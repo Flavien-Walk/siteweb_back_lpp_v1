@@ -101,6 +101,7 @@ export interface IUtilisateur extends Document {
   demandesAmisEnvoyees: mongoose.Types.ObjectId[];
   // Champs de modération
   suspendedUntil?: Date | null;
+  suspendReason?: string;
   bannedAt?: Date | null;
   banReason?: string;
   warnings: IWarning[];
@@ -213,6 +214,11 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     // Champs de modération
     suspendedUntil: {
       type: Date,
+      default: null,
+    },
+    suspendReason: {
+      type: String,
+      maxlength: [500, 'La raison de la suspension ne peut pas dépasser 500 caractères'],
       default: null,
     },
     bannedAt: {
