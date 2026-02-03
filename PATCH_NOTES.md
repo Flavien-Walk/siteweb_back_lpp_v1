@@ -295,6 +295,184 @@ aa2a24a feat(ux): P1-3 - Modales de confirmation actions dangereuses
 
 ---
 
+## DB INDEX ROLLOUT SAFETY
+
+### Comportement Mongoose au demarrage
+
+Mongoose appelle `ensureIndexes()` automatiquement au boot. Les nouveaux indexes seront crees:
+- **AuditLog**: `{ eventId: 1 }` unique sparse
+- **Notification**: `{ 'data.eventId': 1 }` unique sparse partial
+
+### Impact sur les documents existants
+
+| Collection | Documents existants | Impact |
+|------------|---------------------|--------|
+| AuditLog | eventId = undefined | Ignores par sparse index (OK) |
+| Notification | data.eventId = undefined | Ignores par sparse + partial (OK) |
+
+**Aucune migration necessaire** - les index sparse/partial n'indexent que les documents avec le champ present.
+
+### Temps de creation estimé
+
+- Index sparse sur collection vide/petite: < 1 seconde
+- Index sparse sur collection 100k docs: < 5 secondes
+- **Zero downtime** - creation en background par defaut
+
+---
+
+## ROLLBACK DB INDEXES
+
+Si probleme avec les indexes (conflit, performance), voici comment les supprimer:
+
+### Via MongoDB Shell / Compass
+
+```javascript
+// Supprimer index AuditLog
+db.auditlogs.dropIndex('eventId_1')
+
+// Supprimer index Notification
+db.notifications.dropIndex('data.eventId_1')
+```
+
+### Via Mongoose (code temporaire)
+
+```typescript
+// Dans app.ts, TEMPORAIREMENT apres connexion DB
+import AuditLog from './models/AuditLog.js';
+import Notification from './models/Notification.js';
+
+mongoose.connection.once('open', async () => {
+  await AuditLog.collection.dropIndex('eventId_1').catch(() => {});
+  await Notification.collection.dropIndex('data.eventId_1').catch(() => {});
+  console.log('Indexes dropped');
+});
+```
+
+### Verification suppression
+
+```javascript
+db.auditlogs.getIndexes()
+db.notifications.getIndexes()
+// eventId_1 / data.eventId_1 ne doit plus apparaitre
+```
+
+---
+
+## MIGRATION / COMPAT ANCIENS DOCS
+
+### Documents AuditLog existants
+
+Les AuditLog crees AVANT ce patch n'ont pas de champ `eventId`.
+
+**Comportement:**
+- Lecture: fonctionne normalement
+- Idempotency: non applicable (pas d'eventId)
+- Index: ignores (sparse)
+
+**Action requise:** Aucune
+
+### Documents Notification existants
+
+Les notifications de sanctions creees AVANT ce patch n'ont pas `data.eventId`.
+
+**Comportement:**
+- Lecture: fonctionne normalement
+- Affichage mobile: identique
+- Index: ignores (sparse + partial)
+
+**Action requise:** Aucune
+
+### Nouveaux documents
+
+Tous les nouveaux documents de sanction auront automatiquement un `eventId`:
+- Genere par `getOrCreateEventId(req)` dans le controller
+- Ou fourni par le client via header `X-Event-Id`
+
+---
+
+## KNOWN LIMITATIONS
+
+### 1. Idempotency window
+
+L'idempotency est **permanente** (basee sur eventId unique).
+- Avantage: Protection absolue contre les doublons
+- Limitation: Un eventId ne peut JAMAIS etre reutilise
+
+### 2. Client eventId responsibility
+
+Si le client mobile envoie le meme `X-Event-Id` pour deux actions DIFFERENTES:
+- La 2eme action sera ignoree (retourne `idempotent: true`)
+- Solution: Le client doit generer un nouvel UUID/ObjectId pour chaque action
+
+### 3. Rate limit /auth/moi
+
+Le rate limit de 20 req/min est applique **par IP**.
+- Plusieurs users sur le meme WiFi partagent le quota
+- En pratique, peu probable d'atteindre la limite en usage normal
+
+### 4. JWT token rotation
+
+Les tokens existants restent valides apres le patch (deja signes HS256).
+Aucune invalidation necessaire.
+
+### 5. Logs mobile en release
+
+Les logs conditionnes par `__DEV__` sont:
+- **Presents** dans le bundle JS (code non supprime)
+- **Non executes** car `__DEV__ === false`
+- Pour une suppression totale, utiliser babel-plugin-transform-remove-console
+
+---
+
+## PROTOCOLE DE PUSH
+
+### Pre-requis
+
+```bash
+# Verifier que tout est commite
+git status  # Doit etre clean sur chaque branche
+```
+
+### Ordre de push (CRITIQUE)
+
+1. **Backend en premier** (les autres dependent de l'API)
+2. **Moderation ensuite** (panel admin)
+3. **Mobile en dernier** (clients)
+
+### Commandes exactes
+
+```bash
+# 1. BACKEND
+git checkout backend
+git push origin backend
+# Attendre deploy Render (2-3 min)
+# Verifier: https://your-api.onrender.com/api/health
+
+# 2. MODERATION
+git checkout Moderation
+git push origin Moderation
+# Verifier: panel accessible
+
+# 3. MOBILE
+git checkout DevMobile
+git push origin DevMobile
+# expo build si necessaire
+```
+
+### Post-deploy checks
+
+| Check | Commande/Action | Attendu |
+|-------|-----------------|---------|
+| API Health | `curl https://api.../health` | 200 OK |
+| Indexes | MongoDB Compass → Indexes | eventId_1 present |
+| Idempotency | Double POST /warn meme eventId | 2eme = idempotent:true |
+| JWT | Token alg:none | 401 Unauthorized |
+| Rate limit | 25x GET /auth/moi en 1 min | 429 apres 20 |
+| Panel | Clic Bannir | Popup confirmation |
+| Mobile | Console en release | Pas de stack trace |
+
+---
+
 **Fin du rapport de patch**
 
 *Document genere par Claude Opus 4.5*
