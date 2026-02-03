@@ -9,7 +9,10 @@ export type TypeNotification =
   | 'ami_accepte'
   | 'nouveau_commentaire'
   | 'nouveau_like'
-  | 'like_commentaire';
+  | 'like_commentaire'
+  | 'sanction_ban'
+  | 'sanction_suspend'
+  | 'sanction_warn';
 
 export interface INotificationData {
   userId?: string;
@@ -20,6 +23,17 @@ export interface INotificationData {
   projetNom?: string;
   publicationId?: string;
   commentaireId?: string;
+  // Champs pour les sanctions
+  sanctionType?: 'ban' | 'suspend' | 'warn';
+  reason?: string;
+  suspendedUntil?: string;
+  postId?: string;
+  postSnapshot?: {
+    contenu?: string;
+    mediaUrl?: string;
+  };
+  actorId?: string;
+  actorRole?: string;
 }
 
 export interface INotification extends Document {
@@ -43,7 +57,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn'],
       required: true,
     },
     titre: {
@@ -69,6 +83,17 @@ const notificationSchema = new Schema<INotification>(
         projetNom: String,
         publicationId: String,
         commentaireId: String,
+        // Champs pour les sanctions
+        sanctionType: { type: String, enum: ['ban', 'suspend', 'warn'] },
+        reason: String,
+        suspendedUntil: String,
+        postId: String,
+        postSnapshot: {
+          contenu: String,
+          mediaUrl: String,
+        },
+        actorId: String,
+        actorRole: String,
       },
       default: null,
     },

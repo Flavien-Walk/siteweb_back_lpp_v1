@@ -7,6 +7,7 @@ import Commentaire from '../models/Commentaire.js';
 import AuditLog from '../models/AuditLog.js';
 import Report from '../models/Report.js';
 import { auditLogger } from '../utils/auditLogger.js';
+import { createSanctionNotification } from '../utils/sanctionNotification.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
 // ============ SCHEMAS DE VALIDATION ============
@@ -103,12 +104,24 @@ export const warnUser = async (
       totalWarnings: target.warnings.length,
     });
 
+    // Creer une notification pour l'utilisateur sanctionne
+    const postId = req.body.postId; // Optionnel: ID du post concerne
+    const notificationId = await createSanctionNotification({
+      targetUserId: target._id,
+      sanctionType: 'warn',
+      reason: donnees.reason,
+      postId,
+      actorId: moderator._id,
+      actorRole: moderator.role,
+    });
+
     res.status(200).json({
       succes: true,
       message: 'Avertissement envoyé.',
       data: {
         warning: target.warnings[target.warnings.length - 1],
         totalWarnings: target.warnings.length,
+        notificationId,
       },
     });
   } catch (error) {
@@ -219,12 +232,25 @@ export const suspendUser = async (
     // Log de l'action
     await auditLogger.actions.suspendUser(req, target._id, donnees.reason, suspendedUntil, snapshot);
 
+    // Creer une notification pour l'utilisateur sanctionne
+    const postId = req.body.postId; // Optionnel: ID du post concerne
+    const notificationId = await createSanctionNotification({
+      targetUserId: target._id,
+      sanctionType: 'suspend',
+      reason: donnees.reason,
+      suspendedUntil,
+      postId,
+      actorId: moderator._id,
+      actorRole: moderator.role,
+    });
+
     res.status(200).json({
       succes: true,
       message: `Utilisateur suspendu jusqu'au ${suspendedUntil.toLocaleString('fr-FR')}.`,
       data: {
         suspendedUntil: suspendedUntil.toISOString(),
         durationHours: donnees.durationHours,
+        notificationId,
       },
     });
   } catch (error) {
@@ -334,12 +360,24 @@ export const banUser = async (
     // Log de l'action
     await auditLogger.actions.banUser(req, target._id, donnees.reason, snapshot);
 
+    // Creer une notification pour l'utilisateur sanctionne
+    const postId = req.body.postId; // Optionnel: ID du post concerne
+    const notificationId = await createSanctionNotification({
+      targetUserId: target._id,
+      sanctionType: 'ban',
+      reason: donnees.reason,
+      postId,
+      actorId: moderator._id,
+      actorRole: moderator.role,
+    });
+
     res.status(200).json({
       succes: true,
       message: 'Utilisateur banni définitivement.',
       data: {
         bannedAt: target.bannedAt.toISOString(),
         banReason: target.banReason,
+        notificationId,
       },
     });
   } catch (error) {

@@ -7,6 +7,7 @@ import {
   callbackOAuth,
   getOAuthToken,
   exchangeOAuthCode,
+  getSanctionInfo,
 } from '../controllers/authController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { generateOAuthState } from '../utils/oauthStore.js';
@@ -51,6 +52,13 @@ router.post('/connexion', connexion);
  * Recuperer les informations de l'utilisateur connecte
  */
 router.get('/moi', verifierJwt, moi);
+
+/**
+ * GET /api/auth/sanction-info
+ * Recuperer les informations de sanction (accessible meme si banni/suspendu)
+ * Permet d'afficher la raison et le post concerne sur l'ecran de restriction
+ */
+router.get('/sanction-info', verifierJwt, getSanctionInfo);
 
 // ============================================
 // ROUTES OAUTH - GOOGLE

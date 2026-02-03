@@ -8,6 +8,7 @@ import {
   generateTemporaryCode,
   validateTemporaryCode,
 } from '../utils/oauthStore.js';
+import { getLatestSanctionNotification } from '../utils/sanctionNotification.js';
 
 /**
  * Inscription d'un nouvel utilisateur
@@ -469,5 +470,68 @@ export const getOAuthToken = (req: Request, res: Response): void => {
       succes: false,
       message: 'Erreur lors de la recuperation du token',
     });
+  }
+};
+
+/**
+ * Recuperer les informations de sanction d'un utilisateur
+ * GET /api/auth/sanction-info
+ *
+ * Accessible meme si le compte est banni/suspendu (pas de checkUserStatus)
+ * Permet au client mobile d'afficher la raison et le post concerne
+ */
+export const getSanctionInfo = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const utilisateur = req.utilisateur!;
+
+    // Determiner le statut de restriction
+    const isBanned = utilisateur.isBanned();
+    const isSuspended = utilisateur.isSuspended();
+
+    if (!isBanned && !isSuspended) {
+      // Pas de sanction active
+      res.status(200).json({
+        succes: true,
+        data: {
+          isRestricted: false,
+        },
+      });
+      return;
+    }
+
+    // Recuperer la derniere notification de sanction
+    const notification = await getLatestSanctionNotification(utilisateur._id);
+
+    // Construire la reponse
+    const sanctionInfo: Record<string, unknown> = {
+      isRestricted: true,
+      type: isBanned ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
+      reason: isBanned ? utilisateur.banReason : utilisateur.suspendReason,
+      bannedAt: isBanned ? utilisateur.bannedAt?.toISOString() : undefined,
+      suspendedUntil: isSuspended ? utilisateur.suspendedUntil?.toISOString() : undefined,
+    };
+
+    // Ajouter les infos de la notification si presente
+    if (notification) {
+      sanctionInfo.notificationId = notification._id;
+      sanctionInfo.notificationDate = notification.dateCreation;
+
+      // Ajouter le snapshot du post si disponible
+      if (notification.data?.postSnapshot) {
+        sanctionInfo.postSnapshot = notification.data.postSnapshot;
+        sanctionInfo.postId = notification.data.postId;
+      }
+    }
+
+    res.status(200).json({
+      succes: true,
+      data: sanctionInfo,
+    });
+  } catch (error) {
+    next(error);
   }
 };
