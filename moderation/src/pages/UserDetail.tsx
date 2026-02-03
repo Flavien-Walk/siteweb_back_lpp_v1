@@ -790,7 +790,12 @@ export function UserDetailPage() {
                     <Button
                       className="w-full"
                       variant="outline"
-                      onClick={() => warnMutation.mutate(warnReason)}
+                      onClick={() => {
+                        // P1-3: Confirmation avant action
+                        if (window.confirm(`Confirmer l'avertissement ?\n\nRaison : ${warnReason}\nUtilisateur : ${user.prenom} ${user.nom}`)) {
+                          warnMutation.mutate(warnReason)
+                        }
+                      }}
                       disabled={!warnReason.trim() || warnMutation.isPending}
                     >
                       <AlertTriangle className="mr-2 h-4 w-4" />
@@ -822,10 +827,17 @@ export function UserDetailPage() {
                     <Button
                       className="w-full"
                       variant="warning"
-                      onClick={() => suspendMutation.mutate({
-                        reason: suspendReason,
-                        durationHours: parseInt(suspendDuration),
-                      })}
+                      onClick={() => {
+                        // P1-3: Confirmation avant suspension
+                        const duration = parseInt(suspendDuration)
+                        const durationText = duration >= 24 ? `${duration / 24} jour(s)` : `${duration} heure(s)`
+                        if (window.confirm(`Confirmer la suspension ?\n\nUtilisateur : ${user.prenom} ${user.nom}\nDurée : ${durationText}\nRaison : ${suspendReason}`)) {
+                          suspendMutation.mutate({
+                            reason: suspendReason,
+                            durationHours: duration,
+                          })
+                        }
+                      }}
                       disabled={!suspendReason.trim() || suspendMutation.isPending}
                     >
                       <Clock className="mr-2 h-4 w-4" />
@@ -841,7 +853,12 @@ export function UserDetailPage() {
                       <Button
                         className="w-full"
                         variant="default"
-                        onClick={() => unbanMutation.mutate()}
+                        onClick={() => {
+                          // P1-3: Confirmation avant débannissement
+                          if (window.confirm(`Confirmer le débannissement ?\n\nUtilisateur : ${user.prenom} ${user.nom}\n\nCette action rétablira l'accès au compte.`)) {
+                            unbanMutation.mutate()
+                          }
+                        }}
                         disabled={unbanMutation.isPending}
                       >
                         <CheckCircle className="mr-2 h-4 w-4" />
@@ -849,7 +866,7 @@ export function UserDetailPage() {
                       </Button>
                     ) : (
                       <>
-                        <label className="text-sm font-medium">Bannir définitivement</label>
+                        <label className="text-sm font-medium text-destructive">Bannir définitivement</label>
                         <Input
                           placeholder="Raison du bannissement"
                           value={banReason}
@@ -858,11 +875,16 @@ export function UserDetailPage() {
                         <Button
                           className="w-full"
                           variant="destructive"
-                          onClick={() => banMutation.mutate(banReason)}
+                          onClick={() => {
+                            // P1-3: Confirmation OBLIGATOIRE avant bannissement (action irréversible)
+                            if (window.confirm(`⚠️ BANNISSEMENT DÉFINITIF ⚠️\n\nUtilisateur : ${user.prenom} ${user.nom}\nRaison : ${banReason}\n\nCette action est DÉFINITIVE. L'utilisateur ne pourra plus accéder à son compte.\n\nÊtes-vous sûr de vouloir continuer ?`)) {
+                              banMutation.mutate(banReason)
+                            }
+                          }}
                           disabled={!banReason.trim() || banMutation.isPending}
                         >
                           <Ban className="mr-2 h-4 w-4" />
-                          Bannir
+                          Bannir définitivement
                         </Button>
                       </>
                     )}
