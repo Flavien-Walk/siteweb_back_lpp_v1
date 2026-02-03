@@ -12,7 +12,10 @@ export type TypeNotification =
   | 'like_commentaire'
   | 'sanction_ban'
   | 'sanction_suspend'
-  | 'sanction_warn';
+  | 'sanction_warn'
+  | 'sanction_unban'
+  | 'sanction_unsuspend'
+  | 'sanction_unwarn';
 
 export interface INotificationData {
   userId?: string;
@@ -24,7 +27,7 @@ export interface INotificationData {
   publicationId?: string;
   commentaireId?: string;
   // Champs pour les sanctions
-  sanctionType?: 'ban' | 'suspend' | 'warn';
+  sanctionType?: 'ban' | 'suspend' | 'warn' | 'unban' | 'unsuspend' | 'unwarn';
   reason?: string;
   suspendedUntil?: string;
   postId?: string;
@@ -57,7 +60,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn'],
       required: true,
     },
     titre: {
@@ -84,7 +87,7 @@ const notificationSchema = new Schema<INotification>(
         publicationId: String,
         commentaireId: String,
         // Champs pour les sanctions
-        sanctionType: { type: String, enum: ['ban', 'suspend', 'warn'] },
+        sanctionType: { type: String, enum: ['ban', 'suspend', 'warn', 'unban', 'unsuspend', 'unwarn'] },
         reason: String,
         suspendedUntil: String,
         postId: String,

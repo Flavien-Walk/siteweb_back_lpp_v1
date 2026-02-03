@@ -7,7 +7,7 @@ import Commentaire from '../models/Commentaire.js';
 import AuditLog from '../models/AuditLog.js';
 import Report from '../models/Report.js';
 import { auditLogger } from '../utils/auditLogger.js';
-import { createSanctionNotification } from '../utils/sanctionNotification.js';
+import { createSanctionNotification, createReverseSanctionNotification } from '../utils/sanctionNotification.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
 // ============ SCHEMAS DE VALIDATION ============
@@ -176,6 +176,15 @@ export const removeWarning = async (
       metadata: { removedWarning },
     });
 
+    // Notification de levée d'avertissement
+    await createReverseSanctionNotification({
+      targetUserId: target._id,
+      reverseSanctionType: 'unwarn',
+      reason: removedWarning.reason,
+      actorId: moderator._id,
+      actorRole: moderator.role,
+    });
+
     res.status(200).json({
       succes: true,
       message: 'Avertissement retiré.',
@@ -306,6 +315,14 @@ export const unsuspendUser = async (
       snapshot,
     });
 
+    // Notification de levée de suspension
+    await createReverseSanctionNotification({
+      targetUserId: target._id,
+      reverseSanctionType: 'unsuspend',
+      actorId: moderator._id,
+      actorRole: moderator.role,
+    });
+
     res.status(200).json({
       succes: true,
       message: 'Suspension levée.',
@@ -429,6 +446,15 @@ export const unbanUser = async (
 
     // Log de l'action
     await auditLogger.actions.unbanUser(req, target._id, donnees.reason, snapshot);
+
+    // Notification de débannissement
+    await createReverseSanctionNotification({
+      targetUserId: target._id,
+      reverseSanctionType: 'unban',
+      reason: donnees.reason,
+      actorId: moderator._id,
+      actorRole: moderator.role,
+    });
 
     res.status(200).json({
       succes: true,
