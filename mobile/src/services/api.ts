@@ -118,7 +118,7 @@ export const requeteAPI = async <T>(
       };
     }
 
-    const data: ReponseAPI<T> & { code?: string; suspendedUntil?: string } = await response.json();
+    const data: ReponseAPI<T> & { code?: string; reason?: string; suspendedUntil?: string } = await response.json();
 
     // Gérer les comptes bannis/suspendus (403)
     if (response.status === 403) {
@@ -146,6 +146,7 @@ export const requeteAPI = async <T>(
         const info: AccountRestrictionInfo = {
           type: 'ACCOUNT_SUSPENDED',
           message: data.message || 'Votre compte est temporairement suspendu.',
+          reason: data.reason,
           suspendedUntil: data.suspendedUntil,
         };
         // Notifier l'app pour déclencher la navigation vers l'écran de restriction

@@ -65,10 +65,10 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
             {restriction.message}
           </Text>
 
-          {/* Raison du ban (si fournie) */}
-          {isBanned && restriction.reason && (
-            <View style={styles.reasonContainer}>
-              <Text style={styles.reasonLabel}>Raison :</Text>
+          {/* Raison de la sanction (si fournie) */}
+          {restriction.reason && (
+            <View style={[styles.reasonContainer, !isBanned && styles.suspendedReasonContainer]}>
+              <Text style={[styles.reasonLabel, !isBanned && styles.suspendedReasonLabel]}>Raison :</Text>
               <Text style={styles.reasonText}>{restriction.reason}</Text>
             </View>
           )}
@@ -161,6 +161,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: couleurs.texteSecondaire,
     lineHeight: 20,
+  },
+  suspendedReasonContainer: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  },
+  suspendedReasonLabel: {
+    color: couleurs.alerte,
   },
   suspensionContainer: {
     flexDirection: 'row',
