@@ -14,6 +14,29 @@ export interface ReponseAPI<T = unknown> {
   erreurs?: Record<string, string>;
 }
 
+// Type pour les événements de restriction de compte
+export type AccountRestrictionType = 'ACCOUNT_BANNED' | 'ACCOUNT_SUSPENDED';
+export interface AccountRestrictionInfo {
+  type: AccountRestrictionType;
+  message: string;
+  reason?: string;
+  suspendedUntil?: string;
+}
+
+// Callback global pour les restrictions de compte
+// Sera défini par le UserContext pour déclencher la déconnexion forcée
+let onAccountRestricted: ((info: AccountRestrictionInfo) => void) | null = null;
+
+/**
+ * Enregistrer le callback de restriction de compte
+ * Appelé par le UserContext au montage
+ */
+export const setAccountRestrictionCallback = (
+  callback: ((info: AccountRestrictionInfo) => void) | null
+): void => {
+  onAccountRestricted = callback;
+};
+
 // Options pour les requêtes
 interface OptionsRequete {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -100,20 +123,38 @@ export const requeteAPI = async <T>(
     // Gérer les comptes bannis/suspendus (403)
     if (response.status === 403) {
       if (data.code === 'ACCOUNT_BANNED') {
-        // Déconnexion forcée et notification
+        // Déconnexion forcée et notification globale
         await removeToken();
+        const info: AccountRestrictionInfo = {
+          type: 'ACCOUNT_BANNED',
+          message: data.message || 'Votre compte a été suspendu définitivement.',
+          reason: (data as any).reason,
+        };
+        // Notifier l'app pour déclencher la navigation vers l'écran de restriction
+        if (onAccountRestricted) {
+          onAccountRestricted(info);
+        }
         return {
           succes: false,
-          message: data.message || 'Votre compte a été suspendu définitivement.',
+          message: info.message,
           erreurs: { code: 'ACCOUNT_BANNED' },
         };
       }
       if (data.code === 'ACCOUNT_SUSPENDED') {
         // Déconnexion forcée avec info de suspension
         await removeToken();
+        const info: AccountRestrictionInfo = {
+          type: 'ACCOUNT_SUSPENDED',
+          message: data.message || 'Votre compte est temporairement suspendu.',
+          suspendedUntil: data.suspendedUntil,
+        };
+        // Notifier l'app pour déclencher la navigation vers l'écran de restriction
+        if (onAccountRestricted) {
+          onAccountRestricted(info);
+        }
         return {
           succes: false,
-          message: data.message || 'Votre compte est temporairement suspendu.',
+          message: info.message,
           erreurs: {
             code: 'ACCOUNT_SUSPENDED',
             suspendedUntil: data.suspendedUntil || '',

@@ -10,17 +10,38 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/contextes/AuthContexte';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
-import { UserProvider } from '../src/contexts/UserContext';
+import { UserProvider, useUser } from '../src/contexts/UserContext';
 import SplashScreen from '../src/composants/SplashScreen';
+import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
 
 // Composant interne qui utilise le theme
 function AppContent() {
   const { couleurs, isDark } = useTheme();
+  const { accountRestriction, clearRestriction } = useUser();
   const [showSplash, setShowSplash] = useState(true);
 
   const handleSplashFinish = () => {
     setShowSplash(false);
   };
+
+  const handleDismissRestriction = () => {
+    clearRestriction();
+    // La navigation vers login sera gérée automatiquement
+    // car utilisateur sera null après clearRestriction
+  };
+
+  // Si le compte est restreint et que le splash est terminé, afficher l'écran de restriction
+  if (accountRestriction && !showSplash) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <AccountRestrictedScreen
+          restriction={accountRestriction}
+          onDismiss={handleDismissRestriction}
+        />
+      </>
+    );
+  }
 
   return (
     <>
