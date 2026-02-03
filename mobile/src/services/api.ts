@@ -45,10 +45,13 @@ let hydrationPromise: Promise<void> | null = null;
  * Doit être appelé une seule fois par UserContext
  */
 export const hydrateToken = async (): Promise<string | null> => {
-  console.log('[API:hydrateToken] Debut - tokenHydrated:', tokenHydrated, 'memoryToken:', memoryToken ? 'present' : 'null');
+  // P1-2: Logs de debug conditionnés par __DEV__
+  if (__DEV__) {
+    console.log('[API:hydrateToken] Debut - tokenHydrated:', tokenHydrated, 'memoryToken:', memoryToken ? 'present' : 'null');
+  }
 
   if (tokenHydrated) {
-    console.log('[API:hydrateToken] Deja hydrate, retour memoryToken:', memoryToken ? 'present' : 'null');
+    if (__DEV__) console.log('[API:hydrateToken] Deja hydrate, retour memoryToken:', memoryToken ? 'present' : 'null');
     return memoryToken;
   }
 
@@ -56,10 +59,10 @@ export const hydrateToken = async (): Promise<string | null> => {
     const storedToken = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
     memoryToken = storedToken;
     tokenHydrated = true;
-    console.log('[API:hydrateToken] Hydratation OK - token:', memoryToken ? 'present' : 'absent');
+    if (__DEV__) console.log('[API:hydrateToken] Hydratation OK - token:', memoryToken ? 'present' : 'absent');
     return memoryToken;
   } catch (error) {
-    console.error('[API:hydrateToken] Erreur:', error);
+    if (__DEV__) console.error('[API:hydrateToken] Erreur:', error);
     tokenHydrated = true;
     return null;
   }
@@ -139,14 +142,14 @@ export const setToken = async (token: string): Promise<void> => {
   // 1. Mettre en mémoire IMMÉDIATEMENT (synchrone)
   memoryToken = token;
   tokenHydrated = true;
-  console.log('[API] Token en mémoire: OK');
+  if (__DEV__) console.log('[API] Token en mémoire: OK');
 
   // 2. Persister dans SecureStore (async)
   try {
     await SecureStore.setItemAsync(STORAGE_KEYS.TOKEN, token);
-    console.log('[API] Token persisté: OK');
+    if (__DEV__) console.log('[API] Token persisté: OK');
   } catch (error) {
-    console.error('[API] Erreur persistance token:', error);
+    if (__DEV__) console.error('[API] Erreur persistance token:', error);
     // Le token reste en mémoire même si la persistance échoue
   }
 };
@@ -155,20 +158,23 @@ export const setToken = async (token: string): Promise<void> => {
  * Supprimer le token (mémoire + storage)
  */
 export const removeToken = async (): Promise<void> => {
-  // Log pour tracer qui appelle removeToken
-  console.log('[TOKEN] removeToken() called - stack trace:');
-  console.log(new Error().stack);
+  // P1-2: Log de debug conditionné par __DEV__ pour éviter fuite en prod
+  if (__DEV__) {
+    console.log('[TOKEN] removeToken() called - stack trace:');
+    console.log(new Error().stack);
+  }
 
   // 1. Supprimer de la mémoire immédiatement
   memoryToken = null;
-  console.log('[TOKEN] Token supprime de la memoire');
+  if (__DEV__) console.log('[TOKEN] Token supprime de la memoire');
 
   // 2. Supprimer du storage
   try {
     await SecureStore.deleteItemAsync(STORAGE_KEYS.TOKEN);
-    console.log('[TOKEN] Token supprime du storage');
+    if (__DEV__) console.log('[TOKEN] Token supprime du storage');
   } catch (error) {
-    console.error('[TOKEN] Erreur suppression token storage:', error);
+    // Erreur de suppression - log en dev uniquement
+    if (__DEV__) console.error('[TOKEN] Erreur suppression token storage:', error);
   }
 };
 
