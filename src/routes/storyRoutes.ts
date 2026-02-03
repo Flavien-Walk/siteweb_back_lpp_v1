@@ -10,6 +10,7 @@ import {
   getStoryViewers,
 } from '../controllers/storyController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.get('/', chargerUtilisateurOptionnel, getStoriesActives);
  * GET /api/stories/mes-stories
  * Mes stories actives
  */
-router.get('/mes-stories', verifierJwt, getMesStories);
+router.get('/mes-stories', verifierJwt, checkUserStatus, getMesStories);
 
 /**
  * GET /api/stories/utilisateur/:id
@@ -36,13 +37,13 @@ router.get('/utilisateur/:id', chargerUtilisateurOptionnel, getStoriesUtilisateu
  * POST /api/stories/:id/seen
  * Marquer une story comme vue (auth requise)
  */
-router.post('/:id/seen', verifierJwt, marquerVue);
+router.post('/:id/seen', verifierJwt, checkUserStatus, marquerVue);
 
 /**
  * GET /api/stories/:id/viewers
  * Liste des utilisateurs ayant vu la story (owner uniquement)
  */
-router.get('/:id/viewers', verifierJwt, getStoryViewers);
+router.get('/:id/viewers', verifierJwt, checkUserStatus, getStoryViewers);
 
 /**
  * GET /api/stories/:id
@@ -54,12 +55,12 @@ router.get('/:id', chargerUtilisateurOptionnel, getStory);
  * POST /api/stories
  * Créer une story (auth requise)
  */
-router.post('/', verifierJwt, creerStory);
+router.post('/', verifierJwt, checkUserStatus, creerStory);
 
 /**
  * DELETE /api/stories/:id
  * Supprimer une story (auth requise, auteur uniquement)
  */
-router.delete('/:id', verifierJwt, supprimerStory);
+router.delete('/:id', verifierJwt, checkUserStatus, supprimerStory);
 
 export default router;

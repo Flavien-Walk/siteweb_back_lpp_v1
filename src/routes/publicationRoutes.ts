@@ -13,6 +13,7 @@ import {
   toggleLikeCommentaire,
 } from '../controllers/publicationController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
@@ -32,25 +33,25 @@ router.get('/:id', chargerUtilisateurOptionnel, getPublication);
  * POST /api/publications
  * Créer une publication (auth requise)
  */
-router.post('/', verifierJwt, creerPublication);
+router.post('/', verifierJwt, checkUserStatus, creerPublication);
 
 /**
  * PATCH /api/publications/:id
  * Modifier une publication (auth requise, auteur uniquement)
  */
-router.patch('/:id', verifierJwt, modifierPublication);
+router.patch('/:id', verifierJwt, checkUserStatus, modifierPublication);
 
 /**
  * DELETE /api/publications/:id
  * Supprimer une publication (auth requise, auteur uniquement)
  */
-router.delete('/:id', verifierJwt, supprimerPublication);
+router.delete('/:id', verifierJwt, checkUserStatus, supprimerPublication);
 
 /**
  * POST /api/publications/:id/like
  * Liker/unliker une publication
  */
-router.post('/:id/like', verifierJwt, toggleLikePublication);
+router.post('/:id/like', verifierJwt, checkUserStatus, toggleLikePublication);
 
 /**
  * GET /api/publications/:id/commentaires
@@ -62,24 +63,24 @@ router.get('/:id/commentaires', chargerUtilisateurOptionnel, getCommentaires);
  * POST /api/publications/:id/commentaires
  * Ajouter un commentaire
  */
-router.post('/:id/commentaires', verifierJwt, ajouterCommentaire);
+router.post('/:id/commentaires', verifierJwt, checkUserStatus, ajouterCommentaire);
 
 /**
  * PATCH /api/publications/:pubId/commentaires/:comId
  * Modifier un commentaire (auteur uniquement)
  */
-router.patch('/:pubId/commentaires/:comId', verifierJwt, modifierCommentaire);
+router.patch('/:pubId/commentaires/:comId', verifierJwt, checkUserStatus, modifierCommentaire);
 
 /**
  * DELETE /api/publications/:pubId/commentaires/:comId
  * Supprimer un commentaire
  */
-router.delete('/:pubId/commentaires/:comId', verifierJwt, supprimerCommentaire);
+router.delete('/:pubId/commentaires/:comId', verifierJwt, checkUserStatus, supprimerCommentaire);
 
 /**
  * POST /api/publications/:pubId/commentaires/:comId/like
  * Liker/unliker un commentaire
  */
-router.post('/:pubId/commentaires/:comId/like', verifierJwt, toggleLikeCommentaire);
+router.post('/:pubId/commentaires/:comId/like', verifierJwt, checkUserStatus, toggleLikeCommentaire);
 
 export default router;

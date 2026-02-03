@@ -8,6 +8,7 @@ import {
   modifierStatut,
 } from '../controllers/profilController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
@@ -17,8 +18,9 @@ const router = Router();
  */
 router.get('/avatars', getAvatarsDefaut);
 
-// Routes protégées
+// Routes protégées (auth + vérification statut)
 router.use(verifierJwt);
+router.use(checkUserStatus);
 
 /**
  * PATCH /api/profil

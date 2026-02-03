@@ -6,11 +6,13 @@ import {
 } from '../controllers/activityController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { verifierAdmin } from '../middlewares/verifierAdmin.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
-// Toutes les routes nécessitent l'authentification
+// Toutes les routes nécessitent l'authentification et vérification du statut
 router.use(verifierJwt);
+router.use(checkUserStatus);
 
 /**
  * POST /api/activity/share

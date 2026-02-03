@@ -12,6 +12,7 @@ import {
   getAmisUtilisateur,
 } from '../controllers/utilisateurController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
@@ -30,43 +31,43 @@ router.get('/recherche', chargerUtilisateurOptionnel, rechercherUtilisateurs);
  * GET /api/utilisateurs/demandes-amis
  * Récupérer mes demandes d'amis reçues
  */
-router.get('/demandes-amis', verifierJwt, getDemandesAmis);
+router.get('/demandes-amis', verifierJwt, checkUserStatus, getDemandesAmis);
 
 /**
  * GET /api/utilisateurs/mes-amis
  * Récupérer ma liste d'amis
  */
-router.get('/mes-amis', verifierJwt, getMesAmis);
+router.get('/mes-amis', verifierJwt, checkUserStatus, getMesAmis);
 
 /**
  * POST /api/utilisateurs/:id/demande-ami
  * Envoyer une demande d'ami
  */
-router.post('/:id/demande-ami', verifierJwt, envoyerDemandeAmi);
+router.post('/:id/demande-ami', verifierJwt, checkUserStatus, envoyerDemandeAmi);
 
 /**
  * DELETE /api/utilisateurs/:id/demande-ami
  * Annuler une demande d'ami envoyée
  */
-router.delete('/:id/demande-ami', verifierJwt, annulerDemandeAmi);
+router.delete('/:id/demande-ami', verifierJwt, checkUserStatus, annulerDemandeAmi);
 
 /**
  * POST /api/utilisateurs/:id/accepter-ami
  * Accepter une demande d'ami
  */
-router.post('/:id/accepter-ami', verifierJwt, accepterDemandeAmi);
+router.post('/:id/accepter-ami', verifierJwt, checkUserStatus, accepterDemandeAmi);
 
 /**
  * POST /api/utilisateurs/:id/refuser-ami
  * Refuser une demande d'ami
  */
-router.post('/:id/refuser-ami', verifierJwt, refuserDemandeAmi);
+router.post('/:id/refuser-ami', verifierJwt, checkUserStatus, refuserDemandeAmi);
 
 /**
  * DELETE /api/utilisateurs/:id/ami
  * Supprimer un ami
  */
-router.delete('/:id/ami', verifierJwt, supprimerAmi);
+router.delete('/:id/ami', verifierJwt, checkUserStatus, supprimerAmi);
 
 // ============ ROUTES AVEC PARAMÈTRE ID ============
 
@@ -75,7 +76,7 @@ router.delete('/:id/ami', verifierJwt, supprimerAmi);
  * Récupérer la liste d'amis d'un utilisateur
  * Accessible si ami ou soi-même
  */
-router.get('/:id/amis', verifierJwt, getAmisUtilisateur);
+router.get('/:id/amis', verifierJwt, checkUserStatus, getAmisUtilisateur);
 
 /**
  * GET /api/utilisateurs/:id

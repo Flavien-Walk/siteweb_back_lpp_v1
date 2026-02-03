@@ -13,6 +13,7 @@ import {
   getUserLiveStatus,
 } from '../controllers/liveController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
+import { checkUserStatus } from '../middlewares/checkUserStatus.js';
 
 const router = Router();
 
@@ -32,30 +33,30 @@ router.get('/user/:userId', chargerUtilisateurOptionnel, getUserLiveStatus);
  * POST /api/live/start
  * Démarrer un nouveau live (auth requise)
  */
-router.post('/start', verifierJwt, startLive);
+router.post('/start', verifierJwt, checkUserStatus, startLive);
 
 /**
  * POST /api/live/end
  * Arrêter son live (auth requise, hôte uniquement)
  */
-router.post('/end', verifierJwt, endLive);
+router.post('/end', verifierJwt, checkUserStatus, endLive);
 
 /**
  * POST /api/live/token
  * Obtenir un token Agora (auth requise)
  */
-router.post('/token', verifierJwt, getAgoraTokenEndpoint);
+router.post('/token', verifierJwt, checkUserStatus, getAgoraTokenEndpoint);
 
 /**
  * POST /api/live/:id/join
  * Rejoindre un live (incrémenter viewers)
  */
-router.post('/:id/join', verifierJwt, joinLive);
+router.post('/:id/join', verifierJwt, checkUserStatus, joinLive);
 
 /**
  * POST /api/live/:id/leave
  * Quitter un live (décrémenter viewers)
  */
-router.post('/:id/leave', verifierJwt, leaveLive);
+router.post('/:id/leave', verifierJwt, checkUserStatus, leaveLive);
 
 export default router;

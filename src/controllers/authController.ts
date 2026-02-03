@@ -191,6 +191,28 @@ export const moi = async (
       throw new ErreurAPI('Utilisateur non trouve.', 404);
     }
 
+    // IMPORTANT: Vérifier le statut du compte (banni/suspendu)
+    // Cet endpoint est utilisé par le mobile pour revalider le statut au foreground
+    if (utilisateur.isBanned()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte a été suspendu définitivement.',
+        code: 'ACCOUNT_BANNED',
+        reason: utilisateur.banReason || undefined,
+      });
+      return;
+    }
+
+    if (utilisateur.isSuspended()) {
+      res.status(403).json({
+        succes: false,
+        message: 'Votre compte est temporairement suspendu.',
+        code: 'ACCOUNT_SUSPENDED',
+        suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
+      });
+      return;
+    }
+
     // Calculer les permissions effectives pour les clients
     const effectivePermissions = utilisateur.getEffectivePermissions();
     const isStaff = utilisateur.isStaff();
@@ -213,6 +235,8 @@ export const moi = async (
           // Données staff (pour mobile et moderation tool)
           isStaff,
           permissions: effectivePermissions,
+          // Statut du compte (pour le mobile)
+          accountStatus: 'active',
         },
       },
     });
