@@ -305,11 +305,33 @@ export default function SanctionsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
 
   // Flag: hydratation complete = tokenReady ET userHydrated
   const isHydrated = tokenReady && userHydrated;
 
-  const fetchSanctions = useCallback(async () => {
+  // Fonction pour dedupliquer les sanctions (au cas ou le backend retourne des doublons)
+  const deduplicateSanctions = (items: SanctionHistoryItem[]): SanctionHistoryItem[] => {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      // Cle unique = type + date de creation
+      const key = `${item.type}-${item.createdAt}`;
+      if (seen.has(key)) {
+        console.warn('[SanctionsScreen] Doublon detecte et filtre:', key);
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const fetchSanctions = useCallback(async (force = false) => {
+    // Eviter les doubles appels (sauf si force=true pour refresh)
+    if (hasFetched && !force) {
+      console.log('[SanctionsScreen] Deja fetch, skip');
+      return;
+    }
+
     console.log('[SanctionsScreen] fetchSanctions - tokenReady:', tokenReady, 'userHydrated:', userHydrated, 'isAuthenticated:', isAuthenticated);
 
     // IMPORTANT: Ne pas appeler l'API tant que l'hydratation n'est pas complete
@@ -342,8 +364,13 @@ export default function SanctionsScreen() {
       }
 
       if (response.succes && response.data) {
-        console.log('[SanctionsScreen] Sanctions recues:', response.data.sanctions?.length || 0);
-        setSanctions(response.data.sanctions || []);
+        const rawSanctions = response.data.sanctions || [];
+        console.log('[SanctionsScreen] Sanctions recues (brut):', rawSanctions.length);
+        // Dedupliquer au cas ou
+        const uniqueSanctions = deduplicateSanctions(rawSanctions);
+        console.log('[SanctionsScreen] Sanctions apres dedup:', uniqueSanctions.length);
+        setSanctions(uniqueSanctions);
+        setHasFetched(true);
       } else {
         console.log('[SanctionsScreen] Echec:', response.message);
         setError(response.message || 'Erreur lors du chargement');
@@ -355,19 +382,19 @@ export default function SanctionsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isHydrated, isAuthenticated, tokenReady, userHydrated]);
+  }, [isHydrated, isAuthenticated, tokenReady, userHydrated, hasFetched]);
 
-  // Charger les sanctions quand l'hydratation est complete
+  // Charger les sanctions UNE SEULE FOIS quand l'hydratation est complete
   useEffect(() => {
-    console.log('[SanctionsScreen] useEffect - isHydrated:', isHydrated);
-    if (isHydrated) {
+    console.log('[SanctionsScreen] useEffect - isHydrated:', isHydrated, 'hasFetched:', hasFetched);
+    if (isHydrated && !hasFetched) {
       fetchSanctions();
     }
-  }, [isHydrated, fetchSanctions]);
+  }, [isHydrated, hasFetched, fetchSanctions]);
 
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
-    fetchSanctions();
+    fetchSanctions(true); // force=true pour bypass hasFetched
   }, [fetchSanctions]);
 
   // Formater une date
