@@ -1217,6 +1217,29 @@ export default function Profil() {
         {renderMenuItem('color-palette-outline', 'Apparence', 'apparence', 'Theme et personnalisation')}
         {renderMenuItem('lock-closed-outline', 'Securite', 'securite', 'Mot de passe et connexion')}
         {renderMenuItem('shield-checkmark-outline', 'Confidentialite', 'confidentialite', 'RGPD et suppression')}
+
+        {/* Item navigation vers ecran sanctions */}
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => router.push('/sanctions')}
+        >
+          <View style={styles.menuIcon}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={20}
+              color={couleurs.texteSecondaire}
+            />
+          </View>
+          <View style={styles.menuContent}>
+            <Text style={styles.menuLabel}>Mes sanctions</Text>
+            <Text style={styles.menuDescription}>Historique des sanctions</Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={couleurs.texteSecondaire}
+          />
+        </Pressable>
       </View>
 
       {/* Section active */}

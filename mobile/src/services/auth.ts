@@ -325,4 +325,29 @@ export const setUtilisateurLocal = async (utilisateur: Utilisateur | any): Promi
   );
 };
 
+/**
+ * Type pour un item de l'historique des sanctions
+ */
+export interface SanctionHistoryItem {
+  type: 'ban' | 'suspend' | 'warn' | 'unban' | 'unsuspend' | 'unwarn';
+  createdAt: string;
+  titre: string;
+  message: string;
+  reason?: string;
+  actorRole?: string;
+  suspendedUntil?: string;
+  postSnapshot?: {
+    contenu?: string;
+    mediaUrl?: string;
+  };
+}
+
+/**
+ * Récupérer l'historique des sanctions de l'utilisateur connecté
+ * Accessible même si le compte est banni/suspendu
+ */
+export const getMySanctions = async (): Promise<ReponseAPI<{ sanctions: SanctionHistoryItem[] }>> => {
+  return await api.get<{ sanctions: SanctionHistoryItem[] }>('/auth/my-sanctions', true);
+};
+
 export { getToken };
