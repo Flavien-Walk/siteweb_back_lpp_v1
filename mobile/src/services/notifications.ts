@@ -18,7 +18,11 @@ export type TypeNotification =
   // Types de sanctions
   | 'sanction_ban'
   | 'sanction_suspend'
-  | 'sanction_warn';
+  | 'sanction_warn'
+  // Types de levée de sanctions
+  | 'sanction_unban'
+  | 'sanction_unsuspend'
+  | 'sanction_unwarn';
 
 export interface Notification {
   _id: string;
@@ -38,7 +42,7 @@ export interface Notification {
     publicationId?: string;
     commentaireId?: string;
     // Données de sanction
-    sanctionType?: 'ban' | 'suspend' | 'warn';
+    sanctionType?: 'ban' | 'suspend' | 'warn' | 'unban' | 'unsuspend' | 'unwarn';
     reason?: string;
     suspendedUntil?: string;
     postId?: string;

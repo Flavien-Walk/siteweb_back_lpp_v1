@@ -213,6 +213,13 @@ export default function Notifications() {
         return 'time';
       case 'sanction_warn':
         return 'warning';
+      // Types de levée de sanctions
+      case 'sanction_unban':
+        return 'checkmark-circle';
+      case 'sanction_unsuspend':
+        return 'checkmark-circle';
+      case 'sanction_unwarn':
+        return 'checkmark-circle';
       case 'systeme':
       default:
         return 'notifications';
@@ -243,6 +250,13 @@ export default function Notifications() {
         return '#F59E0B'; // Orange/Alerte
       case 'sanction_warn':
         return '#FBBF24'; // Jaune/Warning
+      // Types de levée de sanctions (vert/succès)
+      case 'sanction_unban':
+        return couleurs.succes;
+      case 'sanction_unsuspend':
+        return couleurs.succes;
+      case 'sanction_unwarn':
+        return couleurs.succes;
       default:
         return couleurs.texteSecondaire;
     }
@@ -250,7 +264,7 @@ export default function Notifications() {
 
   // Vérifier si c'est une notification de sanction
   const isSanctionNotif = (type: TypeNotification): boolean => {
-    return type === 'sanction_ban' || type === 'sanction_suspend' || type === 'sanction_warn';
+    return type.startsWith('sanction_');
   };
 
   // Formater la date relative
