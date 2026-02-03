@@ -9,6 +9,7 @@ import {
   validateTemporaryCode,
 } from '../utils/oauthStore.js';
 import { getLatestSanctionNotification } from '../utils/sanctionNotification.js';
+import Notification from '../models/Notification.js';
 
 /**
  * Inscription d'un nouvel utilisateur
@@ -535,6 +536,73 @@ export const getSanctionInfo = async (
     res.status(200).json({
       succes: true,
       data: sanctionInfo,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Mapping des roles pour affichage
+const roleLabels: Record<string, string> = {
+  user: 'Utilisateur',
+  modo_test: 'Moderateur',
+  modo: 'Moderateur',
+  admin_modo: 'Administrateur',
+  super_admin: 'Fondateur',
+  admin: 'Administrateur',
+};
+
+/**
+ * Recuperer l'historique des sanctions de l'utilisateur
+ * GET /api/auth/my-sanctions
+ * Accessible meme si banni/suspendu (pas de checkUserStatus)
+ */
+export const getMySanctions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const utilisateur = req.utilisateur!;
+
+    // Recuperer toutes les notifications de type sanction
+    const sanctionTypes = [
+      'sanction_ban',
+      'sanction_suspend',
+      'sanction_warn',
+      'sanction_unban',
+      'sanction_unsuspend',
+      'sanction_unwarn',
+    ];
+
+    const notifications = await Notification.find({
+      destinataire: utilisateur._id,
+      type: { $in: sanctionTypes },
+    })
+      .sort({ dateCreation: -1 })
+      .lean();
+
+    // Transformer les notifications en format user-friendly
+    const items = notifications.map((notif) => ({
+      type: notif.type,
+      createdAt: notif.dateCreation,
+      titre: notif.titre,
+      message: notif.message,
+      reason: notif.data?.reason || null,
+      actorRole: notif.data?.actorRole
+        ? roleLabels[notif.data.actorRole] || notif.data.actorRole
+        : null,
+      suspendedUntil: notif.data?.suspendedUntil || null,
+      postSnapshot: notif.data?.postSnapshot || null,
+      postId: notif.data?.postId || null,
+    }));
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        items,
+        total: items.length,
+      },
     });
   } catch (error) {
     next(error);
