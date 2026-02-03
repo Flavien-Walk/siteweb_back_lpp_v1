@@ -9,6 +9,7 @@ import {
   exchangeOAuthCode,
   getSanctionInfo,
   getMySanctions,
+  getModerationStatus,
 } from '../controllers/authController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { generateOAuthState } from '../utils/oauthStore.js';
@@ -67,6 +68,14 @@ router.get('/sanction-info', verifierJwt, getSanctionInfo);
  * Accessible meme si banni/suspendu (pas de checkUserStatus)
  */
 router.get('/my-sanctions', verifierJwt, getMySanctions);
+
+/**
+ * GET /api/auth/moderation-status
+ * Recuperer le statut de moderation de l'utilisateur (compteur warnings, etc.)
+ * Accessible meme si banni/suspendu (pas de checkUserStatus)
+ * Utilise par le mobile pour afficher "Avertissements: X/3"
+ */
+router.get('/moderation-status', verifierJwt, getModerationStatus);
 
 // ============================================
 // ROUTES OAUTH - GOOGLE

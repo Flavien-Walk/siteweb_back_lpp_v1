@@ -72,9 +72,23 @@ export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
 export interface IWarning {
   _id?: mongoose.Types.ObjectId;
   reason: string;
-  issuedBy: mongoose.Types.ObjectId;
+  note?: string; // Note interne du moderateur
+  issuedBy: mongoose.Types.ObjectId | 'system';
   issuedAt: Date;
   expiresAt?: Date; // null = permanent
+  source?: 'mobile' | 'moderation' | 'api' | 'system';
+}
+
+// Types pour le statut de moderation
+export type ModerationStatus = 'active' | 'suspended' | 'banned';
+
+// Interface pour le tracking de moderation automatique
+export interface IModerationTracking {
+  status: ModerationStatus;
+  warnCountSinceLastAutoSuspension: number;
+  autoSuspensionsCount: number; // 0 ou 1 (premiere auto-suspension)
+  lastAutoActionAt?: Date;
+  updatedAt: Date;
 }
 
 // Types pour le statut utilisateur
@@ -105,6 +119,8 @@ export interface IUtilisateur extends Document {
   bannedAt?: Date | null;
   banReason?: string;
   warnings: IWarning[];
+  // Tracking pour le systeme de sanctions automatiques
+  moderation: IModerationTracking;
   // Timestamps
   dateCreation: Date;
   dateMiseAJour: Date;
@@ -117,6 +133,8 @@ export interface IUtilisateur extends Document {
   hasPermission(permission: Permission): boolean;
   getEffectivePermissions(): Permission[];
   getRoleLevel(): number;
+  getModerationStatus(): ModerationStatus;
+  getWarningsBeforeNextSanction(): number;
 }
 
 // Schema Mongoose
@@ -236,9 +254,13 @@ const utilisateurSchema = new Schema<IUtilisateur>(
         required: true,
         maxlength: [500, 'La raison ne peut pas dépasser 500 caractères'],
       },
+      note: {
+        type: String,
+        maxlength: [500, 'La note ne peut pas dépasser 500 caractères'],
+        default: null,
+      },
       issuedBy: {
-        type: Schema.Types.ObjectId,
-        ref: 'Utilisateur',
+        type: Schema.Types.Mixed, // ObjectId ou 'system'
         required: true,
       },
       issuedAt: {
@@ -249,7 +271,39 @@ const utilisateurSchema = new Schema<IUtilisateur>(
         type: Date,
         default: null,
       },
+      source: {
+        type: String,
+        enum: ['mobile', 'moderation', 'api', 'system'],
+        default: 'moderation',
+      },
     }],
+    // Tracking pour le systeme de sanctions automatiques
+    moderation: {
+      status: {
+        type: String,
+        enum: ['active', 'suspended', 'banned'],
+        default: 'active',
+      },
+      warnCountSinceLastAutoSuspension: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      autoSuspensionsCount: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 1, // 0 ou 1 seulement
+      },
+      lastAutoActionAt: {
+        type: Date,
+        default: null,
+      },
+      updatedAt: {
+        type: Date,
+        default: Date.now,
+      },
+    },
   },
   {
     timestamps: {
@@ -313,6 +367,36 @@ utilisateurSchema.pre('save', function (next) {
   next();
 });
 
+// Middleware pre-save pour synchroniser le statut de moderation
+// Le champ moderation.status est toujours synchronise avec l'etat reel
+utilisateurSchema.pre('save', function (next) {
+  // Initialiser l'objet moderation si necessaire
+  if (!this.moderation) {
+    this.moderation = {
+      status: 'active',
+      warnCountSinceLastAutoSuspension: 0,
+      autoSuspensionsCount: 0,
+      updatedAt: new Date(),
+    };
+  }
+
+  // Synchroniser le statut avec l'etat reel
+  if (this.bannedAt !== null && this.bannedAt !== undefined) {
+    this.moderation.status = 'banned';
+  } else if (this.suspendedUntil && new Date(this.suspendedUntil) > new Date()) {
+    this.moderation.status = 'suspended';
+  } else {
+    this.moderation.status = 'active';
+  }
+
+  // Mettre a jour la date de modification
+  if (this.isModified('moderation') || this.isModified('bannedAt') || this.isModified('suspendedUntil')) {
+    this.moderation.updatedAt = new Date();
+  }
+
+  next();
+});
+
 // Methode pour comparer les mots de passe
 utilisateurSchema.methods.comparerMotDePasse = async function (
   motDePasseCandidat: string
@@ -370,6 +454,20 @@ utilisateurSchema.methods.hasPermission = function (permission: Permission): boo
   }
   const effectivePermissions = this.getEffectivePermissions();
   return effectivePermissions.includes(permission);
+};
+
+// Méthode pour obtenir le statut de moderation actuel
+utilisateurSchema.methods.getModerationStatus = function (): ModerationStatus {
+  if (this.isBanned()) return 'banned';
+  if (this.isSuspended()) return 'suspended';
+  return 'active';
+};
+
+// Méthode pour calculer le nombre de warnings avant la prochaine sanction automatique
+// Retourne un nombre entre 0 et 3
+utilisateurSchema.methods.getWarningsBeforeNextSanction = function (): number {
+  const warnCount = this.moderation?.warnCountSinceLastAutoSuspension || 0;
+  return Math.max(0, 3 - warnCount);
 };
 
 // Methode pour transformer en JSON (retirer le mot de passe et données sensibles)

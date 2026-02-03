@@ -722,3 +722,76 @@ export const getMySanctions = async (
     next(error);
   }
 };
+
+/**
+ * Recuperer le statut de moderation de l'utilisateur connecte
+ * GET /api/auth/moderation-status
+ *
+ * Accessible meme si banni/suspendu (pas de checkUserStatus)
+ * Permet au mobile d'afficher le compteur d'avertissements (ex: "2/3")
+ *
+ * Retourne:
+ * - status: 'active' | 'suspended' | 'banned'
+ * - warnCountSinceLastAutoSuspension: nombre de warnings depuis derniere auto-suspension
+ * - warningsBeforeNextSanction: nombre de warnings restants avant prochaine sanction auto (3 - count)
+ * - autoSuspensionsCount: 0 si jamais auto-suspendu, 1 si deja auto-suspendu
+ * - nextAutoAction: 'suspend' si autoSuspensionsCount=0, 'ban' si autoSuspensionsCount=1
+ */
+export const getModerationStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const utilisateur = req.utilisateur!;
+
+    // Determiner le statut actuel
+    let status: 'active' | 'suspended' | 'banned' = 'active';
+    if (utilisateur.isBanned()) {
+      status = 'banned';
+    } else if (utilisateur.isSuspended()) {
+      status = 'suspended';
+    }
+
+    // Recuperer les donnees de moderation
+    const moderation = utilisateur.moderation || {
+      warnCountSinceLastAutoSuspension: 0,
+      autoSuspensionsCount: 0,
+    };
+
+    const warnCount = moderation.warnCountSinceLastAutoSuspension || 0;
+    const autoSuspensions = moderation.autoSuspensionsCount || 0;
+
+    // Calculer le nombre de warnings restants avant prochaine sanction auto
+    const WARNINGS_BEFORE_AUTO_SUSPENSION = 3;
+    const warningsBeforeNextSanction = Math.max(0, WARNINGS_BEFORE_AUTO_SUSPENSION - warnCount);
+
+    // Determiner quelle sera la prochaine action auto
+    // Si pas encore auto-suspendu (0), prochaine action = suspend
+    // Si deja auto-suspendu (1), prochaine action = ban
+    const nextAutoAction = autoSuspensions === 0 ? 'suspend' : 'ban';
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        status,
+        warnCountSinceLastAutoSuspension: warnCount,
+        warningsBeforeNextSanction,
+        autoSuspensionsCount: autoSuspensions,
+        nextAutoAction,
+        // Infos supplementaires si suspendu
+        ...(status === 'suspended' && {
+          suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
+          suspendReason: utilisateur.suspendReason,
+        }),
+        // Infos supplementaires si banni
+        ...(status === 'banned' && {
+          bannedAt: utilisateur.bannedAt?.toISOString(),
+          banReason: utilisateur.banReason,
+        }),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

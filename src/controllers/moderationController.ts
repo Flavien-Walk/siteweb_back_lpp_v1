@@ -53,11 +53,20 @@ const canModerate = (moderator: IUtilisateur, target: IUtilisateur): boolean => 
   return moderator.getRoleLevel() > target.getRoleLevel();
 };
 
+// ============ CONSTANTES SYSTEME AUTO-ESCALADE ============
+
+const AUTO_SUSPENSION_DURATION_HOURS = 7 * 24; // 7 jours en heures
+const WARNINGS_BEFORE_AUTO_SUSPENSION = 3;
+
 // ============ ACTIONS SUR LES UTILISATEURS ============
 
 /**
- * Avertir un utilisateur
+ * Avertir un utilisateur avec systeme d'escalade automatique
  * POST /api/moderation/users/:id/warn
+ *
+ * Logique d'auto-escalade:
+ * - 3 warnings cumules → suspension automatique 7 jours
+ * - 3 warnings supplementaires apres suspension → ban definitif
  */
 export const warnUser = async (
   req: Request,
@@ -84,29 +93,56 @@ export const warnUser = async (
       throw new ErreurAPI('Vous ne pouvez pas modérer cet utilisateur', 403);
     }
 
+    // Verifier si deja banni
+    if (target.isBanned()) {
+      throw new ErreurAPI('Cet utilisateur est deja banni', 400);
+    }
+
+    // Determiner la source
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
+
     // Créer l'avertissement
     const warning: IWarning = {
       reason: donnees.reason,
+      note: req.body.note,
       issuedBy: moderator._id,
       issuedAt: new Date(),
       expiresAt: donnees.expiresInDays
         ? new Date(Date.now() + donnees.expiresInDays * 24 * 60 * 60 * 1000)
         : undefined,
+      source,
     };
 
     target.warnings.push(warning);
+
+    // Initialiser moderation si necessaire
+    if (!target.moderation) {
+      target.moderation = {
+        status: 'active',
+        warnCountSinceLastAutoSuspension: 0,
+        autoSuspensionsCount: 0,
+        updatedAt: new Date(),
+      };
+    }
+
+    // Incrementer le compteur de warnings depuis la derniere auto-suspension
+    target.moderation.warnCountSinceLastAutoSuspension += 1;
+    target.moderation.updatedAt = new Date();
+
     await target.save();
 
-    // Log de l'action
+    // Log de l'action du moderateur
     await auditLogger.actions.warnUser(req, target._id, donnees.reason, {
       warningId: target.warnings[target.warnings.length - 1]._id,
       expiresAt: warning.expiresAt?.toISOString(),
       totalWarnings: target.warnings.length,
+      warnCountSinceLastAutoSuspension: target.moderation.warnCountSinceLastAutoSuspension,
+      autoSuspensionsCount: target.moderation.autoSuspensionsCount,
     });
 
-    // Creer une notification pour l'utilisateur sanctionne
-    const postId = req.body.postId; // Optionnel: ID du post concerne
-    const notificationId = await createSanctionNotification({
+    // Creer une notification pour l'avertissement
+    const postId = req.body.postId;
+    const warningNotificationId = await createSanctionNotification({
       targetUserId: target._id,
       sanctionType: 'warn',
       reason: donnees.reason,
@@ -115,13 +151,137 @@ export const warnUser = async (
       actorRole: moderator.role,
     });
 
+    // ============ LOGIQUE D'AUTO-ESCALADE ============
+    let autoAction: 'none' | 'auto_suspend' | 'auto_ban' = 'none';
+    let autoActionNotificationId: mongoose.Types.ObjectId | null = null;
+
+    const warnCount = target.moderation.warnCountSinceLastAutoSuspension;
+    const autoSuspensions = target.moderation.autoSuspensionsCount;
+
+    if (warnCount >= WARNINGS_BEFORE_AUTO_SUSPENSION) {
+      if (autoSuspensions === 0) {
+        // === CAS 1: Premiere auto-suspension (3 warnings atteints) ===
+        autoAction = 'auto_suspend';
+
+        const suspendedUntil = new Date(Date.now() + AUTO_SUSPENSION_DURATION_HOURS * 60 * 60 * 1000);
+        const autoReason = `Suspension automatique: ${WARNINGS_BEFORE_AUTO_SUSPENSION} avertissements cumules`;
+
+        target.suspendedUntil = suspendedUntil;
+        target.suspendReason = autoReason;
+        target.moderation.status = 'suspended';
+        target.moderation.warnCountSinceLastAutoSuspension = 0; // Reset
+        target.moderation.autoSuspensionsCount = 1;
+        target.moderation.lastAutoActionAt = new Date();
+
+        await target.save();
+
+        // Log AuditLog avec actor = system
+        await AuditLog.create({
+          actor: moderator._id, // Le modo qui a declenche
+          actorRole: 'system', // Marque comme action systeme
+          action: 'user:suspend',
+          targetType: 'utilisateur',
+          targetId: target._id,
+          reason: autoReason,
+          metadata: {
+            autoAction: true,
+            triggerType: 'AUTO_SUSPEND',
+            warningsAtTrigger: target.warnings.length,
+            suspendedUntil: suspendedUntil.toISOString(),
+            durationHours: AUTO_SUSPENSION_DURATION_HOURS,
+            triggeredByWarnFrom: moderator._id,
+          },
+          snapshot: {
+            before: { status: 'active' },
+            after: { status: 'suspended', suspendedUntil: suspendedUntil.toISOString() },
+          },
+          source: 'system',
+        });
+
+        // Notification de suspension automatique
+        autoActionNotificationId = await createSanctionNotification({
+          targetUserId: target._id,
+          sanctionType: 'suspend',
+          reason: autoReason,
+          suspendedUntil,
+          actorId: moderator._id, // Le modo qui a declenche le warning
+          actorRole: 'system', // Indique que c'est une action automatique
+        });
+
+        console.log(`[AUTO-ESCALADE] User ${target._id} suspendu automatiquement pour 7 jours (3 warnings)`);
+
+      } else {
+        // === CAS 2: Ban definitif (3 warnings apres suspension) ===
+        autoAction = 'auto_ban';
+
+        const autoReason = `Bannissement automatique: ${WARNINGS_BEFORE_AUTO_SUSPENSION} avertissements supplementaires apres suspension`;
+
+        target.bannedAt = new Date();
+        target.banReason = autoReason;
+        target.suspendedUntil = null; // Annuler toute suspension en cours
+        target.moderation.status = 'banned';
+        target.moderation.lastAutoActionAt = new Date();
+
+        await target.save();
+
+        // Log AuditLog avec actor = system
+        await AuditLog.create({
+          actor: moderator._id, // Le modo qui a declenche
+          actorRole: 'system', // Marque comme action systeme
+          action: 'user:ban',
+          targetType: 'utilisateur',
+          targetId: target._id,
+          reason: autoReason,
+          metadata: {
+            autoAction: true,
+            triggerType: 'AUTO_BAN',
+            warningsAtTrigger: target.warnings.length,
+            previousAutoSuspensions: autoSuspensions,
+            triggeredByWarnFrom: moderator._id,
+          },
+          snapshot: {
+            before: { status: target.moderation.status },
+            after: { status: 'banned', bannedAt: target.bannedAt?.toISOString() },
+          },
+          source: 'system',
+        });
+
+        // Notification de ban automatique
+        autoActionNotificationId = await createSanctionNotification({
+          targetUserId: target._id,
+          sanctionType: 'ban',
+          reason: autoReason,
+          actorId: moderator._id, // Le modo qui a declenche le warning
+          actorRole: 'system', // Indique que c'est une action automatique
+        });
+
+        console.log(`[AUTO-ESCALADE] User ${target._id} banni automatiquement (3 warnings apres suspension)`);
+      }
+    }
+
     res.status(200).json({
       succes: true,
-      message: 'Avertissement envoyé.',
+      message: autoAction === 'auto_suspend'
+        ? 'Avertissement envoyé. Suspension automatique declenchee (3 warnings).'
+        : autoAction === 'auto_ban'
+          ? 'Avertissement envoyé. Bannissement automatique declenche.'
+          : 'Avertissement envoyé.',
       data: {
         warning: target.warnings[target.warnings.length - 1],
         totalWarnings: target.warnings.length,
-        notificationId,
+        notificationId: warningNotificationId,
+        moderation: {
+          warnCountSinceLastAutoSuspension: target.moderation.warnCountSinceLastAutoSuspension,
+          warningsBeforeNextSanction: Math.max(0, WARNINGS_BEFORE_AUTO_SUSPENSION - target.moderation.warnCountSinceLastAutoSuspension),
+          autoSuspensionsCount: target.moderation.autoSuspensionsCount,
+          status: target.moderation.status,
+        },
+        autoAction: autoAction !== 'none' ? {
+          type: autoAction,
+          notificationId: autoActionNotificationId,
+          suspendedUntil: autoAction === 'auto_suspend' ? target.suspendedUntil?.toISOString() : undefined,
+          bannedAt: autoAction === 'auto_ban' ? target.bannedAt?.toISOString() : undefined,
+        } : null,
       },
     });
   } catch (error) {
@@ -165,6 +325,13 @@ export const removeWarning = async (
 
     const removedWarning = target.warnings[warningIndex];
     target.warnings.splice(warningIndex, 1);
+
+    // Decrementer le compteur de warnings si positif
+    if (target.moderation && target.moderation.warnCountSinceLastAutoSuspension > 0) {
+      target.moderation.warnCountSinceLastAutoSuspension -= 1;
+      target.moderation.updatedAt = new Date();
+    }
+
     await target.save();
 
     // Log de l'action
@@ -173,7 +340,10 @@ export const removeWarning = async (
       targetType: 'utilisateur',
       targetId: target._id,
       reason: 'Avertissement retiré',
-      metadata: { removedWarning },
+      metadata: {
+        removedWarning,
+        warnCountSinceLastAutoSuspension: target.moderation?.warnCountSinceLastAutoSuspension || 0,
+      },
     });
 
     // Notification de levée d'avertissement
@@ -188,7 +358,14 @@ export const removeWarning = async (
     res.status(200).json({
       succes: true,
       message: 'Avertissement retiré.',
-      data: { remainingWarnings: target.warnings.length },
+      data: {
+        remainingWarnings: target.warnings.length,
+        moderation: {
+          warnCountSinceLastAutoSuspension: target.moderation?.warnCountSinceLastAutoSuspension || 0,
+          warningsBeforeNextSanction: Math.max(0, WARNINGS_BEFORE_AUTO_SUSPENSION - (target.moderation?.warnCountSinceLastAutoSuspension || 0)),
+          autoSuspensionsCount: target.moderation?.autoSuspensionsCount || 0,
+        },
+      },
     });
   } catch (error) {
     next(error);
@@ -733,7 +910,7 @@ export const getUserModerationDetails = async (
     }
 
     const user = await Utilisateur.findById(userId)
-      .select('prenom nom email avatar role permissions bannedAt banReason suspendedUntil suspendReason warnings dateCreation')
+      .select('prenom nom email avatar role permissions bannedAt banReason suspendedUntil suspendReason warnings moderation dateCreation')
       .populate('warnings.issuedBy', '_id prenom nom');
 
     if (!user) {
@@ -745,6 +922,10 @@ export const getUserModerationDetails = async (
     const activeWarnings = user.warnings.filter(
       (w) => !w.expiresAt || new Date(w.expiresAt) > now
     );
+
+    // Calculer warnings avant prochaine sanction
+    const warnCount = user.moderation?.warnCountSinceLastAutoSuspension || 0;
+    const warningsBeforeNextSanction = Math.max(0, WARNINGS_BEFORE_AUTO_SUSPENSION - warnCount);
 
     res.status(200).json({
       succes: true,
@@ -760,6 +941,7 @@ export const getUserModerationDetails = async (
           dateCreation: user.dateCreation,
         },
         moderation: {
+          status: user.moderation?.status || 'active',
           isBanned: user.isBanned(),
           bannedAt: user.bannedAt,
           banReason: user.banReason,
@@ -769,6 +951,11 @@ export const getUserModerationDetails = async (
           warnings: user.warnings,
           activeWarningsCount: activeWarnings.length,
           totalWarningsCount: user.warnings.length,
+          // Champs pour le systeme d'auto-escalade
+          warnCountSinceLastAutoSuspension: warnCount,
+          warningsBeforeNextSanction,
+          autoSuspensionsCount: user.moderation?.autoSuspensionsCount || 0,
+          lastAutoActionAt: user.moderation?.lastAutoActionAt || null,
         },
       },
     });
