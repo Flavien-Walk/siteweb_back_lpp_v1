@@ -165,6 +165,7 @@ export interface SanctionInfo {
   suspendedUntil?: string;
   notificationId?: string;
   notificationDate?: string;
+  actorRole?: string; // Rôle du staff qui a pris la décision
   postId?: string;
   postSnapshot?: {
     contenu?: string;

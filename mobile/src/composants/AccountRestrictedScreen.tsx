@@ -13,6 +13,16 @@ import { AccountRestrictionInfo } from '../services/api';
 import { getSanctionInfo, SanctionInfo } from '../services/auth';
 import { couleurs, typographie, espacements } from '../constantes/theme';
 
+// Mapping des rôles vers des labels lisibles
+const roleLabels: Record<string, string> = {
+  user: 'Utilisateur',
+  modo_test: 'Modérateur Test',
+  modo: 'Modérateur',
+  admin_modo: 'Administrateur',
+  super_admin: 'Fondateur',
+  admin: 'Administrateur', // Legacy
+};
+
 interface AccountRestrictedScreenProps {
   restriction: AccountRestrictionInfo;
   onDismiss: () => void;
@@ -45,8 +55,8 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
     fetchSanctionDetails();
   }, []);
 
-  // Formater la date de fin de suspension
-  const formatSuspendedUntil = (dateStr?: string): string => {
+  // Formater une date
+  const formatDate = (dateStr?: string): string => {
     if (!dateStr) return '';
     try {
       const date = new Date(dateStr);
@@ -62,10 +72,18 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
     }
   };
 
-  // Utiliser la raison des details si disponible, sinon celle de la restriction
+  // Obtenir le label lisible du rôle
+  const getRoleLabel = (role?: string): string => {
+    if (!role) return '';
+    return roleLabels[role] || role;
+  };
+
+  // Utiliser les données des details si disponible, sinon celle de la restriction
   const reason = sanctionDetails?.reason || restriction.reason;
   const suspendedUntil = sanctionDetails?.suspendedUntil || restriction.suspendedUntil;
   const postSnapshot = sanctionDetails?.postSnapshot;
+  const sanctionDate = sanctionDetails?.notificationDate || sanctionDetails?.bannedAt;
+  const actorRole = sanctionDetails?.actorRole;
 
   return (
     <LinearGradient
@@ -100,6 +118,28 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
             {/* Loading indicator */}
             {isLoading && (
               <ActivityIndicator size="small" color={couleurs.texteSecondaire} style={styles.loader} />
+            )}
+
+            {/* Infos de la sanction (date et role) */}
+            {(sanctionDate || actorRole) && !isLoading && (
+              <View style={styles.sanctionInfoContainer}>
+                {sanctionDate && (
+                  <View style={styles.sanctionInfoRow}>
+                    <Ionicons name="calendar-outline" size={16} color={couleurs.texteDesactive} />
+                    <Text style={styles.sanctionInfoText}>
+                      Decision prise le {formatDate(sanctionDate)}
+                    </Text>
+                  </View>
+                )}
+                {actorRole && (
+                  <View style={styles.sanctionInfoRow}>
+                    <Ionicons name="shield-outline" size={16} color={couleurs.texteDesactive} />
+                    <Text style={styles.sanctionInfoText}>
+                      Par : {getRoleLabel(actorRole)}
+                    </Text>
+                  </View>
+                )}
+              </View>
             )}
 
             {/* Raison de la sanction (si fournie) */}
@@ -207,6 +247,23 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginBottom: espacements.lg,
+  },
+  sanctionInfoContainer: {
+    backgroundColor: 'rgba(100, 100, 100, 0.1)',
+    borderRadius: 12,
+    padding: espacements.md,
+    marginBottom: espacements.lg,
+    width: '100%',
+    gap: espacements.sm,
+  },
+  sanctionInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+  },
+  sanctionInfoText: {
+    fontSize: 13,
+    color: couleurs.texteDesactive,
   },
   reasonContainer: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
