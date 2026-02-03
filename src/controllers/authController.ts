@@ -520,6 +520,11 @@ export const getSanctionInfo = async (
       sanctionInfo.notificationId = notification._id;
       sanctionInfo.notificationDate = notification.dateCreation;
 
+      // Ajouter les infos du staff qui a pris la decision
+      if (notification.data?.actorRole) {
+        sanctionInfo.actorRole = notification.data.actorRole;
+      }
+
       // Ajouter le snapshot du post si disponible
       if (notification.data?.postSnapshot) {
         sanctionInfo.postSnapshot = notification.data.postSnapshot;
