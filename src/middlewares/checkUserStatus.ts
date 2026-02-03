@@ -53,6 +53,8 @@ export const checkUserStatus = (
 /**
  * Middleware pour vérifier si l'utilisateur fait partie du staff
  * (modo_test ou plus)
+ *
+ * Vérifie également le statut ban/suspend
  */
 export const requireStaff = (
   req: Request,
@@ -65,6 +67,28 @@ export const requireStaff = (
     res.status(401).json({
       succes: false,
       message: 'Authentification requise.',
+    });
+    return;
+  }
+
+  // Vérifier le statut (banni/suspendu) - même les staff peuvent être sanctionnés
+  if (utilisateur.isBanned()) {
+    res.status(403).json({
+      succes: false,
+      message: 'Votre compte a été suspendu définitivement.',
+      code: 'ACCOUNT_BANNED',
+      reason: utilisateur.banReason || undefined,
+    });
+    return;
+  }
+
+  if (utilisateur.isSuspended()) {
+    res.status(403).json({
+      succes: false,
+      message: 'Votre compte est temporairement suspendu.',
+      code: 'ACCOUNT_SUSPENDED',
+      reason: utilisateur.suspendReason || undefined,
+      suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
     });
     return;
   }
