@@ -1,5 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import { Permission, ROLE_HIERARCHY, RoleWithLegacy } from '../models/Utilisateur.js';
+import Utilisateur from '../models/Utilisateur.js';
+import { createSuspensionExpiredNotification } from '../utils/sanctionNotification.js';
+
+/**
+ * Gerer l'expiration naturelle d'une suspension
+ * Envoie une notification et nettoie les champs de suspension
+ */
+const handleNaturalSuspensionExpiration = async (userId: string): Promise<void> => {
+  try {
+    // Mettre a jour l'utilisateur et nettoyer les champs de suspension
+    const updated = await Utilisateur.findByIdAndUpdate(
+      userId,
+      { $unset: { suspendedUntil: 1, suspendReason: 1 } },
+      { new: true }
+    );
+
+    if (updated) {
+      // Creer la notification d'expiration naturelle
+      await createSuspensionExpiredNotification(userId);
+      console.log(`[checkUserStatus] Suspension expiree naturellement pour user ${userId}`);
+    }
+  } catch (error) {
+    console.error('[checkUserStatus] Erreur gestion expiration suspension:', error);
+  }
+};
 
 /**
  * Middleware pour vérifier le statut de l'utilisateur (ban/suspension)
@@ -8,6 +33,8 @@ import { Permission, ROLE_HIERARCHY, RoleWithLegacy } from '../models/Utilisateu
  * Bloque l'accès si l'utilisateur est :
  * - Banni définitivement
  * - Suspendu temporairement (suspension active)
+ *
+ * Detecte aussi les expirations naturelles de suspension et envoie une notification
  */
 export const checkUserStatus = (
   req: Request,
@@ -45,6 +72,13 @@ export const checkUserStatus = (
       suspendedUntil: utilisateur.suspendedUntil?.toISOString(),
     });
     return;
+  }
+
+  // Detecter si une suspension vient d'expirer naturellement
+  // (suspendedUntil existe mais est dans le passe)
+  if (utilisateur.suspendedUntil && utilisateur.suspendedUntil <= new Date()) {
+    // Lancer le traitement en arriere-plan (ne pas bloquer la requete)
+    handleNaturalSuspensionExpiration(utilisateur._id.toString());
   }
 
   next();

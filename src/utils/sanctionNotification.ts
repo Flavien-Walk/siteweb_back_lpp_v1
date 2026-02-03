@@ -128,9 +128,19 @@ export async function getLatestSanctionNotification(userId: mongoose.Types.Objec
   }
 }
 
+// Mapping des roles vers des labels lisibles
+const roleLabels: Record<string, string> = {
+  user: 'Utilisateur',
+  modo_test: 'Moderateur',
+  modo: 'Moderateur',
+  admin_modo: 'Administrateur',
+  super_admin: 'Fondateur',
+  admin: 'Administrateur', // Legacy
+};
+
 /**
- * Creer une notification de levee de sanction pour un utilisateur
- * Notifie l'utilisateur que sa sanction a ete levee
+ * Creer une notification de levee de sanction PAR UN STAFF
+ * Inclut le role du staff dans le message
  */
 export async function createReverseSanctionNotification(
   params: ReverseSanctionNotificationParams
@@ -142,28 +152,29 @@ export async function createReverseSanctionNotification(
     let type: TypeNotification;
     let titre: string;
     let message: string;
+    const roleLabel = roleLabels[actorRole] || 'un membre du staff';
 
     switch (reverseSanctionType) {
       case 'unban':
         type = 'sanction_unban';
         titre = 'Compte retabli';
         message = reason
-          ? `Votre compte a ete retabli. Raison : ${reason}`
-          : 'Votre compte a ete retabli. Vous pouvez a nouveau utiliser la plateforme.';
+          ? `Votre compte a ete retabli par ${roleLabel}. Raison : ${reason}`
+          : `Votre compte a ete retabli par ${roleLabel}. Vous pouvez a nouveau utiliser la plateforme.`;
         break;
       case 'unsuspend':
         type = 'sanction_unsuspend';
         titre = 'Suspension levee';
         message = reason
-          ? `Votre suspension a ete levee. Raison : ${reason}`
-          : 'Votre suspension a ete levee. Vous pouvez a nouveau utiliser la plateforme.';
+          ? `Votre suspension a ete levee par ${roleLabel}. Raison : ${reason}`
+          : `Votre suspension a ete levee par ${roleLabel}. Vous pouvez a nouveau utiliser la plateforme.`;
         break;
       case 'unwarn':
         type = 'sanction_unwarn';
         titre = 'Avertissement retire';
         message = reason
-          ? `Un avertissement a ete retire de votre compte. Raison : ${reason}`
-          : 'Un avertissement a ete retire de votre compte.';
+          ? `Un avertissement a ete retire de votre compte par ${roleLabel}. Raison : ${reason}`
+          : `Un avertissement a ete retire de votre compte par ${roleLabel}.`;
         break;
       default:
         console.error('[SanctionNotification] Type de reverse sanction invalide:', reverseSanctionType);
@@ -192,6 +203,33 @@ export async function createReverseSanctionNotification(
     return notification._id;
   } catch (error) {
     console.error('[SanctionNotification] Erreur creation notification reverse:', error);
+    return null;
+  }
+}
+
+/**
+ * Creer une notification d'expiration NATURELLE de suspension
+ * Appelee quand la suspension expire automatiquement (pas par un staff)
+ */
+export async function createSuspensionExpiredNotification(
+  userId: mongoose.Types.ObjectId | string
+): Promise<mongoose.Types.ObjectId | null> {
+  try {
+    const notification = await Notification.create({
+      destinataire: new mongoose.Types.ObjectId(userId.toString()),
+      type: 'sanction_unsuspend' as TypeNotification,
+      titre: 'Suspension terminee',
+      message: 'Votre periode de suspension est terminee. Vous pouvez a nouveau utiliser la plateforme.',
+      data: {
+        sanctionType: 'unsuspend',
+      },
+      lue: false,
+    });
+
+    console.log(`[SanctionNotification] Notification expiration naturelle creee: ${notification._id} pour user ${userId}`);
+    return notification._id;
+  } catch (error) {
+    console.error('[SanctionNotification] Erreur creation notification expiration:', error);
     return null;
   }
 }
