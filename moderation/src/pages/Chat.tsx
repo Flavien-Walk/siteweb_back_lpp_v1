@@ -27,10 +27,11 @@ const roleColors: Record<string, string> = {
 }
 
 const roleLabels: Record<string, string> = {
-  modo_test: 'Modo Test',
+  modo_test: 'Modérateur Test',
   modo: 'Modérateur',
-  admin_modo: 'Admin Modo',
-  super_admin: 'Super Admin',
+  admin_modo: 'Administrateur',
+  super_admin: 'Fondateur',
+  admin: 'Administrateur', // Legacy
 }
 
 function MessageBubble({
