@@ -155,16 +155,20 @@ export const setToken = async (token: string): Promise<void> => {
  * Supprimer le token (mémoire + storage)
  */
 export const removeToken = async (): Promise<void> => {
+  // Log pour tracer qui appelle removeToken
+  console.log('[TOKEN] removeToken() called - stack trace:');
+  console.log(new Error().stack);
+
   // 1. Supprimer de la mémoire immédiatement
   memoryToken = null;
-  console.log('[API] Token supprimé de la mémoire');
+  console.log('[TOKEN] Token supprime de la memoire');
 
   // 2. Supprimer du storage
   try {
     await SecureStore.deleteItemAsync(STORAGE_KEYS.TOKEN);
-    console.log('[API] Token supprimé du storage');
+    console.log('[TOKEN] Token supprime du storage');
   } catch (error) {
-    console.error('[API] Erreur suppression token storage:', error);
+    console.error('[TOKEN] Erreur suppression token storage:', error);
   }
 };
 
@@ -258,6 +262,7 @@ export const requeteAPI = async <T>(
         return requeteAPI<T>(endpoint, options);
       } else {
         console.log('[API:requete] Pas de token apres rehydratation');
+        console.log('[NAV] redirect login because AUTH_TOKEN_EXPIRED (no token after rehydrate)');
         isRetrying401 = false;
         return {
           succes: false,

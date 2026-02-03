@@ -21,6 +21,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { AccountRestrictionInfo } from '../services/api';
 import { getSanctionInfo, SanctionInfo } from '../services/auth';
 import { couleurs, typographie, espacements, rayons } from '../constantes/theme';
@@ -303,13 +304,20 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
                 if (isRetrying) return;
                 setIsRetrying(true);
                 setRetryMessage(null);
+                console.log('[RESTRICTION_REFRESH] start');
                 try {
                   const success = await onRetry();
-                  if (!success) {
+                  console.log('[RESTRICTION_REFRESH] onRetry result:', success);
+                  if (success) {
+                    // IMPORTANT: Navigation explicite vers accueil apres unsuspend/unban
+                    // Sans ca, l'app peut revenir sur index.tsx qui redirige vers login
+                    console.log('[NAV] redirect to (app)/accueil after restriction lifted');
+                    router.replace('/(app)/accueil');
+                  } else {
                     setRetryMessage('Votre compte est toujours restreint.');
                   }
-                  // Si success, l'ecran va disparaitre automatiquement
-                } catch {
+                } catch (err) {
+                  console.log('[RESTRICTION_REFRESH] error:', err);
                   setRetryMessage('Erreur de connexion. Reessayez.');
                 } finally {
                   setIsRetrying(false);

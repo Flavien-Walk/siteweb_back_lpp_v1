@@ -247,26 +247,37 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
    * @returns true si la restriction est levee, false sinon
    */
   const retryRestriction = useCallback(async (): Promise<boolean> => {
-    console.log('[UserContext] Retry restriction...');
+    console.log('[RESTRICTION_REFRESH] retryRestriction() called');
+    console.log('[RESTRICTION_REFRESH] current state - utilisateur:', utilisateur?.pseudo || 'null', 'accountRestriction:', accountRestriction?.type || 'null');
     try {
+      console.log('[RESTRICTION_REFRESH] calling /auth/moi...');
       const response = await getMoi();
+      console.log('[RESTRICTION_REFRESH] /auth/moi status=', response.succes ? '200 OK' : 'FAIL', 'payload=', response.succes ? 'user data' : response.message);
+
       if (response.succes && response.data) {
         // Succes = compte n'est plus restreint
-        console.log('[UserContext] Restriction levee!');
+        console.log('[RESTRICTION_REFRESH] Restriction levee! Setting user and clearing restriction...');
         setUtilisateur(response.data.utilisateur);
         await setUtilisateurLocal(response.data.utilisateur);
         setAccountRestriction(null);
+        console.log('[RESTRICTION_REFRESH] State updated - returning true');
         return true;
       }
+
+      // Verifier si c'est une erreur 403 (encore restreint)
+      if (response.erreurs?.code === 'ACCOUNT_BANNED' || response.erreurs?.code === 'ACCOUNT_SUSPENDED') {
+        console.log('[RESTRICTION_REFRESH] Still restricted:', response.erreurs.code);
+        return false;
+      }
+
       // Echec mais pas 403 = erreur reseau ou autre
-      console.log('[UserContext] Retry failed (not 403):', response.message);
+      console.log('[RESTRICTION_REFRESH] Retry failed (not 403):', response.message);
       return false;
     } catch (error) {
-      console.log('[UserContext] Retry error:', error);
+      console.log('[RESTRICTION_REFRESH] Retry error:', error);
       return false;
     }
-    // Si 403, le callback sera declenche et accountRestriction reste actif
-  }, []);
+  }, [utilisateur, accountRestriction]);
 
   /**
    * Se deconnecter depuis l'ecran de restriction
@@ -274,7 +285,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
    * Supprime le token et redirige vers login
    */
   const logoutFromRestriction = useCallback(async (): Promise<void> => {
-    console.log('[UserContext] Deconnexion volontaire depuis restriction');
+    console.log('[TOKEN] removeToken called from logoutFromRestriction (voluntary logout)');
+    console.log('[NAV] redirect login because user clicked "Se deconnecter"');
     await removeToken();
     setUtilisateur(null);
     setAccountRestriction(null);

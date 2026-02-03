@@ -311,13 +311,18 @@ export default function SanctionsScreen() {
   const isHydrated = tokenReady && userHydrated;
 
   // Fonction pour dedupliquer les sanctions (au cas ou le backend retourne des doublons)
+  // Utilise une fenetre de 60 secondes pour considerer deux sanctions comme identiques
+  // (meme type dans la meme minute = probablement la meme sanction)
   const deduplicateSanctions = (items: SanctionHistoryItem[]): SanctionHistoryItem[] => {
     const seen = new Set<string>();
     return items.filter((item) => {
-      // Cle unique = type + date de creation
-      const key = `${item.type}-${item.createdAt}`;
+      // Cle unique = type + date tronquee a la minute (pour gerer les decalages de secondes)
+      // Ex: 2024-01-01T10:00:00.000Z et 2024-01-01T10:00:05.000Z → meme cle
+      const date = new Date(item.createdAt);
+      const dateKey = date.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM (sans secondes)
+      const key = `${item.type}-${dateKey}`;
       if (seen.has(key)) {
-        console.warn('[SanctionsScreen] Doublon detecte et filtre:', key);
+        console.warn('[SanctionsScreen] Doublon detecte et filtre:', item.type, 'at', item.createdAt);
         return false;
       }
       seen.add(key);
