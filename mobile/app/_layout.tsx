@@ -17,17 +17,11 @@ import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
 // Composant interne qui utilise le theme
 function AppContent() {
   const { couleurs, isDark } = useTheme();
-  const { accountRestriction, clearRestriction } = useUser();
+  const { accountRestriction, retryRestriction, logoutFromRestriction } = useUser();
   const [showSplash, setShowSplash] = useState(true);
 
   const handleSplashFinish = () => {
     setShowSplash(false);
-  };
-
-  const handleDismissRestriction = () => {
-    clearRestriction();
-    // La navigation vers login sera gérée automatiquement
-    // car utilisateur sera null après clearRestriction
   };
 
   // Si le compte est restreint et que le splash est terminé, afficher l'écran de restriction
@@ -37,7 +31,8 @@ function AppContent() {
         <StatusBar style="light" />
         <AccountRestrictedScreen
           restriction={accountRestriction}
-          onDismiss={handleDismissRestriction}
+          onRetry={retryRestriction}
+          onLogout={logoutFromRestriction}
         />
       </>
     );

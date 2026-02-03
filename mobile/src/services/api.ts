@@ -1,6 +1,10 @@
 /**
  * Service API - La Première Pierre Mobile
  * Gestion des appels HTTP vers le backend
+ *
+ * IMPORTANT: Token management avec cache mémoire pour éviter les race conditions
+ * - memoryToken: source rapide (synchrone)
+ * - SecureStore: source durable (persistance)
  */
 
 import * as SecureStore from 'expo-secure-store';
@@ -22,6 +26,61 @@ export interface AccountRestrictionInfo {
   reason?: string;
   suspendedUntil?: string;
 }
+
+// ============================================
+// TOKEN MANAGEMENT - Cache mémoire + persistance
+// ============================================
+
+// Token en mémoire pour accès rapide (évite race conditions)
+let memoryToken: string | null = null;
+
+// Flag indiquant si le token a été hydraté depuis le storage
+let tokenHydrated = false;
+
+// Promise pour attendre l'hydratation
+let hydrationPromise: Promise<void> | null = null;
+
+/**
+ * Hydrater le token depuis SecureStore au démarrage
+ * Doit être appelé une seule fois par UserContext
+ */
+export const hydrateToken = async (): Promise<string | null> => {
+  if (tokenHydrated) {
+    return memoryToken;
+  }
+
+  try {
+    const storedToken = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+    memoryToken = storedToken;
+    tokenHydrated = true;
+    console.log('[API] Token hydraté:', memoryToken ? 'présent' : 'absent');
+    return memoryToken;
+  } catch (error) {
+    console.error('[API] Erreur hydratation token:', error);
+    tokenHydrated = true;
+    return null;
+  }
+};
+
+/**
+ * Vérifier si le token est prêt (hydraté)
+ */
+export const isTokenReady = (): boolean => tokenHydrated;
+
+/**
+ * Attendre que le token soit hydraté
+ */
+export const waitForTokenReady = async (): Promise<void> => {
+  if (tokenHydrated) return;
+
+  if (!hydrationPromise) {
+    hydrationPromise = hydrateToken().then(() => {
+      hydrationPromise = null;
+    });
+  }
+
+  await hydrationPromise;
+};
 
 // Callback global pour les restrictions de compte
 // Sera défini par le UserContext pour déclencher la déconnexion forcée
@@ -46,28 +105,61 @@ interface OptionsRequete {
 }
 
 /**
- * Récupérer le token depuis le stockage sécurisé
+ * Récupérer le token (mémoire d'abord, puis storage si nécessaire)
  */
 export const getToken = async (): Promise<string | null> => {
+  // Si déjà en mémoire, retourner immédiatement
+  if (memoryToken) {
+    return memoryToken;
+  }
+
+  // Si pas encore hydraté, hydrater maintenant
+  if (!tokenHydrated) {
+    await hydrateToken();
+  }
+
+  return memoryToken;
+};
+
+/**
+ * Récupérer le token de façon synchrone (peut être null si pas hydraté)
+ */
+export const getTokenSync = (): string | null => memoryToken;
+
+/**
+ * Sauvegarder le token (mémoire immédiat + persistance async)
+ */
+export const setToken = async (token: string): Promise<void> => {
+  // 1. Mettre en mémoire IMMÉDIATEMENT (synchrone)
+  memoryToken = token;
+  tokenHydrated = true;
+  console.log('[API] Token en mémoire: OK');
+
+  // 2. Persister dans SecureStore (async)
   try {
-    return await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
-  } catch {
-    return null;
+    await SecureStore.setItemAsync(STORAGE_KEYS.TOKEN, token);
+    console.log('[API] Token persisté: OK');
+  } catch (error) {
+    console.error('[API] Erreur persistance token:', error);
+    // Le token reste en mémoire même si la persistance échoue
   }
 };
 
 /**
- * Sauvegarder le token
- */
-export const setToken = async (token: string): Promise<void> => {
-  await SecureStore.setItemAsync(STORAGE_KEYS.TOKEN, token);
-};
-
-/**
- * Supprimer le token
+ * Supprimer le token (mémoire + storage)
  */
 export const removeToken = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(STORAGE_KEYS.TOKEN);
+  // 1. Supprimer de la mémoire immédiatement
+  memoryToken = null;
+  console.log('[API] Token supprimé de la mémoire');
+
+  // 2. Supprimer du storage
+  try {
+    await SecureStore.deleteItemAsync(STORAGE_KEYS.TOKEN);
+    console.log('[API] Token supprimé du storage');
+  } catch (error) {
+    console.error('[API] Erreur suppression token storage:', error);
+  }
 };
 
 /**
@@ -87,10 +179,25 @@ export const requeteAPI = async <T>(
 
   // Ajouter le token si nécessaire
   if (avecAuth) {
-    const token = await getToken();
-    if (token) {
-      headersComplets['Authorization'] = `Bearer ${token}`;
+    // S'assurer que le token est hydraté
+    if (!tokenHydrated) {
+      await waitForTokenReady();
     }
+
+    const token = memoryToken;
+
+    // Si avecAuth=true et pas de token, retourner erreur contrôlée
+    // SANS appeler l'API (évite 401 "Token manquant")
+    if (!token) {
+      console.warn('[API] Requête auth sans token:', endpoint);
+      return {
+        succes: false,
+        message: 'Session expirée. Veuillez vous reconnecter.',
+        erreurs: { code: 'AUTH_MISSING_TOKEN' },
+      };
+    }
+
+    headersComplets['Authorization'] = `Bearer ${token}`;
   }
 
   // Controller pour le timeout

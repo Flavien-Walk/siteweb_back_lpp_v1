@@ -2,6 +2,10 @@
  * Ecran de compte restreint (banni ou suspendu)
  * Affiche un message et empeche l'acces a l'app
  * Charge les details de la sanction (raison, post concerne) depuis l'API
+ *
+ * IMPORTANT: Deux actions possibles:
+ * - "Reessayer": verifie si unban/unsuspend a ete fait (NE supprime PAS le token)
+ * - "Se deconnecter": action volontaire qui supprime le token
  */
 
 import React, { useEffect, useState } from 'react';
@@ -33,15 +37,21 @@ const roleLabels: Record<string, string> = {
 
 interface AccountRestrictedScreenProps {
   restriction: AccountRestrictionInfo;
-  onDismiss: () => void;
+  /** Reessayer pour verifier si la restriction a ete levee (ne supprime pas le token) */
+  onRetry: () => Promise<boolean>;
+  /** Se deconnecter volontairement (supprime le token) */
+  onLogout: () => Promise<void>;
 }
 
 const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   restriction,
-  onDismiss,
+  onRetry,
+  onLogout,
 }) => {
   const [sanctionDetails, setSanctionDetails] = useState<SanctionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
 
   const isBanned = restriction.type === 'ACCOUNT_BANNED';
 
@@ -276,13 +286,56 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
               Si vous pensez qu'il s'agit d'une erreur, contactez le support.
             </Text>
 
-            {/* Bouton retour connexion */}
+            {/* Message de retry */}
+            {retryMessage && (
+              <Text style={styles.retryMessage}>{retryMessage}</Text>
+            )}
+
+            {/* Bouton Reessayer - verifie si unban/unsuspend a ete fait */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.button,
+                styles.retryButton,
+                pressed && styles.buttonPressed,
+                isRetrying && styles.buttonDisabled,
+              ]}
+              onPress={async () => {
+                if (isRetrying) return;
+                setIsRetrying(true);
+                setRetryMessage(null);
+                try {
+                  const success = await onRetry();
+                  if (!success) {
+                    setRetryMessage('Votre compte est toujours restreint.');
+                  }
+                  // Si success, l'ecran va disparaitre automatiquement
+                } catch {
+                  setRetryMessage('Erreur de connexion. Reessayez.');
+                } finally {
+                  setIsRetrying(false);
+                }
+              }}
+              disabled={isRetrying}
+            >
+              <View style={styles.retryButtonInner}>
+                {isRetrying ? (
+                  <ActivityIndicator size="small" color={couleurs.primaire} />
+                ) : (
+                  <>
+                    <Ionicons name="refresh-outline" size={20} color={couleurs.primaire} />
+                    <Text style={styles.retryButtonText}>Actualiser mon statut</Text>
+                  </>
+                )}
+              </View>
+            </Pressable>
+
+            {/* Bouton Se deconnecter - action volontaire */}
             <Pressable
               style={({ pressed }) => [
                 styles.button,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={onDismiss}
+              onPress={onLogout}
             >
               <LinearGradient
                 colors={couleurs.gradientPrimaire}
@@ -291,7 +344,7 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
                 style={styles.buttonGradient}
               >
                 <Ionicons name="log-out-outline" size={20} color={couleurs.blanc} />
-                <Text style={styles.buttonText}>Retour a la connexion</Text>
+                <Text style={styles.buttonText}>Se deconnecter</Text>
               </LinearGradient>
             </Pressable>
           </View>
@@ -466,16 +519,45 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.xs,
     color: couleurs.texteMuted,
     textAlign: 'center',
-    marginBottom: espacements.xl,
+    marginBottom: espacements.lg,
+  },
+  retryMessage: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.warning,
+    textAlign: 'center',
+    marginBottom: espacements.md,
   },
   button: {
     width: '100%',
     borderRadius: rayons.lg,
     overflow: 'hidden',
   },
+  retryButton: {
+    backgroundColor: couleurs.fondCard,
+    borderWidth: 1,
+    borderColor: couleurs.primaire,
+    marginBottom: espacements.md,
+  },
+  retryButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.xl,
+    gap: espacements.sm,
+    minHeight: 52,
+  },
+  retryButtonText: {
+    fontSize: typographie.tailles.base,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.primaire,
+  },
   buttonPressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonGradient: {
     flexDirection: 'row',

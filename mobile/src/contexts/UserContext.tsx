@@ -5,7 +5,11 @@
  * SECURITE:
  * - Revalidation du statut a chaque retour au foreground (AppState)
  * - Heartbeat periodique (90s) pour detecter ban/suspension meme sans action
- * - Deconnexion forcee si compte banni/suspendu (via callback API)
+ * - Blocage UI si compte banni/suspendu (mais token conserve pour retry)
+ *
+ * IMPORTANT: Le token n'est JAMAIS supprime automatiquement sur ban/suspend.
+ * L'utilisateur doit explicitement cliquer "Se deconnecter".
+ * Le bouton "Reessayer" permet de verifier si unban/unsuspend a ete fait.
  */
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
@@ -25,6 +29,8 @@ import {
   setAccountRestrictionCallback,
   AccountRestrictionInfo,
   removeToken,
+  hydrateToken,
+  isTokenReady,
 } from '../services/api';
 
 interface UserContextType {
@@ -32,9 +38,14 @@ interface UserContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   needsStatut: boolean;
+  // Flag indiquant si le token est pret (hydrate)
+  tokenReady: boolean;
   // Info de restriction de compte (banni/suspendu)
   accountRestriction: AccountRestrictionInfo | null;
-  clearRestriction: () => Promise<void>;
+  // Reessayer apres unban/unsuspend (ne supprime PAS le token)
+  retryRestriction: () => Promise<boolean>;
+  // Se deconnecter (supprime le token - action volontaire)
+  logoutFromRestriction: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateUser: (user: Utilisateur) => Promise<void>;
   logout: () => Promise<void>;
@@ -49,13 +60,15 @@ interface UserProviderProps {
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [utilisateur, setUtilisateur] = useState<Utilisateur | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [tokenReady, setTokenReady] = useState(false);
   const [accountRestriction, setAccountRestriction] = useState<AccountRestrictionInfo | null>(null);
   const appState = useRef(AppState.currentState);
   const heartbeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /**
    * Revalider le statut utilisateur
-   * Si banni/suspendu, declenche la deconnexion forcee via le callback API
+   * Si succes, clear la restriction (compte n'est plus banni/suspendu)
+   * Si 403, le callback sera declenche automatiquement par api.ts
    */
   const revalidateUserStatus = useCallback(async () => {
     try {
@@ -64,6 +77,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       if (response.succes && response.data) {
         setUtilisateur(response.data.utilisateur);
         await setUtilisateurLocal(response.data.utilisateur);
+        // IMPORTANT: Clear la restriction si elle existait (unban/unsuspend detecte)
+        setAccountRestriction(null);
       }
       // Si erreur avec code ACCOUNT_BANNED/ACCOUNT_SUSPENDED,
       // le callback sera declenche automatiquement par api.ts
@@ -97,11 +112,14 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, []);
 
   // Enregistrer le callback pour les restrictions de compte (ban/suspension)
+  // IMPORTANT: On ne supprime PAS le token ni l'utilisateur ici
+  // L'utilisateur reste "identifie" mais bloque par accountRestriction
   useEffect(() => {
     setAccountRestrictionCallback((info: AccountRestrictionInfo) => {
       console.log('[UserContext] Compte restreint:', info.type);
       setAccountRestriction(info);
-      setUtilisateur(null);
+      // NE PAS faire setUtilisateur(null) - on garde les infos pour AccountRestrictedScreen
+      // NE PAS supprimer le token - permet le retry apres unban/unsuspend
     });
 
     return () => {
@@ -147,26 +165,36 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const loadUser = async () => {
     try {
-      // D'abord charger depuis le stockage local
+      // 1. HYDRATER LE TOKEN D'ABORD (critique pour eviter race conditions)
+      const token = await hydrateToken();
+      setTokenReady(true);
+      console.log('[UserContext] Token hydrate:', token ? 'present' : 'absent');
+
+      // 2. Charger l'utilisateur depuis le stockage local
       const localUser = await getUtilisateurLocal();
       if (localUser) {
         setUtilisateur(localUser);
 
-        // Ensuite rafraichir depuis l'API en arriere-plan
-        try {
-          const response = await getMoi();
-          if (response.succes && response.data) {
-            setUtilisateur(response.data.utilisateur);
-            await setUtilisateurLocal(response.data.utilisateur);
+        // 3. Rafraichir depuis l'API si on a un token
+        if (token) {
+          try {
+            const response = await getMoi();
+            if (response.succes && response.data) {
+              setUtilisateur(response.data.utilisateur);
+              await setUtilisateurLocal(response.data.utilisateur);
+              // Si on arrive ici, le compte n'est plus restreint
+              setAccountRestriction(null);
+            }
+            // Si erreur 403 banni/suspendu, le callback sera declenche
+          } catch (apiError) {
+            // Garder les donnees locales si l'API echoue (erreur reseau)
+            console.log('Erreur rafraichissement utilisateur:', apiError);
           }
-          // Si erreur 403 banni/suspendu, le callback sera declenche
-        } catch (apiError) {
-          // Garder les donnees locales si l'API echoue (erreur reseau)
-          console.log('Erreur rafraichissement utilisateur:', apiError);
         }
       }
     } catch (error) {
       console.log('Erreur chargement utilisateur:', error);
+      setTokenReady(true); // Marquer comme ready meme en cas d'erreur
     } finally {
       setIsLoading(false);
     }
@@ -178,6 +206,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       if (response.succes && response.data) {
         setUtilisateur(response.data.utilisateur);
         await setUtilisateurLocal(response.data.utilisateur);
+        // Clear restriction si elle existait
+        setAccountRestriction(null);
       }
       // Si banni/suspendu, callback declenche automatiquement
     } catch (error) {
@@ -196,13 +226,47 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     setAccountRestriction(null);
   }, []);
 
-  const clearRestriction = useCallback(async () => {
-    // Supprimer le token maintenant que l'utilisateur quitte l'écran de restriction
+  /**
+   * Reessayer apres un unban/unsuspend
+   * Appelle /auth/moi pour verifier si la restriction est levee
+   * NE SUPPRIME PAS le token
+   * @returns true si la restriction est levee, false sinon
+   */
+  const retryRestriction = useCallback(async (): Promise<boolean> => {
+    console.log('[UserContext] Retry restriction...');
+    try {
+      const response = await getMoi();
+      if (response.succes && response.data) {
+        // Succes = compte n'est plus restreint
+        console.log('[UserContext] Restriction levee!');
+        setUtilisateur(response.data.utilisateur);
+        await setUtilisateurLocal(response.data.utilisateur);
+        setAccountRestriction(null);
+        return true;
+      }
+      // Echec mais pas 403 = erreur reseau ou autre
+      console.log('[UserContext] Retry failed (not 403):', response.message);
+      return false;
+    } catch (error) {
+      console.log('[UserContext] Retry error:', error);
+      return false;
+    }
+    // Si 403, le callback sera declenche et accountRestriction reste actif
+  }, []);
+
+  /**
+   * Se deconnecter depuis l'ecran de restriction
+   * Action VOLONTAIRE de l'utilisateur
+   * Supprime le token et redirige vers login
+   */
+  const logoutFromRestriction = useCallback(async (): Promise<void> => {
+    console.log('[UserContext] Deconnexion volontaire depuis restriction');
     await removeToken();
+    setUtilisateur(null);
     setAccountRestriction(null);
   }, []);
 
-  const isAuthenticated = !!utilisateur;
+  const isAuthenticated = !!utilisateur && !accountRestriction;
   const needsStatut = isAuthenticated && !utilisateur?.statut;
 
   return (
@@ -212,8 +276,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         isLoading,
         isAuthenticated,
         needsStatut,
+        tokenReady,
         accountRestriction,
-        clearRestriction,
+        retryRestriction,
+        logoutFromRestriction,
         refreshUser,
         updateUser,
         logout,

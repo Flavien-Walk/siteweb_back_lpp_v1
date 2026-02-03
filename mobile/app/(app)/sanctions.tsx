@@ -1,6 +1,9 @@
 /**
  * Ecran Mes Sanctions - Historique des sanctions utilisateur
  * Affiche toutes les sanctions (ban, suspend, warn) et leurs levees
+ *
+ * IMPORTANT: Attend que le token soit pret (tokenReady) avant d'appeler l'API
+ * pour eviter les erreurs "Token manquant" apres login/unban
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -19,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useUser } from '../../src/contexts/UserContext';
 import { getMySanctions, SanctionHistoryItem } from '../../src/services/auth';
 import { espacements, rayons, typographie, couleurs as defaultCouleurs } from '../../src/constantes/theme';
 
@@ -295,6 +299,7 @@ const styles = StyleSheet.create({
 export default function SanctionsScreen() {
   const { couleurs } = useTheme();
   const colors = couleurs || defaultCouleurs;
+  const { tokenReady } = useUser();
 
   const [sanctions, setSanctions] = useState<SanctionHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -302,9 +307,23 @@ export default function SanctionsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchSanctions = useCallback(async () => {
+    // Ne pas appeler l'API si le token n'est pas pret
+    if (!tokenReady) {
+      console.log('[SanctionsScreen] Token pas encore pret, attente...');
+      return;
+    }
+
     try {
       setError(null);
       const response = await getMySanctions();
+
+      // Gerer le cas ou le token est absent (AUTH_MISSING_TOKEN)
+      if (response.erreurs?.code === 'AUTH_MISSING_TOKEN') {
+        console.log('[SanctionsScreen] Token absent, redirection login');
+        router.replace('/(auth)/connexion');
+        return;
+      }
+
       if (response.succes && response.data) {
         setSanctions(response.data.sanctions || []);
       } else {
@@ -317,11 +336,14 @@ export default function SanctionsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [tokenReady]);
 
+  // Charger les sanctions quand le token est pret
   useEffect(() => {
-    fetchSanctions();
-  }, [fetchSanctions]);
+    if (tokenReady) {
+      fetchSanctions();
+    }
+  }, [tokenReady, fetchSanctions]);
 
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -462,8 +484,8 @@ export default function SanctionsScreen() {
     );
   };
 
-  // Contenu principal
-  if (isLoading) {
+  // Contenu principal - afficher loader si token pas pret OU chargement en cours
+  if (!tokenReady || isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.fond }]}>
         <LinearGradient
