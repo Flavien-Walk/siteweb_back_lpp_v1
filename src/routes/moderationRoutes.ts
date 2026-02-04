@@ -19,6 +19,12 @@ import {
   deleteCommentaire,
   getUserModerationDetails,
   listUsers,
+  // Stories moderation
+  getStoriesModeration,
+  getStoryModeration,
+  hideStory,
+  unhideStory,
+  deleteStoryModeration,
 } from '../controllers/moderationController.js';
 
 const router = Router();
@@ -120,5 +126,42 @@ router.delete('/content/publication/:id', requirePermission('content:delete'), d
  * Permission: content:delete
  */
 router.delete('/content/commentaire/:id', requirePermission('content:delete'), deleteCommentaire);
+
+// ============ ROUTES STORIES ============
+
+/**
+ * GET /api/moderation/stories
+ * Lister les stories pour la modération
+ * Permission: content:hide
+ */
+router.get('/stories', requirePermission('content:hide'), getStoriesModeration);
+
+/**
+ * GET /api/moderation/stories/:id
+ * Détails d'une story
+ * Permission: content:hide
+ */
+router.get('/stories/:id', requirePermission('content:hide'), getStoryModeration);
+
+/**
+ * POST /api/moderation/stories/:id/hide
+ * Masquer une story
+ * Permission: content:hide
+ */
+router.post('/stories/:id/hide', requirePermission('content:hide'), hideStory);
+
+/**
+ * POST /api/moderation/stories/:id/unhide
+ * Réafficher une story masquée
+ * Permission: content:hide
+ */
+router.post('/stories/:id/unhide', requirePermission('content:hide'), unhideStory);
+
+/**
+ * DELETE /api/moderation/stories/:id
+ * Supprimer définitivement une story
+ * Permission: content:delete
+ */
+router.delete('/stories/:id', requirePermission('content:delete'), deleteStoryModeration);
 
 export default router;

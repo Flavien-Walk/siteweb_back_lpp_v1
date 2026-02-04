@@ -7,7 +7,7 @@ import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64MediaDataUrl, isHttpUrl } from '../utils/cloudinary.js';
 import { uploadStoryMedia } from '../utils/cloudinary.js';
 
-// Schema de validation pour créer une story
+// Schema de validation pour créer une story (V2)
 const schemaCreerStory = z.object({
   media: z
     .string()
@@ -17,6 +17,22 @@ const schemaCreerStory = z.object({
       { message: 'Le média doit être une URL valide ou une image/vidéo base64' }
     ),
   type: z.enum(['photo', 'video']),
+  // V2 - Durée d'affichage (en secondes)
+  durationSec: z
+    .number()
+    .min(3, 'La durée minimum est de 3 secondes')
+    .max(20, 'La durée maximum est de 20 secondes')
+    .default(7),
+  // V2 - Localisation optionnelle
+  location: z.object({
+    label: z.string().max(100, 'Le label ne peut pas dépasser 100 caractères'),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
+  }).optional(),
+  // V2 - Filtre visuel
+  filterPreset: z
+    .enum(['normal', 'warm', 'cool', 'bw', 'contrast', 'vignette'])
+    .default('normal'),
 });
 
 /**
@@ -50,12 +66,16 @@ export const creerStory = async (
       }
     }
 
-    // Créer la story
+    // Créer la story avec les champs V2
     const story = await Story.create({
       utilisateur: userId,
       type: donnees.type,
       mediaUrl,
       thumbnailUrl,
+      // V2 - Nouveaux champs
+      durationSec: donnees.durationSec,
+      location: donnees.location,
+      filterPreset: donnees.filterPreset,
     });
 
     // Récupérer avec les infos de l'utilisateur
@@ -126,11 +146,12 @@ export const getStoriesActives = async (
 
     // Récupérer les stories actives uniquement de moi et mes amis
     const storiesRaw = await Story.aggregate([
-      // Filtrer: stories actives ET utilisateur autorisé
+      // Filtrer: stories actives ET utilisateur autorisé ET non masquées
       {
         $match: {
           dateExpiration: { $gt: maintenant },
           utilisateur: { $in: utilisateursAutorises },
+          isHidden: { $ne: true }, // V2: Exclure les stories masquées
         },
       },
       // Trier par date de création (plus récent d'abord)
@@ -148,6 +169,10 @@ export const getStoriesActives = async (
               dateCreation: '$dateCreation',
               dateExpiration: '$dateExpiration',
               viewers: '$viewers',
+              // V2: Nouveaux champs
+              durationSec: '$durationSec',
+              location: '$location',
+              filterPreset: '$filterPreset',
             },
           },
           derniereStory: { $first: '$dateCreation' },
@@ -191,6 +216,10 @@ export const getStoriesActives = async (
         dateCreation: story.dateCreation,
         dateExpiration: story.dateExpiration,
         estVue: (story.viewers || []).some((v: any) => v.toString() === userIdStr),
+        // V2: Nouveaux champs
+        durationSec: story.durationSec || 7, // Fallback pour stories existantes
+        location: story.location,
+        filterPreset: story.filterPreset || 'normal',
       }));
 
       // Vérifier si TOUTES les stories du groupe ont été vues
@@ -325,13 +354,14 @@ export const getStoriesUtilisateur = async (
       return;
     }
 
-    // Récupérer les stories si autorisé
+    // Récupérer les stories si autorisé (V2: exclure les masquées)
     const storiesRaw = await Story.find({
       utilisateur: id,
       dateExpiration: { $gt: maintenant },
+      isHidden: { $ne: true }, // V2: Exclure les stories masquées
     }).sort({ dateCreation: -1 });
 
-    // Ajouter estVue pour chaque story
+    // Ajouter estVue pour chaque story (V2: inclure nouveaux champs)
     const userIdStr = userId!.toString();
     const stories = storiesRaw.map((story) => ({
       _id: story._id,
@@ -341,6 +371,10 @@ export const getStoriesUtilisateur = async (
       dateCreation: story.dateCreation,
       dateExpiration: story.dateExpiration,
       estVue: (story.viewers || []).some((v) => v.toString() === userIdStr),
+      // V2: Nouveaux champs
+      durationSec: story.durationSec || 7,
+      location: story.location,
+      filterPreset: story.filterPreset || 'normal',
     }));
 
     // Vérifier si toutes les stories ont été vues

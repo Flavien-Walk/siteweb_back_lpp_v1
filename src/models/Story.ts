@@ -6,6 +6,16 @@ export const STORY_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export type TypeStory = 'photo' | 'video';
 
+// Types de filtres disponibles
+export type FilterPreset = 'normal' | 'warm' | 'cool' | 'bw' | 'contrast' | 'vignette';
+
+// Interface pour la localisation
+export interface IStoryLocation {
+  label: string;
+  lat?: number;
+  lng?: number;
+}
+
 export interface IStory extends Document {
   _id: mongoose.Types.ObjectId;
   utilisateur: mongoose.Types.ObjectId;
@@ -14,7 +24,15 @@ export interface IStory extends Document {
   thumbnailUrl?: string;
   dateCreation: Date;
   dateExpiration: Date;
-  viewers: mongoose.Types.ObjectId[]; // Liste des utilisateurs qui ont vu cette story
+  viewers: mongoose.Types.ObjectId[];
+  // V2 - Nouveaux champs
+  durationSec: number;
+  location?: IStoryLocation;
+  filterPreset: FilterPreset;
+  isHidden: boolean;
+  hiddenReason?: string;
+  hiddenBy?: mongoose.Types.ObjectId;
+  hiddenAt?: Date;
 }
 
 const storySchema = new Schema<IStory>(
@@ -49,6 +67,54 @@ const storySchema = new Schema<IStory>(
       ref: 'Utilisateur',
       default: [],
     },
+    // V2 - Durée d'affichage choisie par le créateur (en secondes)
+    durationSec: {
+      type: Number,
+      required: true,
+      min: [3, 'La durée minimum est de 3 secondes'],
+      max: [20, 'La durée maximum est de 20 secondes'],
+      default: 7,
+    },
+    // V2 - Localisation optionnelle
+    location: {
+      label: {
+        type: String,
+        maxlength: [100, 'Le label de localisation ne peut pas dépasser 100 caractères'],
+      },
+      lat: {
+        type: Number,
+        min: -90,
+        max: 90,
+      },
+      lng: {
+        type: Number,
+        min: -180,
+        max: 180,
+      },
+    },
+    // V2 - Filtre visuel appliqué
+    filterPreset: {
+      type: String,
+      enum: ['normal', 'warm', 'cool', 'bw', 'contrast', 'vignette'],
+      default: 'normal',
+    },
+    // V2 - Modération : story masquée
+    isHidden: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    hiddenReason: {
+      type: String,
+      maxlength: 500,
+    },
+    hiddenBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    },
+    hiddenAt: {
+      type: Date,
+    },
   },
   {
     timestamps: {
@@ -67,9 +133,15 @@ storySchema.index({ dateExpiration: 1, dateCreation: -1 });
 // Index composé pour tri par date de création
 storySchema.index({ dateCreation: -1 });
 
-// Static method pour obtenir la condition de story active
+// Index pour les stories masquées (modération)
+storySchema.index({ isHidden: 1, dateExpiration: 1 });
+
+// Static method pour obtenir la condition de story active (non expirée + non masquée)
 storySchema.statics.getActiveCondition = function () {
-  return { dateExpiration: { $gt: new Date() } };
+  return {
+    dateExpiration: { $gt: new Date() },
+    isHidden: { $ne: true },
+  };
 };
 
 const Story = mongoose.model<IStory>('Story', storySchema);

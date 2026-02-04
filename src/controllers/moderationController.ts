@@ -4,8 +4,10 @@ import mongoose from 'mongoose';
 import Utilisateur, { IUtilisateur, IWarning, ROLE_HIERARCHY, Role, Permission } from '../models/Utilisateur.js';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
+import Story from '../models/Story.js';
 import AuditLog from '../models/AuditLog.js';
 import Report from '../models/Report.js';
+import Notification from '../models/Notification.js';
 import { auditLogger } from '../utils/auditLogger.js';
 import { createSanctionNotification, createReverseSanctionNotification } from '../utils/sanctionNotification.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
@@ -1888,6 +1890,473 @@ export const getUserReports = async (
           pages: Math.ceil(total / limit),
         },
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============ MODERATION DES STORIES ============
+
+const schemaHideStory = z.object({
+  reason: z.string().min(5, 'La raison doit faire au moins 5 caractères').max(500),
+});
+
+/**
+ * Lister les stories pour la modération
+ * GET /api/moderation/stories
+ *
+ * Query params:
+ * - page, limit: pagination
+ * - userId: filtrer par auteur
+ * - status: 'all' | 'active' | 'hidden' | 'expired'
+ * - dateFrom, dateTo: filtrage par période
+ */
+export const getStoriesModeration = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    // Construire les filtres
+    const filter: Record<string, unknown> = {};
+
+    // Filtre par utilisateur
+    const userId = req.query.userId as string;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      filter.utilisateur = new mongoose.Types.ObjectId(userId);
+    }
+
+    // Filtre par statut
+    const status = req.query.status as string;
+    const now = new Date();
+    if (status === 'active') {
+      filter.dateExpiration = { $gt: now };
+      filter.isHidden = { $ne: true };
+    } else if (status === 'hidden') {
+      filter.isHidden = true;
+    } else if (status === 'expired') {
+      filter.dateExpiration = { $lte: now };
+    }
+    // 'all' = pas de filtre supplémentaire
+
+    // Filtre par dates
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+    const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : null;
+    if (dateFrom || dateTo) {
+      filter.dateCreation = {};
+      if (dateFrom) (filter.dateCreation as Record<string, Date>).$gte = dateFrom;
+      if (dateTo) (filter.dateCreation as Record<string, Date>).$lte = dateTo;
+    }
+
+    const [stories, total] = await Promise.all([
+      Story.find(filter)
+        .populate('utilisateur', '_id prenom nom avatar')
+        .populate('hiddenBy', '_id prenom nom')
+        .select('_id utilisateur type media thumbnail durationSec location filterPreset dateCreation dateExpiration isHidden hiddenReason hiddenBy hiddenAt vues')
+        .sort({ dateCreation: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Story.countDocuments(filter),
+    ]);
+
+    // Enrichir avec le statut calculé
+    const enrichedStories = stories.map((story: any) => ({
+      ...story,
+      viewersCount: story.vues?.length || 0,
+      isExpired: new Date(story.dateExpiration) <= now,
+      isActive: new Date(story.dateExpiration) > now && !story.isHidden,
+    }));
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        stories: enrichedStories,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Obtenir le détail d'une story pour la modération
+ * GET /api/moderation/stories/:id
+ */
+export const getStoryModeration = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const storyId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(storyId)) {
+      throw new ErreurAPI('ID story invalide', 400);
+    }
+
+    const story = await Story.findById(storyId)
+      .populate('utilisateur', '_id prenom nom avatar email role')
+      .populate('hiddenBy', '_id prenom nom')
+      .lean();
+
+    if (!story) {
+      throw new ErreurAPI('Story non trouvée', 404);
+    }
+
+    // Récupérer l'historique d'audit pour cette story
+    const auditLogs = await AuditLog.find({
+      targetType: 'story',
+      targetId: new mongoose.Types.ObjectId(storyId),
+    })
+      .populate('actor', '_id prenom nom')
+      .sort({ dateCreation: -1 })
+      .limit(50)
+      .lean();
+
+    const now = new Date();
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        story: {
+          ...story,
+          viewersCount: (story as any).vues?.length || 0,
+          isExpired: new Date((story as any).dateExpiration) <= now,
+          isActive: new Date((story as any).dateExpiration) > now && !(story as any).isHidden,
+        },
+        auditHistory: auditLogs.map((log) => ({
+          _id: log._id,
+          action: log.action,
+          reason: log.reason,
+          actor: log.actor,
+          metadata: log.metadata,
+          snapshot: log.snapshot,
+          createdAt: log.dateCreation,
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Masquer une story
+ * POST /api/moderation/stories/:id/hide
+ */
+export const hideStory = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const storyId = req.params.id;
+    const moderator = req.utilisateur!;
+
+    if (!mongoose.Types.ObjectId.isValid(storyId)) {
+      throw new ErreurAPI('ID story invalide', 400);
+    }
+
+    const donnees = schemaHideStory.parse(req.body);
+
+    // Générer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Vérifier si cet eventId a déjà été traité
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] hideStory eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
+    const story = await Story.findById(storyId).populate('utilisateur', '_id prenom nom');
+    if (!story) {
+      throw new ErreurAPI('Story non trouvée', 404);
+    }
+
+    // Vérifier si déjà masquée
+    if (story.isHidden) {
+      throw new ErreurAPI('Cette story est déjà masquée', 400);
+    }
+
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
+
+    // Snapshot avant modification
+    const snapshot = {
+      before: { isHidden: false },
+      after: { isHidden: true, hiddenReason: donnees.reason },
+    };
+
+    // Masquer la story
+    story.isHidden = true;
+    story.hiddenReason = donnees.reason;
+    story.hiddenBy = moderator._id;
+    story.hiddenAt = new Date();
+    await story.save();
+
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
+      action: 'content:hide',
+      targetType: 'story',
+      targetId: story._id,
+      reason: donnees.reason,
+      metadata: {
+        storyType: story.type,
+        authorId: story.utilisateur._id,
+      },
+      snapshot,
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
+    });
+
+    // Créer une notification pour l'auteur
+    await Notification.create({
+      destinataire: story.utilisateur._id,
+      type: 'moderation',
+      titre: 'Story masquée',
+      message: `Votre story a été masquée par la modération. Raison: ${donnees.reason}`,
+      data: {
+        eventId: eventId.toString(),
+        storyId: story._id.toString(),
+        action: 'story:hide',
+        reason: donnees.reason,
+      },
+    });
+
+    res.status(200).json({
+      succes: true,
+      message: 'Story masquée.',
+      data: {
+        eventId: eventId.toString(),
+        storyId: story._id,
+        hiddenAt: story.hiddenAt?.toISOString(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Réafficher une story masquée
+ * POST /api/moderation/stories/:id/unhide
+ */
+export const unhideStory = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const storyId = req.params.id;
+    const moderator = req.utilisateur!;
+
+    if (!mongoose.Types.ObjectId.isValid(storyId)) {
+      throw new ErreurAPI('ID story invalide', 400);
+    }
+
+    // Générer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Vérifier si cet eventId a déjà été traité
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] unhideStory eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
+    const story = await Story.findById(storyId).populate('utilisateur', '_id prenom nom');
+    if (!story) {
+      throw new ErreurAPI('Story non trouvée', 404);
+    }
+
+    // Vérifier si bien masquée
+    if (!story.isHidden) {
+      throw new ErreurAPI("Cette story n'est pas masquée", 400);
+    }
+
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
+    const reason = req.body.reason as string | undefined;
+
+    // Snapshot avant modification
+    const snapshot = {
+      before: { isHidden: true, hiddenReason: story.hiddenReason },
+      after: { isHidden: false, hiddenReason: null },
+    };
+
+    // Réafficher la story
+    story.isHidden = false;
+    story.hiddenReason = undefined;
+    story.hiddenBy = undefined;
+    story.hiddenAt = undefined;
+    await story.save();
+
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
+      action: 'content:unhide',
+      targetType: 'story',
+      targetId: story._id,
+      reason: reason || 'Story réaffichée par la modération',
+      metadata: {
+        storyType: story.type,
+        authorId: story.utilisateur._id,
+      },
+      snapshot,
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
+    });
+
+    // Créer une notification pour l'auteur
+    await Notification.create({
+      destinataire: story.utilisateur._id,
+      type: 'moderation',
+      titre: 'Story réaffichée',
+      message: 'Votre story a été réaffichée par la modération.',
+      data: {
+        eventId: eventId.toString(),
+        storyId: story._id.toString(),
+        action: 'story:unhide',
+      },
+    });
+
+    res.status(200).json({
+      succes: true,
+      message: 'Story réaffichée.',
+      data: { eventId: eventId.toString() },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Supprimer définitivement une story
+ * DELETE /api/moderation/stories/:id
+ */
+export const deleteStoryModeration = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const storyId = req.params.id;
+    const moderator = req.utilisateur!;
+
+    if (!mongoose.Types.ObjectId.isValid(storyId)) {
+      throw new ErreurAPI('ID story invalide', 400);
+    }
+
+    const reason = req.body.reason as string;
+    if (!reason || reason.length < 5) {
+      throw new ErreurAPI('Une raison d\'au moins 5 caractères est requise', 400);
+    }
+
+    // Générer ou extraire eventId pour idempotency
+    const eventId = getOrCreateEventId(req);
+
+    // Vérifier si cet eventId a déjà été traité
+    if (await isEventIdAlreadyProcessed(eventId)) {
+      console.log(`[IDEMPOTENCY] deleteStoryModeration eventId ${eventId} deja traite`);
+      res.status(200).json({
+        succes: true,
+        message: 'Action deja effectuee (idempotency).',
+        data: { eventId: eventId.toString(), idempotent: true },
+      });
+      return;
+    }
+
+    const story = await Story.findById(storyId).populate('utilisateur', '_id prenom nom');
+    if (!story) {
+      throw new ErreurAPI('Story non trouvée', 404);
+    }
+
+    const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
+
+    // Sauvegarder les infos pour le log avant suppression
+    const storySnapshot = {
+      _id: story._id,
+      utilisateur: story.utilisateur._id,
+      type: story.type,
+      mediaUrl: story.mediaUrl,
+      durationSec: story.durationSec,
+      location: story.location,
+      filterPreset: story.filterPreset,
+      dateCreation: story.dateCreation,
+      dateExpiration: story.dateExpiration,
+      viewersCount: story.viewers?.length || 0,
+    };
+
+    // Supprimer de Cloudinary si applicable
+    // Note: Cette logique dépend de comment les médias sont stockés
+    // Pour l'instant on ne supprime que de la DB,
+    // la suppression Cloudinary peut être ajoutée plus tard si nécessaire
+
+    // Supprimer la story
+    await story.deleteOne();
+
+    // Log de l'action avec eventId
+    await AuditLog.create({
+      eventId,
+      actor: moderator._id,
+      actorRole: moderator.role,
+      actorIp: req.ip,
+      action: 'content:delete',
+      targetType: 'story',
+      targetId: new mongoose.Types.ObjectId(storyId),
+      reason,
+      metadata: {
+        storyType: storySnapshot.type,
+        authorId: storySnapshot.utilisateur,
+      },
+      snapshot: {
+        before: storySnapshot,
+        after: null,
+      },
+      source: source === 'mobile' ? 'mobile' : source === 'api' ? 'api' : 'web',
+    });
+
+    // Créer une notification pour l'auteur
+    await Notification.create({
+      destinataire: storySnapshot.utilisateur,
+      type: 'moderation',
+      titre: 'Story supprimée',
+      message: `Votre story a été supprimée par la modération. Raison: ${reason}`,
+      data: {
+        eventId: eventId.toString(),
+        action: 'story:delete',
+        reason,
+      },
+    });
+
+    res.status(200).json({
+      succes: true,
+      message: 'Story supprimée définitivement.',
+      data: { eventId: eventId.toString() },
     });
   } catch (error) {
     next(error);

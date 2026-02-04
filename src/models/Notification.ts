@@ -15,7 +15,8 @@ export type TypeNotification =
   | 'sanction_warn'
   | 'sanction_unban'
   | 'sanction_unsuspend'
-  | 'sanction_unwarn';
+  | 'sanction_unwarn'
+  | 'moderation';
 
 export interface INotificationData {
   userId?: string;
@@ -62,7 +63,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation'],
       required: true,
     },
     titre: {
