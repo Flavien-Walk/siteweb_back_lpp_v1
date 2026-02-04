@@ -340,6 +340,26 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
     return 'À l\'instant';
   };
 
+  // Navigation vers le profil de l'auteur de la story
+  const handleProfilePress = useCallback(() => {
+    // Obtenir l'ID utilisateur depuis la story ou le prop
+    const storyUserId = currentStory?.utilisateur?._id || userId;
+
+    if (!storyUserId || !onNavigateToProfile) {
+      return;
+    }
+
+    // Pause la progression avant navigation
+    pauseProgress();
+    setIsPaused(true);
+    if (isVideo && videoRef.current) {
+      videoRef.current.pauseAsync();
+    }
+
+    // Naviguer vers le profil (pas de condition bloquante - fonctionne même pour son propre profil)
+    onNavigateToProfile(storyUserId, currentIndex);
+  }, [currentStory, userId, currentIndex, onNavigateToProfile, pauseProgress, isVideo]);
+
   if (!currentStory) return null;
 
   return (
@@ -444,7 +464,12 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
 
           {/* Header avec avatar et nom */}
           <View style={styles.header}>
-            <View style={styles.userInfo}>
+            {/* Zone cliquable pour navigation vers profil */}
+            <Pressable
+              style={styles.userInfo}
+              onPress={handleProfilePress}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Avatar
                 uri={userAvatar}
                 prenom={userName.split(' ')[0]}
@@ -457,7 +482,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
                   {getTimeAgo(currentStory.dateCreation)}
                 </Text>
               </View>
-            </View>
+            </Pressable>
 
             {/* Bouton fermer */}
             <Pressable
