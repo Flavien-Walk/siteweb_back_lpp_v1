@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Shield,
+  Camera,
 } from 'lucide-react'
 
 interface NavItem {
@@ -48,6 +49,12 @@ const navItems: NavItem[] = [
     href: '/suspended',
     icon: <UserX className="h-5 w-5" />,
     permission: 'users:view',
+  },
+  {
+    label: 'Stories',
+    href: '/stories',
+    icon: <Camera className="h-5 w-5" />,
+    permission: 'content:hide',
   },
   {
     label: 'Audit Logs',

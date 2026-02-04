@@ -12,6 +12,8 @@ import { UserDetailPage } from '@/pages/UserDetail'
 import { SuspendedUsersPage } from '@/pages/SuspendedUsers'
 import { AuditPage } from '@/pages/Audit'
 import { ChatPage } from '@/pages/Chat'
+import { StoriesPage } from '@/pages/Stories'
+import { StoryDetailPage } from '@/pages/StoryDetail'
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -99,6 +101,24 @@ function App() {
                 element={
                   <ProtectedRoute requiredPermission="users:view">
                     <SuspendedUsersPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Stories */}
+              <Route
+                path="stories"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <StoriesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="stories/:id"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <StoryDetailPage />
                   </ProtectedRoute>
                 }
               />
