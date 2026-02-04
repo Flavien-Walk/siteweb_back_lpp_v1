@@ -334,10 +334,20 @@ Response:
 
 | Feature | Statut | Raison |
 |---------|--------|--------|
-| Filtres photos | Overlay CSS + metadata | Simplicité, compatibilité |
+| Filtres photos | Overlay RN + metadata | Image originale exportée, overlay visuel dans viewer |
 | Filtres vidéos | Non supporté | Complexité FFmpeg |
-| Localisation précise | Label uniquement | Privacy-first |
-| Durées custom | 4 valeurs fixes | Simplicité UX |
+| Localisation précise | Label + lat/lng optionnels | Privacy-first |
+| Durées custom | 4 valeurs fixes (5/7/10/15s) | Simplicité UX |
+| Préfetch stories | Non implémenté | Chargement à la demande |
+
+### Précision sur les filtres
+
+**MVP** : Les filtres sont stockés en metadata (`filterPreset`) mais l'image uploadée reste **originale**.
+
+- **StoryCreator** : Preview avec overlay React Native (View coloré)
+- **StoryViewer** : Affiche overlay correspondant au `filterPreset` de la story
+- **Avantage** : Simplicité, pas de dépendance expo-gl, images non altérées
+- **Limitation** : Le filtre n'est pas "baked" dans l'image (visible uniquement dans l'app)
 
 ---
 
