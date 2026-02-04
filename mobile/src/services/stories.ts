@@ -8,6 +8,16 @@ import api, { ReponseAPI } from './api';
 // Types
 export type TypeStory = 'photo' | 'video';
 
+// Types de filtres disponibles (V2)
+export type FilterPreset = 'normal' | 'warm' | 'cool' | 'bw' | 'contrast' | 'vignette';
+
+// Interface pour la localisation (V2)
+export interface StoryLocation {
+  label: string;
+  lat?: number;
+  lng?: number;
+}
+
 export interface StoryUtilisateur {
   _id: string;
   prenom: string;
@@ -24,6 +34,10 @@ export interface Story {
   dateCreation: string;
   dateExpiration: string;
   estVue?: boolean; // true si l'utilisateur connecté a vu cette story
+  // V2 - Nouveaux champs
+  durationSec?: number; // Durée d'affichage choisie (5/7/10/15s)
+  location?: StoryLocation; // Localisation optionnelle
+  filterPreset?: FilterPreset; // Filtre visuel appliqué
 }
 
 export interface StoriesGroupeesParUtilisateur {
@@ -87,15 +101,32 @@ export const getStory = async (
 };
 
 /**
+ * Options V2 pour la création de story
+ */
+export interface CreateStoryOptions {
+  durationSec?: number; // Durée d'affichage (5/7/10/15s, défaut: 7)
+  location?: StoryLocation; // Localisation optionnelle
+  filterPreset?: FilterPreset; // Filtre visuel (défaut: 'normal')
+}
+
+/**
  * Créer une nouvelle story
  * @param media - Base64 ou URL du média
  * @param type - 'photo' ou 'video'
+ * @param options - Options V2 (durée, localisation, filtre)
  */
 export const creerStory = async (
   media: string,
-  type: TypeStory
+  type: TypeStory,
+  options?: CreateStoryOptions
 ): Promise<ReponseAPI<{ story: Story }>> => {
-  return api.post('/stories', { media, type }, true);
+  return api.post('/stories', {
+    media,
+    type,
+    durationSec: options?.durationSec || 7,
+    location: options?.location,
+    filterPreset: options?.filterPreset || 'normal',
+  }, true);
 };
 
 /**

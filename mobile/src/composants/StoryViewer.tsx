@@ -29,11 +29,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from './Avatar';
-import { couleurs, espacements, typographie } from '../constantes/theme';
+import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
 import { Story, formatTempsRestant, markStorySeen, getStoryViewers, StoryViewer as StoryViewerType } from '../services/stories';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const STORY_DURATION = 5000; // 5 secondes pour les photos
+const DEFAULT_STORY_DURATION_SEC = 7; // Durée par défaut si non spécifiée
 
 interface StoryViewerProps {
   visible: boolean;
@@ -81,6 +81,9 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   // Story courante
   const currentStory = stories[currentIndex];
   const isVideo = currentStory?.type === 'video';
+
+  // V2 - Durée d'affichage en ms (utilise durationSec ou valeur par défaut)
+  const currentDurationMs = ((currentStory?.durationSec || DEFAULT_STORY_DURATION_SEC) * 1000);
 
   // Reset à l'ouverture
   useEffect(() => {
@@ -160,9 +163,9 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
 
   const resumeProgress = useCallback(() => {
     if (!isPaused && !isVideo) {
-      // Calculer le temps restant
+      // V2 - Calculer le temps restant avec la durée personnalisée
       const currentProgress = (progressAnim as any)._value || 0;
-      const remainingDuration = STORY_DURATION * (1 - currentProgress);
+      const remainingDuration = currentDurationMs * (1 - currentProgress);
 
       progressAnimation.current = Animated.timing(progressAnim, {
         toValue: 1,
@@ -176,7 +179,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
         }
       });
     }
-  }, [isPaused, isVideo]);
+  }, [isPaused, isVideo, currentDurationMs]);
 
   // Navigation entre stories
   const goToNext = useCallback(() => {
@@ -200,18 +203,18 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
       // Restart current story
       progressAnim.setValue(0);
       if (!isVideo) {
-        startProgress(STORY_DURATION);
+        startProgress(currentDurationMs);
       }
     }
-  }, [currentIndex, isVideo, startProgress]);
+  }, [currentIndex, isVideo, startProgress, currentDurationMs]);
 
   // Démarrer la progression quand l'image est chargée
   const handleImageLoad = useCallback(() => {
     setIsLoading(false);
     if (!isPaused) {
-      startProgress(STORY_DURATION);
+      startProgress(currentDurationMs);
     }
-  }, [isPaused, startProgress]);
+  }, [isPaused, startProgress, currentDurationMs]);
 
   // Gérer la vidéo
   const handleVideoStatusUpdate = useCallback((status: AVPlaybackStatus) => {
@@ -450,6 +453,16 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
           </View>
         )}
 
+        {/* V2 - Badge de localisation */}
+        {currentStory?.location?.label && (
+          <View style={[styles.locationBadge, { bottom: isOwnStory ? 80 + insets.bottom : 20 + insets.bottom }]}>
+            <Ionicons name="location" size={14} color={couleurs.blanc} />
+            <Text style={styles.locationBadgeText} numberOfLines={1}>
+              {currentStory.location.label}
+            </Text>
+          </View>
+        )}
+
         {/* Barre des vues en bas (uniquement pour ses propres stories) */}
         {isOwnStory && (
           <LinearGradient
@@ -620,6 +633,24 @@ const styles = StyleSheet.create({
     left: '50%',
     transform: [{ translateX: -30 }, { translateY: -30 }],
     opacity: 0.5,
+  },
+  // V2 - Badge de localisation
+  locationBadge: {
+    position: 'absolute',
+    left: espacements.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: espacements.sm,
+    paddingVertical: espacements.xs,
+    borderRadius: rayons.full,
+    maxWidth: '60%',
+  },
+  locationBadgeText: {
+    color: couleurs.blanc,
+    fontSize: typographie.tailles.xs,
+    fontWeight: typographie.poids.medium,
   },
   // Styles pour les vues
   bottomGradient: {

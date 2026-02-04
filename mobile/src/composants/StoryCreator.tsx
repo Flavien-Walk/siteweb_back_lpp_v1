@@ -15,6 +15,7 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,7 +25,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { creerStory, TypeStory } from '../services/stories';
+import { creerStory, TypeStory, FilterPreset, StoryLocation } from '../services/stories';
+import DurationSelector, { StoryDuration } from './DurationSelector';
+import FilterSelector from './FilterSelector';
+import LocationPicker from './LocationPicker';
+import { getFilterOverlay } from '../utils/imageFilters';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAX_VIDEO_SIZE_MB = 50;
@@ -54,10 +59,19 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   const [selectedMedia, setSelectedMedia] = useState<SelectedMedia | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
 
+  // V2 - États pour les nouvelles options
+  const [duration, setDuration] = useState<StoryDuration>(7);
+  const [filter, setFilter] = useState<FilterPreset>('normal');
+  const [location, setLocation] = useState<StoryLocation | null>(null);
+
   // Reset state à la fermeture
   const handleClose = useCallback(() => {
     setSelectedMedia(null);
     setIsPublishing(false);
+    // Reset V2 options
+    setDuration(7);
+    setFilter('normal');
+    setLocation(null);
     onClose();
   }, [onClose]);
 
@@ -221,7 +235,12 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     setIsPublishing(true);
 
     try {
-      const response = await creerStory(selectedMedia.base64, selectedMedia.type);
+      // V2 - Passer les options (durée, localisation, filtre)
+      const response = await creerStory(selectedMedia.base64, selectedMedia.type, {
+        durationSec: duration,
+        location: location || undefined,
+        filterPreset: filter,
+      });
 
       if (response.succes) {
         Alert.alert('Story publiée', 'Votre story est maintenant visible.', [
@@ -345,46 +364,85 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
         {/* Contenu */}
         <View style={styles.content}>
           {selectedMedia ? (
-            // Prévisualisation du média sélectionné
-            <View style={styles.previewContainer}>
-              {selectedMedia.type === 'video' ? (
-                <Video
-                  source={{ uri: selectedMedia.uri }}
-                  style={styles.previewMedia}
-                  resizeMode={ResizeMode.CONTAIN}
-                  shouldPlay
-                  isLooping
-                  isMuted={false}
-                />
-              ) : (
-                <Image
-                  source={{ uri: selectedMedia.uri }}
-                  style={styles.previewMedia}
-                  resizeMode="contain"
-                />
-              )}
+            // Prévisualisation du média sélectionné + Options V2
+            <ScrollView
+              style={styles.previewScrollView}
+              contentContainerStyle={styles.previewScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Preview média */}
+              <View style={styles.previewContainer}>
+                {selectedMedia.type === 'video' ? (
+                  <Video
+                    source={{ uri: selectedMedia.uri }}
+                    style={styles.previewMedia}
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay
+                    isLooping
+                    isMuted={false}
+                  />
+                ) : (
+                  <View style={styles.previewImageWrapper}>
+                    <Image
+                      source={{ uri: selectedMedia.uri }}
+                      style={styles.previewMedia}
+                      resizeMode="contain"
+                    />
+                    {/* Overlay du filtre pour preview */}
+                    {filter !== 'normal' && (
+                      <View
+                        style={[
+                          styles.filterOverlayPreview,
+                          {
+                            backgroundColor: getFilterOverlay(filter).overlayColor,
+                            opacity: getFilterOverlay(filter).overlayOpacity || 0.2,
+                          },
+                        ]}
+                      />
+                    )}
+                  </View>
+                )}
 
-              {/* Badge type de média */}
-              <View style={styles.mediaTypeBadge}>
-                <Ionicons
-                  name={selectedMedia.type === 'video' ? 'videocam' : 'image'}
-                  size={14}
-                  color={couleurs.blanc}
-                />
-                <Text style={styles.mediaTypeText}>
-                  {selectedMedia.type === 'video' ? 'Vidéo' : 'Photo'}
-                </Text>
+                {/* Badge type de média */}
+                <View style={styles.mediaTypeBadge}>
+                  <Ionicons
+                    name={selectedMedia.type === 'video' ? 'videocam' : 'image'}
+                    size={14}
+                    color={couleurs.blanc}
+                  />
+                  <Text style={styles.mediaTypeText}>
+                    {selectedMedia.type === 'video' ? 'Vidéo' : 'Photo'}
+                  </Text>
+                </View>
+
+                {/* Bouton changer */}
+                <Pressable
+                  style={[styles.changeButton, { backgroundColor: 'rgba(0,0,0,0.7)' }]}
+                  onPress={cancelSelection}
+                >
+                  <Ionicons name="refresh" size={18} color={couleurs.blanc} />
+                  <Text style={styles.changeButtonText}>Changer</Text>
+                </Pressable>
               </View>
 
-              {/* Bouton changer */}
-              <Pressable
-                style={[styles.changeButton, { backgroundColor: 'rgba(0,0,0,0.7)' }]}
-                onPress={cancelSelection}
-              >
-                <Ionicons name="refresh" size={18} color={couleurs.blanc} />
-                <Text style={styles.changeButtonText}>Changer</Text>
-              </Pressable>
-            </View>
+              {/* V2 - Options de personnalisation */}
+              <View style={[styles.optionsContainer, { backgroundColor: themeColors.fond }]}>
+                {/* Sélecteur de durée */}
+                <DurationSelector value={duration} onChange={setDuration} />
+
+                {/* Sélecteur de filtre (uniquement pour les photos) */}
+                {selectedMedia.type === 'photo' && (
+                  <FilterSelector
+                    imageUri={selectedMedia.uri}
+                    value={filter}
+                    onChange={setFilter}
+                  />
+                )}
+
+                {/* Sélecteur de localisation */}
+                <LocationPicker value={location} onChange={setLocation} />
+              </View>
+            </ScrollView>
           ) : (
             // Sélection du média
             <View style={styles.selectContainer}>
@@ -493,15 +551,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Preview
-  previewContainer: {
+  // Preview V2
+  previewScrollView: {
     flex: 1,
+  },
+  previewScrollContent: {
+    flexGrow: 1,
+  },
+  previewContainer: {
+    height: SCREEN_HEIGHT * 0.5,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: couleurs.noir,
+  },
+  previewImageWrapper: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+    position: 'relative',
   },
   previewMedia: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 0.7,
+    width: '100%',
+    height: '100%',
+  },
+  filterOverlayPreview: {
+    ...StyleSheet.absoluteFillObject,
+    pointerEvents: 'none',
+  },
+  optionsContainer: {
+    paddingHorizontal: espacements.lg,
+    paddingTop: espacements.md,
+    paddingBottom: espacements.xl,
   },
   mediaTypeBadge: {
     position: 'absolute',
