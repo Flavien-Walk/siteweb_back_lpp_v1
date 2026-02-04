@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from './Avatar';
 import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
 import { Story, formatTempsRestant, markStorySeen, getStoryViewers, StoryViewer as StoryViewerType } from '../services/stories';
+import { getFilterOverlay, FilterPreset } from '../utils/imageFilters';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DEFAULT_STORY_DURATION_SEC = 7; // Durée par défaut si non spécifiée
@@ -38,23 +39,27 @@ const DEFAULT_STORY_DURATION_SEC = 7; // Durée par défaut si non spécifiée
 interface StoryViewerProps {
   visible: boolean;
   stories: Story[];
+  userId?: string; // ID de l'utilisateur pour la navigation
   userName: string;
   userAvatar?: string;
   initialIndex?: number;
   isOwnStory?: boolean; // true si ce sont ses propres stories (pas de marquage vue)
   onClose: () => void;
   onAllStoriesViewed?: () => void;
+  onNavigateToProfile?: (userId: string, currentIndex: number) => void; // Navigation vers profil
 }
 
 const StoryViewer: React.FC<StoryViewerProps> = ({
   visible,
   stories,
+  userId,
   userName,
   userAvatar,
   initialIndex = 0,
   isOwnStory = false,
   onClose,
   onAllStoriesViewed,
+  onNavigateToProfile,
 }) => {
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
@@ -372,12 +377,31 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
               onPlaybackStatusUpdate={handleVideoStatusUpdate}
             />
           ) : (
-            <Image
-              source={{ uri: currentStory.mediaUrl }}
-              style={styles.media}
-              resizeMode="contain"
-              onLoad={handleImageLoad}
-            />
+            <>
+              <Image
+                source={{ uri: currentStory.mediaUrl }}
+                style={styles.media}
+                resizeMode="contain"
+                onLoad={handleImageLoad}
+              />
+              {/* V2 - Overlay de filtre pour les photos */}
+              {currentStory?.filterPreset && currentStory.filterPreset !== 'normal' && (() => {
+                const overlay = getFilterOverlay(currentStory.filterPreset as FilterPreset);
+                if (!overlay.overlayColor) return null;
+                return (
+                  <View
+                    style={[
+                      styles.filterOverlay,
+                      {
+                        backgroundColor: overlay.overlayColor,
+                        opacity: overlay.overlayOpacity || 0.2,
+                      },
+                    ]}
+                    pointerEvents="none"
+                  />
+                );
+              })()}
+            </>
           )}
 
           {/* Loading indicator */}
@@ -570,6 +594,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  // V2 - Overlay de filtre pour les photos
+  filterOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   topGradient: {
     position: 'absolute',
