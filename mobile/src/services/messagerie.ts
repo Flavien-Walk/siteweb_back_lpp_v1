@@ -280,6 +280,20 @@ export const supprimerGroupe = async (
 };
 
 /**
+ * Supprimer/quitter une conversation
+ * Pour les conversations privées: supprime la conversation
+ * Pour les groupes: quitte le groupe
+ */
+export const supprimerConversation = async (
+  conversationId: string
+): Promise<ReponseAPI<void>> => {
+  return api.delete<void>(
+    `/messagerie/conversations/${conversationId}`,
+    true
+  );
+};
+
+/**
  * Obtenir le profil public d'un utilisateur
  */
 export const getUtilisateur = async (

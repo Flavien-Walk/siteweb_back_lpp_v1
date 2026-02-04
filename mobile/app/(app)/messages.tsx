@@ -318,7 +318,7 @@ export default function Messages() {
               text: 'Voir le profil',
               onPress: () => {
                 setModalNouveauVisible(false);
-                router.push({ pathname: '/(app)/profil-utilisateur', params: { id: user._id } });
+                router.push(`/utilisateur/${user._id}`);
               },
             },
           ]
@@ -456,7 +456,7 @@ export default function Messages() {
 
     return (
       <Swipeable
-        ref={(ref) => swipeableRefs.current.set(item._id, ref)}
+        ref={(ref) => { swipeableRefs.current.set(item._id, ref); }}
         renderRightActions={(progress) => renderRightActions(item._id, progress)}
         renderLeftActions={(progress) => renderLeftActions(item, progress)}
         overshootRight={false}

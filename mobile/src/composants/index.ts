@@ -26,3 +26,6 @@ export { default as StaffActions } from './StaffActions';
 
 // Composants Publications
 export { default as PostMediaCarousel } from './PostMediaCarousel';
+
+// Composants Live (placeholder)
+export { default as LiveCard } from './LiveCard';

@@ -12,6 +12,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { couleurs } from '../constantes/theme';
@@ -406,7 +407,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
                 key={index}
                 style={[
                   styles.stone,
-                  styles[`stone${index + 1}` as keyof typeof styles],
+                  (styles as Record<string, unknown>)[`stone${index + 1}`] as Animated.WithAnimatedObject<ViewStyle>,
                   {
                     transform: [
                       { scale: transform.scale },

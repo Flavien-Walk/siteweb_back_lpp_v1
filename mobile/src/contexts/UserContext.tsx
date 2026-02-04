@@ -176,7 +176,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
       // 2. Charger l'utilisateur depuis le stockage local
       const localUser = await getUtilisateurLocal();
-      console.log('[UserContext:loadUser] User local:', localUser ? localUser.pseudo : 'null');
+      console.log('[UserContext:loadUser] User local:', localUser ? localUser.email : 'null');
 
       if (localUser) {
         setUtilisateur(localUser);
@@ -248,7 +248,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
    */
   const retryRestriction = useCallback(async (): Promise<boolean> => {
     console.log('[RESTRICTION_REFRESH] retryRestriction() called');
-    console.log('[RESTRICTION_REFRESH] current state - utilisateur:', utilisateur?.pseudo || 'null', 'accountRestriction:', accountRestriction?.type || 'null');
+    console.log('[RESTRICTION_REFRESH] current state - utilisateur:', utilisateur?.email || 'null', 'accountRestriction:', accountRestriction?.type || 'null');
     try {
       console.log('[RESTRICTION_REFRESH] calling /auth/moi...');
       const response = await getMoi();

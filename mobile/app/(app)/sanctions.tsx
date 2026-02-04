@@ -578,7 +578,7 @@ export default function SanctionsScreen() {
               <Ionicons name="alert-circle-outline" size={40} color={colors.erreur || defaultCouleurs.danger} />
             </View>
             <Text style={[styles.errorText, { color: colors.erreur || defaultCouleurs.danger }]}>{error}</Text>
-            <Pressable style={[styles.retryButton, { backgroundColor: colors.primaire }]} onPress={fetchSanctions}>
+            <Pressable style={[styles.retryButton, { backgroundColor: colors.primaire }]} onPress={() => fetchSanctions()}>
               <Text style={[styles.retryButtonText, { color: colors.blanc || '#FFFFFF' }]}>Reessayer</Text>
             </Pressable>
           </View>
