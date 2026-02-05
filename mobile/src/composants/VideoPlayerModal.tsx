@@ -479,7 +479,7 @@ export default function VideoPlayerModal({
           size={120}
         />
 
-        {/* Actions Overlay - masqué quand comments ouverts */}
+        {/* Actions Overlay - masqué quand comments ouverts (sauf si external via onComments) */}
         {!commentsOpen && (onLike || postId || onShare) && (
           <VideoActionsOverlay
             liked={localLiked}
@@ -487,7 +487,7 @@ export default function VideoPlayerModal({
             commentsCount={localCommentsCount}
             sharesCount={sharesCount}
             onLike={handleLike}
-            onComments={() => setCommentsOpen(true)}
+            onComments={onComments || (() => setCommentsOpen(true))}
             onShare={onShare || (() => {})}
             visible={true}
           />

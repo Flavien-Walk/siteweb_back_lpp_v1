@@ -885,7 +885,7 @@ export default function PublicationDetailPage() {
         videoUrl={selectedVideoUrl || publication?.media || null}
         postId={publication?._id || id}
         onClose={() => {
-          // VideoPlayerModal gère les commentaires en interne
+          // VideoPlayerModal utilise external comments via onComments
           setVideoModalVisible(false);
           setSelectedVideoUrl(null);
           setVideoInitialPosition(0);
@@ -899,6 +899,7 @@ export default function PublicationDetailPage() {
         likesCount={nbLikes}
         commentsCount={publication?.nbCommentaires || 0}
         onLike={handleLike}
+        onComments={() => setCommentsSheetVisible(true)}
         onShare={handleShare}
       />
 
@@ -915,6 +916,7 @@ export default function PublicationDetailPage() {
         likesCount={nbLikes}
         commentsCount={publication?.nbCommentaires || 0}
         onLike={handleLike}
+        onComments={() => setCommentsSheetVisible(true)}
         onShare={handleShare}
       />
 

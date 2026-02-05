@@ -2373,6 +2373,7 @@ export default function Accueil() {
         likesCount={videoLikesCount}
         commentsCount={videoCommentsCount}
         onLike={videoOnLikeRef.current || undefined}
+        onComments={videoPostId ? () => openCommentsSheet(videoPostId, videoCommentsCount) : undefined}
         onShare={videoOnShareRef.current || undefined}
       />
 
@@ -2390,6 +2391,7 @@ export default function Accueil() {
         likesCount={imageLikesCount}
         commentsCount={imageCommentsCount}
         onLike={imageOnLikeRef.current || undefined}
+        onComments={imagePostId ? () => openCommentsSheet(imagePostId, imageCommentsCount) : undefined}
         onShare={imageOnShareRef.current || undefined}
       />
 

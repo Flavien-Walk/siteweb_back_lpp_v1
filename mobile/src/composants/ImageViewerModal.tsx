@@ -41,6 +41,8 @@ interface ImageViewerModalProps {
   sharesCount?: number;
   /** Callback pour toggle like */
   onLike?: () => void;
+  /** Callback pour ouvrir les commentaires (externe) */
+  onComments?: () => void;
   /** Callback pour partager */
   onShare?: () => void;
 }
@@ -55,6 +57,7 @@ export default function ImageViewerModal({
   commentsCount = 0,
   sharesCount = 0,
   onLike,
+  onComments,
   onShare,
 }: ImageViewerModalProps) {
   const [showControls, setShowControls] = useState(true);
@@ -218,7 +221,7 @@ export default function ImageViewerModal({
           size={120}
         />
 
-        {/* Actions Overlay - masqué quand comments ouverts */}
+        {/* Actions Overlay - masqué quand comments ouverts (sauf si external via onComments) */}
         {!commentsOpen && (onLike || postId || onShare) && (
           <VideoActionsOverlay
             liked={localLiked}
@@ -226,7 +229,7 @@ export default function ImageViewerModal({
             commentsCount={localCommentsCount}
             sharesCount={sharesCount}
             onLike={handleLike}
-            onComments={() => setCommentsOpen(true)}
+            onComments={onComments || (() => setCommentsOpen(true))}
             onShare={onShare || (() => {})}
             visible={true}
           />
