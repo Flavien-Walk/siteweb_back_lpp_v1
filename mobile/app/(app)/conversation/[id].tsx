@@ -1,6 +1,7 @@
 /**
  * Conversation - Écran de chat style Instagram
  * Avec édition de messages, photos de profil et temps réel
+ * V2: Draft média, fullscreen viewer, réactions, reply-to, swipe reply
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -19,17 +20,19 @@ import {
   ActionSheetIOS,
   Modal,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { GestureHandlerRootView, PanGestureHandler, PanGestureHandlerGestureEvent, State } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
-import { Avatar, AnimatedPressable } from '../../../src/composants';
+import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation } from '../../../src/composants';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
+import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
 import {
   getMessages,
   envoyerMessage,
@@ -43,12 +46,12 @@ import {
   Utilisateur,
   TypeMessage,
   TypeReaction,
-  Reaction,
-  ReplyToMessage,
 } from '../../../src/services/messagerie';
-import { getVideoThumbnail, isVideoUrl } from '../../../src/utils/mediaUtils';
+import { getVideoThumbnail } from '../../../src/utils/mediaUtils';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Video, ResizeMode } from 'expo-av';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SWIPE_THRESHOLD = 60;
 
 // Types pour les nouvelles fonctionnalités
 interface DraftMedia {
@@ -59,9 +62,12 @@ interface DraftMedia {
   duration?: number;
 }
 
-interface FullscreenMedia {
-  type: 'image' | 'video';
-  uri: string;
+interface ConversationInfo {
+  _id: string;
+  estGroupe: boolean;
+  nomGroupe?: string;
+  imageGroupe?: string;
+  participants: Utilisateur[];
 }
 
 // Réactions disponibles
@@ -73,14 +79,6 @@ const REACTIONS: { type: TypeReaction; emoji: string }[] = [
   { type: 'angry', emoji: '😡' },
   { type: 'like', emoji: '👍' },
 ];
-
-interface ConversationInfo {
-  _id: string;
-  estGroupe: boolean;
-  nomGroupe?: string;
-  imageGroupe?: string;
-  participants: Utilisateur[];
-}
 
 // Délai maximum pour éditer un message (15 minutes)
 const DELAI_EDITION_MS = 15 * 60 * 1000;
@@ -136,6 +134,73 @@ const AnimatedMessageBubble = ({
   );
 };
 
+// Composant message avec swipe pour répondre
+interface SwipeableMessageProps {
+  children: React.ReactNode;
+  onSwipeReply: () => void;
+}
+
+const SwipeableMessage = ({ children, onSwipeReply }: SwipeableMessageProps) => {
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event: PanGestureHandlerGestureEvent) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationX: tx } = event.nativeEvent;
+
+      if (tx > SWIPE_THRESHOLD) {
+        // Trigger reply
+        onSwipeReply();
+      }
+
+      // Reset position
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        friction: 8,
+      }).start();
+    }
+  };
+
+  // Clamp the translation to only allow right swipe, max 80px
+  const clampedTranslateX = translateX.interpolate({
+    inputRange: [0, 80],
+    outputRange: [0, 80],
+    extrapolate: 'clamp',
+  });
+
+  // Reply icon opacity based on swipe distance
+  const replyIconOpacity = translateX.interpolate({
+    inputRange: [0, SWIPE_THRESHOLD],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <View style={styles.swipeableContainer}>
+      {/* Reply icon indicator */}
+      <Animated.View style={[styles.swipeReplyIcon, { opacity: replyIconOpacity }]}>
+        <Ionicons name="arrow-undo" size={20} color={couleurs.primaire} />
+      </Animated.View>
+
+      <PanGestureHandler
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+        activeOffsetX={[0, 20]}
+        failOffsetY={[-20, 20]}
+      >
+        <Animated.View style={{ transform: [{ translateX: clampedTranslateX }] }}>
+          {children}
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
+  );
+};
+
 export default function ConversationScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -158,20 +223,18 @@ export default function ConversationScreen() {
   // Draft média (preview avant envoi)
   const [draftMedia, setDraftMedia] = useState<DraftMedia | null>(null);
 
-  // Fullscreen média viewer
-  const [fullscreenMedia, setFullscreenMedia] = useState<FullscreenMedia | null>(null);
+  // Fullscreen média viewer - utilise les mêmes composants que le feed
+  const [fullscreenVideoUrl, setFullscreenVideoUrl] = useState<string | null>(null);
+  const [fullscreenImageUrl, setFullscreenImageUrl] = useState<string | null>(null);
 
   // Réactions
   const [reactionPickerMessage, setReactionPickerMessage] = useState<Message | null>(null);
-  const lastTapRef = useRef<{ messageId: string; time: number } | null>(null);
 
   // Reply to message
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   // Animation coeur double-tap
-  const [heartAnimation, setHeartAnimation] = useState<{ messageId: string; visible: boolean } | null>(null);
-  const heartScaleAnim = useRef(new Animated.Value(0)).current;
-  const heartOpacityAnim = useRef(new Animated.Value(0)).current;
+  const [heartAnimationMessage, setHeartAnimationMessage] = useState<string | null>(null);
 
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
@@ -190,7 +253,7 @@ export default function ConversationScreen() {
         marquerConversationLue(id);
       }
     } catch (error) {
-      console.error('Erreur chargement messages:', error);
+      if (__DEV__) console.error('Erreur chargement messages:', error);
       if (!silencieux) {
         Alert.alert('Erreur', 'Impossible de charger les messages');
       }
@@ -204,13 +267,10 @@ export default function ConversationScreen() {
   }, [chargerMessages]);
 
   // Polling pour mise à jour temps réel (toutes les 10 secondes)
-  // Réduit de 2s à 10s pour économiser la batterie et les requêtes API
-  // Plus fréquent que la liste car on est dans une conversation active
-  // TODO: Remplacer par WebSocket pour temps réel optimal
   useEffect(() => {
     const interval = setInterval(() => {
       if (!chargement && id) {
-        chargerMessages(true); // Silencieux
+        chargerMessages(true);
       }
     }, 10000);
 
@@ -335,10 +395,9 @@ export default function ConversationScreen() {
   };
 
   // Long press sur un message - ouvre le picker de réactions
-  const handleLongPressMessage = (message: Message) => {
-    // Ouvrir le picker de réactions pour tous les messages
+  const handleLongPressMessage = useCallback((message: Message) => {
     setReactionPickerMessage(message);
-  };
+  }, []);
 
   // Options supplémentaires pour mes propres messages
   const handleMessageOptions = (message: Message) => {
@@ -390,7 +449,6 @@ export default function ConversationScreen() {
 
   // Sélectionner un média (image ou vidéo) - MISE EN DRAFT
   const handleSelectMedia = async () => {
-    // Demander les permissions
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission refusée', 'L\'accès à la galerie est nécessaire pour envoyer des médias.');
@@ -398,10 +456,10 @@ export default function ConversationScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All, // Images ET vidéos
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 0.8,
       allowsEditing: false,
-      videoMaxDuration: 60, // 60 secondes max
+      videoMaxDuration: 60,
     });
 
     if (result.canceled || !result.assets[0]) {
@@ -411,18 +469,15 @@ export default function ConversationScreen() {
     const asset = result.assets[0];
     const isVideo = asset.type === 'video';
 
-    // Vérifier la taille (25 MB max)
     if (asset.fileSize && asset.fileSize > 25 * 1024 * 1024) {
       Alert.alert('Fichier trop volumineux', 'La taille maximale est de 25 MB.');
       return;
     }
 
-    // Déterminer le type MIME
     const mimeType = isVideo
       ? (asset.uri.endsWith('.mov') ? 'video/quicktime' : 'video/mp4')
       : 'image/jpeg';
 
-    // Mettre en draft au lieu d'envoyer directement
     setDraftMedia({
       type: isVideo ? 'video' : 'image',
       uri: asset.uri,
@@ -443,17 +498,13 @@ export default function ConversationScreen() {
     setEnvoiEnCours(true);
 
     try {
-      // Convertir en base64
       const base64 = await FileSystem.readAsStringAsync(draftMedia.uri, {
         encoding: 'base64',
       });
 
       const dataUrl = `data:${draftMedia.mime};base64,${base64}`;
-
-      // Générer clientMessageId pour idempotence
       const clientMessageId = generateClientMessageId();
 
-      // Envoyer le message média avec éventuel replyTo
       const reponse = await envoyerMessage(dataUrl, {
         conversationId: id,
         type: draftMedia.type,
@@ -472,74 +523,45 @@ export default function ConversationScreen() {
         Alert.alert('Erreur', reponse.message || 'Impossible d\'envoyer le média');
       }
     } catch (error) {
-      console.error('Erreur envoi média:', error);
+      if (__DEV__) console.error('Erreur envoi média:', error);
       Alert.alert('Erreur', 'Impossible d\'envoyer le média');
     } finally {
       setEnvoiEnCours(false);
     }
   };
 
-  // Ouvrir média en fullscreen
-  const handleOpenFullscreen = (message: Message) => {
-    if (message.type === 'image' || message.type === 'video') {
-      setFullscreenMedia({
-        type: message.type,
-        uri: message.contenu,
-      });
+  // Ouvrir média en fullscreen - utilise les mêmes composants que le feed
+  const handleOpenFullscreen = useCallback((message: Message) => {
+    if (message.type === 'video') {
+      setFullscreenVideoUrl(message.contenu);
+    } else if (message.type === 'image') {
+      setFullscreenImageUrl(message.contenu);
     }
-  };
+  }, []);
 
   // Double-tap pour liker un message
-  const handleDoubleTap = async (message: Message) => {
-    const now = Date.now();
-    const lastTap = lastTapRef.current;
+  const handleDoubleTapLike = useCallback(async (message: Message) => {
+    // Animation coeur
+    setHeartAnimationMessage(message._id);
 
-    if (lastTap && lastTap.messageId === message._id && now - lastTap.time < 300) {
-      // Double-tap détecté
-      lastTapRef.current = null;
+    // Toggle réaction coeur
+    const userId = utilisateur?.id;
+    const myReaction = message.reactions?.find(r => r.userId === userId);
+    const newType = myReaction?.type === 'heart' ? null : 'heart';
 
-      // Afficher animation coeur
-      setHeartAnimation({ messageId: message._id, visible: true });
-      heartScaleAnim.setValue(0);
-      heartOpacityAnim.setValue(1);
-
-      Animated.sequence([
-        Animated.spring(heartScaleAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-          friction: 3,
-        }),
-        Animated.timing(heartOpacityAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setHeartAnimation(null);
-      });
-
-      // Ajouter réaction coeur si pas déjà likée par moi
-      const userId = utilisateur?.id;
-      const myReaction = message.reactions?.find(r => r.userId === userId);
-
-      if (!myReaction || myReaction.type !== 'heart') {
-        try {
-          const reponse = await reagirMessage(message._id, 'heart');
-          if (reponse.succes && reponse.data) {
-            setMessages(prev => prev.map(m =>
-              m._id === message._id
-                ? { ...m, reactions: reponse.data!.reactions }
-                : m
-            ));
-          }
-        } catch (error) {
-          console.error('Erreur ajout réaction:', error);
-        }
+    try {
+      const reponse = await reagirMessage(message._id, newType);
+      if (reponse.succes && reponse.data) {
+        setMessages(prev => prev.map(m =>
+          m._id === message._id
+            ? { ...m, reactions: reponse.data!.reactions }
+            : m
+        ));
       }
-    } else {
-      lastTapRef.current = { messageId: message._id, time: now };
+    } catch (error) {
+      if (__DEV__) console.error('Erreur ajout réaction:', error);
     }
-  };
+  }, [utilisateur?.id]);
 
   // Ajouter/supprimer une réaction
   const handleAddReaction = async (message: Message, reactionType: TypeReaction) => {
@@ -547,8 +569,6 @@ export default function ConversationScreen() {
 
     const userId = utilisateur?.id;
     const myReaction = message.reactions?.find(r => r.userId === userId);
-
-    // Si même réaction, la supprimer (toggle)
     const newReactionType = myReaction?.type === reactionType ? null : reactionType;
 
     try {
@@ -561,16 +581,16 @@ export default function ConversationScreen() {
         ));
       }
     } catch (error) {
-      console.error('Erreur réaction:', error);
+      if (__DEV__) console.error('Erreur réaction:', error);
       Alert.alert('Erreur', 'Impossible d\'ajouter la réaction');
     }
   };
 
   // Répondre à un message
-  const handleReplyToMessage = (message: Message) => {
+  const handleReplyToMessage = useCallback((message: Message) => {
     setReplyingTo(message);
     setReactionPickerMessage(null);
-  };
+  }, []);
 
   // Annuler le reply
   const handleCancelReply = () => {
@@ -604,7 +624,6 @@ export default function ConversationScreen() {
             }
           } else {
             if (buttonIndex === 0) {
-              // Naviguer vers le profil
               const autre = getAutreParticipant();
               if (autre) {
                 router.push({
@@ -743,10 +762,8 @@ export default function ConversationScreen() {
     if (!conversation) return;
 
     if (conversation.estGroupe) {
-      // Pour les groupes, afficher les options
       showOptions();
     } else {
-      // Pour les conversations privées, aller au profil
       const autre = getAutreParticipant();
       if (autre) {
         router.push({
@@ -762,8 +779,8 @@ export default function ConversationScreen() {
     return REACTIONS.find(r => r.type === type)?.emoji || '👍';
   };
 
-  // Render message
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+  // Composant message individuel avec handlers
+  const MessageItem = ({ item, index }: { item: Message; index: number }) => {
     const estMoi = item.estMoi;
     const showSeparator = shouldShowDateSeparator(index);
     const autreParticipant = getAutreParticipant();
@@ -782,11 +799,8 @@ export default function ConversationScreen() {
       );
     }
 
-    // Déterminer si on affiche l'avatar (messages de l'autre personne)
     const showAvatar = !estMoi;
     const avatarUrl = conversation?.estGroupe ? item.expediteur.avatar : autreParticipant?.avatar;
-
-    // Détecter si c'est un message récent (moins de 2 secondes)
     const messageAge = Date.now() - new Date(item.dateCreation).getTime();
     const isRecentMessage = messageAge < 2000;
 
@@ -797,138 +811,155 @@ export default function ConversationScreen() {
     }, {} as Record<TypeReaction, number>) || {};
 
     const hasReactions = Object.keys(reactionsGrouped).length > 0;
+    const isMedia = item.type === 'image' || item.type === 'video';
+
+    // Hook double tap - single tap ouvre fullscreen pour médias, double tap = like
+    const handleTap = useDoubleTap({
+      onDoubleTap: () => handleDoubleTapLike(item),
+      onSingleTap: isMedia ? () => handleOpenFullscreen(item) : undefined,
+      delayMs: 250,
+    });
+
+    const messageContent = (
+      <AnimatedMessageBubble estMoi={estMoi} isNew={isRecentMessage}>
+        <View style={[styles.messageRow, estMoi && styles.messageRowMoi]}>
+          {/* Avatar pour les messages reçus */}
+          {showAvatar && (
+            <View style={styles.messageAvatarContainer}>
+              <Avatar
+                uri={avatarUrl}
+                prenom={item.expediteur.prenom}
+                nom={item.expediteur.nom}
+                taille={28}
+              />
+            </View>
+          )}
+
+          <View style={[styles.messageContentWrapper, estMoi && styles.messageContentWrapperMoi]}>
+            {/* ReplyTo preview */}
+            {item.replyTo && (
+              <View style={[styles.replyToPreview, estMoi && styles.replyToPreviewMoi]}>
+                <View style={styles.replyToBar} />
+                <View style={styles.replyToContent}>
+                  <Text style={[styles.replyToAuthor, estMoi && styles.replyToAuthorMoi]} numberOfLines={1}>
+                    {item.replyTo.expediteur.prenom} {item.replyTo.expediteur.nom}
+                  </Text>
+                  <Text style={styles.replyToText} numberOfLines={1}>
+                    {item.replyTo.type === 'image' ? '📷 Photo' :
+                     item.replyTo.type === 'video' ? '🎥 Vidéo' :
+                     item.replyTo.contenu}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <Pressable
+              onPress={handleTap}
+              onLongPress={() => handleLongPressMessage(item)}
+              delayLongPress={400}
+            >
+              <View style={[
+                styles.messageBubble,
+                estMoi ? styles.messageBubbleMoi : styles.messageBubbleAutre,
+                isMedia && styles.messageBubbleMedia,
+              ]}>
+                {/* Nom de l'expéditeur (groupes uniquement) */}
+                {!estMoi && conversation?.estGroupe && (
+                  <Text style={styles.messageAuteur}>{item.expediteur.prenom}</Text>
+                )}
+
+                {/* Contenu */}
+                {item.type === 'image' ? (
+                  <Image
+                    source={{ uri: item.contenu }}
+                    style={styles.messageImage}
+                    resizeMode="cover"
+                  />
+                ) : item.type === 'video' ? (
+                  <View style={styles.messageVideoContainer}>
+                    <Image
+                      source={{ uri: getVideoThumbnail(item.contenu) }}
+                      style={styles.messageImage}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.videoPlayOverlay}>
+                      <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={[styles.messageTexte, estMoi && styles.messageTexteMoi]}>
+                    {item.contenu}
+                  </Text>
+                )}
+
+                {/* Heure + indicateurs */}
+                <View style={[styles.messageFooter, isMedia && styles.messageFooterMedia]}>
+                  {item.modifie && (
+                    <Text style={[styles.messageModifie, estMoi && styles.messageModifieMoi]}>
+                      modifié
+                    </Text>
+                  )}
+                  <Text style={[styles.messageHeure, estMoi && styles.messageHeureMoi, isMedia && styles.messageHeureMedia]}>
+                    {formatHeure(item.dateCreation)}
+                  </Text>
+                  {estMoi && (
+                    <Ionicons
+                      name={(item.lecteurs?.length || 0) > 1 ? 'checkmark-done' : 'checkmark'}
+                      size={14}
+                      color={(item.lecteurs?.length || 0) > 1 ? couleurs.secondaire : 'rgba(255,255,255,0.7)'}
+                      style={styles.messageCheckmark}
+                    />
+                  )}
+                </View>
+
+                {/* Heart animation */}
+                {heartAnimationMessage === item._id && (
+                  <HeartAnimation
+                    visible={true}
+                    onAnimationEnd={() => setHeartAnimationMessage(null)}
+                    size={60}
+                  />
+                )}
+              </View>
+            </Pressable>
+
+            {/* Réactions affichées sous la bulle */}
+            {hasReactions && (
+              <View style={[styles.reactionsContainer, estMoi && styles.reactionsContainerMoi]}>
+                {Object.entries(reactionsGrouped).map(([type, count]) => {
+                  const countNum = count as number;
+                  return (
+                    <View key={type} style={styles.reactionBadge}>
+                      <Text style={styles.reactionEmoji}>{getReactionEmoji(type as TypeReaction)}</Text>
+                      {countNum > 1 && <Text style={styles.reactionCount}>{countNum}</Text>}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          {/* Espace pour aligner les messages envoyés */}
+          {estMoi && <View style={styles.messageAvatarSpacer} />}
+        </View>
+      </AnimatedMessageBubble>
+    );
 
     return (
       <View>
         {showSeparator && (
           <Text style={styles.dateSeparator}>{formatDateSeparateur(item.dateCreation)}</Text>
         )}
-        <Pressable
-          onPress={() => handleDoubleTap(item)}
-          onLongPress={() => handleLongPressMessage(item)}
-          delayLongPress={500}
-        >
-          <AnimatedMessageBubble estMoi={estMoi} isNew={isRecentMessage}>
-            <View style={[styles.messageRow, estMoi && styles.messageRowMoi]}>
-              {/* Avatar pour les messages reçus */}
-              {showAvatar && (
-                <View style={styles.messageAvatarContainer}>
-                  <Avatar
-                    uri={avatarUrl}
-                    prenom={item.expediteur.prenom}
-                    nom={item.expediteur.nom}
-                    taille={28}
-                  />
-                </View>
-              )}
-
-              <View style={styles.messageContent}>
-                {/* ReplyTo preview */}
-                {item.replyTo && (
-                  <View style={[styles.replyToPreview, estMoi && styles.replyToPreviewMoi]}>
-                    <View style={styles.replyToBar} />
-                    <View style={styles.replyToContent}>
-                      <Text style={styles.replyToAuthor} numberOfLines={1}>
-                        {item.replyTo.expediteur.prenom} {item.replyTo.expediteur.nom}
-                      </Text>
-                      <Text style={styles.replyToText} numberOfLines={1}>
-                        {item.replyTo.type === 'image' ? '📷 Photo' :
-                         item.replyTo.type === 'video' ? '🎥 Vidéo' :
-                         item.replyTo.contenu}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                <View style={[styles.messageBubble, estMoi ? styles.messageBubbleMoi : styles.messageBubbleAutre]}>
-                  {/* Nom de l'expéditeur (groupes uniquement) */}
-                  {!estMoi && conversation?.estGroupe && (
-                    <Text style={styles.messageAuteur}>{item.expediteur.prenom}</Text>
-                  )}
-
-                  {/* Contenu */}
-                  {item.type === 'image' ? (
-                    <Pressable onPress={() => handleOpenFullscreen(item)}>
-                      <Image source={{ uri: item.contenu }} style={styles.messageImage} resizeMode="cover" />
-                    </Pressable>
-                  ) : item.type === 'video' ? (
-                    <Pressable onPress={() => handleOpenFullscreen(item)}>
-                      <View style={styles.messageVideoContainer}>
-                        <Image
-                          source={{ uri: getVideoThumbnail(item.contenu) }}
-                          style={styles.messageImage}
-                          resizeMode="cover"
-                        />
-                        <View style={styles.videoPlayOverlay}>
-                          <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
-                        </View>
-                      </View>
-                    </Pressable>
-                  ) : (
-                    <Text style={[styles.messageTexte, estMoi && styles.messageTexteMoi]}>
-                      {item.contenu}
-                    </Text>
-                  )}
-
-                  {/* Heure + indicateurs */}
-                  <View style={styles.messageFooter}>
-                    {item.modifie && (
-                      <Text style={[styles.messageModifie, estMoi && styles.messageModifieMoi]}>
-                        modifié
-                      </Text>
-                    )}
-                    <Text style={[styles.messageHeure, estMoi && styles.messageHeureMoi]}>
-                      {formatHeure(item.dateCreation)}
-                    </Text>
-                    {estMoi && (
-                      <Ionicons
-                        name={(item.lecteurs?.length || 0) > 1 ? 'checkmark-done' : 'checkmark'}
-                        size={14}
-                        color={(item.lecteurs?.length || 0) > 1 ? couleurs.secondaire : 'rgba(255,255,255,0.7)'}
-                        style={styles.messageCheckmark}
-                      />
-                    )}
-                  </View>
-
-                  {/* Animation coeur double-tap */}
-                  {heartAnimation?.messageId === item._id && heartAnimation.visible && (
-                    <Animated.View
-                      style={[
-                        styles.heartAnimation,
-                        {
-                          transform: [{ scale: heartScaleAnim }],
-                          opacity: heartOpacityAnim,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.heartEmoji}>❤️</Text>
-                    </Animated.View>
-                  )}
-                </View>
-
-                {/* Réactions affichées sous la bulle */}
-                {hasReactions && (
-                  <View style={[styles.reactionsContainer, estMoi && styles.reactionsContainerMoi]}>
-                    {Object.entries(reactionsGrouped).map(([type, count]) => {
-                      const countNum = count as number;
-                      return (
-                        <View key={type} style={styles.reactionBadge}>
-                          <Text style={styles.reactionEmoji}>{getReactionEmoji(type as TypeReaction)}</Text>
-                          {countNum > 1 && <Text style={styles.reactionCount}>{countNum}</Text>}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-
-              {/* Espace pour aligner les messages envoyés */}
-              {estMoi && <View style={styles.messageAvatarSpacer} />}
-            </View>
-          </AnimatedMessageBubble>
-        </Pressable>
+        <SwipeableMessage onSwipeReply={() => handleReplyToMessage(item)}>
+          {messageContent}
+        </SwipeableMessage>
       </View>
     );
+  };
+
+  // Render message
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+    return <MessageItem item={item} index={index} />;
   };
 
   // Obtenir le nom et l'avatar de la conversation
@@ -969,299 +1000,287 @@ export default function ConversationScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBack}>
-          <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
-        </Pressable>
-
-        <Pressable style={styles.headerInfo} onPress={naviguerVersProfil}>
-          <Avatar
-            uri={avatar}
-            prenom={prenom}
-            nom={nomUtilisateur}
-            taille={40}
-            gradientColors={estGroupe ? ['#10B981', '#059669'] : [couleurs.primaire, couleurs.primaireDark]}
-          />
-          <View style={styles.headerTexts}>
-            <Text style={styles.headerNom} numberOfLines={1}>
-              {nom}
-            </Text>
-            {sousTitre ? (
-              <Text style={styles.headerSousTitre}>{sousTitre}</Text>
-            ) : (
-              <Text style={styles.headerSousTitre}>Appuyez pour voir le profil</Text>
-            )}
-          </View>
-        </Pressable>
-
-        <Pressable onPress={showOptions} style={styles.headerAction}>
-          <Ionicons name="ellipsis-vertical" size={20} color={couleurs.texte} />
-        </Pressable>
-      </View>
-
-      {/* Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item._id}
-        contentContainerStyle={styles.messagesContainer}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => {
-          if (messages.length > 0) {
-            flatListRef.current?.scrollToEnd({ animated: false });
-          }
-        }}
-        ListEmptyComponent={
-          <View style={styles.emptyMessages}>
-            <Ionicons name="chatbubble-outline" size={48} color={couleurs.texteMuted} />
-            <Text style={styles.emptyMessagesText}>
-              Aucun message. Commencez la conversation !
-            </Text>
-          </View>
-        }
-      />
-
-      {/* Reply preview */}
-      {replyingTo && (
-        <View style={styles.replyBar}>
-          <View style={styles.replyBarContent}>
-            <View style={styles.replyBarIndicator} />
-            <View style={styles.replyBarInfo}>
-              <Text style={styles.replyBarAuthor}>
-                {replyingTo.estMoi ? 'Vous' : `${replyingTo.expediteur.prenom} ${replyingTo.expediteur.nom}`}
-              </Text>
-              <Text style={styles.replyBarText} numberOfLines={1}>
-                {replyingTo.type === 'image' ? '📷 Photo' :
-                 replyingTo.type === 'video' ? '🎥 Vidéo' :
-                 replyingTo.contenu}
-              </Text>
-            </View>
-          </View>
-          <Pressable onPress={handleCancelReply} style={styles.replyBarClose}>
-            <Ionicons name="close" size={20} color={couleurs.texteMuted} />
-          </Pressable>
-        </View>
-      )}
-
-      {/* Draft média preview */}
-      {draftMedia && (
-        <View style={styles.draftPreview}>
-          <View style={styles.draftMediaContainer}>
-            {draftMedia.type === 'image' ? (
-              <Image source={{ uri: draftMedia.uri }} style={styles.draftMediaImage} />
-            ) : (
-              <View style={styles.draftVideoContainer}>
-                <Image source={{ uri: draftMedia.uri }} style={styles.draftMediaImage} />
-                <View style={styles.draftVideoOverlay}>
-                  <Ionicons name="videocam" size={24} color={couleurs.blanc} />
-                  {draftMedia.duration && (
-                    <Text style={styles.draftVideoDuration}>
-                      {Math.floor(draftMedia.duration / 1000)}s
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}
-            <Pressable onPress={handleCancelDraft} style={styles.draftCloseButton}>
-              <Ionicons name="close-circle" size={24} color={couleurs.blanc} />
-            </Pressable>
-          </View>
-          <Text style={styles.draftHint}>Appuyez sur envoyer pour partager</Text>
-        </View>
-      )}
-
-      {/* Input */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom || espacements.md }]}>
-        <Pressable style={styles.inputAction} onPress={handleSelectMedia} disabled={envoiEnCours || !!draftMedia}>
-          <Ionicons name="attach-outline" size={24} color={(envoiEnCours || draftMedia) ? couleurs.texteMuted : couleurs.primaire} />
-        </Pressable>
-
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            placeholder={draftMedia ? 'Ajouter une légende...' : 'Message...'}
-            placeholderTextColor={couleurs.textePlaceholder}
-            value={messageTexte}
-            onChangeText={setMessageTexte}
-            multiline
-            maxLength={2000}
-          />
-        </View>
-
-        {(messageTexte.trim() || draftMedia) ? (
-          <Pressable
-            style={[styles.sendButton, envoiEnCours && styles.sendButtonDisabled]}
-            onPress={handleEnvoyer}
-            disabled={envoiEnCours}
-          >
-            {envoiEnCours ? (
-              <ActivityIndicator size="small" color={couleurs.blanc} />
-            ) : (
-              <Ionicons name="send" size={20} color={couleurs.blanc} />
-            )}
-          </Pressable>
-        ) : (
-          <Pressable style={styles.inputAction}>
-            <Ionicons name="mic-outline" size={24} color={couleurs.primaire} />
-          </Pressable>
-        )}
-      </View>
-
-      {/* Modal d'édition */}
-      <Modal
-        visible={modalEditionVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setModalEditionVisible(false)}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: insets.top }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setModalEditionVisible(false)}
-        >
-          <Pressable style={styles.modalContent} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Modifier le message</Text>
-              {messageEnEdition && (
-                <Text style={styles.modalSubtitle}>
-                  {getTempsRestantEdition(messageEnEdition)}
-                </Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.headerBack}>
+            <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
+          </Pressable>
+
+          <Pressable style={styles.headerInfo} onPress={naviguerVersProfil}>
+            <Avatar
+              uri={avatar}
+              prenom={prenom}
+              nom={nomUtilisateur}
+              taille={40}
+              gradientColors={estGroupe ? ['#10B981', '#059669'] : [couleurs.primaire, couleurs.primaireDark]}
+            />
+            <View style={styles.headerTexts}>
+              <Text style={styles.headerNom} numberOfLines={1}>
+                {nom}
+              </Text>
+              {sousTitre ? (
+                <Text style={styles.headerSousTitre}>{sousTitre}</Text>
+              ) : (
+                <Text style={styles.headerSousTitre}>Appuyez pour voir le profil</Text>
               )}
             </View>
+          </Pressable>
 
-            <TextInput
-              style={styles.modalInput}
-              value={contenuEdition}
-              onChangeText={setContenuEdition}
-              multiline
-              autoFocus
-              maxLength={2000}
-            />
+          <Pressable onPress={showOptions} style={styles.headerAction}>
+            <Ionicons name="ellipsis-vertical" size={20} color={couleurs.texte} />
+          </Pressable>
+        </View>
 
-            <View style={styles.modalActions}>
-              <Pressable
-                style={styles.modalCancelBtn}
-                onPress={() => setModalEditionVisible(false)}
-              >
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalSaveBtn, !contenuEdition.trim() && styles.modalSaveBtnDisabled]}
-                onPress={sauvegarderEdition}
-                disabled={!contenuEdition.trim()}
-              >
-                <Text style={styles.modalSaveText}>Enregistrer</Text>
+        {/* Messages */}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.messagesContainer}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => {
+            if (messages.length > 0) {
+              flatListRef.current?.scrollToEnd({ animated: false });
+            }
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyMessages}>
+              <Ionicons name="chatbubble-outline" size={48} color={couleurs.texteMuted} />
+              <Text style={styles.emptyMessagesText}>
+                Aucun message. Commencez la conversation !
+              </Text>
+            </View>
+          }
+        />
+
+        {/* Bottom area: Reply + Draft + Input */}
+        <View style={[styles.bottomArea, { paddingBottom: insets.bottom || espacements.md }]}>
+          {/* Reply preview */}
+          {replyingTo && (
+            <View style={styles.replyBar}>
+              <View style={styles.replyBarContent}>
+                <View style={styles.replyBarIndicator} />
+                <View style={styles.replyBarInfo}>
+                  <Text style={styles.replyBarAuthor}>
+                    {replyingTo.estMoi ? 'Vous' : `${replyingTo.expediteur.prenom} ${replyingTo.expediteur.nom}`}
+                  </Text>
+                  <Text style={styles.replyBarText} numberOfLines={1}>
+                    {replyingTo.type === 'image' ? '📷 Photo' :
+                     replyingTo.type === 'video' ? '🎥 Vidéo' :
+                     replyingTo.contenu}
+                  </Text>
+                </View>
+              </View>
+              <Pressable onPress={handleCancelReply} style={styles.replyBarClose}>
+                <Ionicons name="close" size={20} color={couleurs.texteMuted} />
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+          )}
 
-      {/* Modal fullscreen média */}
-      <Modal
-        visible={!!fullscreenMedia}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setFullscreenMedia(null)}
-        statusBarTranslucent
-      >
-        <View style={styles.fullscreenContainer}>
-          <Pressable style={styles.fullscreenClose} onPress={() => setFullscreenMedia(null)}>
-            <Ionicons name="close" size={28} color={couleurs.blanc} />
-          </Pressable>
+          {/* Draft média preview */}
+          {draftMedia && (
+            <View style={styles.draftPreview}>
+              <View style={styles.draftMediaContainer}>
+                {draftMedia.type === 'image' ? (
+                  <Image source={{ uri: draftMedia.uri }} style={styles.draftMediaImage} />
+                ) : (
+                  <View style={styles.draftVideoContainer}>
+                    <Image source={{ uri: draftMedia.uri }} style={styles.draftMediaImage} />
+                    <View style={styles.draftVideoOverlay}>
+                      <Ionicons name="videocam" size={24} color={couleurs.blanc} />
+                      {draftMedia.duration && (
+                        <Text style={styles.draftVideoDuration}>
+                          {Math.floor(draftMedia.duration / 1000)}s
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+                <Pressable onPress={handleCancelDraft} style={styles.draftCloseButton}>
+                  <Ionicons name="close-circle" size={24} color={couleurs.blanc} />
+                </Pressable>
+              </View>
+              <Text style={styles.draftHint}>Appuyez sur envoyer pour partager</Text>
+            </View>
+          )}
 
-          {fullscreenMedia?.type === 'image' ? (
-            <Image
-              source={{ uri: fullscreenMedia.uri }}
-              style={styles.fullscreenImage}
-              resizeMode="contain"
-            />
-          ) : fullscreenMedia?.type === 'video' ? (
-            <Video
-              source={{ uri: fullscreenMedia.uri }}
-              style={styles.fullscreenVideo}
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay
-              isLooping={false}
-            />
-          ) : null}
+          {/* Input */}
+          <View style={styles.inputContainer}>
+            <Pressable style={styles.inputAction} onPress={handleSelectMedia} disabled={envoiEnCours || !!draftMedia}>
+              <Ionicons name="attach-outline" size={24} color={(envoiEnCours || draftMedia) ? couleurs.texteMuted : couleurs.primaire} />
+            </Pressable>
+
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder={draftMedia ? 'Ajouter une légende...' : 'Message...'}
+                placeholderTextColor={couleurs.textePlaceholder}
+                value={messageTexte}
+                onChangeText={setMessageTexte}
+                multiline
+                maxLength={2000}
+              />
+            </View>
+
+            {(messageTexte.trim() || draftMedia) ? (
+              <Pressable
+                style={[styles.sendButton, envoiEnCours && styles.sendButtonDisabled]}
+                onPress={handleEnvoyer}
+                disabled={envoiEnCours}
+              >
+                {envoiEnCours ? (
+                  <ActivityIndicator size="small" color={couleurs.blanc} />
+                ) : (
+                  <Ionicons name="send" size={20} color={couleurs.blanc} />
+                )}
+              </Pressable>
+            ) : (
+              <Pressable style={styles.inputAction}>
+                <Ionicons name="mic-outline" size={24} color={couleurs.primaire} />
+              </Pressable>
+            )}
+          </View>
         </View>
-      </Modal>
 
-      {/* Modal picker réactions */}
-      <Modal
-        visible={!!reactionPickerMessage}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setReactionPickerMessage(null)}
-      >
-        <Pressable
-          style={styles.reactionPickerOverlay}
-          onPress={() => setReactionPickerMessage(null)}
+        {/* Modal d'édition */}
+        <Modal
+          visible={modalEditionVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setModalEditionVisible(false)}
         >
-          <View style={styles.reactionPickerContainer}>
-            <View style={styles.reactionPickerContent}>
-              {/* Réactions */}
-              <View style={styles.reactionPickerRow}>
-                {REACTIONS.map((reaction) => {
-                  const isSelected = reactionPickerMessage?.reactions?.some(
-                    r => r.userId === utilisateur?.id && r.type === reaction.type
-                  );
-                  return (
-                    <Pressable
-                      key={reaction.type}
-                      style={[styles.reactionPickerItem, isSelected && styles.reactionPickerItemSelected]}
-                      onPress={() => reactionPickerMessage && handleAddReaction(reactionPickerMessage, reaction.type)}
-                    >
-                      <Text style={styles.reactionPickerEmoji}>{reaction.emoji}</Text>
-                    </Pressable>
-                  );
-                })}
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setModalEditionVisible(false)}
+          >
+            <Pressable style={styles.modalContent} onPress={() => {}}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Modifier le message</Text>
+                {messageEnEdition && (
+                  <Text style={styles.modalSubtitle}>
+                    {getTempsRestantEdition(messageEnEdition)}
+                  </Text>
+                )}
               </View>
 
-              {/* Actions supplémentaires */}
-              <View style={styles.reactionPickerActions}>
-                <Pressable
-                  style={styles.reactionPickerAction}
-                  onPress={() => {
-                    if (reactionPickerMessage) {
-                      handleReplyToMessage(reactionPickerMessage);
-                    }
-                  }}
-                >
-                  <Ionicons name="arrow-undo-outline" size={20} color={couleurs.texte} />
-                  <Text style={styles.reactionPickerActionText}>Répondre</Text>
-                </Pressable>
+              <TextInput
+                style={styles.modalInput}
+                value={contenuEdition}
+                onChangeText={setContenuEdition}
+                multiline
+                autoFocus
+                maxLength={2000}
+              />
 
-                {reactionPickerMessage?.estMoi && (
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={styles.modalCancelBtn}
+                  onPress={() => setModalEditionVisible(false)}
+                >
+                  <Text style={styles.modalCancelText}>Annuler</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalSaveBtn, !contenuEdition.trim() && styles.modalSaveBtnDisabled]}
+                  onPress={sauvegarderEdition}
+                  disabled={!contenuEdition.trim()}
+                >
+                  <Text style={styles.modalSaveText}>Enregistrer</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Modal picker réactions */}
+        <Modal
+          visible={!!reactionPickerMessage}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setReactionPickerMessage(null)}
+        >
+          <Pressable
+            style={styles.reactionPickerOverlay}
+            onPress={() => setReactionPickerMessage(null)}
+          >
+            <View style={styles.reactionPickerContainer}>
+              <View style={styles.reactionPickerContent}>
+                {/* Réactions */}
+                <View style={styles.reactionPickerRow}>
+                  {REACTIONS.map((reaction) => {
+                    const isSelected = reactionPickerMessage?.reactions?.some(
+                      r => r.userId === utilisateur?.id && r.type === reaction.type
+                    );
+                    return (
+                      <Pressable
+                        key={reaction.type}
+                        style={[styles.reactionPickerItem, isSelected && styles.reactionPickerItemSelected]}
+                        onPress={() => reactionPickerMessage && handleAddReaction(reactionPickerMessage, reaction.type)}
+                      >
+                        <Text style={styles.reactionPickerEmoji}>{reaction.emoji}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Actions supplémentaires */}
+                <View style={styles.reactionPickerActions}>
                   <Pressable
                     style={styles.reactionPickerAction}
                     onPress={() => {
-                      setReactionPickerMessage(null);
                       if (reactionPickerMessage) {
-                        handleMessageOptions(reactionPickerMessage);
+                        handleReplyToMessage(reactionPickerMessage);
                       }
                     }}
                   >
-                    <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texte} />
-                    <Text style={styles.reactionPickerActionText}>Plus</Text>
+                    <Ionicons name="arrow-undo-outline" size={20} color={couleurs.texte} />
+                    <Text style={styles.reactionPickerActionText}>Répondre</Text>
                   </Pressable>
-                )}
+
+                  {reactionPickerMessage?.estMoi && (
+                    <Pressable
+                      style={styles.reactionPickerAction}
+                      onPress={() => {
+                        setReactionPickerMessage(null);
+                        if (reactionPickerMessage) {
+                          handleMessageOptions(reactionPickerMessage);
+                        }
+                      }}
+                    >
+                      <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texte} />
+                      <Text style={styles.reactionPickerActionText}>Plus</Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
             </View>
-          </View>
-        </Pressable>
-      </Modal>
-    </KeyboardAvoidingView>
+          </Pressable>
+        </Modal>
+
+        {/* VideoPlayerModal - même composant que le feed */}
+        <VideoPlayerModal
+          visible={!!fullscreenVideoUrl}
+          videoUrl={fullscreenVideoUrl}
+          onClose={() => setFullscreenVideoUrl(null)}
+          autoPlay={true}
+        />
+
+        {/* ImageViewerModal - même composant que le feed */}
+        <ImageViewerModal
+          visible={!!fullscreenImageUrl}
+          imageUrl={fullscreenImageUrl}
+          onClose={() => setFullscreenImageUrl(null)}
+        />
+      </KeyboardAvoidingView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -1291,23 +1310,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: espacements.md,
-  },
-  headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  headerAvatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerInitiales: {
-    fontSize: typographie.tailles.sm,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
   },
   headerTexts: {
     flex: 1,
@@ -1359,6 +1361,17 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.xs,
     color: couleurs.texteSecondaire,
   },
+  // Swipeable container
+  swipeableContainer: {
+    position: 'relative',
+  },
+  swipeReplyIcon: {
+    position: 'absolute',
+    left: 10,
+    top: '50%',
+    marginTop: -10,
+    zIndex: -1,
+  },
   messageRow: {
     flexDirection: 'row',
     marginBottom: espacements.sm,
@@ -1374,28 +1387,19 @@ const styles = StyleSheet.create({
     width: 36,
     marginLeft: espacements.xs,
   },
-  messageAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  // Message content wrapper - alignement sans maxWidth
+  messageContentWrapper: {
+    flexShrink: 1,
+    maxWidth: '80%',
   },
-  messageAvatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  messageAvatarInitiales: {
-    fontSize: 10,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
+  messageContentWrapperMoi: {
+    alignItems: 'flex-end',
   },
   messageBubble: {
-    maxWidth: '75%',
     paddingHorizontal: espacements.md,
     paddingVertical: espacements.sm,
     borderRadius: rayons.lg,
+    overflow: 'hidden',
   },
   messageBubbleMoi: {
     backgroundColor: couleurs.primaire,
@@ -1405,11 +1409,17 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.fondCard,
     borderBottomLeftRadius: rayons.xs,
   },
+  messageBubbleMedia: {
+    padding: 0,
+    overflow: 'hidden',
+  },
   messageAuteur: {
     fontSize: typographie.tailles.xs,
     fontWeight: typographie.poids.semibold,
     color: couleurs.primaire,
     marginBottom: 2,
+    paddingHorizontal: espacements.md,
+    paddingTop: espacements.sm,
   },
   messageTexte: {
     fontSize: typographie.tailles.base,
@@ -1420,14 +1430,14 @@ const styles = StyleSheet.create({
     color: couleurs.blanc,
   },
   messageImage: {
-    width: 200,
-    height: 200,
-    borderRadius: rayons.md,
+    width: 220,
+    height: 220,
+    borderRadius: rayons.lg,
   },
   messageVideoContainer: {
-    width: 200,
-    height: 200,
-    borderRadius: rayons.md,
+    width: 220,
+    height: 220,
+    borderRadius: rayons.lg,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -1444,6 +1454,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
     gap: 4,
   },
+  messageFooterMedia: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: rayons.sm,
+  },
   messageModifie: {
     fontSize: 10,
     fontStyle: 'italic',
@@ -1459,16 +1478,166 @@ const styles = StyleSheet.create({
   messageHeureMoi: {
     color: 'rgba(255,255,255,0.7)',
   },
+  messageHeureMedia: {
+    color: couleurs.blanc,
+  },
   messageCheckmark: {
     marginLeft: 2,
   },
+  // Reply preview dans la bulle
+  replyToPreview: {
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    borderRadius: rayons.md,
+    padding: espacements.sm,
+    marginBottom: espacements.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  replyToPreviewMoi: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  replyToBar: {
+    width: 3,
+    height: 32,
+    backgroundColor: couleurs.primaire,
+    borderRadius: 2,
+    marginRight: espacements.sm,
+  },
+  replyToContent: {
+    flex: 1,
+  },
+  replyToAuthor: {
+    fontSize: typographie.tailles.xs,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.primaire,
+  },
+  replyToAuthorMoi: {
+    color: 'rgba(255,255,255,0.9)',
+  },
+  replyToText: {
+    fontSize: typographie.tailles.xs,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  // Réactions sous la bulle
+  reactionsContainer: {
+    flexDirection: 'row',
+    marginTop: 4,
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  reactionsContainerMoi: {
+    justifyContent: 'flex-end',
+  },
+  reactionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondCard,
+    borderRadius: rayons.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  reactionEmoji: {
+    fontSize: 12,
+  },
+  reactionCount: {
+    fontSize: 10,
+    color: couleurs.texteSecondaire,
+    marginLeft: 2,
+  },
+  // Bottom area (reply + draft + input)
+  bottomArea: {
+    backgroundColor: couleurs.fond,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+  },
+  // Reply bar au-dessus de l'input
+  replyBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondCard,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+  },
+  replyBarContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  replyBarIndicator: {
+    width: 3,
+    height: 36,
+    backgroundColor: couleurs.primaire,
+    borderRadius: 2,
+    marginRight: espacements.sm,
+  },
+  replyBarInfo: {
+    flex: 1,
+  },
+  replyBarAuthor: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.primaire,
+  },
+  replyBarText: {
+    fontSize: typographie.tailles.sm,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  replyBarClose: {
+    padding: espacements.xs,
+  },
+  // Draft média preview
+  draftPreview: {
+    backgroundColor: couleurs.fondCard,
+    padding: espacements.md,
+    alignItems: 'center',
+  },
+  draftMediaContainer: {
+    position: 'relative',
+    borderRadius: rayons.md,
+    overflow: 'hidden',
+  },
+  draftMediaImage: {
+    width: 150,
+    height: 150,
+    borderRadius: rayons.md,
+  },
+  draftVideoContainer: {
+    position: 'relative',
+  },
+  draftVideoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: rayons.md,
+  },
+  draftVideoDuration: {
+    color: couleurs.blanc,
+    fontSize: typographie.tailles.sm,
+    marginTop: 4,
+  },
+  draftCloseButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: rayons.full,
+  },
+  draftHint: {
+    marginTop: espacements.sm,
+    fontSize: typographie.tailles.xs,
+    color: couleurs.texteSecondaire,
+  },
+  // Input container
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: espacements.md,
-    paddingTop: espacements.sm,
-    borderTopWidth: 1,
-    borderTopColor: couleurs.bordure,
+    paddingVertical: espacements.sm,
     gap: espacements.sm,
   },
   inputAction: {
@@ -1562,186 +1731,6 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.base,
     fontWeight: typographie.poids.semibold,
     color: couleurs.blanc,
-  },
-  // Reply preview dans la bulle
-  replyToPreview: {
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: rayons.md,
-    padding: espacements.sm,
-    marginBottom: espacements.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  replyToPreviewMoi: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  replyToBar: {
-    width: 3,
-    height: '100%',
-    backgroundColor: couleurs.primaire,
-    borderRadius: 2,
-    marginRight: espacements.sm,
-  },
-  replyToContent: {
-    flex: 1,
-  },
-  replyToAuthor: {
-    fontSize: typographie.tailles.xs,
-    fontWeight: typographie.poids.semibold,
-    color: couleurs.primaire,
-  },
-  replyToText: {
-    fontSize: typographie.tailles.xs,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
-  },
-  // Message content wrapper (pour replyTo + bulle)
-  messageContent: {
-    maxWidth: '75%',
-  },
-  // Réactions sous la bulle
-  reactionsContainer: {
-    flexDirection: 'row',
-    marginTop: 4,
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  reactionsContainerMoi: {
-    justifyContent: 'flex-end',
-  },
-  reactionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: couleurs.fondCard,
-    borderRadius: rayons.full,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-  },
-  reactionEmoji: {
-    fontSize: 12,
-  },
-  reactionCount: {
-    fontSize: 10,
-    color: couleurs.texteSecondaire,
-    marginLeft: 2,
-  },
-  // Animation coeur double-tap
-  heartAnimation: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginTop: -30,
-    marginLeft: -30,
-  },
-  heartEmoji: {
-    fontSize: 60,
-  },
-  // Reply bar au-dessus de l'input
-  replyBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: couleurs.fondCard,
-    paddingHorizontal: espacements.md,
-    paddingVertical: espacements.sm,
-    borderTopWidth: 1,
-    borderTopColor: couleurs.bordure,
-  },
-  replyBarContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  replyBarIndicator: {
-    width: 3,
-    height: 36,
-    backgroundColor: couleurs.primaire,
-    borderRadius: 2,
-    marginRight: espacements.sm,
-  },
-  replyBarInfo: {
-    flex: 1,
-  },
-  replyBarAuthor: {
-    fontSize: typographie.tailles.sm,
-    fontWeight: typographie.poids.semibold,
-    color: couleurs.primaire,
-  },
-  replyBarText: {
-    fontSize: typographie.tailles.sm,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
-  },
-  replyBarClose: {
-    padding: espacements.xs,
-  },
-  // Draft média preview
-  draftPreview: {
-    backgroundColor: couleurs.fondCard,
-    padding: espacements.md,
-    borderTopWidth: 1,
-    borderTopColor: couleurs.bordure,
-    alignItems: 'center',
-  },
-  draftMediaContainer: {
-    position: 'relative',
-    borderRadius: rayons.md,
-    overflow: 'hidden',
-  },
-  draftMediaImage: {
-    width: 150,
-    height: 150,
-    borderRadius: rayons.md,
-  },
-  draftVideoContainer: {
-    position: 'relative',
-  },
-  draftVideoOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: rayons.md,
-  },
-  draftVideoDuration: {
-    color: couleurs.blanc,
-    fontSize: typographie.tailles.sm,
-    marginTop: 4,
-  },
-  draftCloseButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: rayons.full,
-  },
-  draftHint: {
-    marginTop: espacements.sm,
-    fontSize: typographie.tailles.xs,
-    color: couleurs.texteSecondaire,
-  },
-  // Fullscreen média
-  fullscreenContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fullscreenClose: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    zIndex: 10,
-    padding: espacements.md,
-  },
-  fullscreenImage: {
-    width: '100%',
-    height: '80%',
-  },
-  fullscreenVideo: {
-    width: '100%',
-    height: '80%',
   },
   // Picker réactions
   reactionPickerOverlay: {
