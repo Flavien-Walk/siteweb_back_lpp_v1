@@ -265,6 +265,9 @@ export default function ConversationScreen() {
   // Animation coeur double-tap
   const [heartAnimationMessage, setHeartAnimationMessage] = useState<string | null>(null);
 
+  // Android keyboard visibility - pour ajuster le padding quand clavier ouvert
+  const [androidKeyboardVisible, setAndroidKeyboardVisible] = useState(false);
+
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
     if (!id) return;
@@ -306,12 +309,30 @@ export default function ConversationScreen() {
     return () => clearInterval(interval);
   }, [chargerMessages, chargement, id]);
 
-  // Scroll vers le bas quand clavier s'ouvre (iOS seulement - Android géré par adjustResize)
+  // Android: tracker la visibilité du clavier pour ajuster le padding
+  // Sur Android, insets.bottom compte pour la navigation bar, mais quand le clavier
+  // est ouvert, la nav bar est couverte. On doit donc supprimer ce padding.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const showListener = Keyboard.addListener('keyboardDidShow', () => {
+      setAndroidKeyboardVisible(true);
+    });
+    const hideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setAndroidKeyboardVisible(false);
+    });
+
+    return () => {
+      showListener.remove();
+      hideListener.remove();
+    };
+  }, []);
+
+  // iOS: scroll vers le bas quand clavier s'ouvre
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
 
     const keyboardWillShowListener = Keyboard.addListener('keyboardWillShow', () => {
-      // Petit délai pour laisser le layout se stabiliser
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 50);
@@ -1178,7 +1199,15 @@ export default function ConversationScreen() {
         />
 
         {/* Bottom area: Reply + Draft + Input */}
-        <View style={[styles.bottomArea, { paddingBottom: insets.bottom || espacements.md }]}>
+        {/* Sur Android: quand clavier ouvert, pas besoin du padding insets.bottom car nav bar couverte */}
+        <View style={[
+          styles.bottomArea,
+          {
+            paddingBottom: Platform.OS === 'android' && androidKeyboardVisible
+              ? espacements.xs  // Padding minimal quand clavier ouvert
+              : (insets.bottom || espacements.md)  // Padding normal sinon
+          }
+        ]}>
           {/* Reply preview */}
           {replyingTo && (
             <View style={styles.replyBar}>
