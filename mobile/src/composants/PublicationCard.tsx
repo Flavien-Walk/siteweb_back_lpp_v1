@@ -59,7 +59,10 @@ export interface PublicationCardProps {
   // Callbacks externes (doivent être stables via useCallback)
   onOpenCommentsSheet: (postId: string, count: number) => void;
   onNavigateToProfile: (userId: string) => void;
-  onOpenImage: (url: string) => void;
+  onOpenImage: (url: string, publication: Publication, liked: boolean, nbLikes: number, nbComments: number, handlers: {
+    onLike: () => void;
+    onShare: () => void;
+  }) => void;
   onOpenVideo: (params: VideoOpenParams, publication: Publication, liked: boolean, nbLikes: number, nbComments: number, handlers: {
     onLike: () => void;
     onComments: () => void;
@@ -380,9 +383,12 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
   const handleMediaPress = useCallback((index: number) => {
     const media = publication.medias[index];
     if (media.type !== 'video') {
-      onOpenImage(media.url);
+      onOpenImage(media.url, publication, liked, nbLikes, nbComments, {
+        onLike: handleLike,
+        onShare: handleShare,
+      });
     }
-  }, [publication.medias, onOpenImage]);
+  }, [publication, liked, nbLikes, nbComments, onOpenImage, handleLike, handleShare]);
 
   // Handler pour le legacy media (anciennes publications)
   const handleLegacyMediaPress = useCallback(() => {
@@ -404,7 +410,10 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
       );
       onResetControlsTimeout?.();
     } else {
-      onOpenImage(publication.media);
+      onOpenImage(publication.media, publication, liked, nbLikes, nbComments, {
+        onLike: handleLike,
+        onShare: handleShare,
+      });
     }
   }, [publication, liked, nbLikes, nbComments, onOpenVideo, onOpenImage, onResetControlsTimeout, handleLike, handleToggleComments, handleShare]);
 

@@ -43,6 +43,7 @@ import AnimatedPressable from '../../../src/composants/AnimatedPressable';
 import VideoPlayerModal from '../../../src/composants/VideoPlayerModal';
 import PostMediaCarousel from '../../../src/composants/PostMediaCarousel';
 import UnifiedCommentsSheet from '../../../src/composants/UnifiedCommentsSheet';
+import ImageViewerModal from '../../../src/composants/ImageViewerModal';
 import { sharePublication } from '../../../src/services/activity';
 import { videoPlaybackStore } from '../../../src/stores/videoPlaybackStore';
 import { videoRegistry } from '../../../src/stores/videoRegistry';
@@ -80,6 +81,10 @@ export default function PublicationDetailPage() {
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
   const [videoInitialPosition, setVideoInitialPosition] = useState<number>(0);
   const [videoInitialShouldPlay, setVideoInitialShouldPlay] = useState<boolean>(true);
+
+  // Etat modal image (fullscreen avec actions overlay)
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   // Etat composer commentaire (visible seulement quand ouvert)
   const [isCommentComposerOpen, setIsCommentComposerOpen] = useState(false);
@@ -515,6 +520,14 @@ export default function PublicationDetailPage() {
                 height={SCREEN_WIDTH}
                 liked={liked}
                 onDoubleTapLike={handleLike}
+                onMediaPress={(index) => {
+                  // Ouvrir image en fullscreen
+                  const media = publication.medias[index];
+                  if (media.type !== 'video') {
+                    setSelectedImageUrl(media.url);
+                    setImageModalVisible(true);
+                  }
+                }}
                 onVideoPress={(params) => {
                   setSelectedVideoUrl(params.videoUrl);
                   setVideoInitialPosition(params.positionMillis);
@@ -545,7 +558,14 @@ export default function PublicationDetailPage() {
                 </View>
               </Pressable>
             ) : (
-              <Image source={{ uri: publication.media }} style={styles.mediaImage} resizeMode="contain" />
+              <Pressable
+                onPress={() => {
+                  setSelectedImageUrl(publication.media || null);
+                  setImageModalVisible(true);
+                }}
+              >
+                <Image source={{ uri: publication.media }} style={styles.mediaImage} resizeMode="contain" />
+              </Pressable>
             )}
           </View>
         )}
@@ -875,6 +895,22 @@ export default function PublicationDetailPage() {
         initialShouldPlay={videoInitialShouldPlay}
         origin="post"
         // Props Instagram-like
+        liked={liked}
+        likesCount={nbLikes}
+        commentsCount={publication?.nbCommentaires || 0}
+        onLike={handleLike}
+        onShare={handleShare}
+      />
+
+      {/* Modal visionneuse image - Style Instagram avec actions overlay */}
+      <ImageViewerModal
+        visible={imageModalVisible}
+        imageUrl={selectedImageUrl}
+        postId={publication?._id || id}
+        onClose={() => {
+          setImageModalVisible(false);
+          setSelectedImageUrl(null);
+        }}
         liked={liked}
         likesCount={nbLikes}
         commentsCount={publication?.nbCommentaires || 0}

@@ -33,7 +33,7 @@ import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import { Utilisateur } from '../../src/services/auth';
 // useStaff importé uniquement dans PublicationCard extrait
-import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams } from '../../src/composants';
+import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal } from '../../src/composants';
 import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
 import { videoRegistry } from '../../src/stores/videoRegistry';
 import {
@@ -282,8 +282,21 @@ export default function Accueil() {
   // Ces callbacks sont passés au composant memoizé PublicationCard
   // Ils doivent être stables pour éviter les re-renders inutiles
 
-  const handleOpenImage = useCallback((url: string) => {
+  const handleOpenImage = useCallback((
+    url: string,
+    publication: Publication,
+    liked: boolean,
+    nbLikes: number,
+    nbComments: number,
+    handlers: { onLike: () => void; onShare: () => void }
+  ) => {
     setImageUrl(url);
+    setImagePostId(publication._id);
+    setImageLiked(liked);
+    setImageLikesCount(nbLikes);
+    setImageCommentsCount(nbComments);
+    setImageOnLike(handlers.onLike);
+    setImageOnShare(handlers.onShare);
     setImageModalVisible(true);
   }, []);
 
@@ -311,9 +324,17 @@ export default function Accueil() {
 
   // ============ FIN CALLBACKS PUBLICATIONCARD ============
 
-  // Image viewer modal
+  // Image viewer modal (avec actions overlay comme vidéo)
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imagePostId, setImagePostId] = useState<string | null>(null);
+  const [imageLiked, setImageLiked] = useState(false);
+  const [imageLikesCount, setImageLikesCount] = useState(0);
+  const [imageCommentsCount, setImageCommentsCount] = useState(0);
+  const imageOnLikeRef = useRef<(() => void) | null>(null);
+  const imageOnShareRef = useRef<(() => void) | null>(null);
+  const setImageOnLike = (fn: () => void) => { imageOnLikeRef.current = fn; };
+  const setImageOnShare = (fn: () => void) => { imageOnShareRef.current = fn; };
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
@@ -2355,44 +2376,22 @@ export default function Accueil() {
         onShare={videoOnShareRef.current || undefined}
       />
 
-      {/* Modal Visionneuse Image - Style Instagram */}
-      <Modal
+      {/* Modal Visionneuse Image - Style Instagram avec actions overlay */}
+      <ImageViewerModal
         visible={imageModalVisible}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => {
+        imageUrl={imageUrl}
+        postId={imagePostId || undefined}
+        onClose={() => {
           setImageModalVisible(false);
           setImageUrl(null);
+          setImagePostId(null);
         }}
-        statusBarTranslucent
-      >
-        <View style={styles.imageModalContainer}>
-          <Pressable
-            style={styles.imageModalBackdrop}
-            onPress={() => {
-              setImageModalVisible(false);
-              setImageUrl(null);
-            }}
-          />
-          {imageUrl && (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.imageModalImage}
-              resizeMode="contain"
-            />
-          )}
-          <Pressable
-            style={styles.imageModalCloseBtn}
-            onPress={() => {
-              setImageModalVisible(false);
-              setImageUrl(null);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={26} color={couleurs.blanc} />
-          </Pressable>
-        </View>
-      </Modal>
+        liked={imageLiked}
+        likesCount={imageLikesCount}
+        commentsCount={imageCommentsCount}
+        onLike={imageOnLikeRef.current || undefined}
+        onShare={imageOnShareRef.current || undefined}
+      />
 
       {/* Modal Viewer Stories */}
       <StoryViewer

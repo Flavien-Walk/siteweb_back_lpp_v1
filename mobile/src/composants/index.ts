@@ -28,9 +28,10 @@ export { default as StaffActions } from './StaffActions';
 export { default as PostMediaCarousel, type VideoFullscreenParams } from './PostMediaCarousel';
 export { default as PublicationCard, type PublicationCardProps, type VideoOpenParams } from './PublicationCard';
 
-// Composants Video
+// Composants Video & Image Fullscreen
 export { default as HeartAnimation } from './HeartAnimation';
 export { default as VideoActionsOverlay } from './VideoActionsOverlay';
+export { default as ImageViewerModal } from './ImageViewerModal';
 
 // Composants Commentaires
 // UnifiedCommentsSheet = composant unique pour tous les contextes (feed, profil, fullscreen)

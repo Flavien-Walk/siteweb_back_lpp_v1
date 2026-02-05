@@ -14,23 +14,20 @@ import {
   Alert,
   RefreshControl,
   Image,
-  Modal,
   Dimensions,
   Platform,
-  Animated,
   ToastAndroid,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video, ResizeMode } from 'expo-av';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
-import { Avatar, StaffActions, VideoPlayerModal } from '../../../src/composants';
+import { Avatar, StaffActions } from '../../../src/composants';
 import { useStaff } from '../../../src/hooks/useStaff';
 import {
   getProfilUtilisateur,
@@ -65,21 +62,8 @@ export default function ProfilUtilisateurPage() {
   const [peutVoirStories, setPeutVoirStories] = useState(false);
   const [storyViewerVisible, setStoryViewerVisible] = useState(false);
 
-  // Modal visionneuse média
-  const [imageModalVisible, setImageModalVisible] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [videoModalVisible, setVideoModalVisible] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const videoRef = useRef<Video>(null);
-
-  // Contrôles vidéo (identiques à accueil.tsx)
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [videoPosition, setVideoPosition] = useState(0);
-  const [showControls, setShowControls] = useState(true);
-  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const controlsOpacity = useRef(new Animated.Value(1)).current;
+  // Note: Les médias sont visionnés via la page publication/[id].tsx
+  // (navigation vers la page détail au clic sur un item de la grille)
 
   // Calcul largeur item grille (3 colonnes avec gap de 1px)
   const GRID_GAP = 1;
@@ -110,91 +94,6 @@ export default function ProfilUtilisateurPage() {
       mediaUrl.includes('.mov') ||
       mediaUrl.includes('.webm') ||
       mediaUrl.includes('video');
-  };
-
-  // Contrôles vidéo
-  const togglePlayPause = async () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-      } else {
-        await videoRef.current.playAsync();
-      }
-      setIsPlaying(!isPlaying);
-      resetControlsTimeout();
-    }
-  };
-
-  const toggleMute = async () => {
-    if (videoRef.current) {
-      await videoRef.current.setIsMutedAsync(!isMuted);
-      setIsMuted(!isMuted);
-      resetControlsTimeout();
-    }
-  };
-
-  const seekVideo = async (value: number) => {
-    if (videoRef.current && videoDuration > 0) {
-      await videoRef.current.setPositionAsync(value);
-      resetControlsTimeout();
-    }
-  };
-
-  const formatTime = (millis: number): string => {
-    const totalSeconds = Math.floor(millis / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const resetControlsTimeout = () => {
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-    setShowControls(true);
-    Animated.timing(controlsOpacity, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-
-    controlsTimeoutRef.current = setTimeout(() => {
-      if (isPlaying) {
-        Animated.timing(controlsOpacity, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }).start(() => setShowControls(false));
-      }
-    }, 3000);
-  };
-
-  const handleVideoTap = () => {
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-      controlsTimeoutRef.current = null;
-    }
-
-    if (showControls) {
-      Animated.timing(controlsOpacity, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start(() => setShowControls(false));
-    } else {
-      setShowControls(true);
-      Animated.timing(controlsOpacity, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-    }
-  };
-
-  const closeVideoModal = () => {
-    // VideoPlayerModal gère le cleanup interne
-    setVideoModalVisible(false);
-    setVideoUrl(null);
   };
 
   // Charger les publications de l'utilisateur
@@ -781,52 +680,6 @@ export default function ProfilUtilisateurPage() {
           )}
         </View>
       </ScrollView>
-
-      {/* Modal Visionneuse Image */}
-      <Modal
-        visible={imageModalVisible}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => {
-          setImageModalVisible(false);
-          setImageUrl(null);
-        }}
-      >
-        <View style={styles.mediaModalContainer}>
-          <Pressable
-            style={styles.mediaModalBackdrop}
-            onPress={() => {
-              setImageModalVisible(false);
-              setImageUrl(null);
-            }}
-          />
-          <Pressable
-            style={styles.mediaModalCloseBtn}
-            onPress={() => {
-              setImageModalVisible(false);
-              setImageUrl(null);
-            }}
-          >
-            <Ionicons name="close" size={28} color={couleurs.blanc} />
-          </Pressable>
-          {imageUrl && (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.mediaModalImage}
-              resizeMode="contain"
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Modal Lecteur Vidéo - Composant factorisé */}
-      <VideoPlayerModal
-        visible={videoModalVisible}
-        videoUrl={videoUrl}
-        postId={undefined}
-        onClose={closeVideoModal}
-        origin="profil"
-      />
 
       {/* Modal Viewer Stories */}
       <StoryViewer
