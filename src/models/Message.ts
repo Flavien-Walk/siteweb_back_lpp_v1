@@ -10,7 +10,7 @@ import {
 export { chiffrerMessage, dechiffrerMessage, detectVersion, migrateToV2 };
 
 // Types de messages
-export type TypeMessage = 'texte' | 'image' | 'systeme';
+export type TypeMessage = 'texte' | 'image' | 'video' | 'systeme';
 
 export interface IMessage extends Document {
   _id: mongoose.Types.ObjectId;
@@ -55,7 +55,7 @@ const messageSchema = new Schema<IMessage>(
     },
     type: {
       type: String,
-      enum: ['texte', 'image', 'systeme'],
+      enum: ['texte', 'image', 'video', 'systeme'],
       default: 'texte',
     },
     contenuCrypte: {

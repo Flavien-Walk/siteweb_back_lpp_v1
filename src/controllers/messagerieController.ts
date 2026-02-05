@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { Message, Conversation, chiffrerMessage, TypeMessage } from '../models/Message.js';
 import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
+import { isBase64DataUrl, isBase64VideoDataUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
 
 /**
  * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
@@ -13,15 +14,15 @@ const escapeRegex = (str: string): string => {
 };
 
 // Schéma pour envoyer un message
+// Note: pour les médias (image/video), contenu peut être un base64 data URL (jusqu'à 25MB)
 const schemaEnvoyerMessage = z.object({
   conversationId: z.string().optional(),
   destinataireId: z.string().optional(), // Pour créer une nouvelle conversation privée
   contenu: z
     .string()
-    .min(1, 'Le contenu est requis')
-    .max(2000, 'Le message ne peut pas dépasser 2000 caractères')
-    .trim(),
-  type: z.enum(['texte', 'image']).default('texte'),
+    .min(1, 'Le contenu est requis'),
+  type: z.enum(['texte', 'image', 'video']).default('texte'),
+  clientMessageId: z.string().optional(), // Pour idempotence côté client
 });
 
 // Schéma pour créer un groupe
@@ -98,8 +99,14 @@ export const getConversations = async (
         if (conv.dernierMessage) {
           const msg = await Message.findById(conv.dernierMessage._id);
           if (msg) {
+            let contenuAffiche = msg.contenu;
+            if (msg.type === 'image') {
+              contenuAffiche = '📷 Photo';
+            } else if (msg.type === 'video') {
+              contenuAffiche = '🎬 Vidéo';
+            }
             dernierMessageDecrypte = {
-              contenu: msg.type === 'image' ? '📷 Photo' : msg.contenu,
+              contenu: contenuAffiche,
               expediteur: msg.expediteur,
               dateCreation: msg.dateCreation,
               type: msg.type,
@@ -301,14 +308,46 @@ export const envoyerMessage = async (
       throw new ErreurAPI('conversationId ou destinataireId requis.', 400);
     }
 
-    // Chiffrer le contenu du message
-    const contenuCrypte = chiffrerMessage(donnees.contenu);
+    // Traiter le contenu selon le type
+    let contenuFinal = donnees.contenu;
+    let typeMessage: TypeMessage = donnees.type as TypeMessage;
+
+    // Si c'est un média base64, uploader vers Cloudinary
+    if (isBase64DataUrl(donnees.contenu)) {
+      // Image base64
+      try {
+        const mediaUrl = await uploadPublicationMedia(donnees.contenu, `msg_${conversation._id}_${Date.now()}`);
+        contenuFinal = mediaUrl;
+        typeMessage = 'image';
+      } catch (uploadError) {
+        console.error('Erreur upload image message:', uploadError);
+        throw new ErreurAPI('Erreur lors de l\'upload de l\'image.', 500);
+      }
+    } else if (isBase64VideoDataUrl(donnees.contenu)) {
+      // Video base64
+      try {
+        const mediaUrl = await uploadPublicationMedia(donnees.contenu, `msg_${conversation._id}_${Date.now()}`);
+        contenuFinal = mediaUrl;
+        typeMessage = 'video';
+      } catch (uploadError) {
+        console.error('Erreur upload video message:', uploadError);
+        throw new ErreurAPI('Erreur lors de l\'upload de la vidéo.', 500);
+      }
+    }
+
+    // Validation taille pour les messages texte
+    if (typeMessage === 'texte' && contenuFinal.length > 2000) {
+      throw new ErreurAPI('Le message ne peut pas dépasser 2000 caractères.', 400);
+    }
+
+    // Chiffrer le contenu du message (URL ou texte)
+    const contenuCrypte = chiffrerMessage(contenuFinal);
 
     // Créer le message
     const message = await Message.create({
       conversation: conversation._id,
       expediteur: userId,
-      type: donnees.type as TypeMessage,
+      type: typeMessage,
       contenuCrypte,
       lecteurs: [userId], // L'expéditeur a "lu" son propre message
     });
