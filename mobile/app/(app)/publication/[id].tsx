@@ -20,7 +20,7 @@ import {
   RefreshControl,
   Keyboard,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { espacements, rayons, typographie } from '../../../src/constantes/theme';
@@ -42,12 +42,15 @@ import LikeButton, { LikeButtonCompact } from '../../../src/composants/LikeButto
 import AnimatedPressable from '../../../src/composants/AnimatedPressable';
 import VideoPlayerModal from '../../../src/composants/VideoPlayerModal';
 import PostMediaCarousel from '../../../src/composants/PostMediaCarousel';
+import UnifiedCommentsSheet from '../../../src/composants/UnifiedCommentsSheet';
 import { sharePublication } from '../../../src/services/activity';
+import { videoPlaybackStore } from '../../../src/stores/videoPlaybackStore';
+import { videoRegistry } from '../../../src/stores/videoRegistry';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function PublicationDetailPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, openComments } = useLocalSearchParams<{ id: string; openComments?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { couleurs } = useTheme();
@@ -75,9 +78,14 @@ export default function PublicationDetailPage() {
   // Etat modal video
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
+  const [videoInitialPosition, setVideoInitialPosition] = useState<number>(0);
+  const [videoInitialShouldPlay, setVideoInitialShouldPlay] = useState<boolean>(true);
 
   // Etat composer commentaire (visible seulement quand ouvert)
   const [isCommentComposerOpen, setIsCommentComposerOpen] = useState(false);
+
+  // Comments Sheet (expérience unifiée)
+  const [commentsSheetVisible, setCommentsSheetVisible] = useState(false);
 
   // Refs
   const scrollViewRef = useRef<ScrollView>(null);
@@ -133,6 +141,25 @@ export default function PublicationDetailPage() {
     chargerCommentaires();
   }, [chargerPublication, chargerCommentaires]);
 
+  // Manage video playback: set as active when page is focused, clear on blur
+  useFocusEffect(
+    useCallback(() => {
+      // On focus: if publication has a video, set it as the active video
+      if (publication) {
+        const video = publication.medias?.find(m => m.type === 'video');
+        if (video) {
+          videoPlaybackStore.setActiveVideo(video.url);
+        }
+      }
+
+      // On blur: hard stop ALL videos to prevent ghost audio
+      return () => {
+        videoRegistry.stopAll().catch(() => {});
+        videoPlaybackStore.setActiveVideo(null);
+      };
+    }, [publication])
+  );
+
   // Formater la date
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -169,14 +196,9 @@ export default function PublicationDetailPage() {
     }
   };
 
-  // Ouvrir le composer de commentaire
+  // Ouvrir le composer de commentaire via le sheet unifié
   const openCommentComposer = useCallback(() => {
-    setIsCommentComposerOpen(true);
-    // Scroll vers les commentaires + focus input après un court délai
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-      commentInputRef.current?.focus();
-    }, 150);
+    setCommentsSheetVisible(true);
   }, []);
 
   // Fermer le composer de commentaire
@@ -186,6 +208,14 @@ export default function PublicationDetailPage() {
     setNewComment('');
     setReplyingTo(null);
   }, []);
+
+  // Auto-open comments si paramètre openComments=true (deep link)
+  useEffect(() => {
+    if (openComments === 'true' && !chargement && publication) {
+      console.log('[COMMENTS] Auto-opening from fullscreen, postId=', id);
+      openCommentComposer();
+    }
+  }, [openComments, chargement, publication, openCommentComposer, id]);
 
   // Partager la publication (utilise le service centralisé avec gestion iOS/Android)
   const handleShare = async () => {
@@ -480,14 +510,16 @@ export default function PublicationDetailPage() {
             {publication.medias && publication.medias.length > 0 ? (
               <PostMediaCarousel
                 medias={publication.medias}
+                postId={publication._id}
                 width={SCREEN_WIDTH}
                 height={SCREEN_WIDTH}
-                onMediaPress={(index) => {
-                  const media = publication.medias[index];
-                  if (media.type === 'video') {
-                    setSelectedVideoUrl(media.url);
-                    setVideoModalVisible(true);
-                  }
+                liked={liked}
+                onDoubleTapLike={handleLike}
+                onVideoPress={(params) => {
+                  setSelectedVideoUrl(params.videoUrl);
+                  setVideoInitialPosition(params.positionMillis);
+                  setVideoInitialShouldPlay(params.isPlaying);
+                  setVideoModalVisible(true);
                 }}
               />
             ) : mediaIsVideo ? (
@@ -831,10 +863,37 @@ export default function PublicationDetailPage() {
       <VideoPlayerModal
         visible={videoModalVisible}
         videoUrl={selectedVideoUrl || publication?.media || null}
+        postId={publication?._id || id}
         onClose={() => {
+          // VideoPlayerModal gère les commentaires en interne
           setVideoModalVisible(false);
           setSelectedVideoUrl(null);
+          setVideoInitialPosition(0);
+          setVideoInitialShouldPlay(true);
         }}
+        initialPositionMillis={videoInitialPosition}
+        initialShouldPlay={videoInitialShouldPlay}
+        origin="post"
+        // Props Instagram-like
+        liked={liked}
+        likesCount={nbLikes}
+        commentsCount={publication?.nbCommentaires || 0}
+        onLike={handleLike}
+        onShare={handleShare}
+      />
+
+      {/* Comments Sheet - Expérience unifiée */}
+      <UnifiedCommentsSheet
+        postId={publication?._id || id}
+        visible={commentsSheetVisible}
+        onClose={() => setCommentsSheetVisible(false)}
+        onCommentAdded={() => {
+          // Rafraîchir les commentaires après ajout
+          chargerCommentaires();
+        }}
+        mode="modal"
+        theme="light"
+        initialCount={publication?.nbCommentaires || 0}
       />
     </KeyboardAvoidingView>
   );

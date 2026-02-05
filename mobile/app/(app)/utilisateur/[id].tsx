@@ -30,7 +30,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
-import { Avatar, StaffActions } from '../../../src/composants';
+import { Avatar, StaffActions, VideoPlayerModal } from '../../../src/composants';
 import { useStaff } from '../../../src/hooks/useStaff';
 import {
   getProfilUtilisateur,
@@ -192,17 +192,9 @@ export default function ProfilUtilisateurPage() {
   };
 
   const closeVideoModal = () => {
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
+    // VideoPlayerModal gère le cleanup interne
     setVideoModalVisible(false);
     setVideoUrl(null);
-    setIsPlaying(true);
-    setIsMuted(false);
-    setVideoDuration(0);
-    setVideoPosition(0);
-    setShowControls(true);
-    controlsOpacity.setValue(1);
   };
 
   // Charger les publications de l'utilisateur
@@ -827,160 +819,14 @@ export default function ProfilUtilisateurPage() {
         </View>
       </Modal>
 
-      {/* Modal Lecteur Vidéo - Style Instagram/LinkedIn (identique à accueil) */}
-      <Modal
+      {/* Modal Lecteur Vidéo - Composant factorisé */}
+      <VideoPlayerModal
         visible={videoModalVisible}
-        animationType="fade"
-        transparent={false}
-        onRequestClose={closeVideoModal}
-        statusBarTranslucent
-      >
-        <View style={styles.videoModalContainer}>
-          {/* Vidéo */}
-          {videoUrl && (
-            <View style={styles.videoTouchArea}>
-              <Video
-                ref={videoRef}
-                source={{ uri: videoUrl }}
-                style={styles.videoPlayer}
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay
-                isMuted={isMuted}
-                isLooping={false}
-                onPlaybackStatusUpdate={(status) => {
-                  if (status.isLoaded) {
-                    setVideoDuration(status.durationMillis || 0);
-                    setVideoPosition(status.positionMillis || 0);
-                    setIsPlaying(status.isPlaying);
-                    if (status.didJustFinish) {
-                      setIsPlaying(false);
-                      setShowControls(true);
-                      controlsOpacity.setValue(1);
-                    }
-                  }
-                }}
-              />
-            </View>
-          )}
-
-          {/* Overlay gradient haut */}
-          <Animated.View
-            style={[styles.videoGradientTop, { opacity: controlsOpacity }]}
-            pointerEvents="none"
-          >
-            <LinearGradient
-              colors={['rgba(0,0,0,0.6)', 'transparent']}
-              style={{ flex: 1 }}
-            />
-          </Animated.View>
-
-          {/* Overlay gradient bas */}
-          <Animated.View
-            style={[styles.videoGradientBottom, { opacity: controlsOpacity }]}
-            pointerEvents="none"
-          >
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.7)']}
-              style={{ flex: 1 }}
-            />
-          </Animated.View>
-
-          {/* Bouton fermer - Style Instagram */}
-          <Animated.View
-            style={[styles.videoCloseContainer, { opacity: controlsOpacity }]}
-            pointerEvents={showControls ? 'auto' : 'none'}
-          >
-            <Pressable
-              style={styles.videoCloseBtn}
-              onPress={closeVideoModal}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={26} color={couleurs.blanc} />
-            </Pressable>
-          </Animated.View>
-
-          {/* Zone de tap pour toggle les contrôles */}
-          <Pressable
-            style={styles.videoCenterControl}
-            onPress={handleVideoTap}
-          >
-            {/* Bouton Play/Pause central */}
-            {showControls && (
-              <Animated.View style={{ opacity: controlsOpacity }}>
-                <Pressable
-                  style={styles.videoCenterBtn}
-                  onPress={togglePlayPause}
-                >
-                  <View style={styles.videoCenterBtnInner}>
-                    <Ionicons
-                      name={isPlaying ? 'pause' : 'play'}
-                      size={44}
-                      color={couleurs.blanc}
-                      style={!isPlaying ? { marginLeft: 4 } : undefined}
-                    />
-                  </View>
-                </Pressable>
-              </Animated.View>
-            )}
-          </Pressable>
-
-          {/* Contrôles bas - Style épuré */}
-          <Animated.View
-            style={[styles.videoBottomControls, { opacity: controlsOpacity }]}
-            pointerEvents={showControls ? 'auto' : 'none'}
-          >
-            {/* Barre de progression */}
-            <Pressable
-              style={styles.videoProgressBar}
-              onPress={(e) => {
-                const { locationX } = e.nativeEvent;
-                const progress = locationX / (SCREEN_WIDTH - 32);
-                const newPosition = progress * videoDuration;
-                seekVideo(Math.max(0, Math.min(newPosition, videoDuration)));
-              }}
-            >
-              <View style={styles.videoProgressTrack}>
-                <View
-                  style={[
-                    styles.videoProgressFill,
-                    {
-                      width: videoDuration > 0
-                        ? `${(videoPosition / videoDuration) * 100}%`
-                        : '0%',
-                    },
-                  ]}
-                />
-              </View>
-            </Pressable>
-
-            {/* Ligne de contrôles */}
-            <View style={styles.videoControlsRow}>
-              {/* Temps */}
-              <View style={styles.videoTimeContainer}>
-                <Text style={styles.videoTimeText}>
-                  {formatTime(videoPosition)} <Text style={styles.videoTimeSeparator}>/</Text> {formatTime(videoDuration)}
-                </Text>
-              </View>
-
-              {/* Boutons droite */}
-              <View style={styles.videoRightControls}>
-                {/* Bouton Mute */}
-                <Pressable
-                  style={styles.videoSmallBtn}
-                  onPress={toggleMute}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons
-                    name={isMuted ? 'volume-mute' : 'volume-high'}
-                    size={22}
-                    color={couleurs.blanc}
-                  />
-                </Pressable>
-              </View>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
+        videoUrl={videoUrl}
+        postId={undefined}
+        onClose={closeVideoModal}
+        origin="profil"
+      />
 
       {/* Modal Viewer Stories */}
       <StoryViewer

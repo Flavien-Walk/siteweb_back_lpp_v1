@@ -32,23 +32,15 @@ import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import { Utilisateur } from '../../src/services/auth';
-import { useStaff } from '../../src/hooks/useStaff';
-import { StaffActions, PostMediaCarousel } from '../../src/composants';
+// useStaff importé uniquement dans PublicationCard extrait
+import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams } from '../../src/composants';
+import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
+import { videoRegistry } from '../../src/stores/videoRegistry';
 import {
   Publication,
-  Commentaire as CommentaireAPI,
   getPublications,
   creerPublication,
-  toggleLikePublication,
-  getCommentaires,
-  ajouterCommentaire,
-  toggleLikeCommentaire,
-  supprimerCommentaire,
-  modifierCommentaire,
-  supprimerPublication,
-  modifierPublication,
-  signalerPublication,
-  RaisonSignalement,
+  // Les autres imports (toggleLike, comments, etc.) sont dans PublicationCard
 } from '../../src/services/publications';
 import {
   Conversation,
@@ -69,7 +61,7 @@ import {
   getEvenements,
 } from '../../src/services/evenements';
 import { getNotifications } from '../../src/services/notifications';
-import { sharePublication } from '../../src/services/activity';
+// sharePublication importé dans PublicationCard
 import { rechercherUtilisateurs as rechercherUtilisateursAPI, ProfilUtilisateur, getDemandesAmis } from '../../src/services/utilisateurs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Avatar from '../../src/composants/Avatar';
@@ -77,8 +69,7 @@ import Avatar from '../../src/composants/Avatar';
 // Clé de stockage pour l'historique de recherche
 const HISTORIQUE_RECHERCHE_KEY = '@lpp_historique_recherche';
 const MAX_HISTORIQUE = 10;
-import LikeButton, { LikeButtonCompact } from '../../src/composants/LikeButton';
-import { getUserBadgeConfig } from '../../src/utils/userDisplay';
+// LikeButton et getUserBadgeConfig importés dans PublicationCard
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
 import StoriesRow from '../../src/composants/StoriesRow';
@@ -230,6 +221,14 @@ export default function Accueil() {
   const [afficherScrollTop, setAfficherScrollTop] = useState(false);
   const scrollTopOpacity = useRef(new Animated.Value(0)).current;
 
+  // Video viewability tracking with debounce
+  // Only change active video when a post is dominant (>70% visible) for >150ms
+  const activePostIdRef = useRef<string | null>(null);
+  const pendingActivePostRef = useRef<string | null>(null);
+  const viewabilityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const VIEWABILITY_THRESHOLD = 0.7; // 70% visible (stricter to avoid false positives)
+  const VIEWABILITY_DELAY_MS = 150; // 150ms minimum view time (faster response)
+
   // Publications API
   const [publications, setPublications] = useState<Publication[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -248,6 +247,69 @@ export default function Accueil() {
   // Video player modal
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoPostId, setVideoPostId] = useState<string | null>(null);
+  const [videoInitialPosition, setVideoInitialPosition] = useState<number>(0);
+  const [videoInitialShouldPlay, setVideoInitialShouldPlay] = useState<boolean>(true);
+  // États pour interactions fullscreen (Instagram-like)
+  const [videoLiked, setVideoLiked] = useState(false);
+  const [videoLikesCount, setVideoLikesCount] = useState(0);
+  const [videoCommentsCount, setVideoCommentsCount] = useState(0);
+  const videoOnLikeRef = useRef<(() => void) | null>(null);
+  const videoOnCommentsRef = useRef<(() => void) | null>(null);
+  const videoOnShareRef = useRef<(() => void) | null>(null);
+  const setVideoOnLike = (fn: () => void) => { videoOnLikeRef.current = fn; };
+  const setVideoOnComments = (fn: () => void) => { videoOnCommentsRef.current = fn; };
+  const setVideoOnShare = (fn: () => void) => { videoOnShareRef.current = fn; };
+
+  // Comments sheet (UnifiedCommentsSheet)
+  const [commentsSheetVisible, setCommentsSheetVisible] = useState(false);
+  const [commentsSheetPostId, setCommentsSheetPostId] = useState<string | null>(null);
+  const [commentsSheetCount, setCommentsSheetCount] = useState(0);
+
+  // Ouvrir les commentaires via le sheet unifié
+  const openCommentsSheet = useCallback((postId: string, count: number) => {
+    setCommentsSheetPostId(postId);
+    setCommentsSheetCount(count);
+    setCommentsSheetVisible(true);
+  }, []);
+
+  const closeCommentsSheet = useCallback(() => {
+    setCommentsSheetVisible(false);
+    setCommentsSheetPostId(null);
+  }, []);
+
+  // ============ CALLBACKS POUR PUBLICATIONCARD (STABLES) ============
+  // Ces callbacks sont passés au composant memoizé PublicationCard
+  // Ils doivent être stables pour éviter les re-renders inutiles
+
+  const handleOpenImage = useCallback((url: string) => {
+    setImageUrl(url);
+    setImageModalVisible(true);
+  }, []);
+
+  const handleOpenVideo = useCallback((
+    params: VideoOpenParams,
+    publication: Publication,
+    liked: boolean,
+    nbLikes: number,
+    nbComments: number,
+    handlers: { onLike: () => void; onComments: () => void; onShare: () => void }
+  ) => {
+    setVideoUrl(params.videoUrl);
+    setVideoPostId(publication._id);
+    setVideoInitialPosition(params.positionMillis);
+    setVideoInitialShouldPlay(params.isPlaying);
+    // Stocker les infos pour le modal fullscreen
+    setVideoLiked(liked);
+    setVideoLikesCount(nbLikes);
+    setVideoCommentsCount(nbComments);
+    setVideoOnLike(handlers.onLike);
+    setVideoOnComments(handlers.onComments);
+    setVideoOnShare(handlers.onShare);
+    setVideoModalVisible(true);
+  }, []);
+
+  // ============ FIN CALLBACKS PUBLICATIONCARD ============
 
   // Image viewer modal
   const [imageModalVisible, setImageModalVisible] = useState(false);
@@ -356,18 +418,12 @@ export default function Accueil() {
     }
   };
 
-  const closeVideoModal = () => {
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
+  const closeVideoModal = (finalPositionMillis?: number) => {
+    // VideoPlayerModal gère tout en interne (y compris les commentaires)
     setVideoModalVisible(false);
     setVideoUrl(null);
-    setIsPlaying(true);
-    setIsMuted(false);
-    setVideoDuration(0);
-    setVideoPosition(0);
-    setShowControls(true);
-    controlsOpacity.setValue(1);
+    setVideoInitialPosition(0);
+    setVideoInitialShouldPlay(true);
   };
 
   // Messagerie
@@ -470,6 +526,35 @@ export default function Accueil() {
       chargerLives();
     }
   }, [ongletActif]);
+
+  // Clear active video and viewability state when switching away from feed tab
+  useEffect(() => {
+    if (ongletActif !== 'feed') {
+      // Clear viewability tracking
+      if (viewabilityTimeoutRef.current) {
+        clearTimeout(viewabilityTimeoutRef.current);
+        viewabilityTimeoutRef.current = null;
+      }
+      activePostIdRef.current = null;
+      pendingActivePostRef.current = null;
+      // Hard stop ALL videos via registry
+      videoRegistry.stopAll().catch(() => {});
+      // Clear active post and video in store
+      videoPlaybackStore.setActivePostId(null);
+      videoPlaybackStore.setActiveVideo(null);
+    }
+  }, [ongletActif]);
+
+  // Cleanup viewability timeout and stop all videos on unmount
+  useEffect(() => {
+    return () => {
+      if (viewabilityTimeoutRef.current) {
+        clearTimeout(viewabilityTimeoutRef.current);
+      }
+      // Hard stop ALL videos on unmount
+      videoRegistry.stopAll().catch(() => {});
+    };
+  }, []);
 
   // Scroll vers une publication ciblée (depuis notification)
   useEffect(() => {
@@ -947,965 +1032,9 @@ export default function Accueil() {
 
   const unreadMessages = conversations.reduce((total, conv) => total + conv.messagesNonLus, 0);
 
-  // ============ COMPOSANTS ============
-
-  // Note: Les anciens composants PostCard et StoryItem ont ete supprimes
-  // car ils utilisaient des donnees mock. PublicationCard utilise l'API.
-
-  // ============ PUBLICATION CARD (API) ============
-  const PublicationCard = ({ publication, onUpdate, onDelete }: { publication: Publication; onUpdate: (pub: Publication) => void; onDelete: (id: string) => void }) => {
-    const [liked, setLiked] = useState(publication.aLike);
-    const [nbLikes, setNbLikes] = useState(publication.nbLikes);
-    const [nbComments, setNbComments] = useState(publication.nbCommentaires);
-    const [showComments, setShowComments] = useState(false);
-    const [commentaires, setCommentaires] = useState<CommentaireAPI[]>([]);
-    const [chargementCommentaires, setChargementCommentaires] = useState(false);
-    const [newComment, setNewComment] = useState('');
-    const [replyingTo, setReplyingTo] = useState<{ id: string; auteur: string } | null>(null);
-    const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
-    const [editingComment, setEditingComment] = useState<string | null>(null);
-    const [editingContent, setEditingContent] = useState('');
-    const [editingPost, setEditingPost] = useState(false);
-
-    // Synchroniser les états locaux avec les props
-    useEffect(() => {
-      setLiked(publication.aLike);
-      setNbLikes(publication.nbLikes);
-      setNbComments(publication.nbCommentaires);
-    }, [publication.aLike, publication.nbLikes, publication.nbCommentaires, publication._id]);
-    const [editingPostContent, setEditingPostContent] = useState(publication.contenu);
-    const [showPostMenu, setShowPostMenu] = useState(false);
-    const [showStaffActions, setShowStaffActions] = useState(false);
-    const [staffActionTarget, setStaffActionTarget] = useState<'publication' | 'user'>('publication');
-    const [notification, setNotification] = useState<{ type: 'succes' | 'erreur'; message: string } | null>(null);
-
-    // Hook staff pour les actions de modération
-    const staff = useStaff();
-
-    const auteurNom = `${publication.auteur.prenom} ${publication.auteur.nom}`;
-
-    const formatDate = (dateStr: string) => {
-      const date = new Date(dateStr);
-      const now = new Date();
-      const diff = now.getTime() - date.getTime();
-      const minutes = Math.floor(diff / 60000);
-      const hours = Math.floor(minutes / 60);
-      const days = Math.floor(hours / 24);
-
-      if (minutes < 1) return 'A l\'instant';
-      if (minutes < 60) return `Il y a ${minutes}min`;
-      if (hours < 24) return `Il y a ${hours}h`;
-      if (days < 7) return `Il y a ${days}j`;
-      return date.toLocaleDateString('fr-FR');
-    };
-
-    const handleLike = async () => {
-      try {
-        const newLiked = !liked;
-        setLiked(newLiked);
-        setNbLikes(prev => newLiked ? prev + 1 : prev - 1);
-
-        const reponse = await toggleLikePublication(publication._id);
-        if (reponse.succes && reponse.data) {
-          setLiked(reponse.data.aLike);
-          setNbLikes(reponse.data.nbLikes);
-          // Synchroniser l'état parent
-          onUpdate({ ...publication, aLike: reponse.data.aLike, nbLikes: reponse.data.nbLikes, nbCommentaires: nbComments });
-        }
-      } catch (error) {
-        setLiked(!liked);
-        setNbLikes(publication.nbLikes);
-      }
-    };
-
-    const chargerCommentaires = async () => {
-      try {
-        setChargementCommentaires(true);
-        const reponse = await getCommentaires(publication._id);
-        if (reponse.succes && reponse.data) {
-          setCommentaires(reponse.data.commentaires);
-        }
-      } catch (error) {
-        console.error('Erreur chargement commentaires:', error);
-      } finally {
-        setChargementCommentaires(false);
-      }
-    };
-
-    const handleToggleComments = () => {
-      if (!showComments) {
-        chargerCommentaires();
-      }
-      setShowComments(!showComments);
-    };
-
-    const handleAddComment = async () => {
-      if (!newComment.trim()) return;
-
-      try {
-        const reponse = await ajouterCommentaire(publication._id, newComment.trim(), replyingTo?.id);
-        if (reponse.succes && reponse.data) {
-          if (replyingTo) {
-            setCommentaires(prev => prev.map(c => {
-              if (c._id === replyingTo.id) {
-                return { ...c, reponses: [...(c.reponses || []), reponse.data!.commentaire] };
-              }
-              return c;
-            }));
-            setExpandedReplies(prev => ({ ...prev, [replyingTo.id]: true }));
-          } else {
-            setCommentaires(prev => [reponse.data!.commentaire, ...prev]);
-          }
-          setNewComment('');
-          setReplyingTo(null);
-          setNbComments(prev => prev + 1);
-          // Note: Ne pas appeler onUpdate ici pour eviter de fermer la section commentaires
-          // Le compteur local est mis a jour et sera synchronise au prochain chargement
-        }
-      } catch (error) {
-        Alert.alert('Erreur', 'Impossible d\'ajouter le commentaire');
-      }
-    };
-
-    const handleLikeComment = async (commentId: string) => {
-      try {
-        const reponse = await toggleLikeCommentaire(publication._id, commentId);
-        if (reponse.succes && reponse.data) {
-          setCommentaires(prev => prev.map(c => {
-            if (c._id === commentId) {
-              return { ...c, aLike: reponse.data!.aLike, nbLikes: reponse.data!.nbLikes };
-            }
-            if (c.reponses) {
-              return {
-                ...c,
-                reponses: c.reponses.map(r => r._id === commentId ? { ...r, aLike: reponse.data!.aLike, nbLikes: reponse.data!.nbLikes } : r),
-              };
-            }
-            return c;
-          }));
-        }
-      } catch (error) {
-        console.error('Erreur like commentaire:', error);
-      }
-    };
-
-    const handleEditComment = async (commentId: string) => {
-      if (!editingContent.trim()) return;
-      try {
-        const reponse = await modifierCommentaire(publication._id, commentId, editingContent.trim());
-        if (reponse.succes && reponse.data) {
-          setCommentaires(prev => prev.map(c => {
-            if (c._id === commentId) {
-              return { ...c, contenu: reponse.data!.commentaire.contenu, modifie: true };
-            }
-            if (c.reponses) {
-              return {
-                ...c,
-                reponses: c.reponses.map(r => r._id === commentId ? { ...r, contenu: reponse.data!.commentaire.contenu, modifie: true } : r),
-              };
-            }
-            return c;
-          }));
-          setEditingComment(null);
-          setEditingContent('');
-        } else {
-          Alert.alert('Erreur', reponse.message || 'Impossible de modifier le commentaire');
-        }
-      } catch (error) {
-        Alert.alert('Erreur', 'Impossible de modifier le commentaire');
-      }
-    };
-
-    const handleDeleteComment = async (commentId: string, isReply = false, parentId?: string) => {
-      Alert.alert(
-        'Supprimer le commentaire',
-        'Voulez-vous vraiment supprimer ce commentaire ?',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Supprimer',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                const reponse = await supprimerCommentaire(publication._id, commentId);
-                if (reponse.succes) {
-                  if (isReply && parentId) {
-                    setCommentaires(prev => prev.map(c => {
-                      if (c._id === parentId) {
-                        return { ...c, reponses: c.reponses?.filter(r => r._id !== commentId) };
-                      }
-                      return c;
-                    }));
-                  } else {
-                    setCommentaires(prev => prev.filter(c => c._id !== commentId));
-                  }
-                  setNbComments(prev => Math.max(0, prev - 1));
-                  onUpdate({ ...publication, aLike: liked, nbLikes, nbCommentaires: Math.max(0, nbComments - 1) });
-                } else {
-                  Alert.alert('Erreur', reponse.message || 'Impossible de supprimer le commentaire');
-                }
-              } catch (error) {
-                Alert.alert('Erreur', 'Impossible de supprimer le commentaire');
-              }
-            },
-          },
-        ]
-      );
-    };
-
-    const startEditComment = (comment: CommentaireAPI) => {
-      setEditingComment(comment._id);
-      setEditingContent(comment.contenu);
-    };
-
-    const cancelEdit = () => {
-      setEditingComment(null);
-      setEditingContent('');
-    };
-
-    const isMyComment = (auteurId: string) => {
-      return utilisateur && utilisateur.id === auteurId;
-    };
-
-    const isMyPost = () => {
-      return utilisateur && utilisateur.id === publication.auteur._id;
-    };
-
-    const isAdmin = () => {
-      return utilisateur && utilisateur.role === 'admin';
-    };
-
-    const canEditDelete = () => {
-      return isMyPost() || isAdmin();
-    };
-
-    // Navigation vers le profil de l'auteur du post
-    const naviguerVersProfilAuteur = () => {
-      router.push({
-        pathname: '/(app)/utilisateur/[id]',
-        params: { id: publication.auteur._id },
-      });
-    };
-
-    const showNotification = (type: 'succes' | 'erreur', message: string) => {
-      setNotification({ type, message });
-      setTimeout(() => setNotification(null), 3000);
-    };
-
-    const handleEditPost = async () => {
-      if (!editingPostContent.trim()) return;
-      try {
-        const reponse = await modifierPublication(publication._id, editingPostContent.trim());
-        if (reponse.succes && reponse.data) {
-          onUpdate(reponse.data.publication);
-          setEditingPost(false);
-          showNotification('succes', 'Publication modifiee avec succes');
-        } else {
-          showNotification('erreur', reponse.message || 'Erreur lors de la modification');
-        }
-      } catch (error) {
-        showNotification('erreur', 'Impossible de modifier la publication');
-      }
-    };
-
-    const handleDeletePost = () => {
-      setShowPostMenu(false);
-      Alert.alert(
-        'Supprimer la publication',
-        'Voulez-vous vraiment supprimer cette publication ?',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Supprimer',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                const reponse = await supprimerPublication(publication._id);
-                if (reponse.succes) {
-                  onDelete(publication._id);
-                  showNotification('succes', 'Publication supprimee');
-                } else {
-                  showNotification('erreur', reponse.message || 'Erreur lors de la suppression');
-                }
-              } catch (error) {
-                showNotification('erreur', 'Impossible de supprimer la publication');
-              }
-            },
-          },
-        ]
-      );
-    };
-
-    const handleShare = async () => {
-      const result = await sharePublication(publication._id, auteurNom, publication.contenu);
-      if (result.error) {
-        showNotification('erreur', 'Impossible de partager ce contenu');
-      }
-    };
-
-    const handleReportPost = async (raison: RaisonSignalement) => {
-      setShowPostMenu(false);
-      try {
-        const reponse = await signalerPublication(publication._id, raison);
-        if (reponse.succes) {
-          showNotification('succes', 'Merci, signalement envoyé');
-        } else {
-          showNotification('erreur', reponse.message || 'Erreur lors du signalement');
-        }
-      } catch (error) {
-        showNotification('erreur', 'Impossible de signaler ce contenu');
-      }
-    };
-
-    const raisonsSignalement: { value: RaisonSignalement; label: string; icon: string }[] = [
-      { value: 'spam', label: 'Spam', icon: 'mail-unread-outline' },
-      { value: 'harcelement', label: 'Harcèlement', icon: 'warning-outline' },
-      { value: 'contenu_inapproprie', label: 'Contenu inapproprié', icon: 'eye-off-outline' },
-      { value: 'fausse_info', label: 'Fausse information', icon: 'information-circle-outline' },
-      { value: 'autre', label: 'Autre', icon: 'flag-outline' },
-    ];
-
-    const userAvatarUrl = utilisateur?.avatar || `https://api.dicebear.com/7.x/thumbs/png?seed=${utilisateur?.id || 'default'}&backgroundColor=6366f1&size=128`;
-
-    return (
-      <View style={styles.postCard}>
-        {/* Notification banner */}
-        {notification && (
-          <View style={[styles.notificationBanner, notification.type === 'succes' ? styles.notificationSucces : styles.notificationErreur]}>
-            <Ionicons
-              name={notification.type === 'succes' ? 'checkmark-circle' : 'alert-circle'}
-              size={18}
-              color={notification.type === 'succes' ? '#10b981' : '#ef4444'}
-            />
-            <Text style={[styles.notificationText, notification.type === 'succes' ? styles.notificationTextSucces : styles.notificationTextErreur]}>
-              {notification.message}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.postHeader}>
-          <Pressable onPress={naviguerVersProfilAuteur}>
-            <Avatar
-              uri={publication.auteur.avatar}
-              prenom={publication.auteur.prenom}
-              nom={publication.auteur.nom}
-              taille={44}
-            />
-          </Pressable>
-          <View style={styles.postAuteurContainer}>
-            <View style={styles.postAuteurRow}>
-              <Pressable onPress={naviguerVersProfilAuteur}>
-                <Text style={styles.postAuteur}>{auteurNom}</Text>
-              </Pressable>
-              {(() => {
-                const badgeConfig = getUserBadgeConfig(publication.auteur.role, publication.auteur.statut);
-                return (
-                  <View style={[
-                    styles.statutBadge,
-                    { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
-                  ]}>
-                    <Ionicons name={badgeConfig.icon} size={10} color="#fff" />
-                    <Text style={styles.statutBadgeText}>{badgeConfig.label}</Text>
-                  </View>
-                );
-              })()}
-              {publication.auteurType === 'Projet' && (
-                <View style={styles.startupBadge}>
-                  <Text style={styles.startupBadgeText}>Startup</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.postTimestamp}>{formatDate(publication.dateCreation)}</Text>
-          </View>
-          <Pressable style={styles.postMore} onPress={() => setShowPostMenu(!showPostMenu)}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
-          </Pressable>
-        </View>
-
-        {/* Bottom Sheet Menu */}
-        <Modal
-          visible={showPostMenu}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowPostMenu(false)}
-        >
-          <Pressable
-            style={styles.bottomSheetOverlay}
-            onPress={() => setShowPostMenu(false)}
-          >
-            <Pressable
-              style={styles.bottomSheetContainer}
-              onPress={(e) => e.stopPropagation()}
-            >
-              {/* Poignée */}
-              <View style={styles.bottomSheetHandle} />
-
-              <ScrollView
-                style={styles.bottomSheetScroll}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-              >
-                {/* Titre selon contexte */}
-                <Text style={styles.bottomSheetTitle}>
-                {isMyPost() ? 'Options du post' : staff.isStaff ? 'Actions disponibles' : 'Signaler ce post'}
-              </Text>
-
-              {/* Options propriétaire */}
-              {isMyPost() && (
-                <>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.bottomSheetItem,
-                      pressed && styles.bottomSheetItemPressed,
-                    ]}
-                    onPress={() => {
-                      setShowPostMenu(false);
-                      setEditingPost(true);
-                    }}
-                  >
-                    <View style={[styles.bottomSheetIconContainer, { backgroundColor: couleurs.primaireLight }]}>
-                      <Ionicons name="pencil" size={20} color={couleurs.primaire} />
-                    </View>
-                    <View style={styles.bottomSheetTextContainer}>
-                      <Text style={styles.bottomSheetItemText}>Modifier</Text>
-                      <Text style={styles.bottomSheetItemSubtext}>Éditer le contenu de votre publication</Text>
-                    </View>
-                  </Pressable>
-
-                  <View style={styles.bottomSheetSeparator} />
-
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.bottomSheetItem,
-                      pressed && styles.bottomSheetItemPressed,
-                    ]}
-                    onPress={handleDeletePost}
-                  >
-                    <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(255, 77, 109, 0.15)' }]}>
-                      <Ionicons name="trash-outline" size={20} color={couleurs.danger} />
-                    </View>
-                    <View style={styles.bottomSheetTextContainer}>
-                      <Text style={[styles.bottomSheetItemText, { color: couleurs.danger }]}>Supprimer</Text>
-                      <Text style={styles.bottomSheetItemSubtext}>Cette action est irréversible</Text>
-                    </View>
-                  </Pressable>
-                </>
-              )}
-
-              {/* Options STAFF (modération) - affichées si staff et pas son propre post */}
-              {staff.isStaff && !isMyPost() && (
-                <>
-                  {/* Badge staff */}
-                  <View style={styles.staffBadge}>
-                    <Ionicons name="shield" size={14} color="#6366f1" />
-                    <Text style={styles.staffBadgeText}>MODÉRATION</Text>
-                  </View>
-
-                  {/* Actions sur le contenu */}
-                  {(staff.canHideContent || staff.canDeleteContent) && (
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.bottomSheetItem,
-                        pressed && styles.bottomSheetItemPressed,
-                      ]}
-                      onPress={() => {
-                        setShowPostMenu(false);
-                        setStaffActionTarget('publication');
-                        setShowStaffActions(true);
-                      }}
-                    >
-                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
-                        <Ionicons name="document-text-outline" size={20} color="#6366f1" />
-                      </View>
-                      <View style={styles.bottomSheetTextContainer}>
-                        <Text style={styles.bottomSheetItemText}>Modérer ce contenu</Text>
-                        <Text style={styles.bottomSheetItemSubtext}>Masquer ou supprimer la publication</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  )}
-
-                  {/* Actions sur l'utilisateur */}
-                  {(staff.canWarnUsers || staff.canSuspendUsers || staff.canBanUsers) && (
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.bottomSheetItem,
-                        pressed && styles.bottomSheetItemPressed,
-                      ]}
-                      onPress={() => {
-                        setShowPostMenu(false);
-                        setStaffActionTarget('user');
-                        setShowStaffActions(true);
-                      }}
-                    >
-                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-                        <Ionicons name="person-outline" size={20} color="#ef4444" />
-                      </View>
-                      <View style={styles.bottomSheetTextContainer}>
-                        <Text style={styles.bottomSheetItemText}>Sanctionner l'auteur</Text>
-                        <Text style={styles.bottomSheetItemSubtext}>Avertir, suspendre ou bannir</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  )}
-
-                  <View style={styles.bottomSheetSeparator} />
-                </>
-              )}
-
-              {/* Options signalement (pour tout le monde sauf propriétaire) */}
-              {!isMyPost() && (
-                <>
-                  {!staff.isStaff && (
-                    <Text style={styles.bottomSheetSubtitle}>Pourquoi signalez-vous cette publication ?</Text>
-                  )}
-                  {staff.isStaff && (
-                    <Text style={[styles.bottomSheetSubtitle, { marginTop: 8 }]}>Ou signaler manuellement :</Text>
-                  )}
-
-                  {raisonsSignalement.map((raison, index) => (
-                    <Pressable
-                      key={raison.value}
-                      style={({ pressed }) => [
-                        styles.bottomSheetItem,
-                        pressed && styles.bottomSheetItemPressed,
-                        index === raisonsSignalement.length - 1 && { borderBottomWidth: 0 },
-                      ]}
-                      onPress={() => handleReportPost(raison.value)}
-                    >
-                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(255, 189, 89, 0.15)' }]}>
-                        <Ionicons name={raison.icon as any} size={20} color={couleurs.accent} />
-                      </View>
-                      <View style={styles.bottomSheetTextContainer}>
-                        <Text style={styles.bottomSheetItemText}>{raison.label}</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  ))}
-                </>
-              )}
-              </ScrollView>
-
-              {/* Bouton Annuler */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.bottomSheetCancelBtn,
-                  pressed && styles.bottomSheetItemPressed,
-                ]}
-                onPress={() => setShowPostMenu(false)}
-              >
-                <Text style={styles.bottomSheetCancelText}>Annuler</Text>
-              </Pressable>
-            </Pressable>
-          </Pressable>
-        </Modal>
-
-        {/* Modal Staff Actions */}
-        <StaffActions
-          visible={showStaffActions}
-          onClose={() => setShowStaffActions(false)}
-          targetType={staffActionTarget}
-          targetId={staffActionTarget === 'user' ? publication.auteur._id : publication._id}
-          targetName={staffActionTarget === 'user' ? auteurNom : publication.contenu.slice(0, 50)}
-          onActionComplete={() => {
-            if (staffActionTarget === 'publication') {
-              onDelete(publication._id);
-            }
-          }}
-        />
-
-        {/* Mode edition du post */}
-        {editingPost ? (
-          <View style={styles.editPostContainer}>
-            <TextInput
-              style={styles.editPostInput}
-              value={editingPostContent}
-              onChangeText={setEditingPostContent}
-              multiline
-              maxLength={5000}
-              autoFocus
-            />
-            <View style={styles.editPostActions}>
-              <Pressable style={styles.editCancelBtn} onPress={() => { setEditingPost(false); setEditingPostContent(publication.contenu); }}>
-                <Text style={styles.editCancelText}>Annuler</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.editSaveBtn, !editingPostContent.trim() && styles.editSaveBtnDisabled]}
-                onPress={handleEditPost}
-                disabled={!editingPostContent.trim()}
-              >
-                <Text style={styles.editSaveText}>Enregistrer</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Text style={styles.postContenu}>{publication.contenu}</Text>
-        )}
-        {/* Affichage des médias avec carrousel */}
-        {publication.medias && publication.medias.length > 0 ? (
-          <PostMediaCarousel
-            medias={publication.medias}
-            width={SCREEN_WIDTH - 32}
-            height={SCREEN_WIDTH - 32}
-            onMediaPress={(index) => {
-              const media = publication.medias[index];
-              if (media.type === 'video') {
-                setVideoUrl(media.url);
-                setVideoModalVisible(true);
-                resetControlsTimeout();
-              } else {
-                setImageUrl(media.url);
-                setImageModalVisible(true);
-              }
-            }}
-          />
-        ) : publication.media && (() => {
-          // Fallback pour anciennes publications sans medias[]
-          const isVideo = publication.media.includes('.mp4') ||
-            publication.media.includes('.mov') ||
-            publication.media.includes('.webm') ||
-            publication.media.includes('video');
-
-          const thumbnailUri = isVideo
-            ? getVideoThumbnail(publication.media)
-            : publication.media;
-
-          return (
-            <Pressable
-              style={styles.postMediaContainer}
-              onPress={() => {
-                if (isVideo) {
-                  setVideoUrl(publication.media!);
-                  setVideoModalVisible(true);
-                  resetControlsTimeout();
-                } else {
-                  setImageUrl(publication.media!);
-                  setImageModalVisible(true);
-                }
-              }}
-            >
-              <Image
-                source={{ uri: thumbnailUri }}
-                style={styles.postImage}
-                resizeMode="cover"
-              />
-              {isVideo && (
-                <View style={styles.postVideoOverlay}>
-                  <View style={styles.postVideoPlayBtn}>
-                    <Ionicons name="play" size={32} color={couleurs.blanc} />
-                  </View>
-                  <View style={styles.videoDurationBadge}>
-                    <Ionicons name="videocam" size={12} color={couleurs.blanc} />
-                  </View>
-                </View>
-              )}
-            </Pressable>
-          );
-        })()}
-        <View style={styles.postStats}>
-          <Text style={styles.postStatText}>{nbLikes} j'aime</Text>
-          <Pressable onPress={handleToggleComments}>
-            <Text style={styles.postStatText}>{nbComments} commentaires</Text>
-          </Pressable>
-        </View>
-        <View style={styles.postActions}>
-          <AnimatedPressable style={styles.postAction} onPress={handleLike}>
-            <LikeButton
-              isLiked={liked}
-              count={nbLikes}
-              onPress={handleLike}
-              size={22}
-              showCount={false}
-            />
-            <Text style={[styles.postActionText, liked && { color: couleurs.danger }]}>J'aime</Text>
-          </AnimatedPressable>
-          <AnimatedPressable style={styles.postAction} onPress={handleToggleComments}>
-            <Ionicons
-              name={showComments ? 'chatbubble' : 'chatbubble-outline'}
-              size={22}
-              color={showComments ? couleurs.primaire : couleurs.texteSecondaire}
-            />
-            <Text style={[styles.postActionText, showComments && { color: couleurs.primaire }]}>Commenter</Text>
-          </AnimatedPressable>
-          <AnimatedPressable style={styles.postAction} onPress={handleShare}>
-            <Ionicons name="share-outline" size={22} color={couleurs.texteSecondaire} />
-            <Text style={styles.postActionText}>Partager</Text>
-          </AnimatedPressable>
-        </View>
-
-        {showComments && (
-          <View style={styles.commentsSection}>
-            {replyingTo && (
-              <View style={styles.replyingToBanner}>
-                <View style={styles.replyingToContent}>
-                  <Ionicons name="arrow-undo" size={14} color={couleurs.primaire} />
-                  <Text style={styles.replyingToText}>
-                    Reponse a <Text style={styles.replyingToName}>{replyingTo.auteur}</Text>
-                  </Text>
-                </View>
-                <Pressable onPress={() => { setReplyingTo(null); setNewComment(''); }} style={styles.cancelReplyBtn}>
-                  <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
-                </Pressable>
-              </View>
-            )}
-
-            <View style={styles.commentInputContainer}>
-              <Avatar
-                uri={utilisateur?.avatar}
-                prenom={utilisateur?.prenom}
-                nom={utilisateur?.nom}
-                taille={32}
-                onPress={() => naviguerVersProfil(utilisateur?.id)}
-              />
-              <TextInput
-                style={styles.commentInput}
-                placeholder={replyingTo ? `Repondre a ${replyingTo.auteur}...` : 'Ecrire un commentaire...'}
-                placeholderTextColor={couleurs.texteSecondaire}
-                value={newComment}
-                onChangeText={setNewComment}
-                multiline
-                maxLength={500}
-                blurOnSubmit={false}
-                returnKeyType="send"
-                onSubmitEditing={handleAddComment}
-              />
-              <Pressable
-                style={[styles.commentSendBtn, !newComment.trim() && styles.commentSendBtnDisabled]}
-                onPress={handleAddComment}
-                disabled={!newComment.trim()}
-              >
-                <Ionicons
-                  name="send"
-                  size={18}
-                  color={newComment.trim() ? couleurs.primaire : couleurs.texteSecondaire}
-                />
-              </Pressable>
-            </View>
-
-            {chargementCommentaires ? (
-              <View style={styles.noComments}>
-                <Text style={styles.noCommentsText}>Chargement...</Text>
-              </View>
-            ) : commentaires.length === 0 ? (
-              <View style={styles.noComments}>
-                <Ionicons name="chatbubbles-outline" size={32} color={couleurs.texteSecondaire} />
-                <Text style={styles.noCommentsText}>Soyez le premier a commenter !</Text>
-              </View>
-            ) : (
-              commentaires.map((comment) => {
-                const commentAuteur = `${comment.auteur.prenom} ${comment.auteur.nom}`;
-                const canEditDeleteComment = isMyComment(comment.auteur._id) || isAdmin();
-                const isEditing = editingComment === comment._id;
-                return (
-                  <View key={comment._id}>
-                    <View style={styles.commentItem}>
-                      <Avatar
-                        uri={comment.auteur.avatar}
-                        prenom={comment.auteur.prenom}
-                        nom={comment.auteur.nom}
-                        taille={32}
-                        onPress={() => naviguerVersProfil(comment.auteur._id)}
-                      />
-                      <View style={styles.commentContent}>
-                        {isEditing ? (
-                          <View style={styles.editCommentContainer}>
-                            <TextInput
-                              style={styles.editCommentInput}
-                              value={editingContent}
-                              onChangeText={setEditingContent}
-                              multiline
-                              maxLength={1000}
-                              autoFocus
-                            />
-                            <View style={styles.editCommentActions}>
-                              <Pressable style={styles.editCancelBtn} onPress={cancelEdit}>
-                                <Text style={styles.editCancelText}>Annuler</Text>
-                              </Pressable>
-                              <Pressable
-                                style={[styles.editSaveBtn, !editingContent.trim() && styles.editSaveBtnDisabled]}
-                                onPress={() => handleEditComment(comment._id)}
-                                disabled={!editingContent.trim()}
-                              >
-                                <Text style={styles.editSaveText}>Enregistrer</Text>
-                              </Pressable>
-                            </View>
-                          </View>
-                        ) : (
-                          <>
-                            <View style={styles.commentBubble}>
-                              <View style={styles.commentBubbleHeader}>
-                                <View style={styles.commentAuteurRow}>
-                                  <Text style={styles.commentAuteur}>{commentAuteur}</Text>
-                                  {(() => {
-                                    const badgeConfig = getUserBadgeConfig(comment.auteur.role, comment.auteur.statut);
-                                    return (
-                                      <View style={[
-                                        styles.statutBadgeSmall,
-                                        { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
-                                      ]}>
-                                        <Text style={styles.statutBadgeSmallText}>{badgeConfig.label}</Text>
-                                      </View>
-                                    );
-                                  })()}
-                                </View>
-                                {canEditDeleteComment && (
-                                  <View style={styles.commentActionsMenu}>
-                                    <Pressable
-                                      style={styles.commentActionBtn}
-                                      onPress={() => startEditComment(comment)}
-                                    >
-                                      <Ionicons name="pencil" size={14} color={couleurs.texteSecondaire} />
-                                    </Pressable>
-                                    <Pressable
-                                      style={styles.commentActionBtn}
-                                      onPress={() => handleDeleteComment(comment._id)}
-                                    >
-                                      <Ionicons name="trash-outline" size={14} color={couleurs.erreur} />
-                                    </Pressable>
-                                  </View>
-                                )}
-                              </View>
-                              <Text style={styles.commentTexte}>{comment.contenu}</Text>
-                            </View>
-                            <View style={styles.commentMeta}>
-                              <Text style={styles.commentTime}>{formatDate(comment.dateCreation)}</Text>
-                              {comment.modifie && (
-                                <Text style={styles.commentModified}>(modifie)</Text>
-                              )}
-                              <LikeButtonCompact
-                                isLiked={comment.aLike}
-                                count={comment.nbLikes}
-                                onPress={() => handleLikeComment(comment._id)}
-                                size={14}
-                              />
-                              <Pressable
-                                style={styles.commentReplyBtn}
-                                onPress={() => setReplyingTo({ id: comment._id, auteur: commentAuteur })}
-                              >
-                                <Text style={styles.commentReplyText}>Repondre</Text>
-                              </Pressable>
-                            </View>
-                          </>
-                        )}
-                        {comment.reponses && comment.reponses.length > 0 && (
-                          <Pressable
-                            style={styles.viewRepliesBtn}
-                            onPress={() => setExpandedReplies(prev => ({ ...prev, [comment._id]: !prev[comment._id] }))}
-                          >
-                            <Ionicons
-                              name={expandedReplies[comment._id] ? 'chevron-up' : 'chevron-down'}
-                              size={14}
-                              color={couleurs.primaire}
-                            />
-                            <Text style={styles.viewRepliesText}>
-                              {expandedReplies[comment._id] ? 'Masquer' : `Voir ${comment.reponses.length} reponse${comment.reponses.length > 1 ? 's' : ''}`}
-                            </Text>
-                          </Pressable>
-                        )}
-                      </View>
-                    </View>
-                    {expandedReplies[comment._id] && comment.reponses?.map((reponse) => {
-                      const repAuteur = `${reponse.auteur.prenom} ${reponse.auteur.nom}`;
-                      const isEditingReply = editingComment === reponse._id;
-                      const canEditDeleteReply = isMyComment(reponse.auteur._id) || isAdmin();
-                      return (
-                        <View key={reponse._id} style={styles.replyItem}>
-                          <View style={styles.replyLine} />
-                          <Avatar
-                            uri={reponse.auteur.avatar}
-                            prenom={reponse.auteur.prenom}
-                            nom={reponse.auteur.nom}
-                            taille={28}
-                            onPress={() => naviguerVersProfil(reponse.auteur._id)}
-                          />
-                          <View style={styles.commentContent}>
-                            {isEditingReply ? (
-                              <View style={styles.editCommentContainer}>
-                                <TextInput
-                                  style={styles.editCommentInput}
-                                  value={editingContent}
-                                  onChangeText={setEditingContent}
-                                  multiline
-                                  maxLength={1000}
-                                  autoFocus
-                                />
-                                <View style={styles.editCommentActions}>
-                                  <Pressable style={styles.editCancelBtn} onPress={cancelEdit}>
-                                    <Text style={styles.editCancelText}>Annuler</Text>
-                                  </Pressable>
-                                  <Pressable
-                                    style={[styles.editSaveBtn, !editingContent.trim() && styles.editSaveBtnDisabled]}
-                                    onPress={() => handleEditComment(reponse._id)}
-                                    disabled={!editingContent.trim()}
-                                  >
-                                    <Text style={styles.editSaveText}>Enregistrer</Text>
-                                  </Pressable>
-                                </View>
-                              </View>
-                            ) : (
-                              <>
-                                <View style={styles.replyBubble}>
-                                  <View style={styles.commentBubbleHeader}>
-                                    <View style={styles.commentAuteurRow}>
-                                      <Text style={styles.commentAuteur}>{repAuteur}</Text>
-                                      {(() => {
-                                        const badgeConfig = getUserBadgeConfig(reponse.auteur.role, reponse.auteur.statut);
-                                        return (
-                                          <View style={[
-                                            styles.statutBadgeSmall,
-                                            { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
-                                          ]}>
-                                            <Text style={styles.statutBadgeSmallText}>{badgeConfig.label}</Text>
-                                          </View>
-                                        );
-                                      })()}
-                                    </View>
-                                    {canEditDeleteReply && (
-                                      <View style={styles.commentActionsMenu}>
-                                        <Pressable
-                                          style={styles.commentActionBtn}
-                                          onPress={() => startEditComment(reponse)}
-                                        >
-                                          <Ionicons name="pencil" size={12} color={couleurs.texteSecondaire} />
-                                        </Pressable>
-                                        <Pressable
-                                          style={styles.commentActionBtn}
-                                          onPress={() => handleDeleteComment(reponse._id, true, comment._id)}
-                                        >
-                                          <Ionicons name="trash-outline" size={12} color={couleurs.erreur} />
-                                        </Pressable>
-                                      </View>
-                                    )}
-                                  </View>
-                                  <Text style={styles.commentTexte}>{reponse.contenu}</Text>
-                                </View>
-                                <View style={styles.commentMeta}>
-                                  <Text style={styles.commentTime}>{formatDate(reponse.dateCreation)}</Text>
-                                  {reponse.modifie && (
-                                    <Text style={styles.commentModified}>(modifie)</Text>
-                                  )}
-                                  <LikeButtonCompact
-                                    isLiked={reponse.aLike}
-                                    count={reponse.nbLikes}
-                                    onPress={() => handleLikeComment(reponse._id)}
-                                    size={12}
-                                  />
-                                </View>
-                              </>
-                            )}
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })
-            )}
-          </View>
-        )}
-      </View>
-    );
-  };
+  // ============ COMPOSANTS LOCAUX ============
+  // PublicationCard extrait vers: src/composants/PublicationCard.tsx (optimisation P0)
+  // StartupCard et TrendingItem restent inline pour l'instant (Phase 2)
 
   const StartupCard = ({ startup }: { startup: Startup }) => {
     const [suivi, setSuivi] = useState(false);
@@ -2091,6 +1220,27 @@ export default function Accueil() {
     }, [pendingStoryIndex])
   );
 
+  // Clear active video and viewability state when leaving the feed screen
+  useFocusEffect(
+    useCallback(() => {
+      // On focus: nothing to do (scroll will set active video)
+      return () => {
+        // On blur: clear active video and viewability tracking
+        if (viewabilityTimeoutRef.current) {
+          clearTimeout(viewabilityTimeoutRef.current);
+          viewabilityTimeoutRef.current = null;
+        }
+        activePostIdRef.current = null;
+        pendingActivePostRef.current = null;
+        // Hard stop ALL videos via registry (prevents ghost audio on navigation)
+        videoRegistry.stopAll().catch(() => {});
+        // Clear active post and video in store
+        videoPlaybackStore.setActivePostId(null);
+        videoPlaybackStore.setActiveVideo(null);
+      };
+    }, [])
+  );
+
   const renderStories = () => (
     <StoriesRow
       key={storiesRefreshKey}
@@ -2161,6 +1311,14 @@ export default function Accueil() {
                   publication={publication}
                   onUpdate={handleUpdatePublication}
                   onDelete={handleDeletePublication}
+                  onOpenCommentsSheet={openCommentsSheet}
+                  onNavigateToProfile={naviguerVersProfil}
+                  onOpenImage={handleOpenImage}
+                  onOpenVideo={handleOpenVideo}
+                  onResetControlsTimeout={resetControlsTimeout}
+                  styles={styles}
+                  mediaWidth={SCREEN_WIDTH - 32}
+                  mediaHeight={SCREEN_WIDTH - 32}
                 />
               </AnimatedPublicationWrapper>
             </View>
@@ -2615,7 +1773,7 @@ export default function Accueil() {
     setTimeout(action, 200);
   };
 
-  // Gestion du scroll pour afficher/masquer le bouton scroll-to-top
+  // Gestion du scroll pour afficher/masquer le bouton scroll-to-top + viewability vidéos
   const handleScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
     const scrollY = event.nativeEvent.contentOffset.y;
     const seuil = 300; // Afficher le bouton après 300px de scroll
@@ -2634,6 +1792,109 @@ export default function Accueil() {
         useNativeDriver: true,
       }).start(() => setAfficherScrollTop(false));
     }
+
+    // === VIDEO VIEWABILITY TRACKING (debounced) ===
+    // Only change active video when a post is dominant (>50% visible) for >250ms
+    if (ongletActif !== 'feed' || publications.length === 0) {
+      return;
+    }
+
+    const viewportTop = scrollY;
+    const viewportBottom = scrollY + SCREEN_HEIGHT;
+    let dominantPostId: string | null = null;
+    let maxVisibility = 0;
+
+    // Find the post with highest visibility (>50% threshold)
+    for (const publication of publications) {
+      const pubY = publicationLayoutsRef.current.get(publication._id);
+      if (pubY === undefined) continue;
+
+      // Check if this post has a video
+      const hasVideo = publication.medias?.some(m => m.type === 'video');
+      if (!hasVideo) continue;
+
+      // Approximate post height (media posts are roughly square + some padding)
+      const postHeight = SCREEN_WIDTH + 150; // media height + header/actions
+      const postTop = pubY;
+      const postBottom = pubY + postHeight;
+
+      // Calculate visibility percentage
+      const visibleTop = Math.max(postTop, viewportTop);
+      const visibleBottom = Math.min(postBottom, viewportBottom);
+      const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+      const visibilityRatio = visibleHeight / postHeight;
+
+      // Track the most visible video post
+      if (visibilityRatio > maxVisibility && visibilityRatio >= VIEWABILITY_THRESHOLD) {
+        maxVisibility = visibilityRatio;
+        dominantPostId = publication._id;
+      }
+    }
+
+    // Debounced update: only change active video after 250ms of same dominant post
+    if (dominantPostId !== pendingActivePostRef.current) {
+      // New dominant post detected - start debounce timer
+      pendingActivePostRef.current = dominantPostId;
+
+      // Clear any existing timeout
+      if (viewabilityTimeoutRef.current) {
+        clearTimeout(viewabilityTimeoutRef.current);
+        viewabilityTimeoutRef.current = null;
+      }
+
+      // Only set timeout if there's a new dominant post (or clearing to null)
+      viewabilityTimeoutRef.current = setTimeout(() => {
+        // After delay, if the pending post is still the same, make it active
+        if (pendingActivePostRef.current === dominantPostId) {
+          // Only update if actually different from current active
+          if (activePostIdRef.current !== dominantPostId) {
+            activePostIdRef.current = dominantPostId;
+
+            // CRITICAL: Hard stop all videos except the new active post
+            // This prevents ghost audio from recycled FlatList cells
+            videoRegistry.stopAllExcept(dominantPostId).catch(() => {});
+
+            // Set active post ID (SOURCE OF TRUTH for shouldPlay)
+            videoPlaybackStore.setActivePostId(dominantPostId);
+
+            // Find the video URL for this post (for session management)
+            let videoUrl: string | null = null;
+            if (dominantPostId) {
+              const post = publications.find(p => p._id === dominantPostId);
+              const video = post?.medias?.find(m => m.type === 'video');
+              videoUrl = video?.url || null;
+            }
+
+            // Update global store (secondary, for fullscreen support)
+            videoPlaybackStore.setActiveVideo(videoUrl);
+          }
+        }
+        viewabilityTimeoutRef.current = null;
+      }, VIEWABILITY_DELAY_MS);
+    }
+  };
+
+  /**
+   * KILL-SWITCH: Stop ALL videos immediately when scroll begins
+   * This prevents ghost audio by stopping everything before viewability recalculation
+   */
+  const handleScrollBegin = () => {
+    // Clear any pending viewability timeout
+    if (viewabilityTimeoutRef.current) {
+      clearTimeout(viewabilityTimeoutRef.current);
+      viewabilityTimeoutRef.current = null;
+    }
+
+    // Clear active post tracking
+    activePostIdRef.current = null;
+    pendingActivePostRef.current = null;
+
+    // Clear global active post ID (SOURCE OF TRUTH) and video URL FIRST
+    videoPlaybackStore.setActivePostId(null);
+    videoPlaybackStore.setActiveVideo(null);
+
+    // THEN hard stop all videos via registry
+    videoRegistry.stopAll().catch(() => {});
   };
 
   const scrollToTop = () => {
@@ -2753,6 +2014,8 @@ export default function Accueil() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             onScroll={handleScroll}
+            onScrollBeginDrag={handleScrollBegin}
+            onMomentumScrollBegin={handleScrollBegin}
             scrollEventThrottle={16}
             refreshControl={
               <RefreshControl
@@ -3075,160 +2338,22 @@ export default function Accueil() {
         </View>
       </Modal>
 
-      {/* Modal Lecteur Vidéo - Style Instagram/LinkedIn */}
-      <Modal
+      {/* Modal Lecteur Vidéo - Composant factorisé */}
+      <VideoPlayerModal
         visible={videoModalVisible}
-        animationType="fade"
-        transparent={false}
-        onRequestClose={closeVideoModal}
-        statusBarTranslucent
-      >
-        <View style={styles.videoModalContainer}>
-          {/* Vidéo */}
-          {videoUrl && (
-            <View style={styles.videoTouchArea}>
-              <Video
-                ref={videoRef}
-                source={{ uri: videoUrl }}
-                style={styles.videoPlayer}
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay
-                isMuted={isMuted}
-                isLooping={false}
-                onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
-                  if (status.isLoaded) {
-                    setVideoDuration(status.durationMillis || 0);
-                    setVideoPosition(status.positionMillis || 0);
-                    setIsPlaying(status.isPlaying);
-                    if (status.didJustFinish) {
-                      setIsPlaying(false);
-                      setShowControls(true);
-                      controlsOpacity.setValue(1);
-                    }
-                  }
-                }}
-              />
-            </View>
-          )}
-
-          {/* Overlay gradient haut */}
-          <Animated.View
-            style={[styles.videoGradientTop, { opacity: controlsOpacity }]}
-            pointerEvents="none"
-          >
-            <LinearGradient
-              colors={['rgba(0,0,0,0.6)', 'transparent']}
-              style={{ flex: 1 }}
-            />
-          </Animated.View>
-
-          {/* Overlay gradient bas */}
-          <Animated.View
-            style={[styles.videoGradientBottom, { opacity: controlsOpacity }]}
-            pointerEvents="none"
-          >
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.7)']}
-              style={{ flex: 1 }}
-            />
-          </Animated.View>
-
-          {/* Bouton fermer - Style Instagram */}
-          <Animated.View
-            style={[styles.videoCloseContainer, { opacity: controlsOpacity }]}
-            pointerEvents={showControls ? 'auto' : 'none'}
-          >
-            <Pressable
-              style={styles.videoCloseBtn}
-              onPress={closeVideoModal}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={26} color={couleurs.blanc} />
-            </Pressable>
-          </Animated.View>
-
-          {/* Zone de tap pour toggle les contrôles (couvre tout l'écran) */}
-          <Pressable
-            style={styles.videoCenterControl}
-            onPress={handleVideoTap}
-          >
-            {/* Bouton Play/Pause central - Apparaît au tap */}
-            {showControls && (
-              <Animated.View style={{ opacity: controlsOpacity }}>
-                <Pressable
-                  style={styles.videoCenterBtn}
-                  onPress={togglePlayPause}
-                >
-                  <View style={styles.videoCenterBtnInner}>
-                    <Ionicons
-                      name={isPlaying ? 'pause' : 'play'}
-                      size={44}
-                      color={couleurs.blanc}
-                      style={!isPlaying ? { marginLeft: 4 } : undefined}
-                    />
-                  </View>
-                </Pressable>
-              </Animated.View>
-            )}
-          </Pressable>
-
-          {/* Contrôles bas - Style épuré */}
-          <Animated.View
-            style={[styles.videoBottomControls, { opacity: controlsOpacity }]}
-            pointerEvents={showControls ? 'auto' : 'none'}
-          >
-            {/* Barre de progression */}
-            <Pressable
-              style={styles.videoProgressBar}
-              onPress={(e) => {
-                const { locationX } = e.nativeEvent;
-                const progress = locationX / (SCREEN_WIDTH - 32);
-                const newPosition = progress * videoDuration;
-                seekVideo(Math.max(0, Math.min(newPosition, videoDuration)));
-              }}
-            >
-              <View style={styles.videoProgressTrack}>
-                <View
-                  style={[
-                    styles.videoProgressFill,
-                    {
-                      width: videoDuration > 0
-                        ? `${(videoPosition / videoDuration) * 100}%`
-                        : '0%',
-                    },
-                  ]}
-                />
-              </View>
-            </Pressable>
-
-            {/* Ligne de contrôles */}
-            <View style={styles.videoControlsRow}>
-              {/* Temps */}
-              <View style={styles.videoTimeContainer}>
-                <Text style={styles.videoTimeText}>
-                  {formatTime(videoPosition)} <Text style={styles.videoTimeSeparator}>/</Text> {formatTime(videoDuration)}
-                </Text>
-              </View>
-
-              {/* Boutons droite */}
-              <View style={styles.videoRightControls}>
-                {/* Bouton Mute */}
-                <Pressable
-                  style={styles.videoSmallBtn}
-                  onPress={toggleMute}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons
-                    name={isMuted ? 'volume-mute' : 'volume-high'}
-                    size={22}
-                    color={couleurs.blanc}
-                  />
-                </Pressable>
-              </View>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
+        videoUrl={videoUrl}
+        postId={videoPostId || undefined}
+        onClose={closeVideoModal}
+        initialPositionMillis={videoInitialPosition}
+        initialShouldPlay={videoInitialShouldPlay}
+        origin="feed"
+        // Props Instagram-like
+        liked={videoLiked}
+        likesCount={videoLikesCount}
+        commentsCount={videoCommentsCount}
+        onLike={videoOnLikeRef.current || undefined}
+        onShare={videoOnShareRef.current || undefined}
+      />
 
       {/* Modal Visionneuse Image - Style Instagram */}
       <Modal
@@ -3294,6 +2419,28 @@ export default function Accueil() {
         visible={storyCreatorVisible}
         onClose={() => setStoryCreatorVisible(false)}
         onStoryCreated={handleStoryCreated}
+      />
+
+      {/* Comments Sheet - Expérience unifiée */}
+      <UnifiedCommentsSheet
+        postId={commentsSheetPostId}
+        visible={commentsSheetVisible}
+        onClose={closeCommentsSheet}
+        onCommentAdded={() => {
+          // Rafraîchir le compteur de commentaires pour le post concerné
+          if (commentsSheetPostId) {
+            setPublications(prev =>
+              prev.map(p =>
+                p._id === commentsSheetPostId
+                  ? { ...p, nbCommentaires: p.nbCommentaires + 1 }
+                  : p
+              )
+            );
+          }
+        }}
+        mode="modal"
+        theme="light"
+        initialCount={commentsSheetCount}
       />
     </SafeAreaView>
   );

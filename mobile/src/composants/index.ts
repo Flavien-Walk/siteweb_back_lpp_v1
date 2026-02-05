@@ -19,13 +19,22 @@ export { default as StoryCircle } from './StoryCircle';
 export { default as StoriesRow } from './StoriesRow';
 export { default as StoryViewer } from './StoryViewer';
 export { default as StoryCreator } from './StoryCreator';
-export { default as VideoPlayerModal } from './VideoPlayerModal';
+export { default as VideoPlayerModal, type VideoOrigin } from './VideoPlayerModal';
 
 // Composants Modération
 export { default as StaffActions } from './StaffActions';
 
 // Composants Publications
-export { default as PostMediaCarousel } from './PostMediaCarousel';
+export { default as PostMediaCarousel, type VideoFullscreenParams } from './PostMediaCarousel';
+export { default as PublicationCard, type PublicationCardProps, type VideoOpenParams } from './PublicationCard';
+
+// Composants Video
+export { default as HeartAnimation } from './HeartAnimation';
+export { default as VideoActionsOverlay } from './VideoActionsOverlay';
+
+// Composants Commentaires
+// UnifiedCommentsSheet = composant unique pour tous les contextes (feed, profil, fullscreen)
+export { default as UnifiedCommentsSheet } from './UnifiedCommentsSheet';
 
 // Composants Live (placeholder)
 export { default as LiveCard } from './LiveCard';

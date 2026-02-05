@@ -19,45 +19,147 @@ import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { couleurs, rayons, espacements } from '../constantes/theme';
 import { MediaItem } from '../services/publications';
+import { videoPlaybackStore, useVideoPlaybackSession, useIsPostActive } from '../stores/videoPlaybackStore';
+import { videoRegistry } from '../stores/videoRegistry';
+import { useDoubleTap } from '../hooks/useDoubleTap';
+import HeartAnimation from './HeartAnimation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+/** Paramètres passés lors de l'ouverture plein écran */
+export interface VideoFullscreenParams {
+  videoUrl: string;
+  thumbnailUrl?: string;
+  positionMillis: number;
+  isPlaying: boolean;
+}
+
 interface PostMediaCarouselProps {
   medias: MediaItem[];
+  /** ID unique du post (pour le registry vidéo) */
+  postId: string;
   width?: number;
   height?: number;
   onMediaPress?: (index: number) => void;
+  /** Callback pour ouvrir une vidéo en plein écran avec position et état */
+  onVideoPress?: (params: VideoFullscreenParams) => void;
+  /** Callback pour resync position au retour du plein écran */
+  onVideoPositionSync?: (videoUrl: string, positionMillis: number) => void;
   showIndicator?: boolean;
   showDots?: boolean;
   autoPlayVideos?: boolean;
+  /** Double-tap like support */
+  liked?: boolean;
+  /** Callback pour double-tap like */
+  onDoubleTapLike?: () => void;
 }
 
 interface MediaItemRendererProps {
   item: MediaItem;
   index: number;
+  /** ID unique du post parent (pour le registry vidéo) */
+  postId: string;
   width: number;
   height: number;
   isActive: boolean;
   onPress?: () => void;
+  onVideoPress?: (params: VideoFullscreenParams) => void;
+  /** Position à appliquer au retour du plein écran (en millis) */
+  syncPositionMillis?: number;
   autoPlayVideos: boolean;
+  /** Double-tap like support */
+  liked?: boolean;
+  onDoubleTapLike?: () => void;
 }
 
 const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   item,
+  postId,
   width,
   height,
   isActive,
   onPress,
+  onVideoPress,
+  syncPositionMillis,
   autoPlayVideos,
+  liked,
+  onDoubleTapLike,
 }) => {
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showPlayButton, setShowPlayButton] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false);
+  // Track current position for fullscreen handoff
+  const currentPositionRef = useRef<number>(0);
+  // Track if we need to apply a pending session after load
+  const pendingSessionRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
+  // Track registration status
+  const isRegisteredRef = useRef(false);
+  // Unique ID for this video in the registry
+  const videoId = `${postId}-${item.url}`;
+
+  // Listen to store for session updates (from fullscreen close)
+  const { session } = useVideoPlaybackSession(item.url);
+
+  // PRIMARY SOURCE OF TRUTH: Is this post the active post?
+  const isPostActive = useIsPostActive(postId);
+  const isGloballyActive = isPostActive;
+
+  // Register video with registry on mount, hard stop + unregister on unmount
+  useEffect(() => {
+    if (item.type !== 'video') return;
+
+    // Register when ref is available (pass URI for debug)
+    if (videoRef.current && !isRegisteredRef.current) {
+      videoRegistry.registerVideo(videoId, videoRef.current, postId, item.url);
+      isRegisteredRef.current = true;
+    }
+
+    // Cleanup: hard stop + unregister on unmount (critical for FlatList recycling)
+    return () => {
+      if (isRegisteredRef.current) {
+        videoRegistry.stopAndUnregister(videoId).catch(() => {});
+        isRegisteredRef.current = false;
+      }
+    };
+  }, [videoId, postId, item.type, item.url]);
+
+  // Update registry ref when video loads (ref might not be ready at mount)
+  useEffect(() => {
+    if (item.type === 'video' && videoRef.current && isLoaded) {
+      if (!isRegisteredRef.current) {
+        videoRegistry.registerVideo(videoId, videoRef.current, postId, item.url);
+        isRegisteredRef.current = true;
+      } else {
+        videoRegistry.updateVideoRef(videoId, videoRef.current, item.url);
+      }
+    }
+  }, [videoId, postId, item.type, item.url, isLoaded]);
 
   const handlePlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (status.isLoaded) {
+      setIsLoaded(true);
       setIsPlaying(status.isPlaying);
       setShowPlayButton(!status.isPlaying);
+      // Track position for fullscreen handoff
+      currentPositionRef.current = status.positionMillis || 0;
+
+      // Apply pending session if video just loaded
+      if (pendingSessionRef.current) {
+        const { position, shouldPlay } = pendingSessionRef.current;
+        pendingSessionRef.current = null;
+        (async () => {
+          try {
+            await videoRef.current?.setPositionAsync(position);
+            if (shouldPlay) {
+              await videoRef.current?.playAsync();
+            }
+          } catch {
+            // Ignore errors
+          }
+        })();
+      }
     }
   }, []);
 
@@ -66,58 +168,233 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
       if (isPlaying) {
         await videoRef.current.pauseAsync();
       } else {
+        // Set this post AND video as globally active before playing
+        // This ensures other videos stop and this one is allowed to play
+        videoPlaybackStore.setActivePostId(postId);
+        videoPlaybackStore.setActiveVideo(item.url);
         await videoRef.current.playAsync();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, item.url, postId]);
 
-  // Pause video when not active or when component unmounts (scroll out of view)
+  // Double-tap like handler
+  const handleDoubleTapLike = useCallback(() => {
+    if (onDoubleTapLike) {
+      setShowHeartAnimation(true);
+      onDoubleTapLike();
+    }
+  }, [onDoubleTapLike]);
+
+  // Use double-tap hook: single tap = play/pause, double tap = like
+  const handleTap = useDoubleTap({
+    onDoubleTap: handleDoubleTapLike,
+    onSingleTap: togglePlayPause,
+    delayMs: 250,
+  });
+
+  // Handler pour ouvrir plein écran (UNIQUEMENT via bouton expand)
+  // Capture position exacte via getStatusAsync pour fiabilité
+  const handleFullscreenPress = useCallback(async () => {
+    if (onVideoPress && videoRef.current) {
+      try {
+        // Get fresh status just before opening fullscreen
+        const status = await videoRef.current.getStatusAsync();
+        if (status.isLoaded) {
+          // Pause preview video before opening fullscreen
+          await videoRef.current.pauseAsync();
+
+          onVideoPress({
+            videoUrl: item.url,
+            thumbnailUrl: item.thumbnailUrl,
+            positionMillis: status.positionMillis || 0,
+            isPlaying: status.isPlaying,
+          });
+        } else {
+          // Fallback if not loaded yet
+          onVideoPress({
+            videoUrl: item.url,
+            thumbnailUrl: item.thumbnailUrl,
+            positionMillis: 0,
+            isPlaying: false,
+          });
+        }
+      } catch {
+        // Fallback on error
+        onVideoPress({
+          videoUrl: item.url,
+          thumbnailUrl: item.thumbnailUrl,
+          positionMillis: currentPositionRef.current,
+          isPlaying: isPlaying,
+        });
+      }
+    }
+  }, [onVideoPress, item.url, item.thumbnailUrl, isPlaying]);
+
+  // AUTO-RESYNC: Listen to store session changes (when fullscreen closes)
   useEffect(() => {
-    if (!isActive && videoRef.current && isPlaying) {
-      videoRef.current.pauseAsync();
-    }
-    if (isActive && autoPlayVideos && videoRef.current && !isPlaying) {
-      videoRef.current.playAsync();
-    }
-  }, [isActive, autoPlayVideos, isPlaying]);
+    if (!session || !isActive) return;
 
-  // Cleanup: pause on unmount
+    // Only process recent sessions (within last 2 seconds = just closed fullscreen)
+    const isRecent = Date.now() - session.updatedAt < 2000;
+    if (!isRecent) return;
+
+    const applySession = async () => {
+      if (!videoRef.current) return;
+
+      try {
+        const status = await videoRef.current.getStatusAsync();
+        if (status.isLoaded) {
+          // Video is loaded, apply immediately
+          await videoRef.current.setPositionAsync(session.positionMillis);
+          // Only play if globally active AND session says shouldPlay
+          if (session.shouldPlay && isGloballyActive) {
+            await videoRef.current.playAsync();
+          } else {
+            await videoRef.current.pauseAsync();
+          }
+        } else {
+          // Video not loaded yet, store pending session (will check global active when applying)
+          pendingSessionRef.current = {
+            position: session.positionMillis,
+            shouldPlay: session.shouldPlay && isGloballyActive,
+          };
+        }
+      } catch {
+        // Store as pending in case of error
+        pendingSessionRef.current = {
+          position: session.positionMillis,
+          shouldPlay: session.shouldPlay && isGloballyActive,
+        };
+      }
+    };
+
+    applySession();
+  }, [session, isActive, isGloballyActive]);
+
+  // Fallback: Resync position via props (legacy support)
+  useEffect(() => {
+    if (syncPositionMillis !== undefined && syncPositionMillis > 0 && videoRef.current && isLoaded) {
+      videoRef.current.setPositionAsync(syncPositionMillis).catch(() => {});
+    }
+  }, [syncPositionMillis, isLoaded]);
+
+  // CRITICAL: Hard stop video when not globally active OR not in view
+  // This prevents audio from playing when user scrolls away (ghost audio fix)
+  useEffect(() => {
+    const shouldBePlaying = isActive && isGloballyActive;
+
+    if (!shouldBePlaying && videoRef.current && isPlaying) {
+      // Video is playing but shouldn't be - HARD STOP it immediately
+      (async () => {
+        try {
+          await videoRef.current?.setStatusAsync({ shouldPlay: false });
+          await videoRef.current?.stopAsync();
+        } catch {
+          // Ignore errors
+        }
+      })();
+    }
+
+    // Auto-play only if both locally active (in carousel) AND globally active
+    if (shouldBePlaying && autoPlayVideos && videoRef.current && !isPlaying) {
+      videoRef.current.playAsync().catch(() => {});
+    }
+  }, [isActive, isGloballyActive, autoPlayVideos, isPlaying]);
+
+  // Additional safety: hard stop immediately when losing global active status
+  useEffect(() => {
+    if (!isGloballyActive && videoRef.current && isLoaded) {
+      (async () => {
+        try {
+          await videoRef.current?.setStatusAsync({ shouldPlay: false });
+          await videoRef.current?.stopAsync();
+        } catch {
+          // Ignore errors
+        }
+      })();
+    }
+  }, [isGloballyActive, isLoaded]);
+
+  // Cleanup: hard stop on unmount (handled by registry registration effect above)
+  // This is a fallback in case registry cleanup fails
   useEffect(() => {
     return () => {
       if (videoRef.current) {
-        videoRef.current.pauseAsync().catch(() => {});
+        // Hard stop: setStatusAsync + stopAsync
+        (async () => {
+          try {
+            await videoRef.current?.setStatusAsync({ shouldPlay: false });
+            await videoRef.current?.stopAsync();
+          } catch {
+            // Ignore errors on unmount
+          }
+        })();
       }
     };
   }, []);
 
   if (item.type === 'video') {
     return (
-      <Pressable style={[styles.mediaContainer, { width, height }]} onPress={togglePlayPause}>
-        <Video
-          ref={videoRef}
-          source={{ uri: item.url }}
-          style={styles.media}
-          resizeMode={ResizeMode.COVER}
-          isLooping
-          onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-          posterSource={item.thumbnailUrl ? { uri: item.thumbnailUrl } : undefined}
-          usePoster={!!item.thumbnailUrl}
-        />
-        {showPlayButton && (
-          <View style={styles.playButtonOverlay}>
-            <View style={styles.playButton}>
-              <Ionicons name="play" size={32} color={couleurs.blanc} />
+      <View style={[styles.mediaContainer, { width, height }]}>
+        {/* Zone de tap: single = play/pause, double = like */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleTap}>
+          <Video
+            ref={videoRef}
+            source={{ uri: item.url }}
+            style={styles.media}
+            resizeMode={ResizeMode.COVER}
+            isLooping
+            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+            posterSource={item.thumbnailUrl ? { uri: item.thumbnailUrl } : undefined}
+            usePoster={!!item.thumbnailUrl}
+          />
+          {showPlayButton && (
+            <View style={styles.playButtonOverlay}>
+              <View style={styles.playButton}>
+                <Ionicons name="play" size={32} color={couleurs.blanc} />
+              </View>
             </View>
-          </View>
+          )}
+        </Pressable>
+        {/* Heart animation on double-tap */}
+        <HeartAnimation
+          visible={showHeartAnimation}
+          onAnimationEnd={() => setShowHeartAnimation(false)}
+          size={80}
+        />
+        {/* Bouton expand - SEUL déclencheur du plein écran */}
+        {onVideoPress && (
+          <Pressable
+            style={styles.expandIconContainer}
+            onPress={handleFullscreenPress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="expand" size={20} color={couleurs.blanc} />
+          </Pressable>
         )}
-      </Pressable>
+      </View>
     );
   }
 
+  // Image double-tap handler
+  const handleImageTap = useDoubleTap({
+    onDoubleTap: handleDoubleTapLike,
+    onSingleTap: onPress,
+    delayMs: 250,
+  });
+
   return (
-    <Pressable style={[styles.mediaContainer, { width, height }]} onPress={onPress}>
-      <Image source={{ uri: item.url }} style={styles.media} resizeMode="cover" />
-    </Pressable>
+    <View style={[styles.mediaContainer, { width, height }]}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={handleImageTap}>
+        <Image source={{ uri: item.url }} style={styles.media} resizeMode="cover" />
+      </Pressable>
+      {/* Heart animation on double-tap */}
+      <HeartAnimation
+        visible={showHeartAnimation}
+        onAnimationEnd={() => setShowHeartAnimation(false)}
+        size={80}
+      />
+    </View>
   );
 });
 
@@ -157,15 +434,28 @@ const PaginationDot: React.FC<{ isActive: boolean }> = React.memo(({ isActive })
 
 const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
   medias,
+  postId,
   width = SCREEN_WIDTH,
   height = SCREEN_WIDTH,
   onMediaPress,
+  onVideoPress,
+  onVideoPositionSync,
   showIndicator = true,
   showDots = true,
   autoPlayVideos = false,
+  liked,
+  onDoubleTapLike,
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  // Track sync positions per video URL for resync after fullscreen
+  const [syncPositions, setSyncPositions] = useState<Record<string, number>>({});
+
+  // Handler to receive position sync from parent (after fullscreen closes)
+  const handlePositionSync = useCallback((videoUrl: string, positionMillis: number) => {
+    setSyncPositions(prev => ({ ...prev, [videoUrl]: positionMillis }));
+    onVideoPositionSync?.(videoUrl, positionMillis);
+  }, [onVideoPositionSync]);
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -185,14 +475,19 @@ const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
       <MediaItemRenderer
         item={item}
         index={index}
+        postId={postId}
         width={width}
         height={height}
         isActive={index === activeIndex}
         onPress={() => onMediaPress?.(index)}
+        onVideoPress={onVideoPress}
+        syncPositionMillis={syncPositions[item.url]}
         autoPlayVideos={autoPlayVideos}
+        liked={liked}
+        onDoubleTapLike={onDoubleTapLike}
       />
     ),
-    [width, height, activeIndex, onMediaPress, autoPlayVideos]
+    [postId, width, height, activeIndex, onMediaPress, onVideoPress, syncPositions, autoPlayVideos, liked, onDoubleTapLike]
   );
 
   const keyExtractor = useCallback(
@@ -207,11 +502,16 @@ const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
         <MediaItemRenderer
           item={medias[0]}
           index={0}
+          postId={postId}
           width={width}
           height={height}
           isActive={true}
           onPress={() => onMediaPress?.(0)}
+          onVideoPress={onVideoPress}
+          syncPositionMillis={syncPositions[medias[0].url]}
           autoPlayVideos={autoPlayVideos}
+          liked={liked}
+          onDoubleTapLike={onDoubleTapLike}
         />
       </View>
     );
@@ -293,6 +593,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingLeft: 4,
+  },
+  expandIconContainer: {
+    position: 'absolute',
+    bottom: espacements.sm,
+    right: espacements.sm,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   indicatorContainer: {
     position: 'absolute',

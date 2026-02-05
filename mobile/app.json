@@ -23,7 +23,8 @@
         "backgroundColor": "#0D0D12"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.lpp.mobile"
+      "package": "com.lpp.mobile",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/favicon.png",
