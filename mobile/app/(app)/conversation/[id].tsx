@@ -22,6 +22,7 @@ import {
   Animated,
   Dimensions,
   Keyboard,
+  KeyboardEvent,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -265,8 +266,11 @@ export default function ConversationScreen() {
   // Animation coeur double-tap
   const [heartAnimationMessage, setHeartAnimationMessage] = useState<string | null>(null);
 
-  // Android keyboard visibility - pour ajuster le padding quand clavier ouvert
-  const [androidKeyboardVisible, setAndroidKeyboardVisible] = useState(false);
+  // Android keyboard spacer - même approche que UnifiedCommentsSheet qui marche
+  // On mesure l'overlap entre l'input et le clavier, puis on ajoute un spacer
+  const [keyboardSpacer, setKeyboardSpacer] = useState(0);
+  const inputContainerRef = useRef<View>(null);
+  const KEYBOARD_EXTRA_MARGIN = 16; // Marge de sécurité au-dessus du clavier
 
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
@@ -309,17 +313,44 @@ export default function ConversationScreen() {
     return () => clearInterval(interval);
   }, [chargerMessages, chargement, id]);
 
-  // Android: tracker la visibilité du clavier pour ajuster le padding
-  // Sur Android, insets.bottom compte pour la navigation bar, mais quand le clavier
-  // est ouvert, la nav bar est couverte. On doit donc supprimer ce padding.
+  // Android: keyboard spacer dynamique - même approche que UnifiedCommentsSheet
+  // Mesure l'overlap entre l'inputContainer et le clavier, ajoute un spacer pour pousser vers le haut
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
-    const showListener = Keyboard.addListener('keyboardDidShow', () => {
-      setAndroidKeyboardVisible(true);
+    const showListener = Keyboard.addListener('keyboardDidShow', (e) => {
+      const keyboardY = e.endCoordinates.screenY; // Position Y du haut du clavier
+
+      // Mesurer l'inputContainer pour calculer l'overlap
+      inputContainerRef.current?.measureInWindow((x, y, width, height) => {
+        const inputBottom = y + height;
+        const overlap = inputBottom - keyboardY + KEYBOARD_EXTRA_MARGIN;
+
+        if (__DEV__) {
+          console.log('⌨️ [KEYBOARD SHOW] spacer calc:', {
+            inputBottom,
+            keyboardY,
+            overlap,
+            willAddSpacer: overlap > 0,
+          });
+        }
+
+        if (overlap > 0) {
+          setKeyboardSpacer(overlap);
+        }
+      });
+
+      // Scroll vers le bas après un court délai
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     });
+
     const hideListener = Keyboard.addListener('keyboardDidHide', () => {
-      setAndroidKeyboardVisible(false);
+      setKeyboardSpacer(0);
+      if (__DEV__) {
+        console.log('⌨️ [KEYBOARD HIDE] spacer reset to 0');
+      }
     });
 
     return () => {
@@ -1199,15 +1230,8 @@ export default function ConversationScreen() {
         />
 
         {/* Bottom area: Reply + Draft + Input */}
-        {/* Sur Android: quand clavier ouvert, pas besoin du padding insets.bottom car nav bar couverte */}
-        <View style={[
-          styles.bottomArea,
-          {
-            paddingBottom: Platform.OS === 'android' && androidKeyboardVisible
-              ? espacements.xs  // Padding minimal quand clavier ouvert
-              : (insets.bottom || espacements.md)  // Padding normal sinon
-          }
-        ]}>
+        {/* Structure identique à UnifiedCommentsSheet: composer dans le flux + spacer Android */}
+        <View style={[styles.bottomArea, { paddingBottom: insets.bottom || espacements.md }]}>
           {/* Reply preview */}
           {replyingTo && (
             <View style={styles.replyBar}>
@@ -1257,8 +1281,8 @@ export default function ConversationScreen() {
             </View>
           )}
 
-          {/* Input */}
-          <View style={styles.inputContainer}>
+          {/* Input - ref pour mesurer position (Android keyboard spacer) */}
+          <View ref={inputContainerRef} style={styles.inputContainer}>
             <Pressable style={styles.inputAction} onPress={handleSelectMedia} disabled={envoiEnCours || !!draftMedia}>
               <Ionicons name="attach-outline" size={24} color={(envoiEnCours || draftMedia) ? couleurs.texteMuted : couleurs.primaire} />
             </Pressable>
@@ -1297,6 +1321,12 @@ export default function ConversationScreen() {
             )}
           </View>
         </View>
+
+        {/* Android: Spacer dynamique pour pousser le contenu au-dessus du clavier */}
+        {/* Même approche que UnifiedCommentsSheet qui fonctionne */}
+        {Platform.OS === 'android' && keyboardSpacer > 0 && (
+          <View style={{ height: keyboardSpacer, backgroundColor: couleurs.fond }} />
+        )}
 
         {/* Modal d'édition */}
         <Modal
