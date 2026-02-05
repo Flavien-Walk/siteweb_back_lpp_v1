@@ -4,7 +4,7 @@
  * V2: Draft média, fullscreen viewer, réactions, reply-to, swipe reply
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -21,12 +21,14 @@ import {
   Modal,
   Animated,
   Dimensions,
+  Keyboard,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { GestureHandlerRootView, PanGestureHandler, PanGestureHandlerGestureEvent, State } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
+import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
@@ -52,6 +54,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = 60;
+const SWIPE_DEADZONE = 15; // Deadzone avant de décider horizontal vs vertical
 
 // Types pour les nouvelles fonctionnalités
 interface DraftMedia {
@@ -134,55 +137,82 @@ const AnimatedMessageBubble = ({
   );
 };
 
-// Composant message avec swipe pour répondre
+// Composant message avec swipe pour répondre - optimisé pour ne pas bloquer le scroll
 interface SwipeableMessageProps {
   children: React.ReactNode;
   onSwipeReply: () => void;
 }
 
-const SwipeableMessage = ({ children, onSwipeReply }: SwipeableMessageProps) => {
+const SwipeableMessage = memo(({ children, onSwipeReply }: SwipeableMessageProps) => {
   const translateX = useRef(new Animated.Value(0)).current;
+  const isSwipingRef = useRef(false);
 
-  const onGestureEvent = Animated.event(
-    [{ nativeEvent: { translationX: translateX } }],
-    { useNativeDriver: true }
+  // Animated event optimisé avec useNativeDriver
+  const onGestureEvent = useMemo(
+    () => Animated.event(
+      [{ nativeEvent: { translationX: translateX } }],
+      { useNativeDriver: true }
+    ),
+    [translateX]
   );
 
-  const onHandlerStateChange = (event: PanGestureHandlerGestureEvent) => {
-    if (event.nativeEvent.state === State.END) {
-      const { translationX: tx } = event.nativeEvent;
+  const onHandlerStateChange = useCallback((event: PanGestureHandlerGestureEvent) => {
+    const { state, translationX: tx, translationY: ty } = event.nativeEvent;
 
-      if (tx > SWIPE_THRESHOLD) {
-        // Trigger reply
+    if (state === State.BEGAN) {
+      isSwipingRef.current = false;
+    }
+
+    if (state === State.ACTIVE) {
+      // Vérifier si le geste est clairement horizontal (ratio 1.5:1)
+      const absX = Math.abs(tx);
+      const absY = Math.abs(ty);
+      if (absX > SWIPE_DEADZONE && absX > absY * 1.5) {
+        isSwipingRef.current = true;
+      }
+    }
+
+    if (state === State.END || state === State.CANCELLED) {
+      // Trigger reply seulement si swipe horizontal confirmé
+      if (isSwipingRef.current && tx > SWIPE_THRESHOLD) {
         onSwipeReply();
       }
 
-      // Reset position
+      // Reset position avec animation fluide
       Animated.spring(translateX, {
         toValue: 0,
         useNativeDriver: true,
         friction: 8,
+        tension: 100,
       }).start();
+
+      isSwipingRef.current = false;
     }
-  };
+  }, [onSwipeReply, translateX]);
 
-  // Clamp the translation to only allow right swipe, max 80px
-  const clampedTranslateX = translateX.interpolate({
-    inputRange: [0, 80],
-    outputRange: [0, 80],
-    extrapolate: 'clamp',
-  });
+  // Clamp translation: seulement swipe droit, max 80px
+  const clampedTranslateX = useMemo(
+    () => translateX.interpolate({
+      inputRange: [0, 80],
+      outputRange: [0, 80],
+      extrapolate: 'clamp',
+    }),
+    [translateX]
+  );
 
-  // Reply icon opacity based on swipe distance
-  const replyIconOpacity = translateX.interpolate({
-    inputRange: [0, SWIPE_THRESHOLD],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
+  // Opacité icône reply basée sur distance
+  const replyIconOpacity = useMemo(
+    () => translateX.interpolate({
+      inputRange: [0, SWIPE_THRESHOLD],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    }),
+    [translateX]
+  );
 
   return (
     <View style={styles.swipeableContainer}>
-      {/* Reply icon indicator */}
+      {/* Icône reply indicator */}
       <Animated.View style={[styles.swipeReplyIcon, { opacity: replyIconOpacity }]}>
         <Ionicons name="arrow-undo" size={20} color={couleurs.primaire} />
       </Animated.View>
@@ -190,8 +220,10 @@ const SwipeableMessage = ({ children, onSwipeReply }: SwipeableMessageProps) => 
       <PanGestureHandler
         onGestureEvent={onGestureEvent}
         onHandlerStateChange={onHandlerStateChange}
-        activeOffsetX={[0, 20]}
-        failOffsetY={[-20, 20]}
+        activeOffsetX={SWIPE_DEADZONE}
+        failOffsetY={[-8, 8]}
+        minPointers={1}
+        maxPointers={1}
       >
         <Animated.View style={{ transform: [{ translateX: clampedTranslateX }] }}>
           {children}
@@ -199,7 +231,7 @@ const SwipeableMessage = ({ children, onSwipeReply }: SwipeableMessageProps) => 
       </PanGestureHandler>
     </View>
   );
-};
+});
 
 export default function ConversationScreen() {
   const router = useRouter();
@@ -276,6 +308,23 @@ export default function ConversationScreen() {
 
     return () => clearInterval(interval);
   }, [chargerMessages, chargement, id]);
+
+  // Scroll vers le bas quand clavier s'ouvre
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        // Petit délai pour laisser le layout se stabiliser
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, []);
 
   // Vérifier si un message peut être édité (moins de 15 minutes)
   const peutEditerMessage = (message: Message) => {
@@ -779,11 +828,36 @@ export default function ConversationScreen() {
     return REACTIONS.find(r => r.type === type)?.emoji || '👍';
   };
 
-  // Composant message individuel avec handlers
-  const MessageItem = ({ item, index }: { item: Message; index: number }) => {
+  // Callback stable pour swipe reply
+  const handleSwipeReply = useCallback((message: Message) => {
+    handleReplyToMessage(message);
+  }, [handleReplyToMessage]);
+
+  // Composant message individuel avec handlers - MEMOIZED
+  const MessageItem = memo(({
+    item,
+    showSeparator,
+    autreParticipant,
+    estGroupe,
+    heartAnimationId,
+    onDoubleTap,
+    onLongPress,
+    onOpenFullscreen,
+    onSwipeReply,
+    onHeartAnimationEnd,
+  }: {
+    item: Message;
+    showSeparator: boolean;
+    autreParticipant: Utilisateur | null | undefined;
+    estGroupe: boolean;
+    heartAnimationId: string | null;
+    onDoubleTap: (msg: Message) => void;
+    onLongPress: (msg: Message) => void;
+    onOpenFullscreen: (msg: Message) => void;
+    onSwipeReply: (msg: Message) => void;
+    onHeartAnimationEnd: () => void;
+  }) => {
     const estMoi = item.estMoi;
-    const showSeparator = shouldShowDateSeparator(index);
-    const autreParticipant = getAutreParticipant();
 
     // Message système
     if (item.type === 'systeme') {
@@ -800,23 +874,33 @@ export default function ConversationScreen() {
     }
 
     const showAvatar = !estMoi;
-    const avatarUrl = conversation?.estGroupe ? item.expediteur.avatar : autreParticipant?.avatar;
+    const avatarUrl = estGroupe ? item.expediteur.avatar : autreParticipant?.avatar;
     const messageAge = Date.now() - new Date(item.dateCreation).getTime();
     const isRecentMessage = messageAge < 2000;
 
-    // Réactions groupées par type
-    const reactionsGrouped = item.reactions?.reduce((acc, r) => {
-      acc[r.type] = (acc[r.type] || 0) + 1;
-      return acc;
-    }, {} as Record<TypeReaction, number>) || {};
+    // Réactions groupées par type - memoized
+    const reactionsGrouped = useMemo(() => {
+      return item.reactions?.reduce((acc, r) => {
+        acc[r.type] = (acc[r.type] || 0) + 1;
+        return acc;
+      }, {} as Record<TypeReaction, number>) || {};
+    }, [item.reactions]);
 
     const hasReactions = Object.keys(reactionsGrouped).length > 0;
     const isMedia = item.type === 'image' || item.type === 'video';
 
+    // Callbacks stables
+    const handleTapDoubleTap = useCallback(() => onDoubleTap(item), [item, onDoubleTap]);
+    const handleTapSingle = useCallback(() => {
+      if (isMedia) onOpenFullscreen(item);
+    }, [item, isMedia, onOpenFullscreen]);
+    const handleLongPressCallback = useCallback(() => onLongPress(item), [item, onLongPress]);
+    const handleSwipeReplyCallback = useCallback(() => onSwipeReply(item), [item, onSwipeReply]);
+
     // Hook double tap - single tap ouvre fullscreen pour médias, double tap = like
     const handleTap = useDoubleTap({
-      onDoubleTap: () => handleDoubleTapLike(item),
-      onSingleTap: isMedia ? () => handleOpenFullscreen(item) : undefined,
+      onDoubleTap: handleTapDoubleTap,
+      onSingleTap: isMedia ? handleTapSingle : undefined,
       delayMs: 250,
     });
 
@@ -855,7 +939,7 @@ export default function ConversationScreen() {
 
             <Pressable
               onPress={handleTap}
-              onLongPress={() => handleLongPressMessage(item)}
+              onLongPress={handleLongPressCallback}
               delayLongPress={400}
             >
               <View style={[
@@ -864,7 +948,7 @@ export default function ConversationScreen() {
                 isMedia && styles.messageBubbleMedia,
               ]}>
                 {/* Nom de l'expéditeur (groupes uniquement) */}
-                {!estMoi && conversation?.estGroupe && (
+                {!estMoi && estGroupe && (
                   <Text style={styles.messageAuteur}>{item.expediteur.prenom}</Text>
                 )}
 
@@ -913,10 +997,10 @@ export default function ConversationScreen() {
                 </View>
 
                 {/* Heart animation */}
-                {heartAnimationMessage === item._id && (
+                {heartAnimationId === item._id && (
                   <HeartAnimation
                     visible={true}
-                    onAnimationEnd={() => setHeartAnimationMessage(null)}
+                    onAnimationEnd={onHeartAnimationEnd}
                     size={60}
                   />
                 )}
@@ -950,17 +1034,44 @@ export default function ConversationScreen() {
         {showSeparator && (
           <Text style={styles.dateSeparator}>{formatDateSeparateur(item.dateCreation)}</Text>
         )}
-        <SwipeableMessage onSwipeReply={() => handleReplyToMessage(item)}>
+        <SwipeableMessage onSwipeReply={handleSwipeReplyCallback}>
           {messageContent}
         </SwipeableMessage>
       </View>
     );
-  };
+  });
 
-  // Render message
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    return <MessageItem item={item} index={index} />;
-  };
+  // Clear heart animation callback stable
+  const clearHeartAnimation = useCallback(() => setHeartAnimationMessage(null), []);
+
+  // Autre participant memoized
+  const autreParticipant = useMemo(() => getAutreParticipant(), [conversation, utilisateur?.id]);
+  const isGroupConversation = conversation?.estGroupe ?? false;
+
+  // Render message - optimisé avec props stables
+  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
+    const showSeparator = index === 0 ||
+      new Date(item.dateCreation).toDateString() !==
+      new Date(messages[index - 1].dateCreation).toDateString();
+
+    return (
+      <MessageItem
+        item={item}
+        showSeparator={showSeparator}
+        autreParticipant={autreParticipant}
+        estGroupe={isGroupConversation}
+        heartAnimationId={heartAnimationMessage}
+        onDoubleTap={handleDoubleTapLike}
+        onLongPress={handleLongPressMessage}
+        onOpenFullscreen={handleOpenFullscreen}
+        onSwipeReply={handleSwipeReply}
+        onHeartAnimationEnd={clearHeartAnimation}
+      />
+    );
+  }, [messages, autreParticipant, isGroupConversation, heartAnimationMessage, handleDoubleTapLike, handleLongPressMessage, handleOpenFullscreen, handleSwipeReply, clearHeartAnimation]);
+
+  // KeyExtractor stable
+  const keyExtractor = useCallback((item: Message) => item._id, []);
 
   // Obtenir le nom et l'avatar de la conversation
   const getConversationDisplay = () => {
@@ -1037,16 +1148,23 @@ export default function ConversationScreen() {
           </Pressable>
         </View>
 
-        {/* Messages */}
+        {/* Messages - optimisé pour performance */}
         <FlatList
           ref={flatListRef}
           data={messages}
           renderItem={renderMessage}
-          keyExtractor={(item) => item._id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.messagesContainer}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          // Optimisations performance
+          removeClippedSubviews={Platform.OS === 'android'}
+          windowSize={11}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          // Callback scroll
           onContentSizeChange={() => {
             if (messages.length > 0) {
               flatListRef.current?.scrollToEnd({ animated: false });
@@ -1126,6 +1244,12 @@ export default function ConversationScreen() {
                 placeholderTextColor={couleurs.textePlaceholder}
                 value={messageTexte}
                 onChangeText={setMessageTexte}
+                onFocus={() => {
+                  // Scroll vers le bas quand l'input est focus
+                  setTimeout(() => {
+                    flatListRef.current?.scrollToEnd({ animated: true });
+                  }, 150);
+                }}
                 multiline
                 maxLength={2000}
               />
@@ -1328,6 +1452,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     padding: espacements.md,
+    paddingBottom: espacements.lg, // Extra padding pour éviter que le dernier message soit collé à l'input
     flexGrow: 1,
   },
   emptyMessages: {
