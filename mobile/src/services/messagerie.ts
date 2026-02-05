@@ -14,6 +14,30 @@ export interface Utilisateur {
 }
 
 export type TypeMessage = 'texte' | 'image' | 'video' | 'systeme';
+export type TypeReaction = 'heart' | 'laugh' | 'wow' | 'sad' | 'angry' | 'like';
+
+export interface Reaction {
+  userId: string;
+  user?: {
+    _id: string;
+    prenom: string;
+    nom: string;
+    avatar?: string;
+  };
+  type: TypeReaction;
+  createdAt: string;
+}
+
+export interface ReplyToMessage {
+  _id: string;
+  contenu: string;
+  expediteur: {
+    _id?: string;
+    prenom: string;
+    nom: string;
+  };
+  type: TypeMessage;
+}
 
 export interface Message {
   _id: string;
@@ -25,6 +49,8 @@ export interface Message {
   dateCreation: string;
   estMoi: boolean;
   modifie?: boolean;
+  replyTo?: ReplyToMessage;
+  reactions?: Reaction[];
 }
 
 export interface Conversation {
@@ -120,6 +146,7 @@ export const envoyerMessage = async (
     destinataireId?: string;
     type?: TypeMessage;
     clientMessageId?: string; // Pour idempotence
+    replyTo?: string; // ID du message auquel on répond
   }
 ): Promise<ReponseAPI<EnvoyerMessageResponse>> => {
   return api.post<EnvoyerMessageResponse>(
@@ -130,6 +157,7 @@ export const envoyerMessage = async (
       destinataireId: options.destinataireId,
       type: options.type || 'texte',
       clientMessageId: options.clientMessageId,
+      replyTo: options.replyTo,
     },
     true
   );
@@ -307,4 +335,20 @@ export const getUtilisateur = async (
   userId: string
 ): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
   return api.get<{ utilisateur: Utilisateur }>(`/utilisateurs/${userId}`, false);
+};
+
+/**
+ * Ajouter ou supprimer une réaction sur un message
+ * @param messageId - ID du message
+ * @param reactionType - Type de réaction (null pour supprimer)
+ */
+export const reagirMessage = async (
+  messageId: string,
+  reactionType: TypeReaction | null
+): Promise<ReponseAPI<{ messageId: string; reactions: Reaction[] }>> => {
+  return api.post<{ messageId: string; reactions: Reaction[] }>(
+    `/messagerie/messages/${messageId}/react`,
+    { reactionType },
+    true
+  );
 };
