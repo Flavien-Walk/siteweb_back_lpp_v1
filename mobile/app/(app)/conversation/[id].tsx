@@ -1242,7 +1242,10 @@ export default function ConversationScreen() {
                 value={messageTexte}
                 onChangeText={setMessageTexte}
                 multiline
+                scrollEnabled
+                textAlignVertical="top"
                 maxLength={2000}
+                blurOnSubmit={false}
               />
             </View>
 
@@ -1767,13 +1770,18 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.fondCard,
     borderRadius: rayons.xl,
     paddingHorizontal: espacements.md,
+    minHeight: 40,
     maxHeight: 120,
+    justifyContent: 'center',
   },
   input: {
     fontSize: typographie.tailles.base,
     color: couleurs.texte,
-    paddingVertical: espacements.sm,
+    paddingVertical: Platform.OS === 'ios' ? espacements.sm : espacements.xs,
+    paddingTop: Platform.OS === 'android' ? espacements.sm : undefined,
+    minHeight: 24,
     maxHeight: 100,
+    textAlignVertical: 'center',
   },
   sendButton: {
     backgroundColor: couleurs.primaire,
