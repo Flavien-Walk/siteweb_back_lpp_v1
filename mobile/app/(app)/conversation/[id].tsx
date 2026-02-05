@@ -1110,8 +1110,8 @@ export default function ConversationScreen() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={[styles.container, { paddingTop: insets.top }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -1155,14 +1155,13 @@ export default function ConversationScreen() {
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           // Optimisations performance
           removeClippedSubviews={Platform.OS === 'android'}
           windowSize={11}
           initialNumToRender={15}
           maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={50}
-          // Callback scroll
+          // Callback scroll - scroll to end on content size change
           onContentSizeChange={() => {
             if (messages.length > 0) {
               flatListRef.current?.scrollToEnd({ animated: false });
