@@ -40,7 +40,10 @@ import {
   supprimerMessage,
   Message,
   Utilisateur,
+  TypeMessage,
 } from '../../../src/services/messagerie';
+import { getVideoThumbnail, isVideoUrl } from '../../../src/utils/mediaUtils';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface ConversationInfo {
   _id: string;
@@ -318,16 +321,80 @@ export default function ConversationScreen() {
     }
   };
 
-  // Sélectionner une image
-  const handleSelectImage = async () => {
+  // Générer un ID unique pour le message (idempotence)
+  const generateClientMessageId = () => {
+    return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  };
+
+  // Sélectionner et envoyer un média (image ou vidéo)
+  const handleSelectMedia = async () => {
+    // Demander les permissions
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission refusée', 'L\'accès à la galerie est nécessaire pour envoyer des médias.');
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All, // Images ET vidéos
       quality: 0.8,
-      allowsEditing: true,
+      allowsEditing: false,
+      videoMaxDuration: 60, // 60 secondes max
     });
 
-    if (!result.canceled && result.assets[0]) {
-      Alert.alert('Info', "L'envoi d'images sera bientôt disponible !");
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const isVideo = asset.type === 'video';
+
+    // Vérifier la taille (25 MB max)
+    if (asset.fileSize && asset.fileSize > 25 * 1024 * 1024) {
+      Alert.alert('Fichier trop volumineux', 'La taille maximale est de 25 MB.');
+      return;
+    }
+
+    if (!id) return;
+
+    setEnvoiEnCours(true);
+
+    try {
+      // Convertir en base64
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: 'base64',
+      });
+
+      // Déterminer le type MIME
+      const mimeType = isVideo
+        ? (asset.uri.endsWith('.mov') ? 'video/quicktime' : 'video/mp4')
+        : 'image/jpeg';
+
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      // Générer clientMessageId pour idempotence
+      const clientMessageId = generateClientMessageId();
+
+      // Envoyer le message média
+      const reponse = await envoyerMessage(dataUrl, {
+        conversationId: id,
+        type: isVideo ? 'video' : 'image',
+        clientMessageId,
+      });
+
+      if (reponse.succes && reponse.data) {
+        setMessages((prev) => [...prev, reponse.data!.message]);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      } else {
+        Alert.alert('Erreur', reponse.message || 'Impossible d\'envoyer le média');
+      }
+    } catch (error) {
+      console.error('Erreur envoi média:', error);
+      Alert.alert('Erreur', 'Impossible d\'envoyer le média');
+    } finally {
+      setEnvoiEnCours(false);
     }
   };
 
@@ -572,7 +639,18 @@ export default function ConversationScreen() {
 
               {/* Contenu */}
               {item.type === 'image' ? (
-                <Image source={{ uri: item.contenu }} style={styles.messageImage} />
+                <Image source={{ uri: item.contenu }} style={styles.messageImage} resizeMode="cover" />
+              ) : item.type === 'video' ? (
+                <View style={styles.messageVideoContainer}>
+                  <Image
+                    source={{ uri: getVideoThumbnail(item.contenu) }}
+                    style={styles.messageImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.videoPlayOverlay}>
+                    <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                  </View>
+                </View>
               ) : (
                 <Text style={[styles.messageTexte, estMoi && styles.messageTexteMoi]}>
                   {item.contenu}
@@ -710,8 +788,8 @@ export default function ConversationScreen() {
 
       {/* Input */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom || espacements.md }]}>
-        <Pressable style={styles.inputAction} onPress={handleSelectImage}>
-          <Ionicons name="image-outline" size={24} color={couleurs.primaire} />
+        <Pressable style={styles.inputAction} onPress={handleSelectMedia} disabled={envoiEnCours}>
+          <Ionicons name="attach-outline" size={24} color={envoiEnCours ? couleurs.texteMuted : couleurs.primaire} />
         </Pressable>
 
         <View style={styles.inputWrapper}>
@@ -955,6 +1033,19 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: rayons.md,
+  },
+  messageVideoContainer: {
+    width: 200,
+    height: 200,
+    borderRadius: rayons.md,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  videoPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   messageFooter: {
     flexDirection: 'row',

@@ -13,7 +13,7 @@ export interface Utilisateur {
   avatar?: string;
 }
 
-export type TypeMessage = 'texte' | 'image' | 'systeme';
+export type TypeMessage = 'texte' | 'image' | 'video' | 'systeme';
 
 export interface Message {
   _id: string;
@@ -111,10 +111,16 @@ export const getMessages = async (
 
 /**
  * Envoyer un message dans une conversation ou à un nouveau destinataire
+ * Pour les médias, contenu peut être un base64 data URL
  */
 export const envoyerMessage = async (
   contenu: string,
-  options: { conversationId?: string; destinataireId?: string; type?: TypeMessage }
+  options: {
+    conversationId?: string;
+    destinataireId?: string;
+    type?: TypeMessage;
+    clientMessageId?: string; // Pour idempotence
+  }
 ): Promise<ReponseAPI<EnvoyerMessageResponse>> => {
   return api.post<EnvoyerMessageResponse>(
     '/messagerie/envoyer',
@@ -123,6 +129,7 @@ export const envoyerMessage = async (
       conversationId: options.conversationId,
       destinataireId: options.destinataireId,
       type: options.type || 'texte',
+      clientMessageId: options.clientMessageId,
     },
     true
   );
