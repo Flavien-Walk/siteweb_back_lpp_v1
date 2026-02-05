@@ -270,7 +270,7 @@ export default function ConversationScreen() {
   // On mesure l'overlap entre l'input et le clavier, puis on ajoute un spacer
   const [keyboardSpacer, setKeyboardSpacer] = useState(0);
   const inputContainerRef = useRef<View>(null);
-  const KEYBOARD_EXTRA_MARGIN = 16; // Marge de sécurité au-dessus du clavier
+  const KEYBOARD_EXTRA_MARGIN = 28; // Marge de sécurité au-dessus du clavier (plus d'espace)
 
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
