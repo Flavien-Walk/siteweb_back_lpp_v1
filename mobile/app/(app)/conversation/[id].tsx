@@ -145,7 +145,6 @@ interface SwipeableMessageProps {
 
 const SwipeableMessage = memo(({ children, onSwipeReply }: SwipeableMessageProps) => {
   const translateX = useRef(new Animated.Value(0)).current;
-  const isSwipingRef = useRef(false);
 
   // Animated event optimisé avec useNativeDriver
   const onGestureEvent = useMemo(
@@ -159,22 +158,14 @@ const SwipeableMessage = memo(({ children, onSwipeReply }: SwipeableMessageProps
   const onHandlerStateChange = useCallback((event: PanGestureHandlerGestureEvent) => {
     const { state, translationX: tx, translationY: ty } = event.nativeEvent;
 
-    if (state === State.BEGAN) {
-      isSwipingRef.current = false;
-    }
-
-    if (state === State.ACTIVE) {
-      // Vérifier si le geste est clairement horizontal (ratio 1.5:1)
+    if (state === State.END) {
+      // Vérifier le geste FINAL : horizontal et au-delà du seuil
       const absX = Math.abs(tx);
       const absY = Math.abs(ty);
-      if (absX > SWIPE_DEADZONE && absX > absY * 1.5) {
-        isSwipingRef.current = true;
-      }
-    }
+      const isHorizontalSwipe = absX > absY * 1.2; // Ratio plus permissif pour le geste final
 
-    if (state === State.END || state === State.CANCELLED) {
-      // Trigger reply seulement si swipe horizontal confirmé
-      if (isSwipingRef.current && tx > SWIPE_THRESHOLD) {
+      if (tx > SWIPE_THRESHOLD && isHorizontalSwipe) {
+        // Déclencher reply AVANT le reset animation
         onSwipeReply();
       }
 
@@ -185,8 +176,14 @@ const SwipeableMessage = memo(({ children, onSwipeReply }: SwipeableMessageProps
         friction: 8,
         tension: 100,
       }).start();
-
-      isSwipingRef.current = false;
+    } else if (state === State.CANCELLED) {
+      // Juste reset sans action
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        friction: 8,
+        tension: 100,
+      }).start();
     }
   }, [onSwipeReply, translateX]);
 
@@ -309,20 +306,19 @@ export default function ConversationScreen() {
     return () => clearInterval(interval);
   }, [chargerMessages, chargement, id]);
 
-  // Scroll vers le bas quand clavier s'ouvre
+  // Scroll vers le bas quand clavier s'ouvre (iOS seulement - Android géré par adjustResize)
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        // Petit délai pour laisser le layout se stabiliser
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      }
-    );
+    if (Platform.OS !== 'ios') return;
+
+    const keyboardWillShowListener = Keyboard.addListener('keyboardWillShow', () => {
+      // Petit délai pour laisser le layout se stabiliser
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 50);
+    });
 
     return () => {
-      keyboardDidShowListener.remove();
+      keyboardWillShowListener.remove();
     };
   }, []);
 
@@ -1114,8 +1110,8 @@ export default function ConversationScreen() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={[styles.container, { paddingTop: insets.top }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -1154,10 +1150,12 @@ export default function ConversationScreen() {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={keyExtractor}
+          style={styles.messagesList}
           contentContainerStyle={styles.messagesContainer}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           // Optimisations performance
           removeClippedSubviews={Platform.OS === 'android'}
           windowSize={11}
@@ -1244,12 +1242,6 @@ export default function ConversationScreen() {
                 placeholderTextColor={couleurs.textePlaceholder}
                 value={messageTexte}
                 onChangeText={setMessageTexte}
-                onFocus={() => {
-                  // Scroll vers le bas quand l'input est focus
-                  setTimeout(() => {
-                    flatListRef.current?.scrollToEnd({ animated: true });
-                  }, 150);
-                }}
                 multiline
                 maxLength={2000}
               />
@@ -1450,9 +1442,12 @@ const styles = StyleSheet.create({
   headerAction: {
     padding: espacements.sm,
   },
+  messagesList: {
+    flex: 1,
+  },
   messagesContainer: {
     padding: espacements.md,
-    paddingBottom: espacements.lg, // Extra padding pour éviter que le dernier message soit collé à l'input
+    paddingBottom: espacements.md,
     flexGrow: 1,
   },
   emptyMessages: {
