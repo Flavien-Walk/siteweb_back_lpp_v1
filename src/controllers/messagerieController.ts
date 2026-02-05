@@ -23,6 +23,12 @@ const schemaEnvoyerMessage = z.object({
     .min(1, 'Le contenu est requis'),
   type: z.enum(['texte', 'image', 'video']).default('texte'),
   clientMessageId: z.string().optional(), // Pour idempotence côté client
+  replyTo: z.string().optional(), // ID du message auquel on répond
+});
+
+// Schéma pour réagir à un message
+const schemaReagirMessage = z.object({
+  reactionType: z.enum(['heart', 'laugh', 'wow', 'sad', 'angry', 'like']).nullable(),
 });
 
 // Schéma pour créer un groupe
@@ -178,13 +184,19 @@ export const getMessages = async (
       throw new ErreurAPI('Vous ne faites pas partie de cette conversation.', 403);
     }
 
-    // Récupérer les messages
+    // Récupérer les messages avec replyTo et reactions
     const [messages, total] = await Promise.all([
       Message.find({ conversation: conversationId })
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('expediteur', 'prenom nom avatar'),
+        .populate('expediteur', 'prenom nom avatar')
+        .populate({
+          path: 'replyTo',
+          select: 'contenuCrypte expediteur type',
+          populate: { path: 'expediteur', select: 'prenom nom' },
+        })
+        .populate('reactions.userId', 'prenom nom avatar'),
       Message.countDocuments({ conversation: conversationId }),
     ]);
 
@@ -198,17 +210,46 @@ export const getMessages = async (
       { $addToSet: { lecteurs: userId } }
     );
 
-    // Transformer pour inclure le contenu déchiffré
-    const messagesFormates = messages.map((msg) => ({
-      _id: msg._id,
-      expediteur: msg.expediteur,
-      type: msg.type,
-      contenu: msg.contenu, // Virtual qui déchiffre
-      estLu: msg.lecteurs.length > 0,
-      lecteurs: msg.lecteurs,
-      dateCreation: msg.dateCreation,
-      estMoi: (msg.expediteur as any)._id.toString() === userId.toString(),
-    }));
+    // Transformer pour inclure le contenu déchiffré, replyTo et reactions
+    const messagesFormates = messages.map((msg) => {
+      // Formatter replyTo si présent
+      let replyToData = null;
+      if (msg.replyTo) {
+        const replyMsg = msg.replyTo as any;
+        replyToData = {
+          _id: replyMsg._id,
+          contenu: replyMsg.contenu,
+          expediteur: replyMsg.expediteur,
+          type: replyMsg.type,
+        };
+      }
+
+      // Formatter reactions
+      const reactionsFormatted = (msg.reactions || []).map((r: any) => ({
+        userId: r.userId?._id || r.userId,
+        user: r.userId && typeof r.userId === 'object' ? {
+          _id: r.userId._id,
+          prenom: r.userId.prenom,
+          nom: r.userId.nom,
+          avatar: r.userId.avatar,
+        } : null,
+        type: r.type,
+        createdAt: r.createdAt,
+      }));
+
+      return {
+        _id: msg._id,
+        expediteur: msg.expediteur,
+        type: msg.type,
+        contenu: msg.contenu, // Virtual qui déchiffre
+        estLu: msg.lecteurs.length > 0,
+        lecteurs: msg.lecteurs,
+        dateCreation: msg.dateCreation,
+        replyTo: replyToData,
+        reactions: reactionsFormatted,
+        estMoi: (msg.expediteur as any)._id.toString() === userId.toString(),
+      };
+    });
 
     // Infos de la conversation
     const infoConversation = {
@@ -343,6 +384,19 @@ export const envoyerMessage = async (
     // Chiffrer le contenu du message (URL ou texte)
     const contenuCrypte = chiffrerMessage(contenuFinal);
 
+    // Vérifier replyTo si fourni
+    let replyToId: mongoose.Types.ObjectId | undefined;
+    if (donnees.replyTo) {
+      if (!mongoose.Types.ObjectId.isValid(donnees.replyTo)) {
+        throw new ErreurAPI('ID du message de réponse invalide.', 400);
+      }
+      const replyMessage = await Message.findById(donnees.replyTo);
+      if (!replyMessage || replyMessage.conversation.toString() !== conversation._id.toString()) {
+        throw new ErreurAPI('Message de réponse non trouvé dans cette conversation.', 404);
+      }
+      replyToId = replyMessage._id;
+    }
+
     // Créer le message
     const message = await Message.create({
       conversation: conversation._id,
@@ -350,6 +404,8 @@ export const envoyerMessage = async (
       type: typeMessage,
       contenuCrypte,
       lecteurs: [userId], // L'expéditeur a "lu" son propre message
+      replyTo: replyToId,
+      reactions: [],
     });
 
     // Mettre à jour la conversation
@@ -357,9 +413,26 @@ export const envoyerMessage = async (
     conversation.dateMiseAJour = new Date();
     await conversation.save();
 
-    // Récupérer avec les infos de l'expéditeur
+    // Récupérer avec les infos de l'expéditeur et du message de réponse
     const messageComplet = await Message.findById(message._id)
-      .populate('expediteur', 'prenom nom avatar');
+      .populate('expediteur', 'prenom nom avatar')
+      .populate({
+        path: 'replyTo',
+        select: 'contenuCrypte expediteur type',
+        populate: { path: 'expediteur', select: 'prenom nom' },
+      });
+
+    // Formatter le replyTo pour la réponse
+    let replyToData = null;
+    if (messageComplet!.replyTo) {
+      const replyMsg = messageComplet!.replyTo as any;
+      replyToData = {
+        _id: replyMsg._id,
+        contenu: replyMsg.contenu,
+        expediteur: replyMsg.expediteur,
+        type: replyMsg.type,
+      };
+    }
 
     res.status(201).json({
       succes: true,
@@ -371,6 +444,8 @@ export const envoyerMessage = async (
           type: messageComplet!.type,
           contenu: messageComplet!.contenu,
           dateCreation: messageComplet!.dateCreation,
+          replyTo: replyToData,
+          reactions: [],
           estMoi: true,
         },
         conversationId: conversation._id,
@@ -1083,6 +1158,99 @@ export const supprimerGroupe = async (
     res.json({
       succes: true,
       message: 'Groupe supprime avec succes.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/messagerie/messages/:messageId/react
+ * Ajouter ou supprimer une réaction sur un message
+ */
+export const reagirMessage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { messageId } = req.params;
+    const donnees = schemaReagirMessage.parse(req.body);
+    const userId = req.utilisateur!._id;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      throw new ErreurAPI('ID message invalide.', 400);
+    }
+
+    // Récupérer le message
+    const message = await Message.findById(messageId);
+    if (!message) {
+      throw new ErreurAPI('Message non trouvé.', 404);
+    }
+
+    // Vérifier que l'utilisateur fait partie de la conversation
+    const conversation = await Conversation.findById(message.conversation);
+    if (!conversation || !conversation.participants.some((p) => p.toString() === userId.toString())) {
+      throw new ErreurAPI('Vous ne faites pas partie de cette conversation.', 403);
+    }
+
+    // Trouver la réaction existante de l'utilisateur
+    const existingReactionIndex = message.reactions.findIndex(
+      (r) => r.userId.toString() === userId.toString()
+    );
+
+    if (donnees.reactionType === null) {
+      // Supprimer la réaction
+      if (existingReactionIndex !== -1) {
+        message.reactions.splice(existingReactionIndex, 1);
+      }
+    } else {
+      // Ajouter ou mettre à jour la réaction
+      if (existingReactionIndex !== -1) {
+        // Même réaction = supprimer (toggle)
+        if (message.reactions[existingReactionIndex].type === donnees.reactionType) {
+          message.reactions.splice(existingReactionIndex, 1);
+        } else {
+          // Différente réaction = remplacer
+          message.reactions[existingReactionIndex].type = donnees.reactionType;
+          message.reactions[existingReactionIndex].createdAt = new Date();
+        }
+      } else {
+        // Nouvelle réaction
+        message.reactions.push({
+          userId,
+          type: donnees.reactionType,
+          createdAt: new Date(),
+        });
+      }
+    }
+
+    await message.save();
+
+    // Récupérer le message avec les reactions peuplées
+    const messageUpdated = await Message.findById(messageId)
+      .populate('reactions.userId', 'prenom nom avatar');
+
+    // Formatter les réactions
+    const reactionsFormatted = (messageUpdated!.reactions || []).map((r: any) => ({
+      userId: r.userId?._id || r.userId,
+      user: r.userId && typeof r.userId === 'object' ? {
+        _id: r.userId._id,
+        prenom: r.userId.prenom,
+        nom: r.userId.nom,
+        avatar: r.userId.avatar,
+      } : null,
+      type: r.type,
+      createdAt: r.createdAt,
+    }));
+
+    res.json({
+      succes: true,
+      message: 'Réaction mise à jour.',
+      data: {
+        messageId: message._id,
+        reactions: reactionsFormatted,
+      },
     });
   } catch (error) {
     next(error);

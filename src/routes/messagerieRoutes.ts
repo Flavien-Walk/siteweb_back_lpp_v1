@@ -15,6 +15,7 @@ import {
   modifierMessage,
   supprimerMessage,
   supprimerGroupe,
+  reagirMessage,
 } from '../controllers/messagerieController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -61,6 +62,12 @@ router.patch('/conversations/:conversationId/messages/:messageId', modifierMessa
  * Supprimer un message (expediteur uniquement)
  */
 router.delete('/conversations/:conversationId/messages/:messageId', supprimerMessage);
+
+/**
+ * POST /api/messagerie/messages/:messageId/react
+ * Ajouter ou supprimer une réaction sur un message
+ */
+router.post('/messages/:messageId/react', reagirMessage);
 
 /**
  * POST /api/messagerie/envoyer

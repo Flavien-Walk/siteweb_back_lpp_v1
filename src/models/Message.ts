@@ -12,6 +12,15 @@ export { chiffrerMessage, dechiffrerMessage, detectVersion, migrateToV2 };
 // Types de messages
 export type TypeMessage = 'texte' | 'image' | 'video' | 'systeme';
 
+// Types de réactions (Instagram-like)
+export type TypeReaction = 'heart' | 'laugh' | 'wow' | 'sad' | 'angry' | 'like';
+
+export interface IReaction {
+  userId: mongoose.Types.ObjectId;
+  type: TypeReaction;
+  createdAt: Date;
+}
+
 export interface IMessage extends Document {
   _id: mongoose.Types.ObjectId;
   conversation: mongoose.Types.ObjectId;
@@ -19,6 +28,8 @@ export interface IMessage extends Document {
   type: TypeMessage;
   contenuCrypte: string; // Contenu chiffré en base (texte ou URL image)
   lecteurs: mongoose.Types.ObjectId[]; // Utilisateurs ayant lu le message
+  replyTo?: mongoose.Types.ObjectId; // Message auquel on répond
+  reactions: IReaction[]; // Réactions au message
   dateCreation: Date;
   dateModification?: Date; // Date de derniere modification (si edite)
   // Méthode virtuelle pour récupérer le contenu déchiffré
@@ -65,6 +76,27 @@ const messageSchema = new Schema<IMessage>(
     lecteurs: [{
       type: Schema.Types.ObjectId,
       ref: 'Utilisateur',
+    }],
+    replyTo: {
+      type: Schema.Types.ObjectId,
+      ref: 'Message',
+      default: undefined,
+    },
+    reactions: [{
+      userId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Utilisateur',
+        required: true,
+      },
+      type: {
+        type: String,
+        enum: ['heart', 'laugh', 'wow', 'sad', 'angry', 'like'],
+        required: true,
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
     }],
     dateModification: {
       type: Date,
