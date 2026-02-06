@@ -232,7 +232,7 @@ const projetSchema = new Schema<IProjet>(
     },
     description: {
       type: String,
-      required: [true, 'La description est requise'],
+      default: '',
       maxlength: 5000, // Augmenté pour description détaillée
     },
     pitch: {
