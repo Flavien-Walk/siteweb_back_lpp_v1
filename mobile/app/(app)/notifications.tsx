@@ -23,6 +23,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
 import { useUser } from '../../src/contexts/UserContext';
+import { useSocket } from '../../src/contexts/SocketContext';
 import { Avatar, AnimatedPressable, SkeletonList } from '../../src/composants';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import { useAutoRefresh } from '../../src/hooks/useAutoRefresh';
@@ -43,6 +44,7 @@ export default function Notifications() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { refreshUser } = useUser();
+  const { onNewNotification, onDemandeAmi, isConnected: socketConnected } = useSocket();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -74,15 +76,36 @@ export default function Notifications() {
     chargerNotifications();
   }, [chargerNotifications]);
 
+  // === SOCKET: Écouter les nouvelles notifications en temps réel ===
+  useEffect(() => {
+    const unsubNotif = onNewNotification(() => {
+      console.log('[NOTIFICATIONS] Nouvelle notification reçue via socket');
+      chargerNotifications(true);
+    });
+
+    const unsubDemande = onDemandeAmi((event) => {
+      console.log('[NOTIFICATIONS] Demande ami reçue via socket:', event.type);
+      if (event.type === 'received') {
+        chargerNotifications(true);
+      }
+    });
+
+    return () => {
+      unsubNotif();
+      unsubDemande();
+    };
+  }, [onNewNotification, onDemandeAmi, chargerNotifications]);
+
   // Auto-refresh avec gestion focus et AppState
-  // Polling toutes les 20s pour voir les nouvelles notifications
+  // Si socket connecté: polling moins fréquent (60s) comme backup
+  // Si socket déconnecté: polling fréquent (20s) pour compenser
   useAutoRefresh({
     onRefresh: useCallback(async () => {
       await chargerNotifications(false);
     }, [chargerNotifications]),
-    pollingInterval: 20000, // 20 secondes
+    pollingInterval: socketConnected ? 60000 : 20000,
     refreshOnFocus: true,
-    minRefreshInterval: 5000, // 5 secondes minimum
+    minRefreshInterval: socketConnected ? 10000 : 5000,
     enabled: true,
   });
 

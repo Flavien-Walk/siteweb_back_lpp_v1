@@ -27,6 +27,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
+import { useSocket } from '../../../src/contexts/SocketContext';
 import { Avatar, StaffActions } from '../../../src/composants';
 import { useStaff } from '../../../src/hooks/useStaff';
 import {
@@ -48,6 +49,7 @@ export default function ProfilUtilisateurPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { utilisateur: moi, refreshUser } = useUser();
+  const { onDemandeAmi } = useSocket();
 
   const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
   const [chargement, setChargement] = useState(true);
@@ -174,6 +176,32 @@ export default function ProfilUtilisateurPage() {
       chargerProfil();
     }
   }, [id, chargerProfil]);
+
+  // === SOCKET: Écouter les événements de demandes d'amis ===
+  useEffect(() => {
+    if (!id) return;
+
+    const unsubscribe = onDemandeAmi((event) => {
+      // Si c'est l'utilisateur de ce profil qui a accepté notre demande
+      if (event.utilisateur._id === id && event.type === 'accepted') {
+        console.log('[PROFIL] Demande acceptée via socket, mise à jour du profil');
+        // Mettre à jour le profil localement
+        setProfil(prev => prev ? {
+          ...prev,
+          estAmi: true,
+          demandeEnvoyee: false,
+          demandeRecue: false,
+        } : null);
+      }
+      // Si on est sur notre propre profil et quelqu'un nous envoie une demande
+      if (event.type === 'received' && moi?.id === id) {
+        console.log('[PROFIL] Nouvelle demande reçue via socket');
+        chargerProfil(true);
+      }
+    });
+
+    return unsubscribe;
+  }, [id, moi?.id, onDemandeAmi, chargerProfil]);
 
   // Envoyer un message
   const handleEnvoyerMessage = async () => {

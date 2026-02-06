@@ -26,6 +26,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
 import { useUser } from '../../src/contexts/UserContext';
+import { useSocket } from '../../src/contexts/SocketContext';
 import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../../src/composants';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import {
@@ -46,6 +47,7 @@ export default function Messages() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { utilisateur } = useUser();
+  const { onNewMessage, isConnected: socketConnected } = useSocket();
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   // State
@@ -122,6 +124,17 @@ export default function Messages() {
     // Charger la liste des amis pour le filtrage Messages/Demandes
     chargerAmisInitial();
   }, [chargerConversations]);
+
+  // === SOCKET: Écouter les nouveaux messages pour mettre à jour la liste ===
+  useEffect(() => {
+    const unsubscribe = onNewMessage(() => {
+      console.log('[MESSAGES] Nouveau message reçu, rafraîchissement liste');
+      // Rafraîchir silencieusement la liste des conversations
+      chargerConversations(false, true);
+    });
+
+    return unsubscribe;
+  }, [onNewMessage, chargerConversations]);
 
   // Charger les amis au démarrage pour le filtrage
   const chargerAmisInitial = async () => {
