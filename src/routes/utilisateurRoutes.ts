@@ -10,6 +10,7 @@ import {
   getDemandesAmis,
   getMesAmis,
   getAmisUtilisateur,
+  getProjetsSuivisUtilisateur,
 } from '../controllers/utilisateurController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -77,6 +78,12 @@ router.delete('/:id/ami', verifierJwt, checkUserStatus, supprimerAmi);
  * Accessible si ami ou soi-même
  */
 router.get('/:id/amis', verifierJwt, checkUserStatus, getAmisUtilisateur);
+
+/**
+ * GET /api/utilisateurs/:id/projets-suivis
+ * Récupérer les projets suivis par un utilisateur
+ */
+router.get('/:id/projets-suivis', verifierJwt, checkUserStatus, getProjetsSuivisUtilisateur);
 
 /**
  * GET /api/utilisateurs/:id

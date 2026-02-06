@@ -786,3 +786,46 @@ export const getAmisUtilisateur = async (
     next(error);
   }
 };
+
+/**
+ * GET /api/utilisateurs/:id/projets-suivis
+ * Récupérer les projets suivis par un utilisateur
+ */
+export const getProjetsSuivisUtilisateur = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Import dynamique pour éviter les dépendances circulaires
+    const Projet = (await import('../models/Projet.js')).default;
+
+    // Récupérer les projets que cet utilisateur suit
+    const projets = await Projet.find({
+      followers: id,
+      statut: 'published',
+    })
+      .select('nom description pitch logo image categorie secteur maturite localisation nbFollowers datePublication')
+      .populate('porteur', 'prenom nom avatar')
+      .sort({ datePublication: -1 })
+      .limit(50)
+      .lean();
+
+    // Ajouter nbFollowers à chaque projet
+    const projetsAvecStats = projets.map((projet: any) => ({
+      ...projet,
+      nbFollowers: projet.followers?.length || 0,
+    }));
+
+    res.json({
+      succes: true,
+      data: {
+        projets: projetsAvecStats,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
