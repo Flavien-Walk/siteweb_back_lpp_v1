@@ -303,3 +303,16 @@ export const uploadDocumentProjet = async (
     visibilite,
   }, true);
 };
+
+/**
+ * Gerer l'equipe d'un projet (ajouter/retirer des membres)
+ * @param add - IDs des utilisateurs a ajouter
+ * @param remove - IDs des utilisateurs a retirer
+ */
+export const gererEquipeProjet = async (
+  id: string,
+  add: string[] = [],
+  remove: string[] = []
+): Promise<ReponseAPI<{ projet: Projet; added: string[]; removed: string[]; errors?: string[] }>> => {
+  return api.patch(`/projets/entrepreneur/${id}/equipe`, { add, remove }, true);
+};

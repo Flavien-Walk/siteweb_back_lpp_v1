@@ -3,7 +3,7 @@
  * Etape A: Identite | B: Equipe | C: Proposition | D: Business | E: Medias | F: Publication
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
+  Modal,
+  FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -30,7 +33,9 @@ import {
   creerProjet,
   modifierProjet,
   uploadMediaProjet,
+  gererEquipeProjet,
 } from '../../../src/services/projets';
+import { getMesAmis, ProfilUtilisateur } from '../../../src/services/utilisateurs';
 
 // Types pour les etapes
 type Etape = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
@@ -64,12 +69,20 @@ const MATURITES: { value: MaturiteProjet; label: string; description: string }[]
 
 export default function NouveauProjetScreen() {
   const { couleurs } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = createStyles(couleurs);
 
   // Etape courante
   const [etapeActive, setEtapeActive] = useState<Etape>('A');
   const [loading, setLoading] = useState(false);
   const [projetId, setProjetId] = useState<string | null>(null);
+
+  // Equipe
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [amis, setAmis] = useState<ProfilUtilisateur[]>([]);
+  const [loadingAmis, setLoadingAmis] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [teamMembers, setTeamMembers] = useState<ProfilUtilisateur[]>([]);
 
   // Donnees du formulaire
   const [formData, setFormData] = useState<ProjetFormData>({
@@ -203,9 +216,137 @@ export default function NouveauProjetScreen() {
     }
   };
 
-  // Upload des medias et publication
-  const publierProjet = async () => {
+  // Charger les amis entrepreneurs
+  const loadAmis = async () => {
+    setLoadingAmis(true);
+    try {
+      const response = await getMesAmis();
+      if (response.succes && response.data?.amis) {
+        // Filtrer pour garder uniquement les entrepreneurs
+        const entrepreneurAmis = response.data.amis.filter(
+          (ami) => ami.statut === 'entrepreneur'
+        );
+        setAmis(entrepreneurAmis);
+      }
+    } catch (error) {
+      console.error('Erreur chargement amis:', error);
+    } finally {
+      setLoadingAmis(false);
+    }
+  };
+
+  // Ouvrir le modal de selection d'equipe
+  const openTeamModal = () => {
+    loadAmis();
+    // Pre-selectionner les membres actuels
+    setSelectedMembers(teamMembers.map((m) => m._id));
+    setShowTeamModal(true);
+  };
+
+  // Toggle selection d'un membre
+  const toggleMemberSelection = (userId: string) => {
+    setSelectedMembers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  // Confirmer la selection d'equipe
+  const confirmTeamSelection = async () => {
+    if (!projetId) {
+      Alert.alert('Erreur', 'Le projet doit d\'abord etre cree');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Determiner les ajouts et suppressions
+      const currentIds = teamMembers.map((m) => m._id);
+      const toAdd = selectedMembers.filter((id) => !currentIds.includes(id));
+      const toRemove = currentIds.filter((id) => !selectedMembers.includes(id));
+
+      if (toAdd.length > 0 || toRemove.length > 0) {
+        const response = await gererEquipeProjet(projetId, toAdd, toRemove);
+        if (response.succes) {
+          // Mettre a jour la liste des membres
+          const newMembers = amis.filter((ami) => selectedMembers.includes(ami._id));
+          setTeamMembers(newMembers);
+
+          if (response.data?.errors && response.data.errors.length > 0) {
+            Alert.alert('Attention', response.data.errors.join('\n'));
+          }
+        } else {
+          Alert.alert('Erreur', response.message || 'Impossible de modifier l\'equipe');
+        }
+      } else {
+        // Pas de changement, juste mettre a jour l'affichage local
+        const newMembers = amis.filter((ami) => selectedMembers.includes(ami._id));
+        setTeamMembers(newMembers);
+      }
+    } catch (error) {
+      console.error('Erreur modification equipe:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue');
+    } finally {
+      setLoading(false);
+      setShowTeamModal(false);
+    }
+  };
+
+  // Retirer un membre de l'equipe
+  const removeMember = async (userId: string) => {
     if (!projetId) return;
+
+    Alert.alert(
+      'Retirer ce membre ?',
+      'Ce membre ne pourra plus modifier le projet.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Retirer',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await gererEquipeProjet(projetId, [], [userId]);
+              setTeamMembers((prev) => prev.filter((m) => m._id !== userId));
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de retirer ce membre');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Validation locale avant publication
+  const validateBeforePublish = (): { valid: boolean; missing: string[] } => {
+    const missing: string[] = [];
+    if (!formData.nom?.trim()) missing.push('Nom du projet');
+    if (!formData.pitch?.trim()) missing.push('Pitch');
+    if (!formData.categorie) missing.push('Categorie');
+    if (!formData.localisation?.ville?.trim()) missing.push('Ville');
+    if (!coverImage) missing.push('Image de couverture');
+    return { valid: missing.length === 0, missing };
+  };
+
+  // Upload des medias et publication
+  const publierProjetHandler = async () => {
+    if (!projetId) return;
+
+    // Validation locale d'abord
+    const validation = validateBeforePublish();
+    if (!validation.valid) {
+      Alert.alert(
+        'Projet incomplet',
+        `Il manque les informations suivantes :\n\n• ${validation.missing.join('\n• ')}`,
+        [{ text: 'Compris' }]
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       // Upload cover si presente
@@ -218,17 +359,44 @@ export default function NouveauProjetScreen() {
       }
       // Publication
       const { publierProjet: publier } = await import('../../../src/services/projets');
-      const response = await publier(projetId);
+      const response = await publier(projetId) as any;
+
       if (response.succes) {
         Alert.alert('Succes', 'Votre projet a ete publie !', [
           { text: 'OK', onPress: () => router.replace('/(app)/accueil') }
         ]);
       } else {
-        Alert.alert('Erreur', response.message || 'Impossible de publier');
+        // Afficher les erreurs detaillees du backend
+        if (response.missing && Array.isArray(response.missing)) {
+          const details = response.details || {};
+          const errorMessages = response.missing.map((field: string) =>
+            details[field] || `${field} est requis`
+          );
+          Alert.alert(
+            'Projet incomplet',
+            `Impossible de publier :\n\n• ${errorMessages.join('\n• ')}`,
+            [{ text: 'Compris' }]
+          );
+        } else {
+          Alert.alert('Erreur', response.message || 'Impossible de publier le projet');
+        }
       }
-    } catch (error) {
-      Alert.alert('Erreur', 'Une erreur est survenue lors de la publication');
-      console.error('Erreur publication:', error);
+    } catch (error: any) {
+      // Gerer les erreurs reseau avec details
+      if (error?.response?.data?.missing) {
+        const { missing, details } = error.response.data;
+        const errorMessages = missing.map((field: string) =>
+          details?.[field] || `${field} est requis`
+        );
+        Alert.alert(
+          'Projet incomplet',
+          `Impossible de publier :\n\n• ${errorMessages.join('\n• ')}`,
+          [{ text: 'Compris' }]
+        );
+      } else {
+        Alert.alert('Erreur', 'Une erreur est survenue lors de la publication');
+        console.error('Erreur publication:', error);
+      }
     } finally {
       setLoading(false);
     }
@@ -328,18 +496,64 @@ export default function NouveauProjetScreen() {
     <View style={styles.etapeContent}>
       <Text style={styles.etapeTitle}>Votre equipe</Text>
       <Text style={styles.etapeDescription}>
-        Presentez les personnes cles de votre projet.
+        Ajoutez des co-fondateurs parmi vos amis entrepreneurs. Ils pourront modifier le projet.
       </Text>
 
-      <View style={styles.comingSoon}>
-        <Ionicons name="people-outline" size={48} color={couleurs.texteSecondaire} />
-        <Text style={styles.comingSoonText}>
-          La gestion de l'equipe sera disponible dans une prochaine mise a jour.
+      {/* Liste des membres actuels */}
+      {teamMembers.length > 0 && (
+        <View style={styles.teamList}>
+          <Text style={styles.teamListTitle}>Membres de l'equipe ({teamMembers.length})</Text>
+          {teamMembers.map((member) => (
+            <View key={member._id} style={styles.teamMemberCard}>
+              {member.avatar ? (
+                <Image source={{ uri: member.avatar }} style={styles.memberAvatar} />
+              ) : (
+                <View style={[styles.memberAvatar, styles.memberAvatarPlaceholder]}>
+                  <Ionicons name="person" size={20} color={couleurs.texteSecondaire} />
+                </View>
+              )}
+              <View style={styles.memberInfo}>
+                <Text style={styles.memberName}>{member.prenom} {member.nom}</Text>
+                <Text style={styles.memberRole}>Co-fondateur</Text>
+              </View>
+              <Pressable
+                style={styles.memberRemoveBtn}
+                onPress={() => removeMember(member._id)}
+              >
+                <Ionicons name="close-circle" size={24} color="#EF4444" />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Bouton ajouter des membres */}
+      <Pressable
+        style={styles.addTeamBtn}
+        onPress={openTeamModal}
+        disabled={!projetId}
+      >
+        <Ionicons name="person-add-outline" size={24} color={couleurs.primaire} />
+        <Text style={styles.addTeamBtnText}>
+          {teamMembers.length > 0 ? 'Modifier l\'equipe' : 'Ajouter des membres'}
         </Text>
-        <Text style={styles.comingSoonHint}>
-          Passez a l'etape suivante pour continuer.
+      </Pressable>
+
+      {!projetId && (
+        <Text style={styles.teamHint}>
+          Creez d'abord le projet (etape A) pour pouvoir ajouter des membres.
         </Text>
-      </View>
+      )}
+
+      {projetId && amis.length === 0 && !loadingAmis && (
+        <View style={styles.noFriendsBox}>
+          <Ionicons name="information-circle-outline" size={20} color={couleurs.texteSecondaire} />
+          <Text style={styles.noFriendsText}>
+            Seuls vos amis entrepreneurs peuvent rejoindre votre equipe.
+            Ajoutez des amis ou invitez-les a devenir entrepreneurs.
+          </Text>
+        </View>
+      )}
     </View>
   );
 
@@ -547,7 +761,7 @@ export default function NouveauProjetScreen() {
 
       <Pressable
         style={[styles.publishBtn, loading && styles.publishBtnDisabled]}
-        onPress={publierProjet}
+        onPress={publierProjetHandler}
         disabled={loading}
       >
         {loading ? (
@@ -646,7 +860,7 @@ export default function NouveauProjetScreen() {
 
       {/* Footer navigation */}
       {etapeActive !== 'F' && (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, espacements.md) + espacements.sm }]}>
           <Pressable
             style={[styles.footerBtn, styles.footerBtnSecondary]}
             onPress={goBack}
@@ -670,6 +884,89 @@ export default function NouveauProjetScreen() {
           </Pressable>
         </View>
       )}
+
+      {/* Modal de selection d'equipe */}
+      <Modal
+        visible={showTeamModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowTeamModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + espacements.md }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Ajouter des membres</Text>
+              <Pressable onPress={() => setShowTeamModal(false)}>
+                <Ionicons name="close" size={24} color={couleurs.texte} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Selectionnez parmi vos amis entrepreneurs
+            </Text>
+
+            {loadingAmis ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={couleurs.primaire} />
+              </View>
+            ) : amis.length === 0 ? (
+              <View style={styles.modalEmpty}>
+                <Ionicons name="people-outline" size={48} color={couleurs.texteSecondaire} />
+                <Text style={styles.modalEmptyText}>
+                  Aucun ami entrepreneur trouve.
+                </Text>
+                <Text style={styles.modalEmptyHint}>
+                  Vos amis doivent avoir le statut "entrepreneur" pour rejoindre votre equipe.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={amis}
+                keyExtractor={(item) => item._id}
+                renderItem={({ item }) => {
+                  const isSelected = selectedMembers.includes(item._id);
+                  return (
+                    <Pressable
+                      style={[styles.friendItem, isSelected && styles.friendItemSelected]}
+                      onPress={() => toggleMemberSelection(item._id)}
+                    >
+                      {item.avatar ? (
+                        <Image source={{ uri: item.avatar }} style={styles.friendAvatar} />
+                      ) : (
+                        <View style={[styles.friendAvatar, styles.friendAvatarPlaceholder]}>
+                          <Ionicons name="person" size={18} color={couleurs.texteSecondaire} />
+                        </View>
+                      )}
+                      <View style={styles.friendInfo}>
+                        <Text style={styles.friendName}>{item.prenom} {item.nom}</Text>
+                        <Text style={styles.friendStatus}>Entrepreneur</Text>
+                      </View>
+                      <View style={[styles.friendCheckbox, isSelected && styles.friendCheckboxSelected]}>
+                        {isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+                      </View>
+                    </Pressable>
+                  );
+                }}
+                style={styles.friendsList}
+              />
+            )}
+
+            <Pressable
+              style={[styles.modalConfirmBtn, loading && styles.modalConfirmBtnDisabled]}
+              onPress={confirmTeamSelection}
+              disabled={loading || loadingAmis}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalConfirmBtnText}>
+                  Confirmer ({selectedMembers.length} selectionne{selectedMembers.length > 1 ? 's' : ''})
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -967,5 +1264,207 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   footerBtnDisabled: {
     opacity: 0.6,
+  },
+  // Styles Equipe
+  teamList: {
+    marginBottom: espacements.lg,
+  },
+  teamListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.texte,
+    marginBottom: espacements.sm,
+  },
+  teamMemberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    marginBottom: espacements.sm,
+  },
+  memberAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: couleurs.fondSecondaire,
+  },
+  memberAvatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  memberInfo: {
+    flex: 1,
+    marginLeft: espacements.md,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  memberRole: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  memberRemoveBtn: {
+    padding: espacements.xs,
+  },
+  addTeamBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: couleurs.primaire + '15',
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    gap: 8,
+  },
+  addTeamBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: couleurs.primaire,
+  },
+  teamHint: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+    marginTop: espacements.md,
+    fontStyle: 'italic',
+  },
+  noFriendsBox: {
+    flexDirection: 'row',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    marginTop: espacements.md,
+    gap: 8,
+  },
+  noFriendsText: {
+    flex: 1,
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    lineHeight: 18,
+  },
+  // Styles Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: couleurs.fond,
+    borderTopLeftRadius: rayons.xl,
+    borderTopRightRadius: rayons.xl,
+    padding: espacements.lg,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: espacements.sm,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: couleurs.texte,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    marginBottom: espacements.lg,
+  },
+  modalLoading: {
+    paddingVertical: espacements.xl * 2,
+    alignItems: 'center',
+  },
+  modalEmpty: {
+    paddingVertical: espacements.xl,
+    alignItems: 'center',
+  },
+  modalEmptyText: {
+    fontSize: 15,
+    color: couleurs.texteSecondaire,
+    marginTop: espacements.md,
+    textAlign: 'center',
+  },
+  modalEmptyHint: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: espacements.sm,
+    textAlign: 'center',
+    paddingHorizontal: espacements.lg,
+  },
+  friendsList: {
+    maxHeight: 300,
+  },
+  friendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: espacements.md,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
+  friendItemSelected: {
+    backgroundColor: couleurs.primaire + '10',
+    marginHorizontal: -espacements.md,
+    paddingHorizontal: espacements.md,
+    borderRadius: rayons.md,
+  },
+  friendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: couleurs.fondSecondaire,
+  },
+  friendAvatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  friendInfo: {
+    flex: 1,
+    marginLeft: espacements.md,
+  },
+  friendName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: couleurs.texte,
+  },
+  friendStatus: {
+    fontSize: 12,
+    color: '#10B981',
+    marginTop: 2,
+  },
+  friendCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: couleurs.bordure,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendCheckboxSelected: {
+    backgroundColor: couleurs.primaire,
+    borderColor: couleurs.primaire,
+  },
+  modalConfirmBtn: {
+    backgroundColor: couleurs.primaire,
+    borderRadius: rayons.md,
+    paddingVertical: espacements.md,
+    alignItems: 'center',
+    marginTop: espacements.lg,
+  },
+  modalConfirmBtnDisabled: {
+    opacity: 0.6,
+  },
+  modalConfirmBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
