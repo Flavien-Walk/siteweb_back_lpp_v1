@@ -31,6 +31,26 @@ import ExpirationSelector, { ExpirationMinutes } from './ExpirationSelector';
 import FilterSelector from './FilterSelector';
 import LocationPicker from './LocationPicker';
 import { getFilterOverlay } from '../utils/imageFilters';
+import {
+  StoryWidget,
+  StoryWidgetType,
+  createDefaultTransform,
+  LinkWidget,
+  TextWidget,
+  EmojiWidget,
+  TimeWidget,
+  LocationWidget,
+} from '../types/storyWidgets';
+import {
+  WidgetToolbar,
+  DraggableWidget,
+  WidgetRenderer,
+  LinkEditorSheet,
+  TextEditorSheet,
+  EmojiPicker,
+  LinkEditorData,
+  TextEditorData,
+} from './stories';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAX_VIDEO_SIZE_MB = 50;
@@ -68,6 +88,13 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   // V3 - Durée de vie de la story (expiration)
   const [expirationMinutes, setExpirationMinutes] = useState<ExpirationMinutes>(1440); // 24h par défaut
 
+  // V4 - Système de widgets
+  const [widgets, setWidgets] = useState<StoryWidget[]>([]);
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const [linkEditorVisible, setLinkEditorVisible] = useState(false);
+  const [textEditorVisible, setTextEditorVisible] = useState(false);
+  const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
+
   // Reset state à la fermeture
   const handleClose = useCallback(() => {
     setSelectedMedia(null);
@@ -78,8 +105,79 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     setLocation(null);
     // Reset V3 option
     setExpirationMinutes(1440);
+    // Reset V4 widgets
+    setWidgets([]);
+    setSelectedWidgetId(null);
     onClose();
   }, [onClose]);
+
+  // V4 - Fonctions de gestion des widgets
+  const generateWidgetId = () => `widget-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  const addWidget = (type: StoryWidgetType, data: any) => {
+    const newWidget = {
+      id: generateWidgetId(),
+      type,
+      transform: createDefaultTransform(),
+      zIndex: widgets.length,
+      data,
+    } as StoryWidget;
+    setWidgets((prev) => [...prev, newWidget]);
+    setSelectedWidgetId(newWidget.id);
+  };
+
+  const updateWidgetTransform = (id: string, transform: StoryWidget['transform']) => {
+    setWidgets((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, transform } : w))
+    );
+  };
+
+  const deleteWidget = (id: string) => {
+    setWidgets((prev) => prev.filter((w) => w.id !== id));
+    if (selectedWidgetId === id) {
+      setSelectedWidgetId(null);
+    }
+  };
+
+  const handleAddWidget = (type: StoryWidgetType) => {
+    switch (type) {
+      case 'link':
+        setLinkEditorVisible(true);
+        break;
+      case 'text':
+        setTextEditorVisible(true);
+        break;
+      case 'emoji':
+        setEmojiPickerVisible(true);
+        break;
+      case 'time':
+        addWidget('time', { format: '24h', style: 'badge' });
+        break;
+      case 'location':
+        if (location) {
+          addWidget('location', { label: location.label, lat: location.lat, lng: location.lng });
+        } else {
+          Alert.alert('Localisation', 'Ajoutez d\'abord une localisation avec le bouton dédié.');
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleSaveLink = (data: LinkEditorData) => {
+    addWidget('link', { url: data.url, label: data.label, style: data.style });
+    setLinkEditorVisible(false);
+  };
+
+  const handleSaveText = (data: TextEditorData) => {
+    addWidget('text', data);
+    setTextEditorVisible(false);
+  };
+
+  const handleSelectEmoji = (emoji: string) => {
+    addWidget('emoji', { emoji });
+  };
 
   // Demander les permissions galerie
   const requestGalleryPermissions = async (): Promise<boolean> => {
@@ -243,11 +341,13 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     try {
       // V2 - Passer les options (durée, localisation, filtre)
       // V3 - Ajouter la durée de vie (expiration)
+      // V4 - Ajouter les widgets
       const response = await creerStory(selectedMedia.base64, selectedMedia.type, {
         durationSec: duration,
         location: location || undefined,
         filterPreset: filter,
         expirationMinutes: expirationMinutes,
+        widgets: widgets.length > 0 ? widgets : undefined,
       });
 
       if (response.succes) {
@@ -411,6 +511,24 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
                   </View>
                 )}
 
+                {/* V4 - Layer des widgets */}
+                <View style={styles.widgetLayer} pointerEvents="box-none">
+                  {widgets.map((widget) => (
+                    <DraggableWidget
+                      key={widget.id}
+                      widget={widget}
+                      isEditing={true}
+                      isSelected={selectedWidgetId === widget.id}
+                      onSelect={setSelectedWidgetId}
+                      onTransformChange={updateWidgetTransform}
+                      onDelete={deleteWidget}
+                      containerHeight={SCREEN_HEIGHT * 0.45}
+                    >
+                      <WidgetRenderer widget={widget} isEditing />
+                    </DraggableWidget>
+                  ))}
+                </View>
+
                 {/* Badge type de média */}
                 <View style={styles.mediaTypeBadge}>
                   <Ionicons
@@ -435,6 +553,12 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
 
               {/* V2 - Options de personnalisation */}
               <View style={[styles.optionsContainer, { backgroundColor: themeColors.fond }]}>
+                {/* V4 - Toolbar pour ajouter des widgets */}
+                <WidgetToolbar
+                  onAddWidget={handleAddWidget}
+                  disabled={widgets.length >= 10}
+                />
+
                 {/* V3 - Sélecteur de durée de vie (expiration) */}
                 <ExpirationSelector value={expirationMinutes} onChange={setExpirationMinutes} />
 
@@ -512,6 +636,25 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
           )}
         </View>
       </View>
+
+      {/* V4 - Modales d'édition des widgets */}
+      <LinkEditorSheet
+        visible={linkEditorVisible}
+        onClose={() => setLinkEditorVisible(false)}
+        onSave={handleSaveLink}
+      />
+
+      <TextEditorSheet
+        visible={textEditorVisible}
+        onClose={() => setTextEditorVisible(false)}
+        onSave={handleSaveText}
+      />
+
+      <EmojiPicker
+        visible={emojiPickerVisible}
+        onClose={() => setEmojiPickerVisible(false)}
+        onSelect={handleSelectEmoji}
+      />
     </Modal>
   );
 };
@@ -587,6 +730,9 @@ const styles = StyleSheet.create({
   filterOverlayPreview: {
     ...StyleSheet.absoluteFillObject,
     pointerEvents: 'none',
+  },
+  widgetLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
   optionsContainer: {
     paddingHorizontal: espacements.lg,

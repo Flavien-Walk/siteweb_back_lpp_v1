@@ -33,6 +33,9 @@ import Avatar from './Avatar';
 import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
 import { Story, formatTempsRestant, markStorySeen, getStoryViewers, supprimerStory, StoryViewer as StoryViewerType } from '../services/stories';
 import { getFilterOverlay, FilterPreset } from '../utils/imageFilters';
+import { StoryWidget } from '../types/storyWidgets';
+import { WidgetRenderer } from './stories';
+import * as Linking from 'expo-linking';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DEFAULT_STORY_DURATION_SEC = 7; // Durée par défaut si non spécifiée
@@ -496,6 +499,43 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
           )}
         </Pressable>
 
+        {/* V4 - Layer des widgets */}
+        {currentStory?.widgets && currentStory.widgets.length > 0 && (
+          <View style={styles.widgetContainer} pointerEvents="box-none">
+            {currentStory.widgets.map((widget: StoryWidget) => (
+              <View
+                key={widget.id}
+                style={[
+                  styles.widgetPositioner,
+                  {
+                    left: widget.transform.x * SCREEN_WIDTH,
+                    top: widget.transform.y * SCREEN_HEIGHT,
+                    transform: [
+                      { scale: widget.transform.scale },
+                      { rotate: `${widget.transform.rotation}deg` },
+                    ],
+                    zIndex: widget.zIndex,
+                  },
+                ]}
+              >
+                <WidgetRenderer
+                  widget={widget}
+                  isEditing={false}
+                  onLinkPress={(url) => {
+                    pauseProgress();
+                    setIsPaused(true);
+                    Linking.openURL(url).catch((err) => {
+                      console.error('Erreur ouverture lien:', err);
+                      setIsPaused(false);
+                      resumeProgress();
+                    });
+                  }}
+                />
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Gradient en haut */}
         <LinearGradient
           colors={['rgba(0,0,0,0.6)', 'transparent']}
@@ -706,6 +746,15 @@ const styles = StyleSheet.create({
   // V2 - Overlay de filtre pour les photos
   filterOverlay: {
     ...StyleSheet.absoluteFillObject,
+  },
+  // V4 - Widgets
+  widgetContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  widgetPositioner: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   topGradient: {
     position: 'absolute',

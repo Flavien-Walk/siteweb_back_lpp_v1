@@ -4,6 +4,7 @@
  */
 
 import api, { ReponseAPI } from './api';
+import { StoryWidget } from '../types/storyWidgets';
 
 // Types
 export type TypeStory = 'photo' | 'video';
@@ -40,6 +41,8 @@ export interface Story {
   filterPreset?: FilterPreset; // Filtre visuel appliqué
   // V3 - Durée de vie
   expirationMinutes?: ExpirationMinutes; // Durée de vie choisie
+  // V4 - Widgets
+  widgets?: StoryWidget[]; // Widgets interactifs (liens, texte, emoji, etc.)
 }
 
 export interface StoriesGroupeesParUtilisateur {
@@ -108,13 +111,14 @@ export const getStory = async (
 export type ExpirationMinutes = 7 | 15 | 60 | 360 | 1440;
 
 /**
- * Options V2/V3 pour la création de story
+ * Options V2/V3/V4 pour la création de story
  */
 export interface CreateStoryOptions {
   durationSec?: number; // Durée d'affichage (5/7/10/15s, défaut: 7)
   location?: StoryLocation; // Localisation optionnelle
   filterPreset?: FilterPreset; // Filtre visuel (défaut: 'normal')
   expirationMinutes?: ExpirationMinutes; // V3 - Durée de vie (7min, 15min, 1h, 6h, 24h)
+  widgets?: StoryWidget[]; // V4 - Widgets interactifs
 }
 
 /**
@@ -135,6 +139,7 @@ export const creerStory = async (
     location: options?.location,
     filterPreset: options?.filterPreset || 'normal',
     expirationMinutes: options?.expirationMinutes || 1440, // 24h par défaut
+    widgets: options?.widgets || [], // V4 - Widgets
   }, true);
 };
 

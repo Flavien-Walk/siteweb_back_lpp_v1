@@ -15,15 +15,14 @@ export type ExpirationMinutes = 7 | 15 | 60 | 360 | 1440;
 interface ExpirationOption {
   value: ExpirationMinutes;
   label: string;
-  description: string;
 }
 
 const EXPIRATION_OPTIONS: ExpirationOption[] = [
-  { value: 7, label: '7 min', description: 'Ephemere' },
-  { value: 15, label: '15 min', description: 'Court' },
-  { value: 60, label: '1h', description: 'Moyen' },
-  { value: 360, label: '6h', description: 'Long' },
-  { value: 1440, label: '24h', description: 'Standard' },
+  { value: 7, label: '7 min' },
+  { value: 15, label: '15 min' },
+  { value: 60, label: '1h' },
+  { value: 360, label: '6h' },
+  { value: 1440, label: '24h' },
 ];
 
 interface ExpirationSelectorProps {
@@ -78,16 +77,6 @@ const ExpirationSelector: React.FC<ExpirationSelectorProps> = ({ value, onChange
               >
                 {option.label}
               </Text>
-              <Text
-                style={[
-                  styles.optionDescription,
-                  {
-                    color: isSelected ? 'rgba(255,255,255,0.8)' : themeColors.texteSecondaire,
-                  },
-                ]}
-              >
-                {option.description}
-              </Text>
             </Pressable>
           );
         })}
@@ -116,19 +105,15 @@ const styles = StyleSheet.create({
     paddingRight: espacements.md,
   },
   option: {
-    paddingHorizontal: espacements.lg,
+    paddingHorizontal: espacements.md,
     paddingVertical: espacements.sm,
     borderRadius: rayons.lg,
     borderWidth: 1,
-    minWidth: 70,
+    minWidth: 52,
     alignItems: 'center',
   },
   optionLabel: {
     fontSize: typographie.tailles.sm,
-  },
-  optionDescription: {
-    fontSize: typographie.tailles.xs,
-    marginTop: 2,
   },
 });
 
