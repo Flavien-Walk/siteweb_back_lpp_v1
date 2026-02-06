@@ -20,6 +20,26 @@ export interface IStoryLocation {
   lng?: number;
 }
 
+// V4 - Types de widgets disponibles
+export type StoryWidgetType = 'link' | 'location' | 'emoji' | 'text' | 'time' | 'mention';
+
+// Interface pour la transformation d'un widget
+export interface IWidgetTransform {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+}
+
+// Interface pour un widget de story
+export interface IStoryWidget {
+  id: string;
+  type: StoryWidgetType;
+  transform: IWidgetTransform;
+  zIndex: number;
+  data: Record<string, any>;
+}
+
 export interface IStory extends Document {
   _id: mongoose.Types.ObjectId;
   utilisateur: mongoose.Types.ObjectId;
@@ -38,6 +58,8 @@ export interface IStory extends Document {
   hiddenReason?: string;
   hiddenBy?: mongoose.Types.ObjectId;
   hiddenAt?: Date;
+  // V4 - Widgets
+  widgets?: IStoryWidget[];
 }
 
 const storySchema = new Schema<IStory>(
@@ -125,6 +147,32 @@ const storySchema = new Schema<IStory>(
     },
     hiddenAt: {
       type: Date,
+    },
+    // V4 - Widgets (liens, texte, emoji, etc.)
+    widgets: {
+      type: [{
+        id: { type: String, required: true },
+        type: {
+          type: String,
+          enum: ['link', 'location', 'emoji', 'text', 'time', 'mention'],
+          required: true,
+        },
+        transform: {
+          x: { type: Number, required: true, min: 0, max: 1 },
+          y: { type: Number, required: true, min: 0, max: 1 },
+          scale: { type: Number, default: 1, min: 0.5, max: 3 },
+          rotation: { type: Number, default: 0, min: -180, max: 180 },
+        },
+        zIndex: { type: Number, default: 0 },
+        data: { type: Schema.Types.Mixed, required: true },
+      }],
+      default: [],
+      validate: {
+        validator: function(widgets: any[]) {
+          return widgets.length <= 10; // Max 10 widgets par story
+        },
+        message: 'Une story ne peut pas avoir plus de 10 widgets',
+      },
     },
   },
   {

@@ -41,6 +41,24 @@ const schemaCreerStory = z.object({
       { message: 'Durée de vie invalide. Options: 7, 15, 60, 360, 1440 minutes' }
     )
     .default(1440), // 24h par défaut
+  // V4 - Widgets (liens, texte, emoji, etc.)
+  widgets: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        type: z.enum(['link', 'location', 'emoji', 'text', 'time', 'mention']),
+        transform: z.object({
+          x: z.number().min(0).max(1),
+          y: z.number().min(0).max(1),
+          scale: z.number().min(0.5).max(3).default(1),
+          rotation: z.number().min(-180).max(180).default(0),
+        }),
+        zIndex: z.number().default(0),
+        data: z.record(z.any()),
+      })
+    )
+    .max(10, 'Maximum 10 widgets par story')
+    .default([]),
 });
 
 /**
@@ -78,7 +96,7 @@ export const creerStory = async (
     const expirationMs = donnees.expirationMinutes * 60 * 1000;
     const dateExpiration = new Date(Date.now() + expirationMs);
 
-    // Créer la story avec les champs V2
+    // Créer la story avec les champs V2 + V4
     const story = await Story.create({
       utilisateur: userId,
       type: donnees.type,
@@ -90,6 +108,8 @@ export const creerStory = async (
       durationSec: donnees.durationSec,
       location: donnees.location,
       filterPreset: donnees.filterPreset,
+      // V4 - Widgets
+      widgets: donnees.widgets,
     });
 
     // Récupérer avec les infos de l'utilisateur
