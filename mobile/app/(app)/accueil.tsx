@@ -1386,6 +1386,15 @@ export default function Accueil() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Startups a decouvrir</Text>
+          {utilisateur?.statut === 'entrepreneur' && (
+            <Pressable
+              style={styles.sectionAction}
+              onPress={() => Alert.alert('Bientot disponible', 'La creation de projet sera disponible prochainement.')}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={couleurs.primaire} />
+              <Text style={[styles.sectionActionText, { color: couleurs.primaire }]}>Creer mon projet</Text>
+            </Pressable>
+          )}
         </View>
         {MOCK_STARTUPS.map((startup) => (
           <StartupCard key={startup.id} startup={startup} />
