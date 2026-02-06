@@ -1055,15 +1055,29 @@ export default function Accueil() {
 
     const handleToggleSuivre = async () => {
       if (enCours) return;
+      // Optimistic update
+      const previousSuivi = suivi;
+      const previousNbFollowers = nbFollowers;
+      setSuivi(!suivi);
+      setNbFollowers(suivi ? nbFollowers - 1 : nbFollowers + 1);
+
       try {
         setEnCours(true);
         const reponse = await toggleSuivreProjet(projet._id);
         if (reponse.succes && reponse.data) {
+          // Sync avec la reponse serveur
           setSuivi(reponse.data.estSuivi);
           setNbFollowers(reponse.data.nbFollowers);
+        } else {
+          // Rollback si erreur
+          setSuivi(previousSuivi);
+          setNbFollowers(previousNbFollowers);
         }
       } catch (error) {
         console.error('Erreur toggle suivre projet:', error);
+        // Rollback
+        setSuivi(previousSuivi);
+        setNbFollowers(previousNbFollowers);
       } finally {
         setEnCours(false);
       }
@@ -1083,51 +1097,60 @@ export default function Accueil() {
       });
     };
 
+    // La card n'est PAS un Pressable pour eviter la propagation
+    // Seuls les zones cliquables specifiques ont un onPress
     return (
-      <Pressable style={styles.startupCard} onPress={handleVoirFiche}>
-        <Image
-          source={{ uri: projet.image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop' }}
-          style={styles.startupImage}
-        />
+      <View style={styles.startupCard}>
+        {/* Zone image cliquable vers fiche */}
+        <Pressable onPress={handleVoirFiche}>
+          <Image
+            source={{ uri: projet.image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop' }}
+            style={styles.startupImage}
+          />
+        </Pressable>
         <View style={styles.startupContent}>
-          <View style={styles.startupHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.startupNom}>{projet.nom}</Text>
-              <View style={styles.startupLocation}>
-                <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
-                <Text style={styles.startupVille}>{projet.localisation?.ville || 'France'}</Text>
+          {/* Zone header cliquable vers fiche */}
+          <Pressable onPress={handleVoirFiche}>
+            <View style={styles.startupHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.startupNom}>{projet.nom}</Text>
+                <View style={styles.startupLocation}>
+                  <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
+                  <Text style={styles.startupVille}>{projet.localisation?.ville || 'France'}</Text>
+                </View>
+              </View>
+              {projet.logo && (
+                <Image source={{ uri: projet.logo }} style={styles.startupLogo} />
+              )}
+            </View>
+            <Text style={styles.startupDescription} numberOfLines={2}>{projet.pitch || projet.description}</Text>
+            <View style={styles.startupTags}>
+              {projet.tags.slice(0, 3).map((tag, i) => (
+                <View key={i} style={styles.startupTag}>
+                  <Text style={styles.startupTagText}>{tag}</Text>
+                </View>
+              ))}
+              {projet.categorie && (
+                <View style={[styles.startupTag, { backgroundColor: couleurs.primaire + '20' }]}>
+                  <Text style={[styles.startupTagText, { color: couleurs.primaire }]}>{projet.categorie}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.startupStats}>
+              <View style={styles.startupStat}>
+                <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
+                <Text style={styles.startupStatText}>{nbFollowers} abonnes</Text>
+              </View>
+              <View style={styles.startupStat}>
+                <Ionicons name="trending-up-outline" size={14} color={couleurs.texteSecondaire} />
+                <Text style={styles.startupStatText}>{projet.maturite}</Text>
               </View>
             </View>
-            {projet.logo && (
-              <Image source={{ uri: projet.logo }} style={styles.startupLogo} />
-            )}
-          </View>
-          <Text style={styles.startupDescription} numberOfLines={2}>{projet.pitch || projet.description}</Text>
-          <View style={styles.startupTags}>
-            {projet.tags.slice(0, 3).map((tag, i) => (
-              <View key={i} style={styles.startupTag}>
-                <Text style={styles.startupTagText}>{tag}</Text>
-              </View>
-            ))}
-            {projet.categorie && (
-              <View style={[styles.startupTag, { backgroundColor: couleurs.primaire + '20' }]}>
-                <Text style={[styles.startupTagText, { color: couleurs.primaire }]}>{projet.categorie}</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.startupStats}>
-            <View style={styles.startupStat}>
-              <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{nbFollowers} abonnes</Text>
-            </View>
-            <View style={styles.startupStat}>
-              <Ionicons name="trending-up-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{projet.maturite}</Text>
-            </View>
-          </View>
+          </Pressable>
+          {/* Zone boutons - chacun est independant */}
           <View style={styles.startupActions}>
             <Pressable
-              style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi]}
+              style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi, enCours && { opacity: 0.6 }]}
               onPress={handleToggleSuivre}
               disabled={enCours}
             >
@@ -1148,7 +1171,7 @@ export default function Accueil() {
             </Pressable>
           </View>
         </View>
-      </Pressable>
+      </View>
     );
   };
 

@@ -113,15 +113,30 @@ export default function ProjetDetailPage() {
 
   const handleToggleSuivre = async () => {
     if (!id || actionEnCours) return;
+
+    // Optimistic update
+    const previousEstSuivi = estSuivi;
+    const previousNbFollowers = nbFollowers;
+    setEstSuivi(!estSuivi);
+    setNbFollowers(estSuivi ? nbFollowers - 1 : nbFollowers + 1);
+
     try {
       setActionEnCours(true);
       const reponse = await toggleSuivreProjet(id);
       if (reponse.succes && reponse.data) {
+        // Sync avec la reponse serveur
         setEstSuivi(reponse.data.estSuivi);
         setNbFollowers(reponse.data.nbFollowers);
+      } else {
+        // Rollback si erreur
+        setEstSuivi(previousEstSuivi);
+        setNbFollowers(previousNbFollowers);
       }
     } catch (error) {
       console.error('Erreur toggle suivre:', error);
+      // Rollback
+      setEstSuivi(previousEstSuivi);
+      setNbFollowers(previousNbFollowers);
     } finally {
       setActionEnCours(false);
     }
@@ -137,11 +152,12 @@ export default function ProjetDetailPage() {
       setActionEnCours(true);
       const reponse = await getOuCreerConversationPrivee(representant._id);
       if (reponse.succes && reponse.data) {
+        // Fermer le modal avant navigation
         setShowContactModal(false);
-        // Naviguer vers la messagerie avec cette conversation
+        // Naviguer directement vers la conversation
         router.push({
-          pathname: '/(app)/accueil',
-          params: { tab: 'messages', conversationId: reponse.data.conversation._id },
+          pathname: '/(app)/conversation/[id]',
+          params: { id: reponse.data.conversation._id },
         });
       }
     } catch (error) {
