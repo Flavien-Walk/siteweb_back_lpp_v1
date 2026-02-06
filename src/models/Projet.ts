@@ -259,9 +259,9 @@ const projetSchema = new Schema<IProjet>(
       trim: true,
     }],
     localisation: {
-      ville: { type: String, required: true },
-      lat: { type: Number, required: true, validate: latitudeValidator },
-      lng: { type: Number, required: true, validate: longitudeValidator },
+      ville: { type: String, default: '' },
+      lat: { type: Number, default: 0, validate: latitudeValidator },
+      lng: { type: Number, default: 0, validate: longitudeValidator },
     },
 
     // --- Étape B: Porteur(s) de projet ---
