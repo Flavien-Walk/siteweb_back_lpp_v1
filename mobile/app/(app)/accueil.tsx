@@ -55,6 +55,8 @@ import {
   Projet,
   getProjets,
   toggleSuivreProjet,
+  getMesProjetsEntrepreneur,
+  StatsEntrepreneur,
 } from '../../src/services/projets';
 import {
   Evenement,
@@ -87,7 +89,7 @@ import { LiveCard } from '../../src/composants';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Types
-type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages';
+type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages' | 'entrepreneur';
 
 interface Startup {
   id: string;
@@ -460,9 +462,14 @@ export default function Accueil() {
   const [messagesConversation, setMessagesConversation] = useState<MessageAPI[]>([]);
   const [chargementMessages, setChargementMessages] = useState(false);
 
-  // Projets (startups) API
+  // Projets (startups) API - Decouvrir
   const [projets, setProjets] = useState<Projet[]>([]);
   const [chargementProjets, setChargementProjets] = useState(false);
+
+  // Projets Entrepreneur (mes projets)
+  const [mesProjetsEntrepreneur, setMesProjetsEntrepreneur] = useState<Projet[]>([]);
+  const [statsEntrepreneur, setStatsEntrepreneur] = useState<StatsEntrepreneur | null>(null);
+  const [chargementMesProjets, setChargementMesProjets] = useState(false);
 
   // Evenements (lives) API
   const [evenements, setEvenements] = useState<Evenement[]>([]);
@@ -510,12 +517,24 @@ export default function Accueil() {
   const action4Anim = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  const onglets: { key: OngletActif; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  // Onglets de base
+  const ongletsBase: { key: OngletActif; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'feed', label: 'Feed', icon: 'home-outline' },
     { key: 'decouvrir', label: 'Decouvrir', icon: 'compass-outline' },
     { key: 'live', label: 'Live', icon: 'radio-outline' },
     { key: 'messages', label: 'Messages', icon: 'chatbubbles-outline' },
   ];
+
+  // Onglet Entrepreneur visible uniquement si statut === 'entrepreneur'
+  const onglets = React.useMemo(() => {
+    if (utilisateur?.statut === 'entrepreneur') {
+      return [
+        ...ongletsBase,
+        { key: 'entrepreneur' as OngletActif, label: 'Projets', icon: 'briefcase-outline' as keyof typeof Ionicons.glyphMap },
+      ];
+    }
+    return ongletsBase;
+  }, [utilisateur?.statut]);
 
   // Rediriger vers le choix de statut si necessaire
   useEffect(() => {
@@ -667,6 +686,7 @@ export default function Accueil() {
       chargerProjets(),
       chargerEvenements(),
       chargerNotifications(),
+      chargerMesProjetsEntrepreneur(),
     ]);
   };
 
@@ -765,6 +785,23 @@ export default function Accueil() {
       console.error('Erreur chargement projets:', error);
     } finally {
       setChargementProjets(false);
+    }
+  };
+
+  // Charger les projets de l'entrepreneur connecte
+  const chargerMesProjetsEntrepreneur = async () => {
+    if (utilisateur?.statut !== 'entrepreneur') return;
+    try {
+      setChargementMesProjets(true);
+      const reponse = await getMesProjetsEntrepreneur();
+      if (reponse.succes && reponse.data) {
+        setMesProjetsEntrepreneur(reponse.data.projets);
+        setStatsEntrepreneur(reponse.data.stats);
+      }
+    } catch (error) {
+      console.error('Erreur chargement projets entrepreneur:', error);
+    } finally {
+      setChargementMesProjets(false);
     }
   };
 
@@ -1730,12 +1767,133 @@ export default function Accueil() {
     );
   };
 
+  // Contenu de l'onglet Entrepreneur
+  const renderEntrepreneurContent = () => {
+    const hasProjects = mesProjetsEntrepreneur.length > 0;
+
+    return (
+      <View style={styles.entrepreneurContainer}>
+        {/* Header Entrepreneur */}
+        <View style={styles.entrepreneurHeader}>
+          <View>
+            <Text style={[styles.entrepreneurTitle, { color: couleurs.texte }]}>
+              Mes Projets
+            </Text>
+            <Text style={[styles.entrepreneurSubtitle, { color: couleurs.texteSecondaire }]}>
+              {statsEntrepreneur
+                ? `${statsEntrepreneur.published} publie${statsEntrepreneur.published > 1 ? 's' : ''} · ${statsEntrepreneur.drafts} brouillon${statsEntrepreneur.drafts > 1 ? 's' : ''}`
+                : 'Gerez vos startups et projets'}
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.entrepreneurCreateBtn, { backgroundColor: couleurs.primaire }]}
+            onPress={() => router.push('/entrepreneur/nouveau-projet')}
+          >
+            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Text style={styles.entrepreneurCreateBtnText}>Creer</Text>
+          </Pressable>
+        </View>
+
+        {/* Liste des projets */}
+        <ScrollView
+          style={styles.entrepreneurList}
+          contentContainerStyle={styles.entrepreneurListContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={chargementMesProjets}
+              onRefresh={chargerMesProjetsEntrepreneur}
+              tintColor={couleurs.primaire}
+            />
+          }
+        >
+          {chargementMesProjets && !hasProjects ? (
+            <View style={styles.entrepreneurLoading}>
+              <Text style={[styles.entrepreneurLoadingText, { color: couleurs.texteSecondaire }]}>
+                Chargement...
+              </Text>
+            </View>
+          ) : hasProjects ? (
+            <>
+              {mesProjetsEntrepreneur.map((projet) => (
+                <Pressable
+                  key={projet._id}
+                  style={[styles.entrepreneurProjectCard, { backgroundColor: couleurs.fondSecondaire }]}
+                  onPress={() => router.push({ pathname: '/(app)/entrepreneur/[id]', params: { id: projet._id } })}
+                >
+                  {projet.image ? (
+                    <Image source={{ uri: projet.image }} style={styles.entrepreneurProjectImage} />
+                  ) : (
+                    <View style={[styles.entrepreneurProjectImagePlaceholder, { backgroundColor: couleurs.bordure }]}>
+                      <Ionicons name="briefcase-outline" size={24} color={couleurs.texteSecondaire} />
+                    </View>
+                  )}
+                  <View style={styles.entrepreneurProjectInfo}>
+                    <View style={styles.entrepreneurProjectHeader}>
+                      <Text style={[styles.entrepreneurProjectName, { color: couleurs.texte }]} numberOfLines={1}>
+                        {projet.nom}
+                      </Text>
+                      <View style={[
+                        styles.entrepreneurProjectStatus,
+                        projet.statut === 'published' ? styles.entrepreneurStatusPublished : styles.entrepreneurStatusDraft
+                      ]}>
+                        <Text style={styles.entrepreneurProjectStatusText}>
+                          {projet.statut === 'published' ? 'Publie' : 'Brouillon'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.entrepreneurProjectPitch, { color: couleurs.texteSecondaire }]} numberOfLines={2}>
+                      {projet.pitch}
+                    </Text>
+                    <View style={styles.entrepreneurProjectMeta}>
+                      <View style={styles.entrepreneurProjectMetaItem}>
+                        <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
+                        <Text style={[styles.entrepreneurProjectMetaText, { color: couleurs.texteSecondaire }]}>
+                          {projet.nbFollowers || 0}
+                        </Text>
+                      </View>
+                      <View style={styles.entrepreneurProjectMetaItem}>
+                        <Ionicons name="location-outline" size={14} color={couleurs.texteSecondaire} />
+                        <Text style={[styles.entrepreneurProjectMetaText, { color: couleurs.texteSecondaire }]}>
+                          {projet.localisation?.ville || 'N/A'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
+                </Pressable>
+              ))}
+            </>
+          ) : (
+            <View style={[styles.entrepreneurEmptyState, { backgroundColor: couleurs.fondSecondaire }]}>
+              <Ionicons name="briefcase-outline" size={64} color={couleurs.texteSecondaire} />
+              <Text style={[styles.entrepreneurEmptyTitle, { color: couleurs.texte }]}>
+                Commencez votre aventure
+              </Text>
+              <Text style={[styles.entrepreneurEmptyText, { color: couleurs.texteSecondaire }]}>
+                Creez votre premier projet et partagez votre vision avec la communaute LPP
+              </Text>
+              <Pressable
+                style={[styles.entrepreneurEmptyBtn, { backgroundColor: couleurs.primaire }]}
+                onPress={() => router.push('/entrepreneur/nouveau-projet')}
+              >
+                <Ionicons name="rocket-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.entrepreneurEmptyBtnText}>Creer mon premier projet</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
+
   const renderTabContent = () => {
     switch (ongletActif) {
       case 'feed': return renderFeedContent();
       case 'decouvrir': return renderDecouvrirContent();
       case 'live': return renderLiveContent();
       case 'messages': return renderMessagesContent();
+      case 'entrepreneur': return renderEntrepreneurContent();
       default: return renderFeedContent();
     }
   };
@@ -4669,5 +4827,155 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   historiqueDeleteBtn: {
     padding: espacements.xs,
+  },
+  // ================ STYLES ENTREPRENEUR ================
+  entrepreneurContainer: {
+    flex: 1,
+    paddingTop: espacements.md,
+  },
+  entrepreneurHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: espacements.lg,
+    marginBottom: espacements.lg,
+  },
+  entrepreneurTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  entrepreneurSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  entrepreneurCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+    gap: 6,
+  },
+  entrepreneurCreateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  entrepreneurList: {
+    flex: 1,
+  },
+  entrepreneurListContent: {
+    paddingHorizontal: espacements.lg,
+    paddingBottom: 100,
+  },
+  entrepreneurEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: espacements.xl,
+    borderRadius: rayons.lg,
+    marginTop: espacements.xl,
+  },
+  entrepreneurEmptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: espacements.lg,
+    textAlign: 'center',
+  },
+  entrepreneurEmptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: espacements.sm,
+    lineHeight: 20,
+  },
+  entrepreneurEmptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.md,
+    borderRadius: rayons.md,
+    marginTop: espacements.xl,
+    gap: 8,
+  },
+  entrepreneurEmptyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  entrepreneurLoading: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  entrepreneurLoadingText: {
+    fontSize: 14,
+  },
+  entrepreneurProjectCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: espacements.md,
+    borderRadius: rayons.lg,
+    marginBottom: espacements.sm,
+  },
+  entrepreneurProjectImage: {
+    width: 60,
+    height: 60,
+    borderRadius: rayons.md,
+  },
+  entrepreneurProjectImagePlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: rayons.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  entrepreneurProjectInfo: {
+    flex: 1,
+    marginLeft: espacements.md,
+    marginRight: espacements.sm,
+  },
+  entrepreneurProjectHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  entrepreneurProjectName: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: espacements.sm,
+  },
+  entrepreneurProjectStatus: {
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 2,
+    borderRadius: rayons.full,
+  },
+  entrepreneurStatusPublished: {
+    backgroundColor: '#10B98120',
+  },
+  entrepreneurStatusDraft: {
+    backgroundColor: '#F59E0B20',
+  },
+  entrepreneurProjectStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  entrepreneurProjectPitch: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  entrepreneurProjectMeta: {
+    flexDirection: 'row',
+    gap: espacements.md,
+  },
+  entrepreneurProjectMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  entrepreneurProjectMetaText: {
+    fontSize: 12,
   },
 });
