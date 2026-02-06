@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
-import Story, { STORY_DURATION_MS } from '../models/Story.js';
+import Story, { STORY_DURATION_MS, STORY_EXPIRATION_OPTIONS } from '../models/Story.js';
 import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64MediaDataUrl, isHttpUrl } from '../utils/cloudinary.js';
@@ -33,6 +33,14 @@ const schemaCreerStory = z.object({
   filterPreset: z
     .enum(['normal', 'warm', 'cool', 'bw', 'contrast', 'vignette'])
     .default('normal'),
+  // Durée de vie de la story (en minutes)
+  expirationMinutes: z
+    .number()
+    .refine(
+      (val) => STORY_EXPIRATION_OPTIONS.includes(val as any),
+      { message: 'Durée de vie invalide. Options: 7, 15, 60, 360, 1440 minutes' }
+    )
+    .default(1440), // 24h par défaut
 });
 
 /**
@@ -66,12 +74,18 @@ export const creerStory = async (
       }
     }
 
+    // Calculer la date d'expiration basée sur expirationMinutes
+    const expirationMs = donnees.expirationMinutes * 60 * 1000;
+    const dateExpiration = new Date(Date.now() + expirationMs);
+
     // Créer la story avec les champs V2
     const story = await Story.create({
       utilisateur: userId,
       type: donnees.type,
       mediaUrl,
       thumbnailUrl,
+      dateExpiration,
+      expirationMinutes: donnees.expirationMinutes,
       // V2 - Nouveaux champs
       durationSec: donnees.durationSec,
       location: donnees.location,

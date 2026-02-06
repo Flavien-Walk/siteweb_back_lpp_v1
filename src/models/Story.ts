@@ -1,8 +1,12 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import { urlValidator } from '../utils/validators.js';
 
-// Durée de vie d'une story en millisecondes (24 heures)
+// Durée de vie par défaut d'une story en millisecondes (24 heures)
 export const STORY_DURATION_MS = 24 * 60 * 60 * 1000;
+
+// Durées de vie disponibles en minutes
+export const STORY_EXPIRATION_OPTIONS = [7, 15, 60, 360, 1440] as const; // 7min, 15min, 1h, 6h, 24h
+export type ExpirationMinutes = typeof STORY_EXPIRATION_OPTIONS[number];
 
 export type TypeStory = 'photo' | 'video';
 
@@ -26,6 +30,7 @@ export interface IStory extends Document {
   dateExpiration: Date;
   viewers: mongoose.Types.ObjectId[];
   // V2 - Nouveaux champs
+  expirationMinutes?: ExpirationMinutes; // Durée de vie choisie par le créateur
   durationSec: number;
   location?: IStoryLocation;
   filterPreset: FilterPreset;
@@ -66,6 +71,12 @@ const storySchema = new Schema<IStory>(
       type: [Schema.Types.ObjectId],
       ref: 'Utilisateur',
       default: [],
+    },
+    // Durée de vie choisie par le créateur (en minutes)
+    expirationMinutes: {
+      type: Number,
+      enum: STORY_EXPIRATION_OPTIONS,
+      default: 1440, // 24h par défaut
     },
     // V2 - Durée d'affichage choisie par le créateur (en secondes)
     durationSec: {
