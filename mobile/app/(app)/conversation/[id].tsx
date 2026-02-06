@@ -266,11 +266,10 @@ export default function ConversationScreen() {
   // Animation coeur double-tap
   const [heartAnimationMessage, setHeartAnimationMessage] = useState<string | null>(null);
 
-  // Android keyboard spacer - même approche que UnifiedCommentsSheet qui marche
-  // On mesure l'overlap entre l'input et le clavier, puis on ajoute un spacer
-  const [keyboardSpacer, setKeyboardSpacer] = useState(0);
+  // Note: Sur Android, softwareKeyboardLayoutMode="resize" dans app.json
+  // gere automatiquement le redimensionnement. Pas besoin de spacer manuel.
+  // UnifiedCommentsSheet fonctionne differemment car c'est un Modal avec sa propre gestion.
   const inputContainerRef = useRef<View>(null);
-  const KEYBOARD_EXTRA_MARGIN = 28; // Marge de sécurité au-dessus du clavier (plus d'espace)
 
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
@@ -313,64 +312,21 @@ export default function ConversationScreen() {
     return () => clearInterval(interval);
   }, [chargerMessages, chargement, id]);
 
-  // Android: keyboard spacer dynamique - même approche que UnifiedCommentsSheet
-  // Mesure l'overlap entre l'inputContainer et le clavier, ajoute un spacer pour pousser vers le haut
+  // Keyboard handling: scroll to end when keyboard appears
+  // Note: Android avec softwareKeyboardLayoutMode="resize" gere le redimensionnement automatiquement
+  // On n'ajoute PAS de spacer manuel pour eviter le double offset sur certains appareils (S10)
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
 
-    const showListener = Keyboard.addListener('keyboardDidShow', (e) => {
-      const keyboardY = e.endCoordinates.screenY; // Position Y du haut du clavier
-
-      // Mesurer l'inputContainer pour calculer l'overlap
-      inputContainerRef.current?.measureInWindow((x, y, width, height) => {
-        const inputBottom = y + height;
-        const overlap = inputBottom - keyboardY + KEYBOARD_EXTRA_MARGIN;
-
-        if (__DEV__) {
-          console.log('⌨️ [KEYBOARD SHOW] spacer calc:', {
-            inputBottom,
-            keyboardY,
-            overlap,
-            willAddSpacer: overlap > 0,
-          });
-        }
-
-        if (overlap > 0) {
-          setKeyboardSpacer(overlap);
-        }
-      });
-
-      // Scroll vers le bas après un court délai
+    const keyboardShowListener = Keyboard.addListener(showEvent, () => {
+      // Scroll vers le bas pour voir les derniers messages
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    });
-
-    const hideListener = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardSpacer(0);
-      if (__DEV__) {
-        console.log('⌨️ [KEYBOARD HIDE] spacer reset to 0');
-      }
+      }, Platform.OS === 'ios' ? 50 : 100);
     });
 
     return () => {
-      showListener.remove();
-      hideListener.remove();
-    };
-  }, []);
-
-  // iOS: scroll vers le bas quand clavier s'ouvre
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-
-    const keyboardWillShowListener = Keyboard.addListener('keyboardWillShow', () => {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 50);
-    });
-
-    return () => {
-      keyboardWillShowListener.remove();
+      keyboardShowListener.remove();
     };
   }, []);
 
@@ -1322,11 +1278,7 @@ export default function ConversationScreen() {
           </View>
         </View>
 
-        {/* Android: Spacer dynamique pour pousser le contenu au-dessus du clavier */}
-        {/* Même approche que UnifiedCommentsSheet qui fonctionne */}
-        {Platform.OS === 'android' && keyboardSpacer > 0 && (
-          <View style={{ height: keyboardSpacer, backgroundColor: couleurs.fond }} />
-        )}
+        {/* Note: Pas de spacer manuel Android - softwareKeyboardLayoutMode="resize" gere tout */}
 
         {/* Modal d'édition */}
         <Modal

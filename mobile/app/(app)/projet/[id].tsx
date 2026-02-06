@@ -3,7 +3,7 @@
  * Affiche les details d'un projet publie
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -59,6 +59,9 @@ export default function ProjetDetailPage() {
   const [representants, setRepresentants] = useState<Porteur[]>([]);
   const [chargementRepresentants, setChargementRepresentants] = useState(false);
 
+  // Ref pour eviter d'ecraser l'etat pendant une action optimistic
+  const actionEnCoursRef = useRef(false);
+
   // Charger le projet
   const chargerProjet = useCallback(async (estRefresh = false) => {
     if (!id) return;
@@ -73,8 +76,11 @@ export default function ProjetDetailPage() {
       const reponse = await getProjet(id);
       if (reponse.succes && reponse.data) {
         setProjet(reponse.data.projet);
-        setEstSuivi(reponse.data.projet.estSuivi);
-        setNbFollowers(reponse.data.projet.nbFollowers);
+        // Ne pas ecraser estSuivi/nbFollowers si une action est en cours
+        if (!actionEnCoursRef.current) {
+          setEstSuivi(reponse.data.projet.estSuivi);
+          setNbFollowers(reponse.data.projet.nbFollowers);
+        }
       }
     } catch (error) {
       console.error('Erreur chargement projet:', error);
@@ -114,31 +120,40 @@ export default function ProjetDetailPage() {
   const handleToggleSuivre = async () => {
     if (!id || actionEnCours) return;
 
-    // Optimistic update
+    // Marquer action en cours AVANT l'optimistic update
+    // pour empecher chargerProjet d'ecraser pendant l'action
+    setActionEnCours(true);
+    actionEnCoursRef.current = true;
+
+    // Sauvegarder l'etat precedent pour rollback
     const previousEstSuivi = estSuivi;
     const previousNbFollowers = nbFollowers;
-    setEstSuivi(!estSuivi);
-    setNbFollowers(estSuivi ? nbFollowers - 1 : nbFollowers + 1);
+
+    // Optimistic update
+    const newEstSuivi = !estSuivi;
+    const newNbFollowers = estSuivi ? nbFollowers - 1 : nbFollowers + 1;
+    setEstSuivi(newEstSuivi);
+    setNbFollowers(newNbFollowers);
 
     try {
-      setActionEnCours(true);
       const reponse = await toggleSuivreProjet(id);
       if (reponse.succes && reponse.data) {
         // Sync avec la reponse serveur
         setEstSuivi(reponse.data.estSuivi);
         setNbFollowers(reponse.data.nbFollowers);
       } else {
-        // Rollback si erreur
+        // Rollback si erreur (API retourne succes=false)
         setEstSuivi(previousEstSuivi);
         setNbFollowers(previousNbFollowers);
       }
     } catch (error) {
       console.error('Erreur toggle suivre:', error);
-      // Rollback
+      // Rollback en cas d'exception
       setEstSuivi(previousEstSuivi);
       setNbFollowers(previousNbFollowers);
     } finally {
       setActionEnCours(false);
+      actionEnCoursRef.current = false;
     }
   };
 

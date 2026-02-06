@@ -1049,35 +1049,75 @@ export default function Accueil() {
   // StartupCard et TrendingItem restent inline pour l'instant (Phase 2)
 
   const ProjetCard = ({ projet }: { projet: Projet }) => {
+    // State local pour optimistic update + sync avec props
     const [suivi, setSuivi] = useState(projet.estSuivi);
     const [nbFollowers, setNbFollowers] = useState(projet.nbFollowers);
     const [enCours, setEnCours] = useState(false);
 
+    // Sync state local avec props quand le projet change (navigation, refetch)
+    // Mais SEULEMENT si on n'est pas en train de faire une action
+    useEffect(() => {
+      if (!enCours) {
+        setSuivi(projet.estSuivi);
+        setNbFollowers(projet.nbFollowers);
+      }
+    }, [projet._id, projet.estSuivi, projet.nbFollowers, enCours]);
+
     const handleToggleSuivre = async () => {
       if (enCours) return;
-      // Optimistic update
+
+      // Sauvegarder l'etat precedent pour rollback
       const previousSuivi = suivi;
       const previousNbFollowers = nbFollowers;
-      setSuivi(!suivi);
-      setNbFollowers(suivi ? nbFollowers - 1 : nbFollowers + 1);
+
+      // Optimistic update local
+      const newSuivi = !suivi;
+      const newNbFollowers = suivi ? nbFollowers - 1 : nbFollowers + 1;
+      setSuivi(newSuivi);
+      setNbFollowers(newNbFollowers);
+
+      // Optimistic update sur le state parent (source de verite)
+      setProjets(prev => prev.map(p =>
+        p._id === projet._id
+          ? { ...p, estSuivi: newSuivi, nbFollowers: newNbFollowers }
+          : p
+      ));
 
       try {
         setEnCours(true);
         const reponse = await toggleSuivreProjet(projet._id);
         if (reponse.succes && reponse.data) {
-          // Sync avec la reponse serveur
+          // Sync avec la reponse serveur (state local)
           setSuivi(reponse.data.estSuivi);
           setNbFollowers(reponse.data.nbFollowers);
+          // Sync avec la reponse serveur (state parent)
+          setProjets(prev => prev.map(p =>
+            p._id === projet._id
+              ? { ...p, estSuivi: reponse.data!.estSuivi, nbFollowers: reponse.data!.nbFollowers }
+              : p
+          ));
         } else {
-          // Rollback si erreur
+          // Rollback local
           setSuivi(previousSuivi);
           setNbFollowers(previousNbFollowers);
+          // Rollback parent
+          setProjets(prev => prev.map(p =>
+            p._id === projet._id
+              ? { ...p, estSuivi: previousSuivi, nbFollowers: previousNbFollowers }
+              : p
+          ));
         }
       } catch (error) {
         console.error('Erreur toggle suivre projet:', error);
-        // Rollback
+        // Rollback local
         setSuivi(previousSuivi);
         setNbFollowers(previousNbFollowers);
+        // Rollback parent
+        setProjets(prev => prev.map(p =>
+          p._id === projet._id
+            ? { ...p, estSuivi: previousSuivi, nbFollowers: previousNbFollowers }
+            : p
+        ));
       } finally {
         setEnCours(false);
       }
