@@ -38,6 +38,8 @@ export interface Story {
   durationSec?: number; // Durée d'affichage choisie (5/7/10/15s)
   location?: StoryLocation; // Localisation optionnelle
   filterPreset?: FilterPreset; // Filtre visuel appliqué
+  // V3 - Durée de vie
+  expirationMinutes?: ExpirationMinutes; // Durée de vie choisie
 }
 
 export interface StoriesGroupeesParUtilisateur {
@@ -101,19 +103,25 @@ export const getStory = async (
 };
 
 /**
- * Options V2 pour la création de story
+ * Durées de vie disponibles (en minutes)
+ */
+export type ExpirationMinutes = 7 | 15 | 60 | 360 | 1440;
+
+/**
+ * Options V2/V3 pour la création de story
  */
 export interface CreateStoryOptions {
   durationSec?: number; // Durée d'affichage (5/7/10/15s, défaut: 7)
   location?: StoryLocation; // Localisation optionnelle
   filterPreset?: FilterPreset; // Filtre visuel (défaut: 'normal')
+  expirationMinutes?: ExpirationMinutes; // V3 - Durée de vie (7min, 15min, 1h, 6h, 24h)
 }
 
 /**
  * Créer une nouvelle story
  * @param media - Base64 ou URL du média
  * @param type - 'photo' ou 'video'
- * @param options - Options V2 (durée, localisation, filtre)
+ * @param options - Options V2/V3 (durée affichage, localisation, filtre, expiration)
  */
 export const creerStory = async (
   media: string,
@@ -126,6 +134,7 @@ export const creerStory = async (
     durationSec: options?.durationSec || 7,
     location: options?.location,
     filterPreset: options?.filterPreset || 'normal',
+    expirationMinutes: options?.expirationMinutes || 1440, // 24h par défaut
   }, true);
 };
 

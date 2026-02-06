@@ -27,6 +27,7 @@ import { couleurs, espacements, typographie, rayons } from '../constantes/theme'
 import { useTheme } from '../contexts/ThemeContext';
 import { creerStory, TypeStory, FilterPreset, StoryLocation } from '../services/stories';
 import DurationSelector, { StoryDuration } from './DurationSelector';
+import ExpirationSelector, { ExpirationMinutes } from './ExpirationSelector';
 import FilterSelector from './FilterSelector';
 import LocationPicker from './LocationPicker';
 import { getFilterOverlay } from '../utils/imageFilters';
@@ -64,6 +65,9 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   const [filter, setFilter] = useState<FilterPreset>('normal');
   const [location, setLocation] = useState<StoryLocation | null>(null);
 
+  // V3 - Durée de vie de la story (expiration)
+  const [expirationMinutes, setExpirationMinutes] = useState<ExpirationMinutes>(1440); // 24h par défaut
+
   // Reset state à la fermeture
   const handleClose = useCallback(() => {
     setSelectedMedia(null);
@@ -72,6 +76,8 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     setDuration(7);
     setFilter('normal');
     setLocation(null);
+    // Reset V3 option
+    setExpirationMinutes(1440);
     onClose();
   }, [onClose]);
 
@@ -236,10 +242,12 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
 
     try {
       // V2 - Passer les options (durée, localisation, filtre)
+      // V3 - Ajouter la durée de vie (expiration)
       const response = await creerStory(selectedMedia.base64, selectedMedia.type, {
         durationSec: duration,
         location: location || undefined,
         filterPreset: filter,
+        expirationMinutes: expirationMinutes,
       });
 
       if (response.succes) {
@@ -427,7 +435,10 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
 
               {/* V2 - Options de personnalisation */}
               <View style={[styles.optionsContainer, { backgroundColor: themeColors.fond }]}>
-                {/* Sélecteur de durée */}
+                {/* V3 - Sélecteur de durée de vie (expiration) */}
+                <ExpirationSelector value={expirationMinutes} onChange={setExpirationMinutes} />
+
+                {/* Sélecteur de durée d'affichage */}
                 <DurationSelector value={duration} onChange={setDuration} />
 
                 {/* Sélecteur de filtre (uniquement pour les photos) */}

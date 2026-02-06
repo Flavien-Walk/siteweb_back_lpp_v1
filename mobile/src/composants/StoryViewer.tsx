@@ -30,7 +30,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from './Avatar';
 import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
-import { Story, formatTempsRestant, markStorySeen, getStoryViewers, StoryViewer as StoryViewerType } from '../services/stories';
+import { Story, formatTempsRestant, markStorySeen, getStoryViewers, supprimerStory, StoryViewer as StoryViewerType } from '../services/stories';
 import { getFilterOverlay, FilterPreset } from '../utils/imageFilters';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -47,6 +47,7 @@ interface StoryViewerProps {
   onClose: () => void;
   onAllStoriesViewed?: () => void;
   onNavigateToProfile?: (userId: string, currentIndex: number) => void; // Navigation vers profil
+  onStoryDeleted?: (storyId: string) => void; // Callback quand une story est supprimée
 }
 
 const StoryViewer: React.FC<StoryViewerProps> = ({
@@ -60,6 +61,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   onClose,
   onAllStoriesViewed,
   onNavigateToProfile,
+  onStoryDeleted,
 }) => {
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
@@ -75,6 +77,9 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   const [nbVues, setNbVues] = useState(0);
   const [viewersModalVisible, setViewersModalVisible] = useState(false);
   const [loadingViewers, setLoadingViewers] = useState(false);
+
+  // État pour la suppression
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Animation de progression
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -360,6 +365,64 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
     onNavigateToProfile(storyUserId, currentIndex);
   }, [currentStory, userId, currentIndex, onNavigateToProfile, pauseProgress, isVideo]);
 
+  // Supprimer la story (uniquement pour ses propres stories)
+  const handleDeleteStory = useCallback(async () => {
+    if (!currentStory || !isOwnStory || isDeleting) return;
+
+    // Pause la progression pendant la confirmation
+    pauseProgress();
+    setIsPaused(true);
+
+    Alert.alert(
+      'Supprimer la story',
+      'Cette story sera définitivement supprimée. Cette action est irréversible.',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+          onPress: () => {
+            setIsPaused(false);
+            resumeProgress();
+          },
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const response = await supprimerStory(currentStory._id);
+              if (response.succes) {
+                // Notifier le parent
+                onStoryDeleted?.(currentStory._id);
+
+                // Si c'était la dernière story, fermer le viewer
+                if (stories.length === 1) {
+                  onClose();
+                } else if (currentIndex >= stories.length - 1) {
+                  // Si c'était la dernière dans la liste, aller à la précédente
+                  setCurrentIndex(currentIndex - 1);
+                }
+                // Sinon, rester à l'index actuel (le parent aura mis à jour stories)
+              } else {
+                Alert.alert('Erreur', response.message || 'Impossible de supprimer la story');
+                setIsPaused(false);
+                resumeProgress();
+              }
+            } catch (error) {
+              console.error('Erreur suppression story:', error);
+              Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression');
+              setIsPaused(false);
+              resumeProgress();
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [currentStory, isOwnStory, isDeleting, currentIndex, stories.length, onStoryDeleted, onClose, pauseProgress, resumeProgress]);
+
   if (!currentStory) return null;
 
   return (
@@ -484,14 +547,33 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
               </View>
             </Pressable>
 
-            {/* Bouton fermer */}
-            <Pressable
-              style={styles.closeButton}
-              onPress={onClose}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={28} color={couleurs.blanc} />
-            </Pressable>
+            {/* Actions header */}
+            <View style={styles.headerActions}>
+              {/* Bouton supprimer (uniquement pour ses propres stories) */}
+              {isOwnStory && (
+                <Pressable
+                  style={styles.headerActionButton}
+                  onPress={handleDeleteStory}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <ActivityIndicator size="small" color={couleurs.blanc} />
+                  ) : (
+                    <Ionicons name="trash-outline" size={24} color={couleurs.blanc} />
+                  )}
+                </Pressable>
+              )}
+
+              {/* Bouton fermer */}
+              <Pressable
+                style={styles.headerActionButton}
+                onPress={onClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={28} color={couleurs.blanc} />
+              </Pressable>
+            </View>
           </View>
         </LinearGradient>
 
@@ -673,6 +755,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     fontSize: typographie.tailles.xs,
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+  },
+  headerActionButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeButton: {
     width: 40,
