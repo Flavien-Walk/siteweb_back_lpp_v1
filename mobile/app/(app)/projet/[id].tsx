@@ -1,6 +1,6 @@
 /**
  * Page Fiche Projet Premium
- * Design style plateforme d'investissement
+ * Design style plateforme d'investissement - V2 Optimisée
  */
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -18,27 +18,24 @@ import {
   FlatList,
   Animated,
   StatusBar,
-  Platform,
-  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const HEADER_MAX_HEIGHT = 320;
-const HEADER_MIN_HEIGHT = 100;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const HEADER_MAX_HEIGHT = 280;
+const HEADER_MIN_HEIGHT = 90;
 const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
-import { espacements, rayons, typographie, ombres } from '../../../src/constantes/theme';
+import { espacements, rayons, ombres } from '../../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../../src/contexts/ThemeContext';
 import { useUser } from '../../../src/contexts/UserContext';
 import Avatar from '../../../src/composants/Avatar';
 import {
   Projet,
   Porteur,
-  DocumentProjet,
   getProjet,
   toggleSuivreProjet,
   getRepresentantsProjet,
@@ -131,10 +128,6 @@ export default function ProjetDetailPage() {
   const [representants, setRepresentants] = useState<Porteur[]>([]);
   const [chargementRepresentants, setChargementRepresentants] = useState(false);
 
-  // Simulateur d'investissement
-  const [montantInvestissement, setMontantInvestissement] = useState('1000');
-  const [showSimulateur, setShowSimulateur] = useState(false);
-
   // Animations
   const scrollY = useRef(new Animated.Value(0)).current;
   const actionEnCoursRef = useRef(false);
@@ -178,7 +171,7 @@ export default function ProjetDetailPage() {
   });
 
   const titleOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE - 50, HEADER_SCROLL_DISTANCE],
+    inputRange: [0, HEADER_SCROLL_DISTANCE - 40, HEADER_SCROLL_DISTANCE],
     outputRange: [0, 0, 1],
     extrapolate: 'clamp',
   });
@@ -317,9 +310,6 @@ export default function ProjetDetailPage() {
   const renderHeader = () => {
     if (!projet) return null;
 
-    const maturiteInfo = MATURITE_LABELS[projet.maturite] || MATURITE_LABELS.idee;
-    const categorieInfo = CATEGORIE_LABELS[projet.categorie] || CATEGORIE_LABELS.autre;
-
     return (
       <Animated.View style={[styles.header, { height: headerHeight }]}>
         {/* Image de fond avec parallax */}
@@ -336,13 +326,13 @@ export default function ProjetDetailPage() {
 
         {/* Gradient overlay */}
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
-          locations={[0, 0.5, 1]}
+          colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)']}
+          locations={[0, 0.4, 1]}
           style={styles.headerGradient}
         />
 
-        {/* Bouton retour */}
-        <View style={[styles.headerNav, { paddingTop: insets.top + espacements.sm }]}>
+        {/* Navigation */}
+        <View style={[styles.headerNav, { paddingTop: insets.top + espacements.xs }]}>
           <Pressable
             style={styles.navButton}
             onPress={() => router.back()}
@@ -357,10 +347,7 @@ export default function ProjetDetailPage() {
             <Text style={styles.headerTitleSmall} numberOfLines={1}>{projet.nom}</Text>
           </Animated.View>
 
-          <Pressable
-            style={styles.navButton}
-            onPress={() => {/* Share */}}
-          >
+          <Pressable style={styles.navButton} onPress={() => {}}>
             <View style={styles.blurButton}>
               <Ionicons name="share-outline" size={22} color="#fff" />
             </View>
@@ -376,27 +363,64 @@ export default function ProjetDetailPage() {
             </View>
           )}
 
-          {/* Nom et badges */}
+          {/* Nom et location */}
           <View style={styles.headerInfo}>
-            <Text style={styles.projectName}>{projet.nom}</Text>
-            <View style={styles.badgesRow}>
-              <View style={[styles.badge, { backgroundColor: maturiteInfo.color }]}>
-                <Text style={styles.badgeText}>{maturiteInfo.label}</Text>
-              </View>
-              <View style={styles.badgeOutline}>
-                <Ionicons name={categorieInfo.icon} size={12} color="#fff" />
-                <Text style={styles.badgeOutlineText}>{categorieInfo.label}</Text>
-              </View>
-            </View>
+            <Text style={styles.projectName} numberOfLines={2}>{projet.nom}</Text>
             {projet.localisation?.ville && (
               <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.85)" />
                 <Text style={styles.locationText}>{projet.localisation.ville}</Text>
               </View>
             )}
           </View>
         </Animated.View>
       </Animated.View>
+    );
+  };
+
+  // Rendu des stats compactes
+  const renderQuickStats = () => {
+    if (!projet) return null;
+
+    const maturiteInfo = MATURITE_LABELS[projet.maturite] || MATURITE_LABELS.idee;
+    const categorieInfo = CATEGORIE_LABELS[projet.categorie] || CATEGORIE_LABELS.autre;
+
+    return (
+      <View style={styles.quickStatsContainer}>
+        <View style={styles.quickStatItem}>
+          <View style={[styles.quickStatIcon, { backgroundColor: couleurs.primaire + '20' }]}>
+            <Ionicons name="people" size={18} color={couleurs.primaire} />
+          </View>
+          <View>
+            <Text style={styles.quickStatValue}>{nbFollowers}</Text>
+            <Text style={styles.quickStatLabel}>Abonnés</Text>
+          </View>
+        </View>
+
+        <View style={styles.quickStatDivider} />
+
+        <View style={styles.quickStatItem}>
+          <View style={[styles.quickStatIcon, { backgroundColor: maturiteInfo.color + '20' }]}>
+            <Ionicons name="rocket" size={18} color={maturiteInfo.color} />
+          </View>
+          <View>
+            <Text style={styles.quickStatValue}>{maturiteInfo.label}</Text>
+            <Text style={styles.quickStatLabel}>Maturité</Text>
+          </View>
+        </View>
+
+        <View style={styles.quickStatDivider} />
+
+        <View style={styles.quickStatItem}>
+          <View style={[styles.quickStatIcon, { backgroundColor: couleurs.secondaire + '20' }]}>
+            <Ionicons name={categorieInfo.icon} size={18} color={couleurs.secondaire} />
+          </View>
+          <View>
+            <Text style={styles.quickStatValue}>{categorieInfo.label}</Text>
+            <Text style={styles.quickStatLabel}>Secteur</Text>
+          </View>
+        </View>
+      </View>
     );
   };
 
@@ -409,7 +433,7 @@ export default function ProjetDetailPage() {
     return (
       <View style={styles.progressSection}>
         <View style={styles.progressHeader}>
-          <View>
+          <View style={styles.progressAmountContainer}>
             <Text style={styles.progressAmount}>{formatMontant(montantLeve)}</Text>
             <Text style={styles.progressLabel}>levés sur {formatMontant(projet.objectifFinancement)}</Text>
           </View>
@@ -439,20 +463,14 @@ export default function ProjetDetailPage() {
           </Animated.View>
         </View>
 
-        <View style={styles.progressStats}>
-          <View style={styles.progressStatItem}>
-            <Ionicons name="people-outline" size={16} color={couleurs.texteSecondaire} />
-            <Text style={styles.progressStatText}>{nbFollowers} abonnés</Text>
+        {projet.datePublication && (
+          <View style={styles.progressMeta}>
+            <Ionicons name="calendar-outline" size={14} color={couleurs.texteSecondaire} />
+            <Text style={styles.progressMetaText}>
+              Publié le {new Date(projet.datePublication).toLocaleDateString('fr-FR')}
+            </Text>
           </View>
-          {projet.datePublication && (
-            <View style={styles.progressStatItem}>
-              <Ionicons name="calendar-outline" size={16} color={couleurs.texteSecondaire} />
-              <Text style={styles.progressStatText}>
-                Publié le {new Date(projet.datePublication).toLocaleDateString('fr-FR')}
-              </Text>
-            </View>
-          )}
-        </View>
+        )}
       </View>
     );
   };
@@ -540,8 +558,8 @@ export default function ProjetDetailPage() {
 
             {projet.probleme && (
               <View style={styles.valueCard}>
-                <View style={[styles.valueIcon, { backgroundColor: couleurs.erreur + '20' }]}>
-                  <Ionicons name="alert-circle-outline" size={20} color={couleurs.erreur} />
+                <View style={[styles.valueIcon, { backgroundColor: couleurs.erreur + '15' }]}>
+                  <Ionicons name="alert-circle-outline" size={22} color={couleurs.erreur} />
                 </View>
                 <View style={styles.valueContent}>
                   <Text style={styles.valueLabel}>Problème</Text>
@@ -552,8 +570,8 @@ export default function ProjetDetailPage() {
 
             {projet.solution && (
               <View style={styles.valueCard}>
-                <View style={[styles.valueIcon, { backgroundColor: couleurs.succes + '20' }]}>
-                  <Ionicons name="checkmark-circle-outline" size={20} color={couleurs.succes} />
+                <View style={[styles.valueIcon, { backgroundColor: couleurs.succes + '15' }]}>
+                  <Ionicons name="checkmark-circle-outline" size={22} color={couleurs.succes} />
                 </View>
                 <View style={styles.valueContent}>
                   <Text style={styles.valueLabel}>Solution</Text>
@@ -564,8 +582,8 @@ export default function ProjetDetailPage() {
 
             {projet.avantageConcurrentiel && (
               <View style={styles.valueCard}>
-                <View style={[styles.valueIcon, { backgroundColor: couleurs.primaire + '20' }]}>
-                  <Ionicons name="trophy-outline" size={20} color={couleurs.primaire} />
+                <View style={[styles.valueIcon, { backgroundColor: couleurs.primaire + '15' }]}>
+                  <Ionicons name="trophy-outline" size={22} color={couleurs.primaire} />
                 </View>
                 <View style={styles.valueContent}>
                   <Text style={styles.valueLabel}>Avantage concurrentiel</Text>
@@ -583,7 +601,9 @@ export default function ProjetDetailPage() {
               <Ionicons name="people-outline" size={20} color={couleurs.primaire} />
               <Text style={styles.sectionTitle}>Cible</Text>
             </View>
-            <Text style={styles.sectionText}>{projet.cible}</Text>
+            <View style={styles.cibleCard}>
+              <Text style={styles.sectionText}>{projet.cible}</Text>
+            </View>
           </View>
         )}
 
@@ -594,21 +614,34 @@ export default function ProjetDetailPage() {
               <Ionicons name="people-circle-outline" size={20} color={couleurs.primaire} />
               <Text style={styles.sectionTitle}>Équipe</Text>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.teamScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.teamScroll}
+              contentContainerStyle={styles.teamScrollContent}
+            >
               {/* Porteur */}
               {projet.porteur && (
                 <Pressable
                   style={styles.teamCard}
                   onPress={() => naviguerVersProfil(projet.porteur!._id)}
                 >
-                  <Avatar
-                    uri={projet.porteur.avatar}
-                    nom={projet.porteur.nom}
-                    prenom={projet.porteur.prenom}
-                    taille={64}
-                  />
+                  <View style={styles.teamAvatarContainer}>
+                    <Avatar
+                      uri={projet.porteur.avatar}
+                      nom={projet.porteur.nom}
+                      prenom={projet.porteur.prenom}
+                      taille={56}
+                    />
+                    <View style={styles.founderBadge}>
+                      <Ionicons name="star" size={10} color="#fff" />
+                    </View>
+                  </View>
                   <Text style={styles.teamName} numberOfLines={1}>
-                    {projet.porteur.prenom} {projet.porteur.nom}
+                    {projet.porteur.prenom}
+                  </Text>
+                  <Text style={styles.teamLastName} numberOfLines={1}>
+                    {projet.porteur.nom}
                   </Text>
                   <View style={styles.teamRoleBadge}>
                     <Text style={styles.teamRoleText}>Fondateur</Text>
@@ -624,19 +657,22 @@ export default function ProjetDetailPage() {
                   onPress={() => membre.utilisateur && naviguerVersProfil(membre.utilisateur._id)}
                   disabled={!membre.utilisateur}
                 >
-                  <Avatar
-                    uri={membre.photo || membre.utilisateur?.avatar}
-                    nom={membre.nom}
-                    prenom=""
-                    taille={64}
-                  />
+                  <View style={styles.teamAvatarContainer}>
+                    <Avatar
+                      uri={membre.photo || membre.utilisateur?.avatar}
+                      nom={membre.nom}
+                      prenom=""
+                      taille={56}
+                    />
+                  </View>
                   <Text style={styles.teamName} numberOfLines={1}>
-                    {membre.utilisateur
-                      ? `${membre.utilisateur.prenom} ${membre.utilisateur.nom}`
-                      : membre.nom}
+                    {membre.utilisateur ? membre.utilisateur.prenom : membre.nom.split(' ')[0]}
                   </Text>
-                  <View style={styles.teamRoleBadge}>
-                    <Text style={styles.teamRoleText}>
+                  <Text style={styles.teamLastName} numberOfLines={1}>
+                    {membre.utilisateur ? membre.utilisateur.nom : membre.nom.split(' ')[1] || ''}
+                  </Text>
+                  <View style={[styles.teamRoleBadge, styles.teamRoleBadgeMember]}>
+                    <Text style={[styles.teamRoleText, styles.teamRoleTextMember]}>
                       {membre.titre || ROLE_LABELS[membre.role] || membre.role}
                     </Text>
                   </View>
@@ -683,7 +719,9 @@ export default function ProjetDetailPage() {
               {projet.metriques.map((metrique, i) => (
                 <View key={i} style={styles.kpiCard}>
                   {metrique.icone && (
-                    <Ionicons name={metrique.icone as keyof typeof Ionicons.glyphMap} size={24} color={couleurs.primaire} />
+                    <View style={styles.kpiIconContainer}>
+                      <Ionicons name={metrique.icone as keyof typeof Ionicons.glyphMap} size={22} color={couleurs.primaire} />
+                    </View>
                   )}
                   <Text style={styles.kpiValue}>{metrique.valeur}</Text>
                   <Text style={styles.kpiLabel}>{metrique.label}</Text>
@@ -706,62 +744,6 @@ export default function ProjetDetailPage() {
           </View>
         )}
 
-        {/* Simulateur d'investissement */}
-        {projet.objectifFinancement && projet.objectifFinancement > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="calculator-outline" size={20} color={couleurs.primaire} />
-              <Text style={styles.sectionTitle}>Simulateur</Text>
-            </View>
-            <View style={styles.simulatorCard}>
-              <Text style={styles.simulatorLabel}>Montant d'investissement</Text>
-              <View style={styles.simulatorInputRow}>
-                <TextInput
-                  style={styles.simulatorInput}
-                  value={montantInvestissement}
-                  onChangeText={setMontantInvestissement}
-                  keyboardType="numeric"
-                  placeholder="1000"
-                  placeholderTextColor={couleurs.texteMuted}
-                />
-                <Text style={styles.simulatorCurrency}>€</Text>
-              </View>
-              <View style={styles.simulatorPresets}>
-                {['500', '1000', '5000', '10000'].map((preset) => (
-                  <Pressable
-                    key={preset}
-                    style={[
-                      styles.simulatorPreset,
-                      montantInvestissement === preset && styles.simulatorPresetActive,
-                    ]}
-                    onPress={() => setMontantInvestissement(preset)}
-                  >
-                    <Text
-                      style={[
-                        styles.simulatorPresetText,
-                        montantInvestissement === preset && styles.simulatorPresetTextActive,
-                      ]}
-                    >
-                      {parseInt(preset).toLocaleString('fr-FR')} €
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <View style={styles.simulatorResult}>
-                <View style={styles.simulatorResultRow}>
-                  <Text style={styles.simulatorResultLabel}>Part du capital</Text>
-                  <Text style={styles.simulatorResultValue}>
-                    {projet.objectifFinancement > 0
-                      ? ((parseInt(montantInvestissement) || 0) / projet.objectifFinancement * 100).toFixed(2)
-                      : '0'
-                    }%
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
         {/* Galerie */}
         {projet.galerie && projet.galerie.length > 0 && (
           <View style={styles.section}>
@@ -769,13 +751,18 @@ export default function ProjetDetailPage() {
               <Ionicons name="images-outline" size={20} color={couleurs.primaire} />
               <Text style={styles.sectionTitle}>Galerie</Text>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.galleryScrollContent}
+            >
               {projet.galerie.map((media, i) => (
-                <Image
-                  key={i}
-                  source={{ uri: media.thumbnailUrl || media.url }}
-                  style={styles.galleryImage}
-                />
+                <Pressable key={i} style={styles.galleryImageContainer}>
+                  <Image
+                    source={{ uri: media.thumbnailUrl || media.url }}
+                    style={styles.galleryImage}
+                  />
+                </Pressable>
               ))}
             </ScrollView>
           </View>
@@ -795,7 +782,9 @@ export default function ProjetDetailPage() {
       return (
         <View style={styles.tabContent}>
           <View style={styles.emptyState}>
-            <Ionicons name="folder-open-outline" size={64} color={couleurs.texteMuted} />
+            <View style={styles.emptyStateIcon}>
+              <Ionicons name="folder-open-outline" size={48} color={couleurs.texteMuted} />
+            </View>
             <Text style={styles.emptyStateText}>Aucun document disponible</Text>
             <Text style={styles.emptyStateSubtext}>
               Les documents du projet seront affichés ici
@@ -827,7 +816,9 @@ export default function ProjetDetailPage() {
             </View>
             <Pressable style={styles.videoCard}>
               <View style={styles.videoPlaceholder}>
-                <Ionicons name="play-circle-outline" size={48} color={couleurs.primaire} />
+                <View style={styles.playButton}>
+                  <Ionicons name="play" size={28} color="#fff" />
+                </View>
               </View>
               <Text style={styles.videoLabel}>Voir le pitch vidéo</Text>
             </Pressable>
@@ -844,15 +835,17 @@ export default function ProjetDetailPage() {
             {projet.documents.filter(doc => doc.visibilite === 'public').map((doc, i) => (
               <Pressable key={i} style={styles.documentItem}>
                 <View style={styles.documentIcon}>
-                  <Ionicons name={getDocIcon(doc.type)} size={24} color={couleurs.primaire} />
+                  <Ionicons name={getDocIcon(doc.type)} size={22} color={couleurs.primaire} />
                 </View>
                 <View style={styles.documentInfo}>
-                  <Text style={styles.documentName}>{doc.nom}</Text>
+                  <Text style={styles.documentName} numberOfLines={1}>{doc.nom}</Text>
                   <Text style={styles.documentMeta}>
                     {doc.type.toUpperCase()} • {new Date(doc.dateAjout).toLocaleDateString('fr-FR')}
                   </Text>
                 </View>
-                <Ionicons name="download-outline" size={20} color={couleurs.texteSecondaire} />
+                <View style={styles.downloadButton}>
+                  <Ionicons name="download-outline" size={18} color={couleurs.primaire} />
+                </View>
               </Pressable>
             ))}
             {projet.documents.filter(doc => doc.visibilite === 'private').length > 0 && (
@@ -921,6 +914,9 @@ export default function ProjetDetailPage() {
         }
       >
         <View style={styles.contentCard}>
+          {/* Stats rapides */}
+          {renderQuickStats()}
+
           {/* Barre de progression */}
           {renderProgressBar()}
 
@@ -946,11 +942,11 @@ export default function ProjetDetailPage() {
       >
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalBackdrop} onPress={() => setShowContactModal(false)} />
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + espacements.lg }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Contacter le projet</Text>
-              <Pressable onPress={() => setShowContactModal(false)}>
+              <Pressable style={styles.modalCloseButton} onPress={() => setShowContactModal(false)}>
                 <Ionicons name="close" size={24} color={couleurs.texte} />
               </Pressable>
             </View>
@@ -958,9 +954,12 @@ export default function ProjetDetailPage() {
               Sélectionnez un membre de l'équipe pour démarrer une conversation
             </Text>
             {chargementRepresentants ? (
-              <ActivityIndicator size="small" color={couleurs.primaire} style={{ marginVertical: 20 }} />
+              <ActivityIndicator size="small" color={couleurs.primaire} style={{ marginVertical: 24 }} />
             ) : representants.length === 0 ? (
-              <Text style={styles.noRepresentants}>Aucun représentant disponible</Text>
+              <View style={styles.noRepresentantsContainer}>
+                <Ionicons name="people-outline" size={40} color={couleurs.texteMuted} />
+                <Text style={styles.noRepresentants}>Aucun représentant disponible</Text>
+              </View>
             ) : (
               <FlatList
                 data={representants}
@@ -976,7 +975,7 @@ export default function ProjetDetailPage() {
                       uri={item.avatar}
                       nom={item.nom}
                       prenom={item.prenom}
-                      taille={48}
+                      taille={52}
                     />
                     <View style={styles.representantInfo}>
                       <Text style={styles.representantName}>
@@ -985,7 +984,7 @@ export default function ProjetDetailPage() {
                       <Text style={styles.representantRole}>Membre de l'équipe</Text>
                     </View>
                     <View style={styles.representantAction}>
-                      <Ionicons name="chatbubble-outline" size={20} color={couleurs.primaire} />
+                      <Ionicons name="chatbubble" size={18} color={couleurs.primaire} />
                     </View>
                   </Pressable>
                 )}
@@ -1045,7 +1044,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       top: 0,
       left: 0,
       right: 0,
-      height: HEADER_MAX_HEIGHT,
+      height: HEADER_MAX_HEIGHT + 50,
       width: '100%',
       resizeMode: 'cover',
     },
@@ -1064,43 +1063,43 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       zIndex: 2,
     },
     navButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       overflow: 'hidden',
     },
     blurButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.3)',
+      backgroundColor: 'rgba(0,0,0,0.35)',
     },
     headerTitleContainer: {
       flex: 1,
       marginHorizontal: espacements.md,
     },
     headerTitleSmall: {
-      fontSize: 16,
+      fontSize: 17,
       fontWeight: '600',
       color: '#fff',
       textAlign: 'center',
     },
     headerContent: {
       position: 'absolute',
-      bottom: espacements.lg,
+      bottom: espacements.xl,
       left: espacements.lg,
       right: espacements.lg,
       flexDirection: 'row',
       alignItems: 'flex-end',
     },
     logoWrapper: {
-      width: 72,
-      height: 72,
+      width: 64,
+      height: 64,
       borderRadius: rayons.md,
       backgroundColor: couleurs.fond,
-      padding: 4,
+      padding: 3,
       marginRight: espacements.md,
       ...ombres.md,
     },
@@ -1113,39 +1112,13 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       flex: 1,
     },
     projectName: {
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: '700',
       color: '#fff',
       marginBottom: espacements.xs,
-    },
-    badgesRow: {
-      flexDirection: 'row',
-      gap: espacements.sm,
-      marginBottom: espacements.xs,
-    },
-    badge: {
-      paddingHorizontal: espacements.sm,
-      paddingVertical: 4,
-      borderRadius: rayons.full,
-    },
-    badgeText: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: '#fff',
-    },
-    badgeOutline: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: espacements.sm,
-      paddingVertical: 4,
-      borderRadius: rayons.full,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-    },
-    badgeOutlineText: {
-      fontSize: 11,
-      fontWeight: '500',
-      color: '#fff',
+      textShadowColor: 'rgba(0,0,0,0.3)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3,
     },
     locationRow: {
       flexDirection: 'row',
@@ -1153,23 +1126,65 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       gap: 4,
     },
     locationText: {
-      fontSize: 13,
-      color: 'rgba(255,255,255,0.8)',
+      fontSize: 14,
+      color: 'rgba(255,255,255,0.85)',
     },
 
     // Content card
     contentCard: {
       backgroundColor: couleurs.fond,
-      borderTopLeftRadius: rayons.xl,
-      borderTopRightRadius: rayons.xl,
-      marginTop: -espacements.xl,
-      paddingTop: espacements.lg,
+      borderTopLeftRadius: rayons.xl + 4,
+      borderTopRightRadius: rayons.xl + 4,
+      marginTop: -rayons.xl,
+      paddingTop: espacements.xl,
+    },
+
+    // Quick stats
+    quickStatsContainer: {
+      flexDirection: 'row',
+      marginHorizontal: espacements.lg,
+      marginBottom: espacements.lg,
+      padding: espacements.md,
+      backgroundColor: couleurs.fondSecondaire,
+      borderRadius: rayons.lg,
+    },
+    quickStatItem: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espacements.sm,
+    },
+    quickStatIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    quickStatValue: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: couleurs.texte,
+    },
+    quickStatLabel: {
+      fontSize: 11,
+      color: couleurs.texteSecondaire,
+      marginTop: 1,
+    },
+    quickStatDivider: {
+      width: 1,
+      height: 32,
+      backgroundColor: couleurs.bordure,
+      marginHorizontal: espacements.sm,
     },
 
     // Progress bar
     progressSection: {
-      paddingHorizontal: espacements.lg,
-      paddingBottom: espacements.lg,
+      marginHorizontal: espacements.lg,
+      marginBottom: espacements.lg,
+      padding: espacements.lg,
+      backgroundColor: couleurs.fondSecondaire,
+      borderRadius: rayons.lg,
     },
     progressHeader: {
       flexDirection: 'row',
@@ -1177,8 +1192,11 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       alignItems: 'flex-start',
       marginBottom: espacements.md,
     },
+    progressAmountContainer: {
+      flex: 1,
+    },
     progressAmount: {
-      fontSize: 28,
+      fontSize: 26,
       fontWeight: '700',
       color: couleurs.texte,
     },
@@ -1194,13 +1212,13 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       borderRadius: rayons.md,
     },
     progressPercent: {
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '700',
       color: couleurs.primaire,
     },
     progressBarContainer: {
-      height: 8,
-      backgroundColor: couleurs.fondSecondaire,
+      height: 10,
+      backgroundColor: couleurs.fond,
       borderRadius: rayons.full,
       overflow: 'hidden',
     },
@@ -1209,18 +1227,14 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       borderRadius: rayons.full,
       overflow: 'hidden',
     },
-    progressStats: {
-      flexDirection: 'row',
-      gap: espacements.lg,
-      marginTop: espacements.md,
-    },
-    progressStatItem: {
+    progressMeta: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: espacements.xs,
+      marginTop: espacements.md,
     },
-    progressStatText: {
-      fontSize: 13,
+    progressMetaText: {
+      fontSize: 12,
       color: couleurs.texteSecondaire,
     },
 
@@ -1228,8 +1242,8 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     actionsContainer: {
       flexDirection: 'row',
       gap: espacements.md,
-      paddingHorizontal: espacements.lg,
-      paddingBottom: espacements.lg,
+      marginHorizontal: espacements.lg,
+      marginBottom: espacements.lg,
     },
     actionButton: {
       flex: 1,
@@ -1237,14 +1251,14 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: espacements.sm,
-      paddingVertical: espacements.md,
+      paddingVertical: espacements.md + 2,
       backgroundColor: couleurs.fondSecondaire,
       borderRadius: rayons.md,
       borderWidth: 1,
       borderColor: couleurs.bordure,
     },
     actionButtonActive: {
-      backgroundColor: couleurs.primaire + '15',
+      backgroundColor: couleurs.primaire + '12',
       borderColor: couleurs.primaire,
     },
     actionButtonText: {
@@ -1265,7 +1279,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: espacements.sm,
-      paddingVertical: espacements.md,
+      paddingVertical: espacements.md + 2,
     },
     actionButtonPrimaryText: {
       fontSize: 15,
@@ -1279,6 +1293,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       borderBottomWidth: 1,
       borderBottomColor: couleurs.bordure,
       marginHorizontal: espacements.lg,
+      marginBottom: espacements.sm,
     },
     tab: {
       flex: 1,
@@ -1291,6 +1306,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     tabActive: {
       borderBottomWidth: 2,
       borderBottomColor: couleurs.primaire,
+      marginBottom: -1,
     },
     tabText: {
       fontSize: 14,
@@ -1304,7 +1320,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
 
     // Tab content
     tabContent: {
-      paddingTop: espacements.lg,
+      paddingTop: espacements.md,
     },
 
     // Sections
@@ -1319,38 +1335,39 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       marginBottom: espacements.md,
     },
     sectionTitle: {
-      fontSize: 18,
+      fontSize: 17,
       fontWeight: '700',
       color: couleurs.texte,
     },
     sectionText: {
       fontSize: 15,
       color: couleurs.texteSecondaire,
-      lineHeight: 22,
+      lineHeight: 23,
     },
 
     // Value cards
     valueCard: {
       flexDirection: 'row',
       backgroundColor: couleurs.fondSecondaire,
-      borderRadius: rayons.md,
-      padding: espacements.md,
+      borderRadius: rayons.lg,
+      padding: espacements.md + 2,
       marginBottom: espacements.sm,
     },
     valueIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 46,
+      height: 46,
+      borderRadius: 23,
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: espacements.md,
     },
     valueContent: {
       flex: 1,
+      justifyContent: 'center',
     },
     valueLabel: {
-      fontSize: 12,
-      fontWeight: '600',
+      fontSize: 11,
+      fontWeight: '700',
       color: couleurs.texteSecondaire,
       marginBottom: 4,
       textTransform: 'uppercase',
@@ -1362,37 +1379,75 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       lineHeight: 20,
     },
 
+    // Cible card
+    cibleCard: {
+      backgroundColor: couleurs.fondSecondaire,
+      borderRadius: rayons.lg,
+      padding: espacements.lg,
+    },
+
     // Team
     teamScroll: {
       marginHorizontal: -espacements.lg,
+    },
+    teamScrollContent: {
       paddingHorizontal: espacements.lg,
     },
     teamCard: {
-      width: 120,
+      width: 100,
       alignItems: 'center',
       backgroundColor: couleurs.fondSecondaire,
       borderRadius: rayons.lg,
-      padding: espacements.md,
+      paddingVertical: espacements.md,
+      paddingHorizontal: espacements.sm,
       marginRight: espacements.md,
+    },
+    teamAvatarContainer: {
+      position: 'relative',
+      marginBottom: espacements.sm,
+    },
+    founderBadge: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: couleurs.primaire,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: couleurs.fondSecondaire,
     },
     teamName: {
       fontSize: 13,
       fontWeight: '600',
       color: couleurs.texte,
-      marginTop: espacements.sm,
       textAlign: 'center',
+    },
+    teamLastName: {
+      fontSize: 12,
+      color: couleurs.texteSecondaire,
+      textAlign: 'center',
+      marginBottom: espacements.xs,
     },
     teamRoleBadge: {
       marginTop: espacements.xs,
-      backgroundColor: couleurs.primaire + '20',
+      backgroundColor: couleurs.primaire,
       paddingHorizontal: espacements.sm,
-      paddingVertical: 4,
+      paddingVertical: 3,
       borderRadius: rayons.full,
+    },
+    teamRoleBadgeMember: {
+      backgroundColor: couleurs.fondTertiaire,
     },
     teamRoleText: {
       fontSize: 10,
       fontWeight: '600',
-      color: couleurs.primaire,
+      color: '#fff',
+    },
+    teamRoleTextMember: {
+      color: couleurs.texteSecondaire,
     },
 
     // Tags
@@ -1406,6 +1461,8 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       paddingHorizontal: espacements.md,
       paddingVertical: espacements.sm,
       borderRadius: rayons.full,
+      borderWidth: 1,
+      borderColor: couleurs.bordure,
     },
     tagText: {
       fontSize: 13,
@@ -1425,11 +1482,19 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       padding: espacements.lg,
       alignItems: 'center',
     },
+    kpiIconContainer: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: couleurs.primaire + '15',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: espacements.sm,
+    },
     kpiValue: {
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: '700',
       color: couleurs.texte,
-      marginTop: espacements.sm,
     },
     kpiLabel: {
       fontSize: 12,
@@ -1441,96 +1506,23 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     // Business model
     businessModelCard: {
       backgroundColor: couleurs.fondSecondaire,
-      borderRadius: rayons.md,
-      padding: espacements.lg,
-    },
-
-    // Simulator
-    simulatorCard: {
-      backgroundColor: couleurs.fondSecondaire,
       borderRadius: rayons.lg,
       padding: espacements.lg,
     },
-    simulatorLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: couleurs.texteSecondaire,
-      marginBottom: espacements.md,
-    },
-    simulatorInputRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: couleurs.fond,
-      borderRadius: rayons.md,
-      borderWidth: 1,
-      borderColor: couleurs.bordure,
-      paddingHorizontal: espacements.md,
-    },
-    simulatorInput: {
-      flex: 1,
-      fontSize: 24,
-      fontWeight: '700',
-      color: couleurs.texte,
-      paddingVertical: espacements.md,
-    },
-    simulatorCurrency: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: couleurs.texteSecondaire,
-    },
-    simulatorPresets: {
-      flexDirection: 'row',
-      gap: espacements.sm,
-      marginTop: espacements.md,
-    },
-    simulatorPreset: {
-      flex: 1,
-      paddingVertical: espacements.sm,
-      borderRadius: rayons.md,
-      backgroundColor: couleurs.fond,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: couleurs.bordure,
-    },
-    simulatorPresetActive: {
-      backgroundColor: couleurs.primaire + '20',
-      borderColor: couleurs.primaire,
-    },
-    simulatorPresetText: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: couleurs.texteSecondaire,
-    },
-    simulatorPresetTextActive: {
-      color: couleurs.primaire,
-    },
-    simulatorResult: {
-      marginTop: espacements.lg,
-      paddingTop: espacements.lg,
-      borderTopWidth: 1,
-      borderTopColor: couleurs.bordure,
-    },
-    simulatorResultRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    simulatorResultLabel: {
-      fontSize: 14,
-      color: couleurs.texteSecondaire,
-    },
-    simulatorResultValue: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: couleurs.primaire,
-    },
 
     // Gallery
-    galleryImage: {
-      width: 200,
-      height: 150,
-      borderRadius: rayons.md,
+    galleryScrollContent: {
+      paddingRight: espacements.lg,
+    },
+    galleryImageContainer: {
+      borderRadius: rayons.lg,
+      overflow: 'hidden',
       marginRight: espacements.md,
+    },
+    galleryImage: {
+      width: 180,
+      height: 130,
+      borderRadius: rayons.lg,
     },
 
     // Documents
@@ -1540,10 +1532,19 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       overflow: 'hidden',
     },
     videoPlaceholder: {
-      height: 180,
+      height: 160,
       backgroundColor: couleurs.fond,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    playButton: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: couleurs.primaire,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingLeft: 3,
     },
     videoLabel: {
       fontSize: 14,
@@ -1556,15 +1557,15 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: couleurs.fondSecondaire,
-      borderRadius: rayons.md,
+      borderRadius: rayons.lg,
       padding: espacements.md,
       marginBottom: espacements.sm,
     },
     documentIcon: {
-      width: 44,
-      height: 44,
+      width: 46,
+      height: 46,
       borderRadius: rayons.md,
-      backgroundColor: couleurs.primaire + '15',
+      backgroundColor: couleurs.primaire + '12',
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: espacements.md,
@@ -1580,15 +1581,24 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     documentMeta: {
       fontSize: 12,
       color: couleurs.texteSecondaire,
-      marginTop: 2,
+      marginTop: 3,
+    },
+    downloadButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: couleurs.primaire + '15',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     privateDocsNotice: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: espacements.sm,
       backgroundColor: couleurs.fondSecondaire,
-      borderRadius: rayons.md,
+      borderRadius: rayons.lg,
       padding: espacements.md,
+      marginTop: espacements.sm,
     },
     privateDocsText: {
       fontSize: 13,
@@ -1602,11 +1612,19 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       paddingVertical: espacements.xxxl,
       paddingHorizontal: espacements.xl,
     },
+    emptyStateIcon: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: couleurs.fondSecondaire,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: espacements.lg,
+    },
     emptyStateText: {
       fontSize: 16,
       fontWeight: '600',
       color: couleurs.texte,
-      marginTop: espacements.lg,
     },
     emptyStateSubtext: {
       fontSize: 14,
@@ -1618,7 +1636,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     // Modal
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
+      backgroundColor: 'rgba(0,0,0,0.6)',
       justifyContent: 'flex-end',
     },
     modalBackdrop: {
@@ -1626,10 +1644,10 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     },
     modalContent: {
       backgroundColor: couleurs.fond,
-      borderTopLeftRadius: rayons.xl,
-      borderTopRightRadius: rayons.xl,
+      borderTopLeftRadius: rayons.xl + 4,
+      borderTopRightRadius: rayons.xl + 4,
       padding: espacements.lg,
-      maxHeight: '70%',
+      maxHeight: '75%',
     },
     modalHandle: {
       width: 40,
@@ -1650,16 +1668,28 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       fontWeight: '700',
       color: couleurs.texte,
     },
+    modalCloseButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: couleurs.fondSecondaire,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     modalSubtitle: {
       fontSize: 14,
       color: couleurs.texteSecondaire,
       marginBottom: espacements.lg,
     },
+    noRepresentantsContainer: {
+      alignItems: 'center',
+      paddingVertical: espacements.xxl,
+    },
     noRepresentants: {
       fontSize: 14,
       color: couleurs.texteSecondaire,
       textAlign: 'center',
-      paddingVertical: espacements.xl,
+      marginTop: espacements.md,
     },
     representantItem: {
       flexDirection: 'row',
@@ -1683,10 +1713,10 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       marginTop: 2,
     },
     representantAction: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: couleurs.primaire + '15',
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: couleurs.primaire + '12',
       justifyContent: 'center',
       alignItems: 'center',
     },
