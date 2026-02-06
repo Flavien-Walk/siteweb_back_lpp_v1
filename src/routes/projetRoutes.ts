@@ -9,6 +9,7 @@ import {
   modifierProjet,
   publierProjet,
   depublierProjet,
+  gererEquipeProjet,
   supprimerProjet,
   uploadMediaProjet,
   uploadDocumentProjet,
@@ -52,6 +53,12 @@ router.post('/entrepreneur/:id/publier', verifierJwt, checkUserStatus, checkEntr
  * Dépublier un projet (repasser en brouillon)
  */
 router.post('/entrepreneur/:id/depublier', verifierJwt, checkUserStatus, checkEntrepreneur, depublierProjet);
+
+/**
+ * PATCH /api/projets/entrepreneur/:id/equipe
+ * Gérer l'équipe d'un projet (ajouter/retirer des membres)
+ */
+router.patch('/entrepreneur/:id/equipe', verifierJwt, checkUserStatus, checkEntrepreneur, gererEquipeProjet);
 
 /**
  * DELETE /api/projets/entrepreneur/:id

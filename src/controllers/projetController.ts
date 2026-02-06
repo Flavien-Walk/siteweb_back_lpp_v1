@@ -1,7 +1,36 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Projet, { IProjet, IMembreEquipe, IDocumentProjet, IMediaGalerie, IMetrique } from '../models/Projet.js';
+import Utilisateur from '../models/Utilisateur.js';
 import { uploadPublicationMedias, uploadPublicationMedia, isBase64MediaDataUrl } from '../utils/cloudinary.js';
+import AuditLog from '../models/AuditLog.js';
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+/**
+ * Vérifie si deux utilisateurs sont amis
+ */
+const isFriend = async (userIdA: mongoose.Types.ObjectId, userIdB: mongoose.Types.ObjectId): Promise<boolean> => {
+  const user = await Utilisateur.findById(userIdA).select('amis');
+  if (!user) return false;
+  return user.amis.some((amiId) => amiId.equals(userIdB));
+};
+
+/**
+ * Vérifie si l'utilisateur est membre de l'équipe du projet
+ */
+const isTeamMember = (projet: IProjet, userId: mongoose.Types.ObjectId): boolean => {
+  return projet.equipe.some((m) => m.utilisateur && m.utilisateur.equals(userId));
+};
+
+/**
+ * Vérifie si l'utilisateur peut modifier le projet (owner ou membre équipe)
+ */
+const canEditProject = (projet: IProjet, userId: mongoose.Types.ObjectId): boolean => {
+  return projet.porteur.equals(userId) || isTeamMember(projet, userId);
+};
 
 /**
  * GET /api/projets
@@ -68,18 +97,22 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Si le projet est en brouillon, seul le porteur peut le voir
+    // Si le projet est en brouillon, seul le porteur ou un membre de l'équipe peut le voir
     const userId = req.utilisateur?._id;
     if (projet.statut === 'draft') {
-      if (!userId || !projet.porteur._id.equals(userId)) {
+      const isOwner = userId && projet.porteur._id.equals(userId);
+      const isMember = userId && projet.equipe.some((m: any) => m.utilisateur && m.utilisateur._id?.equals(userId));
+      if (!isOwner && !isMember) {
         res.status(404).json({ succes: false, message: 'Projet non trouvé.' });
         return;
       }
     }
 
-    // Filtrer les documents privés si l'utilisateur n'est pas le porteur
+    // Filtrer les documents privés si l'utilisateur n'est pas le porteur ou membre
+    const isOwnerOrMember = userId && (projet.porteur._id.equals(userId) ||
+      projet.equipe.some((m: any) => m.utilisateur && m.utilisateur._id?.equals(userId)));
     let documentsFiltered = projet.documents;
-    if (!userId || !projet.porteur._id.equals(userId)) {
+    if (!isOwnerOrMember) {
       documentsFiltered = projet.documents.filter(d => d.visibilite === 'public');
     }
 
@@ -164,27 +197,40 @@ export const mesProjets = async (req: Request, res: Response): Promise<void> => 
 /**
  * GET /api/projets/entrepreneur/mes-projets
  * Liste des projets de l'entrepreneur connecté (brouillons + publiés)
+ * Inclut les projets où l'utilisateur est porteur OU membre de l'équipe
  */
 export const mesProjetsEntrepreneur = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.utilisateur!._id;
     const { statut } = req.query;
 
-    const filtre: Record<string, unknown> = { porteur: userId };
+    // Chercher les projets où l'utilisateur est porteur OU membre de l'équipe
+    const filtre: Record<string, unknown> = {
+      $or: [
+        { porteur: userId },
+        { 'equipe.utilisateur': userId },
+      ],
+    };
     if (statut && ['draft', 'published'].includes(statut as string)) {
       filtre.statut = statut;
     }
 
     const projets = await Projet.find(filtre)
       .sort({ dateMiseAJour: -1 })
+      .populate('porteur', 'prenom nom avatar')
       .populate('equipe.utilisateur', 'prenom nom avatar');
 
-    // Statistiques
+    // Séparer les projets où je suis porteur vs membre
+    const mesProjetsOwner = projets.filter(p => p.porteur._id.equals(userId));
+    const mesProjetsEquipe = projets.filter(p => !p.porteur._id.equals(userId));
+
+    // Statistiques (basées sur mes projets en tant que porteur)
     const stats = {
-      total: projets.length,
-      drafts: projets.filter(p => p.statut === 'draft').length,
-      published: projets.filter(p => p.statut === 'published').length,
-      totalFollowers: projets.reduce((sum, p) => sum + p.followers.length, 0),
+      total: mesProjetsOwner.length,
+      drafts: mesProjetsOwner.filter(p => p.statut === 'draft').length,
+      published: mesProjetsOwner.filter(p => p.statut === 'published').length,
+      totalFollowers: mesProjetsOwner.reduce((sum, p) => sum + p.followers.length, 0),
+      projetsEquipe: mesProjetsEquipe.length,
     };
 
     res.json({ succes: true, data: { projets, stats } });
@@ -258,6 +304,7 @@ export const creerProjet = async (req: Request, res: Response): Promise<void> =>
 /**
  * PUT /api/projets/entrepreneur/:id
  * Modifier un projet existant (toutes les étapes du wizard)
+ * Accessible au porteur ET aux membres de l'équipe
  */
 export const modifierProjet = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -270,18 +317,18 @@ export const modifierProjet = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Vérifier que l'utilisateur est le porteur
-    if (!projet.porteur.equals(userId)) {
+    // Vérifier que l'utilisateur est le porteur OU membre de l'équipe
+    if (!canEditProject(projet, userId)) {
       res.status(403).json({ succes: false, message: 'Accès non autorisé.' });
       return;
     }
 
     // Champs modifiables (Étapes A-E)
+    // Note: seul le porteur peut modifier l'équipe
+    const isOwner = projet.porteur.equals(userId);
     const champsModifiables = [
       // Étape A - Identité
       'nom', 'description', 'pitch', 'logo', 'categorie', 'secteur', 'tags', 'localisation',
-      // Étape B - Équipe
-      'equipe',
       // Étape C - Proposition de valeur
       'probleme', 'solution', 'avantageConcurrentiel', 'cible',
       // Étape D - Traction & business
@@ -289,6 +336,11 @@ export const modifierProjet = async (req: Request, res: Response): Promise<void>
       // Étape E - Médias & documents
       'image', 'pitchVideo', 'galerie', 'documents',
     ];
+
+    // Seul le owner peut modifier l'équipe
+    if (isOwner) {
+      champsModifiables.push('equipe');
+    }
 
     // Appliquer les modifications
     for (const champ of champsModifiables) {
@@ -313,6 +365,7 @@ export const modifierProjet = async (req: Request, res: Response): Promise<void>
 /**
  * POST /api/projets/entrepreneur/:id/publier
  * Publier un projet (passe de draft à published)
+ * Retourne une erreur détaillée avec les champs manquants
  */
 export const publierProjet = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -335,18 +388,45 @@ export const publierProjet = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Validation avant publication
-    const erreurs: string[] = [];
-    if (!projet.nom) erreurs.push('Le nom est requis');
-    if (!projet.description || projet.description.length < 50) erreurs.push('La description doit faire au moins 50 caractères');
-    if (!projet.pitch) erreurs.push('Le pitch est requis');
-    if (!projet.image) erreurs.push('Une image de couverture est requise');
+    // Validation avant publication - champs requis pour publier
+    const missing: string[] = [];
+    const details: Record<string, string> = {};
 
-    if (erreurs.length > 0) {
+    // Étape A - Identité (obligatoires)
+    if (!projet.nom || projet.nom.trim().length === 0) {
+      missing.push('nom');
+      details.nom = 'Le nom du projet est requis';
+    }
+    if (!projet.pitch || projet.pitch.trim().length === 0) {
+      missing.push('pitch');
+      details.pitch = 'Le pitch (slogan) est requis';
+    }
+    if (!projet.categorie) {
+      missing.push('categorie');
+      details.categorie = 'La catégorie est requise';
+    }
+    if (!projet.localisation?.ville || projet.localisation.ville.trim().length === 0) {
+      missing.push('localisation');
+      details.localisation = 'La ville est requise';
+    }
+
+    // Étape C - Proposition de valeur (au moins problème OU solution)
+    // Optionnel pour publication mais recommandé
+
+    // Étape E - Médias (image de couverture requise)
+    if (!projet.image || projet.image.trim().length === 0) {
+      missing.push('image');
+      details.image = 'Une image de couverture est requise';
+    }
+
+    // Description optionnelle (pas de minimum requis pour publication)
+
+    if (missing.length > 0) {
       res.status(400).json({
         succes: false,
-        message: 'Le projet n\'est pas prêt à être publié.',
-        erreurs,
+        message: 'Projet incomplet',
+        missing,
+        details,
       });
       return;
     }
@@ -354,6 +434,20 @@ export const publierProjet = async (req: Request, res: Response): Promise<void> 
     projet.statut = 'published';
     projet.datePublication = new Date();
     await projet.save();
+
+    // Log d'audit
+    try {
+      await AuditLog.create({
+        action: 'content:other',
+        targetType: 'publication',
+        targetId: projet._id,
+        performedBy: userId,
+        metadata: { type: 'project_published', nom: projet.nom },
+        source: 'api',
+      });
+    } catch (auditError) {
+      console.error('Erreur audit log:', auditError);
+    }
 
     res.json({
       succes: true,
@@ -401,6 +495,142 @@ export const depublierProjet = async (req: Request, res: Response): Promise<void
     });
   } catch (error) {
     console.error('Erreur depublierProjet:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * PATCH /api/projets/entrepreneur/:id/equipe
+ * Gérer l'équipe d'un projet (ajouter/retirer des membres)
+ * Body: { add: [userId, ...], remove: [userId, ...] }
+ * Règles:
+ * - Seul le porteur peut gérer l'équipe
+ * - Les membres ajoutés doivent être amis avec le porteur
+ * - Les membres ajoutés doivent avoir statut === 'entrepreneur'
+ */
+export const gererEquipeProjet = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.utilisateur!._id;
+    const projetId = req.params.id;
+    const { add = [], remove = [] } = req.body;
+
+    const projet = await Projet.findById(projetId);
+    if (!projet) {
+      res.status(404).json({ succes: false, message: 'Projet non trouvé.' });
+      return;
+    }
+
+    // Seul le porteur peut gérer l'équipe
+    if (!projet.porteur.equals(userId)) {
+      res.status(403).json({ succes: false, message: 'Seul le porteur peut gérer l\'équipe.' });
+      return;
+    }
+
+    const errors: string[] = [];
+    const addedMembers: string[] = [];
+    const removedMembers: string[] = [];
+
+    // Traiter les suppressions d'abord
+    if (Array.isArray(remove) && remove.length > 0) {
+      for (const membreId of remove) {
+        if (!mongoose.Types.ObjectId.isValid(membreId)) continue;
+        const idx = projet.equipe.findIndex(
+          (m) => m.utilisateur && m.utilisateur.toString() === membreId
+        );
+        if (idx !== -1) {
+          projet.equipe.splice(idx, 1);
+          removedMembers.push(membreId);
+        }
+      }
+    }
+
+    // Traiter les ajouts
+    if (Array.isArray(add) && add.length > 0) {
+      for (const membreId of add) {
+        if (!mongoose.Types.ObjectId.isValid(membreId)) {
+          errors.push(`ID invalide: ${membreId}`);
+          continue;
+        }
+
+        const membreObjectId = new mongoose.Types.ObjectId(membreId);
+
+        // Ne pas ajouter le porteur lui-même
+        if (membreObjectId.equals(userId)) {
+          errors.push('Vous ne pouvez pas vous ajouter vous-même');
+          continue;
+        }
+
+        // Vérifier si déjà dans l'équipe
+        const dejaPresent = projet.equipe.some(
+          (m) => m.utilisateur && m.utilisateur.equals(membreObjectId)
+        );
+        if (dejaPresent) {
+          errors.push(`${membreId} est déjà dans l'équipe`);
+          continue;
+        }
+
+        // Vérifier que c'est un ami
+        const estAmi = await isFriend(userId, membreObjectId);
+        if (!estAmi) {
+          errors.push(`${membreId}: Vous devez être amis pour l'ajouter à l'équipe`);
+          continue;
+        }
+
+        // Vérifier que c'est un entrepreneur
+        const membre = await Utilisateur.findById(membreObjectId).select('statut prenom nom');
+        if (!membre) {
+          errors.push(`${membreId}: Utilisateur non trouvé`);
+          continue;
+        }
+        if (membre.statut !== 'entrepreneur') {
+          errors.push(`${membre.prenom} ${membre.nom}: Doit être entrepreneur pour rejoindre l'équipe`);
+          continue;
+        }
+
+        // Ajouter à l'équipe
+        projet.equipe.push({
+          utilisateur: membreObjectId,
+          nom: `${membre.prenom} ${membre.nom}`,
+          role: 'other',
+        } as IMembreEquipe);
+        addedMembers.push(membreId);
+      }
+    }
+
+    await projet.save();
+
+    // Recharger avec populate
+    const projetUpdated = await Projet.findById(projetId)
+      .populate('equipe.utilisateur', 'prenom nom avatar statut');
+
+    // Log d'audit
+    if (addedMembers.length > 0 || removedMembers.length > 0) {
+      try {
+        await AuditLog.create({
+          action: 'content:other',
+          targetType: 'publication',
+          targetId: projet._id,
+          performedBy: userId,
+          metadata: { type: 'project_team_updated', added: addedMembers, removed: removedMembers },
+          source: 'api',
+        });
+      } catch (auditError) {
+        console.error('Erreur audit log:', auditError);
+      }
+    }
+
+    res.json({
+      succes: true,
+      message: 'Équipe mise à jour.',
+      data: {
+        projet: projetUpdated,
+        added: addedMembers,
+        removed: removedMembers,
+        errors: errors.length > 0 ? errors : undefined,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur gererEquipeProjet:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };
