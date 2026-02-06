@@ -143,19 +143,15 @@ export default function ProjetDetailPage() {
         console.log('🔄 [FicheProjet] toggleSuivreProjet response:', JSON.stringify(reponse, null, 2));
       }
 
-      if (reponse.succes && reponse.data) {
-        // IMPORTANT: Verifier que l'API renvoie bien les valeurs attendues
-        // Si non definies, garder l'etat optimistic
-        const apiEstSuivi = reponse.data.estSuivi;
-        const apiNbFollowers = reponse.data.nbFollowers;
-
-        if (typeof apiEstSuivi === 'boolean') {
-          setEstSuivi(apiEstSuivi);
+      if (reponse.succes) {
+        // API succes=true -> l'action a reussi
+        // Le backend renvoie "suivi" et "totalFollowers" (pas "estSuivi"/"nbFollowers")
+        // ET il y a un bug backend: suivi=false meme apres un follow
+        // Donc on garde l'optimistic update et on ne sync pas avec la reponse
+        if (__DEV__) {
+          console.log('✅ [FicheProjet] Follow reussi - on garde l\'optimistic update');
         }
-        if (typeof apiNbFollowers === 'number') {
-          setNbFollowers(apiNbFollowers);
-        }
-        // Si l'API ne renvoie pas ces valeurs, on garde l'optimistic update
+        // L'optimistic update est deja applique, rien a faire
       } else {
         // Rollback si echec explicite
         console.warn('⚠️ [FicheProjet] toggleSuivreProjet: succes=false ou pas de data');
