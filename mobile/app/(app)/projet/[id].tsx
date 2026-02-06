@@ -18,6 +18,7 @@ import {
   FlatList,
   Animated,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +37,8 @@ import Avatar from '../../../src/composants/Avatar';
 import {
   Projet,
   Porteur,
+  LienProjet,
+  TypeLien,
   getProjet,
   toggleSuivreProjet,
   getRepresentantsProjet,
@@ -89,6 +92,21 @@ const CATEGORIE_LABELS: Record<string, { label: string; icon: keyof typeof Ionic
   culture: { label: 'Culture', icon: 'color-palette-outline' },
   environnement: { label: 'Environnement', icon: 'leaf-outline' },
   autre: { label: 'Autre', icon: 'apps-outline' },
+};
+
+// Labels et icônes pour les liens externes
+const LIEN_LABELS: Record<TypeLien, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
+  site: { label: 'Site web', icon: 'globe-outline', color: '#3B82F6' },
+  fundraising: { label: 'Levée de fonds', icon: 'cash-outline', color: '#10B981' },
+  linkedin: { label: 'LinkedIn', icon: 'logo-linkedin', color: '#0A66C2' },
+  twitter: { label: 'X / Twitter', icon: 'logo-twitter', color: '#1DA1F2' },
+  instagram: { label: 'Instagram', icon: 'logo-instagram', color: '#E4405F' },
+  tiktok: { label: 'TikTok', icon: 'logo-tiktok', color: '#000000' },
+  youtube: { label: 'YouTube', icon: 'logo-youtube', color: '#FF0000' },
+  discord: { label: 'Discord', icon: 'logo-discord', color: '#5865F2' },
+  doc: { label: 'Document', icon: 'document-text-outline', color: '#F59E0B' },
+  email: { label: 'Email', icon: 'mail-outline', color: '#6366F1' },
+  other: { label: 'Lien', icon: 'link-outline', color: '#71717A' },
 };
 
 // Formater les montants
@@ -695,6 +713,41 @@ export default function ProjetDetailPage() {
                   <Text style={styles.tagText}>{tag}</Text>
                 </View>
               ))}
+            </View>
+          </View>
+        )}
+
+        {/* Liens externes */}
+        {projet.liens && projet.liens.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="link-outline" size={20} color={couleurs.primaire} />
+              <Text style={styles.sectionTitle}>Liens</Text>
+            </View>
+            <View style={styles.linksContainer}>
+              {projet.liens.map((lien, i) => {
+                const lienInfo = LIEN_LABELS[lien.type] || LIEN_LABELS.other;
+                return (
+                  <Pressable
+                    key={i}
+                    style={styles.linkItem}
+                    onPress={() => Linking.openURL(lien.url)}
+                  >
+                    <View style={[styles.linkIcon, { backgroundColor: lienInfo.color + '15' }]}>
+                      <Ionicons name={lienInfo.icon} size={20} color={lienInfo.color} />
+                    </View>
+                    <View style={styles.linkContent}>
+                      <Text style={styles.linkLabel}>{lien.label || lienInfo.label}</Text>
+                      <Text style={styles.linkUrl} numberOfLines={1}>
+                        {lien.url.replace(/^https?:\/\//, '').replace(/^mailto:/, '')}
+                      </Text>
+                    </View>
+                    <View style={styles.linkArrow}>
+                      <Ionicons name="open-outline" size={18} color={couleurs.texteSecondaire} />
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         )}
@@ -1467,6 +1520,47 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     tagText: {
       fontSize: 13,
       color: couleurs.texteSecondaire,
+    },
+
+    // Links
+    linksContainer: {
+      gap: espacements.sm,
+    },
+    linkItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: couleurs.fondSecondaire,
+      borderRadius: rayons.lg,
+      padding: espacements.md,
+    },
+    linkIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: espacements.md,
+    },
+    linkContent: {
+      flex: 1,
+    },
+    linkLabel: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: couleurs.texte,
+    },
+    linkUrl: {
+      fontSize: 12,
+      color: couleurs.texteSecondaire,
+      marginTop: 2,
+    },
+    linkArrow: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: couleurs.fond,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
 
     // KPIs

@@ -282,7 +282,7 @@ export default function ProjetDetailScreen() {
         <View style={styles.actionsSection}>
           <Pressable
             style={[styles.actionBtn, styles.actionBtnEdit]}
-            onPress={() => Alert.alert('Edition', 'Fonctionnalite en cours de developpement')}
+            onPress={() => router.push(`/entrepreneur/modifier-projet?id=${id}`)}
           >
             <Ionicons name="create-outline" size={20} color={couleurs.primaire} />
             <Text style={[styles.actionBtnText, { color: couleurs.primaire }]}>Modifier</Text>

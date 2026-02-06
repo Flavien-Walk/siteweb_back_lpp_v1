@@ -11,6 +11,7 @@ export type CategorieProjet = 'tech' | 'food' | 'sante' | 'education' | 'energie
 export type StatutProjet = 'draft' | 'published';
 export type VisibiliteDocument = 'public' | 'private';
 export type RoleEquipe = 'founder' | 'cofounder' | 'cto' | 'cmo' | 'cfo' | 'developer' | 'designer' | 'marketing' | 'sales' | 'other';
+export type TypeLien = 'site' | 'fundraising' | 'linkedin' | 'twitter' | 'instagram' | 'tiktok' | 'discord' | 'youtube' | 'doc' | 'email' | 'other';
 
 export interface Porteur {
   _id: string;
@@ -53,6 +54,13 @@ export interface Metrique {
   icone?: string;
 }
 
+export interface LienProjet {
+  _id?: string;
+  type: TypeLien;
+  label?: string;
+  url: string;
+}
+
 export interface Projet {
   _id: string;
   // Étape A - Identité
@@ -89,6 +97,7 @@ export interface Projet {
   pitchVideo?: string;
   galerie: MediaGalerie[];
   documents: DocumentProjet[];
+  liens: LienProjet[];
   // Étape F - Publication
   statut: StatutProjet;
   datePublication?: string;
@@ -135,6 +144,7 @@ export interface ProjetFormData {
   // Étape E
   image?: string;
   pitchVideo?: string;
+  liens?: LienProjet[];
 }
 
 export interface StatsEntrepreneur {
