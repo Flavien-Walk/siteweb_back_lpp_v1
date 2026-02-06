@@ -113,9 +113,9 @@ export interface LogActionParams {
 const auditLogSchema = new Schema<IAuditLog>(
   {
     // EventId pour idempotency - si fourni, empeche les doublons
+    // L'index unique sparse est defini plus bas via schema.index()
     eventId: {
       type: Schema.Types.ObjectId,
-      sparse: true,
     },
     actor: {
       type: Schema.Types.ObjectId,
