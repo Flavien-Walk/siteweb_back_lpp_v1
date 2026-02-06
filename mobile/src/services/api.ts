@@ -8,7 +8,12 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { API_URL, STORAGE_KEYS, TIMEOUTS } from '../constantes/config';
+
+// Clé pour le fallback AsyncStorage du token
+const TOKEN_FALLBACK_KEY = 'lpp_token_fallback';
 
 // Types pour les réponses API
 export interface ReponseAPI<T = unknown> {
@@ -43,6 +48,9 @@ let hydrationPromise: Promise<void> | null = null;
 /**
  * Hydrater le token depuis SecureStore au démarrage
  * Doit être appelé une seule fois par UserContext
+ *
+ * Sur Android, SecureStore peut être moins fiable (notamment en dev mode)
+ * donc on utilise un fallback vers AsyncStorage
  */
 export const hydrateToken = async (): Promise<string | null> => {
   // P1-2: Logs de debug conditionnés par __DEV__
@@ -56,13 +64,47 @@ export const hydrateToken = async (): Promise<string | null> => {
   }
 
   try {
-    const storedToken = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+    // 1. Essayer SecureStore d'abord (plus sécurisé)
+    let storedToken = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+
+    // 2. Sur Android, si SecureStore échoue, essayer AsyncStorage en fallback
+    if (!storedToken && Platform.OS === 'android') {
+      if (__DEV__) console.log('[API:hydrateToken] SecureStore vide sur Android, essai fallback AsyncStorage...');
+      storedToken = await AsyncStorage.getItem(TOKEN_FALLBACK_KEY);
+
+      // Si on trouve le token dans AsyncStorage, le resynchroniser dans SecureStore
+      if (storedToken) {
+        if (__DEV__) console.log('[API:hydrateToken] Token trouve dans fallback, resync SecureStore...');
+        try {
+          await SecureStore.setItemAsync(STORAGE_KEYS.TOKEN, storedToken);
+        } catch (syncError) {
+          if (__DEV__) console.log('[API:hydrateToken] Resync SecureStore echouee (non critique)');
+        }
+      }
+    }
+
     memoryToken = storedToken;
     tokenHydrated = true;
     if (__DEV__) console.log('[API:hydrateToken] Hydratation OK - token:', memoryToken ? 'present' : 'absent');
     return memoryToken;
   } catch (error) {
     if (__DEV__) console.error('[API:hydrateToken] Erreur:', error);
+
+    // Fallback d'urgence sur Android
+    if (Platform.OS === 'android') {
+      try {
+        const fallbackToken = await AsyncStorage.getItem(TOKEN_FALLBACK_KEY);
+        if (fallbackToken) {
+          memoryToken = fallbackToken;
+          tokenHydrated = true;
+          if (__DEV__) console.log('[API:hydrateToken] Fallback AsyncStorage OK');
+          return memoryToken;
+        }
+      } catch (fallbackError) {
+        if (__DEV__) console.error('[API:hydrateToken] Fallback aussi echoue:', fallbackError);
+      }
+    }
+
     tokenHydrated = true;
     return null;
   }
@@ -137,6 +179,7 @@ export const getTokenSync = (): string | null => memoryToken;
 
 /**
  * Sauvegarder le token (mémoire immédiat + persistance async)
+ * Sur Android, sauvegarde aussi dans AsyncStorage en fallback
  */
 export const setToken = async (token: string): Promise<void> => {
   // 1. Mettre en mémoire IMMÉDIATEMENT (synchrone)
@@ -147,15 +190,24 @@ export const setToken = async (token: string): Promise<void> => {
   // 2. Persister dans SecureStore (async)
   try {
     await SecureStore.setItemAsync(STORAGE_KEYS.TOKEN, token);
-    if (__DEV__) console.log('[API] Token persisté: OK');
+    if (__DEV__) console.log('[API] Token persisté SecureStore: OK');
   } catch (error) {
-    if (__DEV__) console.error('[API] Erreur persistance token:', error);
-    // Le token reste en mémoire même si la persistance échoue
+    if (__DEV__) console.error('[API] Erreur persistance SecureStore:', error);
+  }
+
+  // 3. Sur Android, sauvegarder aussi dans AsyncStorage comme fallback
+  if (Platform.OS === 'android') {
+    try {
+      await AsyncStorage.setItem(TOKEN_FALLBACK_KEY, token);
+      if (__DEV__) console.log('[API] Token persisté AsyncStorage (fallback): OK');
+    } catch (fallbackError) {
+      if (__DEV__) console.error('[API] Erreur persistance fallback:', fallbackError);
+    }
   }
 };
 
 /**
- * Supprimer le token (mémoire + storage)
+ * Supprimer le token (mémoire + storage + fallback)
  */
 export const removeToken = async (): Promise<void> => {
   // P1-2: Log de debug conditionné par __DEV__ pour éviter fuite en prod
@@ -168,13 +220,22 @@ export const removeToken = async (): Promise<void> => {
   memoryToken = null;
   if (__DEV__) console.log('[TOKEN] Token supprime de la memoire');
 
-  // 2. Supprimer du storage
+  // 2. Supprimer du SecureStore
   try {
     await SecureStore.deleteItemAsync(STORAGE_KEYS.TOKEN);
-    if (__DEV__) console.log('[TOKEN] Token supprime du storage');
+    if (__DEV__) console.log('[TOKEN] Token supprime de SecureStore');
   } catch (error) {
-    // Erreur de suppression - log en dev uniquement
-    if (__DEV__) console.error('[TOKEN] Erreur suppression token storage:', error);
+    if (__DEV__) console.error('[TOKEN] Erreur suppression SecureStore:', error);
+  }
+
+  // 3. Sur Android, supprimer aussi du fallback AsyncStorage
+  if (Platform.OS === 'android') {
+    try {
+      await AsyncStorage.removeItem(TOKEN_FALLBACK_KEY);
+      if (__DEV__) console.log('[TOKEN] Token supprime du fallback AsyncStorage');
+    } catch (fallbackError) {
+      if (__DEV__) console.error('[TOKEN] Erreur suppression fallback:', fallbackError);
+    }
   }
 };
 

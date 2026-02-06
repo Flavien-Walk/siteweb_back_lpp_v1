@@ -44,6 +44,7 @@ import {
 } from '../../src/services/auth';
 import { getPublicationsUtilisateur, Publication } from '../../src/services/publications';
 import { getMesStories, Story } from '../../src/services/stories';
+import { getMesProjets, Projet } from '../../src/services/projets';
 import Avatar from '../../src/composants/Avatar';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
@@ -51,6 +52,7 @@ import { getUserBadgeConfig } from '../../src/utils/userDisplay';
 
 type Onglet = 'profil-public' | 'parametres';
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
+type OngletActivite = 'publications' | 'projets';
 
 export default function Profil() {
   const { couleurs, toggleTheme, isDark } = useTheme();
@@ -102,6 +104,13 @@ export default function Profil() {
   // Publications de l'utilisateur
   const [publications, setPublications] = useState<Publication[]>([]);
   const [chargementPublications, setChargementPublications] = useState(false);
+
+  // Onglet actif dans la section activité
+  const [ongletActivite, setOngletActivite] = useState<OngletActivite>('publications');
+
+  // Projets suivis
+  const [projetsSuivis, setProjetsSuivis] = useState<Projet[]>([]);
+  const [chargementProjets, setChargementProjets] = useState(false);
 
   // Stories
   const [mesStories, setMesStories] = useState<Story[]>([]);
@@ -310,6 +319,24 @@ export default function Profil() {
       }
     };
     chargerMesStories();
+  }, []);
+
+  // Charger mes projets suivis
+  useEffect(() => {
+    const chargerProjetsSuivis = async () => {
+      setChargementProjets(true);
+      try {
+        const reponse = await getMesProjets();
+        if (reponse.succes && reponse.data) {
+          setProjetsSuivis(reponse.data.projets);
+        }
+      } catch (error) {
+        console.error('Erreur chargement projets suivis:', error);
+      } finally {
+        setChargementProjets(false);
+      }
+    };
+    chargerProjetsSuivis();
   }, []);
 
   // Animation lors du changement d'onglet
@@ -781,15 +808,41 @@ export default function Profil() {
       <View style={styles.activitySection}>
         {/* Header de section avec onglets style Instagram */}
         <View style={styles.activityHeader}>
-          <View style={styles.activityTabActive}>
-            <Ionicons name="grid-outline" size={22} color={couleurs.primaire} />
-          </View>
+          <Pressable
+            style={[
+              styles.activityTab,
+              ongletActivite === 'publications' && styles.activityTabActive,
+            ]}
+            onPress={() => setOngletActivite('publications')}
+          >
+            <Ionicons
+              name="grid-outline"
+              size={22}
+              color={ongletActivite === 'publications' ? couleurs.primaire : couleurs.texteSecondaire}
+            />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.activityTab,
+              ongletActivite === 'projets' && styles.activityTabActive,
+            ]}
+            onPress={() => setOngletActivite('projets')}
+          >
+            <Ionicons
+              name="bookmark-outline"
+              size={22}
+              color={ongletActivite === 'projets' ? couleurs.primaire : couleurs.texteSecondaire}
+            />
+          </Pressable>
         </View>
 
         {/* Séparateur fin */}
         <View style={styles.activitySeparator} />
 
-        {chargementPublications ? (
+        {/* Contenu Publications */}
+        {ongletActivite === 'publications' && (
+          <>
+            {chargementPublications ? (
           <View style={styles.loadingActivity}>
             <ActivityIndicator size="large" color={couleurs.primaire} />
             <Text style={styles.loadingText}>Chargement...</Text>
@@ -886,7 +939,66 @@ export default function Profil() {
                 </Pressable>
               );
             })}
-          </View>
+              </View>
+            )}
+          </>
+        )}
+
+        {/* Contenu Projets Suivis */}
+        {ongletActivite === 'projets' && (
+          <>
+            {chargementProjets ? (
+              <View style={styles.loadingActivity}>
+                <ActivityIndicator size="large" color={couleurs.primaire} />
+                <Text style={styles.loadingText}>Chargement...</Text>
+              </View>
+            ) : projetsSuivis.length === 0 ? (
+              <View style={styles.emptyActivity}>
+                <View style={styles.emptyIconCircle}>
+                  <View style={styles.emptyIconInner}>
+                    <Ionicons name="bookmark-outline" size={40} color={couleurs.texteSecondaire} />
+                  </View>
+                </View>
+                <Text style={styles.emptyTitle}>Aucun projet suivi</Text>
+                <Text style={styles.emptyText}>
+                  Découvrez et suivez des projets qui vous inspirent
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.publicationsGrid}>
+                {projetsSuivis.map((projet, index) => (
+                  <Pressable
+                    key={projet._id}
+                    style={({ pressed }) => [
+                      styles.publicationItem,
+                      { width: gridItemWidth, height: gridItemWidth },
+                      (index + 1) % 3 !== 0 && styles.publicationItemMargin,
+                      pressed && styles.publicationItemPressed,
+                    ]}
+                    onPress={() => router.push({
+                      pathname: '/(app)/projet/[id]',
+                      params: { id: projet._id },
+                    })}
+                  >
+                    <View style={styles.publicationMediaContainer}>
+                      <Image
+                        source={{ uri: projet.logo || projet.image }}
+                        style={styles.publicationImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.projetOverlay}>
+                        <Text style={styles.projetName} numberOfLines={2}>{projet.nom}</Text>
+                        <View style={styles.projetStats}>
+                          <Ionicons name="people" size={12} color={couleurs.blanc} />
+                          <Text style={styles.projetFollowers}>{projet.nbFollowers || 0}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </>
         )}
       </View>
     </ScrollView>
@@ -2129,12 +2241,16 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: couleurs.bordure,
     marginTop: espacements.md,
   },
-  activityTabActive: {
+  activityTab: {
+    flex: 1,
     paddingVertical: espacements.md,
-    paddingHorizontal: espacements.xl,
+    alignItems: 'center',
     borderTopWidth: 2,
-    borderTopColor: couleurs.primaire,
+    borderTopColor: 'transparent',
     marginTop: -1,
+  },
+  activityTabActive: {
+    borderTopColor: couleurs.primaire,
   },
   activitySeparator: {
     height: 1,
@@ -2245,6 +2361,30 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   publicationItemStatText: {
     fontSize: 11,
     fontWeight: '600',
+    color: couleurs.blanc,
+  },
+  // Styles pour les projets suivis
+  projetOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: espacements.xs,
+  },
+  projetName: {
+    fontSize: 11,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.blanc,
+    marginBottom: 2,
+  },
+  projetStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  projetFollowers: {
+    fontSize: 10,
     color: couleurs.blanc,
   },
   publicationTextOnly: {

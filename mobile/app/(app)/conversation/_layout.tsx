@@ -12,6 +12,10 @@ export default function ConversationLayout() {
         headerShown: false,
         contentStyle: { backgroundColor: couleurs.fond },
         animation: 'slide_from_right',
+        // Swipe right to go back
+        gestureEnabled: true,
+        gestureDirection: 'horizontal',
+        fullScreenGestureEnabled: true,
       }}
     />
   );

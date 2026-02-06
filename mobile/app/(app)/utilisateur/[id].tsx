@@ -41,8 +41,11 @@ import {
 import { getOuCreerConversationPrivee } from '../../../src/services/messagerie';
 import { getPublicationsUtilisateur, Publication } from '../../../src/services/publications';
 import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
+import { getProjetsSuivisUtilisateur, Projet } from '../../../src/services/projets';
 import StoryViewer from '../../../src/composants/StoryViewer';
 import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
+
+type OngletActivite = 'publications' | 'projets';
 
 export default function ProfilUtilisateurPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -57,6 +60,13 @@ export default function ProfilUtilisateurPage() {
   const [actionEnCours, setActionEnCours] = useState(false);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [chargementPublications, setChargementPublications] = useState(false);
+
+  // Onglet actif dans la section activité
+  const [ongletActivite, setOngletActivite] = useState<OngletActivite>('publications');
+
+  // Projets suivis par l'utilisateur
+  const [projetsSuivis, setProjetsSuivis] = useState<Projet[]>([]);
+  const [chargementProjets, setChargementProjets] = useState(false);
 
   // Stories de l'utilisateur
   const [storiesUtilisateur, setStoriesUtilisateur] = useState<Story[]>([]);
@@ -133,6 +143,22 @@ export default function ProfilUtilisateurPage() {
     }
   }, [id]);
 
+  // Charger les projets suivis par l'utilisateur
+  const chargerProjetsSuivis = useCallback(async () => {
+    if (!id) return;
+    setChargementProjets(true);
+    try {
+      const reponse = await getProjetsSuivisUtilisateur(id);
+      if (reponse.succes && reponse.data) {
+        setProjetsSuivis(reponse.data.projets);
+      }
+    } catch (error) {
+      console.error('Erreur chargement projets suivis:', error);
+    } finally {
+      setChargementProjets(false);
+    }
+  }, [id]);
+
   // Charger le profil
   const chargerProfil = useCallback(async (estRefresh = false) => {
     if (!id) return;
@@ -148,6 +174,7 @@ export default function ProfilUtilisateurPage() {
         getProfilUtilisateur(id),
         chargerPublications(),
         chargerStories(),
+        chargerProjetsSuivis(),
       ]);
       if (reponse.succes && reponse.data) {
         setProfil(reponse.data.utilisateur);
@@ -160,7 +187,7 @@ export default function ProfilUtilisateurPage() {
       setChargement(false);
       setRafraichissement(false);
     }
-  }, [id, chargerPublications, chargerStories]);
+  }, [id, chargerPublications, chargerStories, chargerProjetsSuivis]);
 
   // Charger le profil uniquement quand l'ID change ou au premier montage
   useEffect(() => {
@@ -599,34 +626,60 @@ export default function ProfilUtilisateurPage() {
         <View style={styles.activitySection}>
           {/* Header de section avec onglets style Instagram */}
           <View style={styles.activityHeader}>
-            <View style={styles.activityTabActive}>
-              <Ionicons name="grid-outline" size={22} color={couleurs.primaire} />
-            </View>
+            <Pressable
+              style={[
+                styles.activityTab,
+                ongletActivite === 'publications' && styles.activityTabActive,
+              ]}
+              onPress={() => setOngletActivite('publications')}
+            >
+              <Ionicons
+                name="grid-outline"
+                size={22}
+                color={ongletActivite === 'publications' ? couleurs.primaire : couleurs.texteSecondaire}
+              />
+            </Pressable>
+            <Pressable
+              style={[
+                styles.activityTab,
+                ongletActivite === 'projets' && styles.activityTabActive,
+              ]}
+              onPress={() => setOngletActivite('projets')}
+            >
+              <Ionicons
+                name="bookmark-outline"
+                size={22}
+                color={ongletActivite === 'projets' ? couleurs.primaire : couleurs.texteSecondaire}
+              />
+            </Pressable>
           </View>
 
           {/* Séparateur fin */}
           <View style={styles.activitySeparator} />
 
-          {chargementPublications ? (
-            <View style={styles.loadingActivity}>
-              <ActivityIndicator size="large" color={couleurs.primaire} />
-              <Text style={styles.loadingText}>Chargement...</Text>
-            </View>
-          ) : publications.length === 0 ? (
-            <View style={styles.emptyActivity}>
-              <View style={styles.emptyIconCircle}>
-                <View style={styles.emptyIconInner}>
-                  <Ionicons name="camera-outline" size={40} color={couleurs.texteSecondaire} />
+          {/* Contenu Publications */}
+          {ongletActivite === 'publications' && (
+            <>
+              {chargementPublications ? (
+                <View style={styles.loadingActivity}>
+                  <ActivityIndicator size="large" color={couleurs.primaire} />
+                  <Text style={styles.loadingText}>Chargement...</Text>
                 </View>
-              </View>
-              <Text style={styles.emptyTitle}>Aucune publication</Text>
-              <Text style={styles.emptyText}>
-                {profil.prenom} n'a pas encore partagé de contenu
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.publicationsGrid}>
-              {publications.map((pub, index) => {
+              ) : publications.length === 0 ? (
+                <View style={styles.emptyActivity}>
+                  <View style={styles.emptyIconCircle}>
+                    <View style={styles.emptyIconInner}>
+                      <Ionicons name="camera-outline" size={40} color={couleurs.texteSecondaire} />
+                    </View>
+                  </View>
+                  <Text style={styles.emptyTitle}>Aucune publication</Text>
+                  <Text style={styles.emptyText}>
+                    {profil.prenom} n'a pas encore partagé de contenu
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.publicationsGrid}>
+                  {publications.map((pub, index) => {
                 // Support medias[] (nouveau) et media (legacy)
                 const firstMedia = pub.medias?.[0] || (pub.media ? { type: isVideoMedia(pub.media) ? 'video' as const : 'image' as const, url: pub.media } : null);
                 const mediaIsVideo = firstMedia?.type === 'video';
@@ -703,8 +756,67 @@ export default function ProfilUtilisateurPage() {
                     )}
                   </Pressable>
                 );
-              })}
-            </View>
+                  })}
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Contenu Projets Suivis */}
+          {ongletActivite === 'projets' && (
+            <>
+              {chargementProjets ? (
+                <View style={styles.loadingActivity}>
+                  <ActivityIndicator size="large" color={couleurs.primaire} />
+                  <Text style={styles.loadingText}>Chargement...</Text>
+                </View>
+              ) : projetsSuivis.length === 0 ? (
+                <View style={styles.emptyActivity}>
+                  <View style={styles.emptyIconCircle}>
+                    <View style={styles.emptyIconInner}>
+                      <Ionicons name="bookmark-outline" size={40} color={couleurs.texteSecondaire} />
+                    </View>
+                  </View>
+                  <Text style={styles.emptyTitle}>Aucun projet suivi</Text>
+                  <Text style={styles.emptyText}>
+                    {profil.prenom} ne suit pas encore de projet
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.publicationsGrid}>
+                  {projetsSuivis.map((projet, index) => (
+                    <Pressable
+                      key={projet._id}
+                      style={({ pressed }) => [
+                        styles.publicationItem,
+                        { width: gridItemWidth, height: gridItemWidth },
+                        (index + 1) % 3 !== 0 && styles.publicationItemMargin,
+                        pressed && styles.publicationItemPressed,
+                      ]}
+                      onPress={() => router.push({
+                        pathname: '/(app)/projet/[id]',
+                        params: { id: projet._id },
+                      })}
+                    >
+                      <View style={styles.publicationMediaContainer}>
+                        <Image
+                          source={{ uri: projet.logo || projet.image }}
+                          style={styles.publicationImage}
+                          resizeMode="cover"
+                        />
+                        <View style={styles.projetOverlay}>
+                          <Text style={styles.projetName} numberOfLines={2}>{projet.nom}</Text>
+                          <View style={styles.projetStats}>
+                            <Ionicons name="people" size={12} color={couleurs.blanc} />
+                            <Text style={styles.projetFollowers}>{projet.nbFollowers || 0}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
@@ -1031,12 +1143,16 @@ const styles = StyleSheet.create({
     borderTopColor: couleurs.bordure,
     marginTop: espacements.md,
   },
-  activityTabActive: {
+  activityTab: {
+    flex: 1,
     paddingVertical: espacements.md,
-    paddingHorizontal: espacements.xl,
+    alignItems: 'center',
     borderTopWidth: 2,
-    borderTopColor: couleurs.primaire,
+    borderTopColor: 'transparent',
     marginTop: -1,
+  },
+  activityTabActive: {
+    borderTopColor: couleurs.primaire,
   },
   activitySeparator: {
     height: 1,
@@ -1147,6 +1263,30 @@ const styles = StyleSheet.create({
   publicationItemStatText: {
     fontSize: 11,
     fontWeight: typographie.poids.semibold,
+    color: couleurs.blanc,
+  },
+  // Styles pour les projets suivis
+  projetOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: espacements.xs,
+  },
+  projetName: {
+    fontSize: 11,
+    fontWeight: typographie.poids.semibold,
+    color: couleurs.blanc,
+    marginBottom: 2,
+  },
+  projetStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  projetFollowers: {
+    fontSize: 10,
     color: couleurs.blanc,
   },
   publicationTextOnly: {

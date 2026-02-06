@@ -218,6 +218,15 @@ export const getMesProjets = async (): Promise<ReponseAPI<{ projets: Projet[] }>
 };
 
 /**
+ * Recuperer les projets suivis par un utilisateur specifique
+ */
+export const getProjetsSuivisUtilisateur = async (
+  userId: string
+): Promise<ReponseAPI<{ projets: Projet[] }>> => {
+  return api.get(`/utilisateurs/${userId}/projets-suivis`, true);
+};
+
+/**
  * Recuperer les projets tendance (les plus suivis recemment)
  */
 export const getProjetsTendance = async (
