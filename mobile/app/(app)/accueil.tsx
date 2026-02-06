@@ -21,6 +21,8 @@ import {
   Alert,
   Keyboard,
 } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -79,6 +81,7 @@ import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
 import { Story } from '../../src/services/stories';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
+import { useAutoRefresh, useNotificationsRefresh } from '../../src/hooks/useAutoRefresh';
 import {
   Live as LiveAPI,
   getActiveLives,
@@ -469,6 +472,52 @@ export default function Accueil() {
   const action2Anim = useRef(new Animated.Value(0)).current;
   const action3Anim = useRef(new Animated.Value(0)).current;
   const action4Anim = useRef(new Animated.Value(0)).current;
+
+  // Swipe pour ouvrir Story Creator (swipe vers la droite)
+  const swipeTranslateX = useRef(new Animated.Value(0)).current;
+  const SWIPE_THRESHOLD = 80; // Seuil pour déclencher l'ouverture (swipe droite = positif)
+  const SWIPE_VELOCITY_THRESHOLD = 500; // Vélocité minimum pour déclencher
+
+  const handleSwipeGesture = useCallback((event: PanGestureHandlerGestureEvent) => {
+    const { translationX, velocityX, state } = event.nativeEvent;
+
+    // Ne pas gérer le swipe si on n'est pas sur l'onglet feed
+    if (ongletActif !== 'feed') return;
+
+    if (state === State.ACTIVE) {
+      // Limiter le swipe vers la droite uniquement avec un effet de résistance
+      if (translationX > 0) {
+        // Effet de résistance (le mouvement ralentit plus on swipe)
+        const resistance = Math.abs(translationX) / SCREEN_WIDTH;
+        const dampedTranslation = translationX * (1 - resistance * 0.5);
+        swipeTranslateX.setValue(dampedTranslation);
+      }
+    } else if (state === State.END) {
+      // Vérifier si le swipe est assez fort ou assez loin
+      const shouldOpenStory = translationX > SWIPE_THRESHOLD || velocityX > SWIPE_VELOCITY_THRESHOLD;
+
+      if (shouldOpenStory && translationX > 20) {
+        // Animation de sortie vers la droite puis ouverture du StoryCreator
+        Animated.timing(swipeTranslateX, {
+          toValue: SCREEN_WIDTH,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          // Reset et ouvrir le StoryCreator
+          swipeTranslateX.setValue(0);
+          setStoryCreatorVisible(true);
+        });
+      } else {
+        // Retour à la position initiale
+        Animated.spring(swipeTranslateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 10,
+        }).start();
+      }
+    }
+  }, [ongletActif, swipeTranslateX]);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   // Onglets de base
@@ -506,8 +555,34 @@ export default function Accueil() {
     }).start();
   }, []);
 
-  // Note: les notifications sont chargées via chargerDonnees() au refresh, pas via useFocusEffect
-  // pour éviter que le badge se mette à jour quand on revient du centre de notifications
+  // Auto-refresh pour les notifications et messages (polling toutes les 15s)
+  // Rafraîchit automatiquement quand l'écran reprend le focus ou l'app revient au premier plan
+  useNotificationsRefresh(
+    useCallback(async () => {
+      await Promise.all([
+        chargerNotifications(),
+        chargerConversations(),
+      ]);
+    }, []),
+    true // enabled
+  );
+
+  // Auto-refresh pour les données générales (polling toutes les 60s)
+  // Publications, projets, événements
+  useAutoRefresh({
+    onRefresh: useCallback(async () => {
+      await Promise.all([
+        chargerPublications(),
+        chargerProjets(),
+        chargerEvenements(),
+        chargerMesProjetsEntrepreneur(),
+      ]);
+    }, []),
+    pollingInterval: 60000, // 60 secondes
+    refreshOnFocus: true,
+    minRefreshInterval: 15000, // 15 secondes minimum entre refreshes
+    enabled: true,
+  });
 
   // Charger l'historique de recherche au montage
   useEffect(() => {
@@ -2282,36 +2357,81 @@ export default function Accueil() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-          {renderHeader()}
-          {renderNavigation()}
-
-          <ScrollView
-            ref={scrollViewRef}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            onScroll={handleScroll}
-            onScrollBeginDrag={handleScrollBegin}
-            onMomentumScrollBegin={handleScrollBegin}
-            scrollEventThrottle={16}
-            refreshControl={
-              <RefreshControl
-                refreshing={rafraichissement}
-                onRefresh={handleRafraichissement}
-                tintColor={couleurs.primaire}
-              />
-            }
+        <PanGestureHandler
+          onGestureEvent={handleSwipeGesture}
+          onHandlerStateChange={handleSwipeGesture}
+          activeOffsetX={[-15, 15]}
+          failOffsetY={[-10, 10]}
+          enabled={ongletActif === 'feed'}
+        >
+          <Animated.View
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateX: swipeTranslateX }],
+              },
+            ]}
           >
-            {renderTabContent()}
+            {renderHeader()}
+            {renderNavigation()}
 
-            <View style={styles.footer}>
-              <Text style={styles.footerLogo}>LPP</Text>
-              <Text style={styles.footerText}>La Premiere Pierre</Text>
-              <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
-            </View>
-          </ScrollView>
-        </Animated.View>
+            <ScrollView
+              ref={scrollViewRef}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              onScroll={handleScroll}
+              onScrollBeginDrag={handleScrollBegin}
+              onMomentumScrollBegin={handleScrollBegin}
+              scrollEventThrottle={16}
+              refreshControl={
+                <RefreshControl
+                  refreshing={rafraichissement}
+                  onRefresh={handleRafraichissement}
+                  tintColor={couleurs.primaire}
+                />
+              }
+            >
+              {renderTabContent()}
+
+              <View style={styles.footer}>
+                <Text style={styles.footerLogo}>LPP</Text>
+                <Text style={styles.footerText}>La Premiere Pierre</Text>
+                <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
+              </View>
+            </ScrollView>
+
+            {/* Indicateur visuel de swipe vers Story (visible quand on swipe à droite) */}
+            <Animated.View
+              style={[
+                styles.swipeIndicator,
+                {
+                  opacity: swipeTranslateX.interpolate({
+                    inputRange: [0, 20, 100],
+                    outputRange: [0, 0.5, 1],
+                    extrapolate: 'clamp',
+                  }),
+                  transform: [
+                    {
+                      translateX: swipeTranslateX.interpolate({
+                        inputRange: [0, 100],
+                        outputRange: [-50, 0],
+                        extrapolate: 'clamp',
+                      }),
+                    },
+                  ],
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.swipeIndicatorContent}>
+                <Ionicons name="camera" size={24} color="#fff" />
+                <Text style={styles.swipeIndicatorText}>Story</Text>
+              </View>
+            </Animated.View>
+          </Animated.View>
+        </PanGestureHandler>
       </KeyboardAvoidingView>
 
       {renderFAB()}
@@ -2714,6 +2834,32 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
+  },
+
+  // Swipe indicator pour Story (côté gauche pour swipe droite)
+  swipeIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: '40%',
+    backgroundColor: '#10B981',
+    borderTopRightRadius: rayons.lg,
+    borderBottomRightRadius: rayons.lg,
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  swipeIndicatorContent: {
+    alignItems: 'center',
+    gap: espacements.xs,
+  },
+  swipeIndicatorText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
   },
 
   // Header

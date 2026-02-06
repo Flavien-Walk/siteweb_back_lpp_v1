@@ -15,7 +15,7 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +25,7 @@ import { couleurs, espacements, rayons, typographie } from '../../src/constantes
 import { useUser } from '../../src/contexts/UserContext';
 import { Avatar, AnimatedPressable, SkeletonList } from '../../src/composants';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
+import { useAutoRefresh } from '../../src/hooks/useAutoRefresh';
 import {
   getNotifications,
   marquerNotificationLue,
@@ -73,12 +74,17 @@ export default function Notifications() {
     chargerNotifications();
   }, [chargerNotifications]);
 
-  // Rafraîchir quand l'écran reprend le focus
-  useFocusEffect(
-    useCallback(() => {
-      chargerNotifications(false);
-    }, [chargerNotifications])
-  );
+  // Auto-refresh avec gestion focus et AppState
+  // Polling toutes les 20s pour voir les nouvelles notifications
+  useAutoRefresh({
+    onRefresh: useCallback(async () => {
+      await chargerNotifications(false);
+    }, [chargerNotifications]),
+    pollingInterval: 20000, // 20 secondes
+    refreshOnFocus: true,
+    minRefreshInterval: 5000, // 5 secondes minimum
+    enabled: true,
+  });
 
   // Marquer comme lu au clic
   const handleNotificationPress = async (notif: Notification) => {

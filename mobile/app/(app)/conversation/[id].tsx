@@ -36,6 +36,7 @@ import { useUser } from '../../../src/contexts/UserContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation } from '../../../src/composants';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
+import { useAutoRefresh } from '../../../src/hooks/useAutoRefresh';
 import {
   getMessages,
   envoyerMessage,
@@ -301,16 +302,20 @@ export default function ConversationScreen() {
     chargerMessages();
   }, [chargerMessages]);
 
-  // Polling pour mise à jour temps réel (toutes les 10 secondes)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!chargement && id) {
-        chargerMessages(true);
+  // Auto-refresh pour mise à jour temps réel (toutes les 8 secondes)
+  // Gère automatiquement l'AppState (arrête le polling en arrière-plan)
+  // et rafraîchit au focus de l'écran
+  useAutoRefresh({
+    onRefresh: useCallback(async () => {
+      if (id) {
+        await chargerMessages(true);
       }
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [chargerMessages, chargement, id]);
+    }, [id, chargerMessages]),
+    pollingInterval: 8000, // 8 secondes (plus réactif pour les messages)
+    refreshOnFocus: true,
+    minRefreshInterval: 3000, // 3 secondes minimum
+    enabled: !!id && !chargement,
+  });
 
   // Keyboard handling: scroll to end when keyboard appears
   // Note: Android avec softwareKeyboardLayoutMode="resize" gere le redimensionnement automatiquement

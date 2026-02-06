@@ -57,7 +57,7 @@ interface TabItem {
 const TABS: TabItem[] = [
   { key: 'vision', label: 'Vision', icon: 'bulb-outline' },
   { key: 'market', label: 'Market', icon: 'trending-up-outline' },
-  { key: 'docs', label: 'Documents', icon: 'folder-outline' },
+  { key: 'docs', label: 'Docs', icon: 'folder-outline' },
 ];
 
 // Labels pour les rôles
@@ -138,7 +138,8 @@ export default function ProjetDetailPage() {
   const [estSuivi, setEstSuivi] = useState(false);
   const [nbFollowers, setNbFollowers] = useState(0);
 
-  // Onglets
+  // Voir plus / moins
+  const [showDetails, setShowDetails] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('vision');
 
   // Contacter - Modal représentants
@@ -407,10 +408,10 @@ export default function ProjetDetailPage() {
       <View style={styles.quickStatsContainer}>
         <View style={styles.quickStatItem}>
           <View style={[styles.quickStatIcon, { backgroundColor: couleurs.primaire + '20' }]}>
-            <Ionicons name="people" size={18} color={couleurs.primaire} />
+            <Ionicons name="people" size={16} color={couleurs.primaire} />
           </View>
-          <View>
-            <Text style={styles.quickStatValue}>{nbFollowers}</Text>
+          <View style={styles.quickStatTextContainer}>
+            <Text style={styles.quickStatValue} numberOfLines={1}>{nbFollowers}</Text>
             <Text style={styles.quickStatLabel}>Abonnés</Text>
           </View>
         </View>
@@ -419,10 +420,10 @@ export default function ProjetDetailPage() {
 
         <View style={styles.quickStatItem}>
           <View style={[styles.quickStatIcon, { backgroundColor: maturiteInfo.color + '20' }]}>
-            <Ionicons name="rocket" size={18} color={maturiteInfo.color} />
+            <Ionicons name="rocket" size={16} color={maturiteInfo.color} />
           </View>
-          <View>
-            <Text style={styles.quickStatValue}>{maturiteInfo.label}</Text>
+          <View style={styles.quickStatTextContainer}>
+            <Text style={styles.quickStatValue} numberOfLines={1}>{maturiteInfo.label}</Text>
             <Text style={styles.quickStatLabel}>Maturité</Text>
           </View>
         </View>
@@ -431,13 +432,51 @@ export default function ProjetDetailPage() {
 
         <View style={styles.quickStatItem}>
           <View style={[styles.quickStatIcon, { backgroundColor: couleurs.secondaire + '20' }]}>
-            <Ionicons name={categorieInfo.icon} size={18} color={couleurs.secondaire} />
+            <Ionicons name={categorieInfo.icon} size={16} color={couleurs.secondaire} />
           </View>
-          <View>
-            <Text style={styles.quickStatValue}>{categorieInfo.label}</Text>
+          <View style={styles.quickStatTextContainer}>
+            <Text style={styles.quickStatValue} numberOfLines={1}>{categorieInfo.label}</Text>
             <Text style={styles.quickStatLabel}>Secteur</Text>
           </View>
         </View>
+      </View>
+    );
+  };
+
+  // Rendu des liens externes (en haut de page)
+  const renderLinks = () => {
+    if (!projet?.liens || projet.liens.length === 0) return null;
+
+    return (
+      <View style={styles.linksSection}>
+        <View style={styles.linksSectionHeader}>
+          <Ionicons name="link-outline" size={18} color={couleurs.primaire} />
+          <Text style={styles.linksSectionTitle}>Liens</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.linksScrollContent}
+        >
+          {projet.liens.map((lien, i) => {
+            const lienInfo = LIEN_LABELS[lien.type] || LIEN_LABELS.other;
+            return (
+              <Pressable
+                key={i}
+                style={styles.linkChip}
+                onPress={() => Linking.openURL(lien.url)}
+              >
+                <View style={[styles.linkChipIcon, { backgroundColor: lienInfo.color + '20' }]}>
+                  <Ionicons name={lienInfo.icon} size={16} color={lienInfo.color} />
+                </View>
+                <Text style={styles.linkChipText} numberOfLines={1}>
+                  {lien.label || lienInfo.label}
+                </Text>
+                <Ionicons name="open-outline" size={14} color={couleurs.texteSecondaire} />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
     );
   };
@@ -529,6 +568,23 @@ export default function ProjetDetailPage() {
     </View>
   );
 
+  // Rendu du bouton Voir plus/moins
+  const renderShowMoreButton = () => (
+    <Pressable
+      style={styles.showMoreButton}
+      onPress={() => setShowDetails(!showDetails)}
+    >
+      <Text style={styles.showMoreText}>
+        {showDetails ? 'Voir moins' : 'En savoir plus'}
+      </Text>
+      <Ionicons
+        name={showDetails ? 'chevron-up' : 'chevron-down'}
+        size={18}
+        color={couleurs.primaire}
+      />
+    </Pressable>
+  );
+
   // Rendu des onglets
   const renderTabs = () => (
     <View style={styles.tabsContainer}>
@@ -540,7 +596,7 @@ export default function ProjetDetailPage() {
         >
           <Ionicons
             name={tab.icon}
-            size={18}
+            size={16}
             color={activeTab === tab.key ? couleurs.primaire : couleurs.texteSecondaire}
           />
           <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
@@ -556,7 +612,7 @@ export default function ProjetDetailPage() {
     if (!projet) return null;
 
     return (
-      <View style={styles.tabContent}>
+      <View style={styles.detailsContent}>
         {/* Pitch */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -716,41 +772,6 @@ export default function ProjetDetailPage() {
             </View>
           </View>
         )}
-
-        {/* Liens externes */}
-        {projet.liens && projet.liens.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="link-outline" size={20} color={couleurs.primaire} />
-              <Text style={styles.sectionTitle}>Liens</Text>
-            </View>
-            <View style={styles.linksContainer}>
-              {projet.liens.map((lien, i) => {
-                const lienInfo = LIEN_LABELS[lien.type] || LIEN_LABELS.other;
-                return (
-                  <Pressable
-                    key={i}
-                    style={styles.linkItem}
-                    onPress={() => Linking.openURL(lien.url)}
-                  >
-                    <View style={[styles.linkIcon, { backgroundColor: lienInfo.color + '15' }]}>
-                      <Ionicons name={lienInfo.icon} size={20} color={lienInfo.color} />
-                    </View>
-                    <View style={styles.linkContent}>
-                      <Text style={styles.linkLabel}>{lien.label || lienInfo.label}</Text>
-                      <Text style={styles.linkUrl} numberOfLines={1}>
-                        {lien.url.replace(/^https?:\/\//, '').replace(/^mailto:/, '')}
-                      </Text>
-                    </View>
-                    <View style={styles.linkArrow}>
-                      <Ionicons name="open-outline" size={18} color={couleurs.texteSecondaire} />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        )}
       </View>
     );
   };
@@ -760,7 +781,7 @@ export default function ProjetDetailPage() {
     if (!projet) return null;
 
     return (
-      <View style={styles.tabContent}>
+      <View style={styles.detailsContent}>
         {/* KPIs */}
         {projet.metriques && projet.metriques.length > 0 && (
           <View style={styles.section}>
@@ -833,7 +854,7 @@ export default function ProjetDetailPage() {
 
     if (!hasDocuments && !hasPitchVideo) {
       return (
-        <View style={styles.tabContent}>
+        <View style={styles.detailsContent}>
           <View style={styles.emptyState}>
             <View style={styles.emptyStateIcon}>
               <Ionicons name="folder-open-outline" size={48} color={couleurs.texteMuted} />
@@ -859,7 +880,7 @@ export default function ProjetDetailPage() {
     };
 
     return (
-      <View style={styles.tabContent}>
+      <View style={styles.detailsContent}>
         {/* Pitch Video */}
         {hasPitchVideo && (
           <View style={styles.section}>
@@ -970,19 +991,27 @@ export default function ProjetDetailPage() {
           {/* Stats rapides */}
           {renderQuickStats()}
 
+          {/* Liens externes */}
+          {renderLinks()}
+
           {/* Barre de progression */}
           {renderProgressBar()}
 
           {/* Actions */}
           {renderActions()}
 
-          {/* Onglets */}
-          {renderTabs()}
+          {/* Bouton Voir plus */}
+          {renderShowMoreButton()}
 
-          {/* Contenu de l'onglet actif */}
-          {activeTab === 'vision' && renderVisionTab()}
-          {activeTab === 'market' && renderMarketTab()}
-          {activeTab === 'docs' && renderDocsTab()}
+          {/* Onglets et contenu (affiché si showDetails) */}
+          {showDetails && (
+            <>
+              {renderTabs()}
+              {activeTab === 'vision' && renderVisionTab()}
+              {activeTab === 'market' && renderMarketTab()}
+              {activeTab === 'docs' && renderDocsTab()}
+            </>
+          )}
         </View>
       </Animated.ScrollView>
 
@@ -1189,13 +1218,14 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       borderTopLeftRadius: rayons.xl + 4,
       borderTopRightRadius: rayons.xl + 4,
       marginTop: -rayons.xl,
-      paddingTop: espacements.xl,
+      paddingTop: espacements.xxl,
     },
 
     // Quick stats
     quickStatsContainer: {
       flexDirection: 'row',
       marginHorizontal: espacements.lg,
+      marginTop: espacements.sm,
       marginBottom: espacements.lg,
       padding: espacements.md,
       backgroundColor: couleurs.fondSecondaire,
@@ -1208,19 +1238,22 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       gap: espacements.sm,
     },
     quickStatIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       justifyContent: 'center',
       alignItems: 'center',
     },
+    quickStatTextContainer: {
+      flex: 1,
+    },
     quickStatValue: {
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: '700',
       color: couleurs.texte,
     },
     quickStatLabel: {
-      fontSize: 11,
+      fontSize: 10,
       color: couleurs.texteSecondaire,
       marginTop: 1,
     },
@@ -1340,13 +1373,34 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       color: '#fff',
     },
 
+    // Show more button
+    showMoreButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: espacements.xs,
+      marginHorizontal: espacements.lg,
+      marginBottom: espacements.lg,
+      paddingVertical: espacements.md,
+      backgroundColor: couleurs.primaire + '10',
+      borderRadius: rayons.md,
+      borderWidth: 1,
+      borderColor: couleurs.primaire + '30',
+    },
+    showMoreText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: couleurs.primaire,
+    },
+
     // Tabs
     tabsContainer: {
       flexDirection: 'row',
-      borderBottomWidth: 1,
-      borderBottomColor: couleurs.bordure,
       marginHorizontal: espacements.lg,
-      marginBottom: espacements.sm,
+      marginBottom: espacements.md,
+      backgroundColor: couleurs.fondSecondaire,
+      borderRadius: rayons.md,
+      padding: espacements.xs,
     },
     tab: {
       flex: 1,
@@ -1354,15 +1408,14 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: espacements.xs,
-      paddingVertical: espacements.md,
+      paddingVertical: espacements.sm,
+      borderRadius: rayons.sm,
     },
     tabActive: {
-      borderBottomWidth: 2,
-      borderBottomColor: couleurs.primaire,
-      marginBottom: -1,
+      backgroundColor: couleurs.fond,
     },
     tabText: {
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: '500',
       color: couleurs.texteSecondaire,
     },
@@ -1371,8 +1424,8 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       fontWeight: '600',
     },
 
-    // Tab content
-    tabContent: {
+    // Details content
+    detailsContent: {
       paddingTop: espacements.md,
     },
 
@@ -1522,45 +1575,48 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       color: couleurs.texteSecondaire,
     },
 
-    // Links
-    linksContainer: {
-      gap: espacements.sm,
+    // Links section (top of page - horizontal chips)
+    linksSection: {
+      marginHorizontal: espacements.lg,
+      marginBottom: espacements.lg,
     },
-    linkItem: {
+    linksSectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: couleurs.fondSecondaire,
-      borderRadius: rayons.lg,
-      padding: espacements.md,
+      gap: espacements.xs,
+      marginBottom: espacements.sm,
     },
-    linkIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: espacements.md,
-    },
-    linkContent: {
-      flex: 1,
-    },
-    linkLabel: {
-      fontSize: 15,
+    linksSectionTitle: {
+      fontSize: 14,
       fontWeight: '600',
       color: couleurs.texte,
     },
-    linkUrl: {
-      fontSize: 12,
-      color: couleurs.texteSecondaire,
-      marginTop: 2,
+    linksScrollContent: {
+      gap: espacements.sm,
     },
-    linkArrow: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: couleurs.fond,
+    linkChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: couleurs.fondSecondaire,
+      borderRadius: rayons.full,
+      paddingVertical: espacements.sm,
+      paddingHorizontal: espacements.md,
+      gap: espacements.xs,
+      borderWidth: 1,
+      borderColor: couleurs.bordure,
+    },
+    linkChipIcon: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    linkChipText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: couleurs.texte,
+      maxWidth: 120,
     },
 
     // KPIs
