@@ -1066,6 +1066,9 @@ export default function Accueil() {
     const handleToggleSuivre = async () => {
       if (enCours) return;
 
+      // IMPORTANT: Marquer enCours AVANT tout pour bloquer le useEffect sync
+      setEnCours(true);
+
       // Sauvegarder l'etat precedent pour rollback
       const previousSuivi = suivi;
       const previousNbFollowers = nbFollowers;
@@ -1084,23 +1087,37 @@ export default function Accueil() {
       ));
 
       try {
-        setEnCours(true);
         const reponse = await toggleSuivreProjet(projet._id);
+
+        // Debug: voir ce que l'API renvoie
+        if (__DEV__) {
+          console.log('🔄 toggleSuivreProjet response:', JSON.stringify(reponse, null, 2));
+        }
+
         if (reponse.succes && reponse.data) {
-          // Sync avec la reponse serveur (state local)
-          setSuivi(reponse.data.estSuivi);
-          setNbFollowers(reponse.data.nbFollowers);
-          // Sync avec la reponse serveur (state parent)
-          setProjets(prev => prev.map(p =>
-            p._id === projet._id
-              ? { ...p, estSuivi: reponse.data!.estSuivi, nbFollowers: reponse.data!.nbFollowers }
-              : p
-          ));
+          // IMPORTANT: Verifier que l'API renvoie bien les valeurs attendues
+          // Si non definies, garder l'etat optimistic
+          const apiEstSuivi = reponse.data.estSuivi;
+          const apiNbFollowers = reponse.data.nbFollowers;
+
+          if (typeof apiEstSuivi === 'boolean') {
+            setSuivi(apiEstSuivi);
+            setProjets(prev => prev.map(p =>
+              p._id === projet._id ? { ...p, estSuivi: apiEstSuivi } : p
+            ));
+          }
+          if (typeof apiNbFollowers === 'number') {
+            setNbFollowers(apiNbFollowers);
+            setProjets(prev => prev.map(p =>
+              p._id === projet._id ? { ...p, nbFollowers: apiNbFollowers } : p
+            ));
+          }
+          // Si l'API ne renvoie pas ces valeurs, on garde l'optimistic update
         } else {
-          // Rollback local
+          // Rollback si echec explicite
+          console.warn('⚠️ toggleSuivreProjet: succes=false ou pas de data');
           setSuivi(previousSuivi);
           setNbFollowers(previousNbFollowers);
-          // Rollback parent
           setProjets(prev => prev.map(p =>
             p._id === projet._id
               ? { ...p, estSuivi: previousSuivi, nbFollowers: previousNbFollowers }
@@ -1108,11 +1125,10 @@ export default function Accueil() {
           ));
         }
       } catch (error) {
-        console.error('Erreur toggle suivre projet:', error);
-        // Rollback local
+        console.error('❌ Erreur toggle suivre projet:', error);
+        // Rollback en cas d'exception reseau
         setSuivi(previousSuivi);
         setNbFollowers(previousNbFollowers);
-        // Rollback parent
         setProjets(prev => prev.map(p =>
           p._id === projet._id
             ? { ...p, estSuivi: previousSuivi, nbFollowers: previousNbFollowers }

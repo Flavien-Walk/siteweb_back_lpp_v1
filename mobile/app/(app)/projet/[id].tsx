@@ -137,17 +137,33 @@ export default function ProjetDetailPage() {
 
     try {
       const reponse = await toggleSuivreProjet(id);
+
+      // Debug: voir ce que l'API renvoie
+      if (__DEV__) {
+        console.log('🔄 [FicheProjet] toggleSuivreProjet response:', JSON.stringify(reponse, null, 2));
+      }
+
       if (reponse.succes && reponse.data) {
-        // Sync avec la reponse serveur
-        setEstSuivi(reponse.data.estSuivi);
-        setNbFollowers(reponse.data.nbFollowers);
+        // IMPORTANT: Verifier que l'API renvoie bien les valeurs attendues
+        // Si non definies, garder l'etat optimistic
+        const apiEstSuivi = reponse.data.estSuivi;
+        const apiNbFollowers = reponse.data.nbFollowers;
+
+        if (typeof apiEstSuivi === 'boolean') {
+          setEstSuivi(apiEstSuivi);
+        }
+        if (typeof apiNbFollowers === 'number') {
+          setNbFollowers(apiNbFollowers);
+        }
+        // Si l'API ne renvoie pas ces valeurs, on garde l'optimistic update
       } else {
-        // Rollback si erreur (API retourne succes=false)
+        // Rollback si echec explicite
+        console.warn('⚠️ [FicheProjet] toggleSuivreProjet: succes=false ou pas de data');
         setEstSuivi(previousEstSuivi);
         setNbFollowers(previousNbFollowers);
       }
     } catch (error) {
-      console.error('Erreur toggle suivre:', error);
+      console.error('❌ [FicheProjet] Erreur toggle suivre:', error);
       // Rollback en cas d'exception
       setEstSuivi(previousEstSuivi);
       setNbFollowers(previousNbFollowers);
