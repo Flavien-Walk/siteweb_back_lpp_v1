@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
+import { emitDemandeAmi, emitNewNotification } from '../socket/index.js';
 
 /**
  * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
@@ -255,6 +256,18 @@ export const envoyerDemandeAmi = async (
           userAvatar: utilisateur.avatar || null,
         },
       });
+
+      // Émettre via Socket.io
+      emitDemandeAmi(cible._id.toString(), {
+        _id: utilisateur._id.toString(),
+        type: 'received',
+        utilisateur: {
+          _id: utilisateur._id.toString(),
+          prenom: utilisateur.prenom,
+          nom: utilisateur.nom,
+          avatar: utilisateur.avatar,
+        },
+      });
     }
 
     res.json({ succes: true, message: 'Demande d\'ami envoyée.' });
@@ -379,6 +392,18 @@ export const accepterDemandeAmi = async (
         userNom: utilisateur.nom,
         userPrenom: utilisateur.prenom,
         userAvatar: utilisateur.avatar || null,
+      },
+    });
+
+    // Émettre via Socket.io
+    emitDemandeAmi(demandeur._id.toString(), {
+      _id: utilisateur._id.toString(),
+      type: 'accepted',
+      utilisateur: {
+        _id: utilisateur._id.toString(),
+        prenom: utilisateur.prenom,
+        nom: utilisateur.nom,
+        avatar: utilisateur.avatar,
       },
     });
 

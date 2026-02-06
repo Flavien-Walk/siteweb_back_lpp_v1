@@ -3,8 +3,10 @@ import dotenv from 'dotenv';
 // Charger les variables d'environnement en premier
 dotenv.config();
 
+import http from 'http';
 import { creerApp } from './app.js';
 import { connecterMongo, fermerMongo } from './config/mongo.js';
+import { initializeSocket, getConnectedUsersCount } from './socket/index.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -58,8 +60,14 @@ const demarrerServeur = async (): Promise<void> => {
     // Créer l'application Express
     const app = creerApp();
 
+    // Créer le serveur HTTP
+    const serveur = http.createServer(app);
+
+    // Initialiser Socket.io
+    const io = initializeSocket(serveur);
+
     // Démarrer le serveur
-    const serveur = app.listen(PORT, () => {
+    serveur.listen(PORT, () => {
       console.log('');
       console.log('🪨 ════════════════════════════════════════');
       console.log('   LA PREMIÈRE PIERRE - Backend API');
@@ -67,6 +75,7 @@ const demarrerServeur = async (): Promise<void> => {
       console.log(`✅ Serveur démarré sur le port ${PORT}`);
       console.log(`📍 URL: http://localhost:${PORT}`);
       console.log(`🌍 Environnement: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔌 Socket.io: activé`);
       console.log('════════════════════════════════════════');
       console.log('');
     });

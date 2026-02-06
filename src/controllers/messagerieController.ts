@@ -5,6 +5,7 @@ import { Message, Conversation, chiffrerMessage, TypeMessage } from '../models/M
 import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64DataUrl, isBase64VideoDataUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
+import { emitNewMessage } from '../socket/index.js';
 
 /**
  * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
@@ -433,6 +434,21 @@ export const envoyerMessage = async (
         type: replyMsg.type,
       };
     }
+
+    // Émettre via Socket.io pour les autres participants
+    const expediteur = messageComplet!.expediteur as any;
+    emitNewMessage(conversation._id.toString(), {
+      _id: messageComplet!._id.toString(),
+      contenu: messageComplet!.contenu,
+      expediteur: {
+        _id: expediteur._id.toString(),
+        prenom: expediteur.prenom,
+        nom: expediteur.nom,
+        avatar: expediteur.avatar,
+      },
+      dateEnvoi: messageComplet!.dateCreation.toISOString(),
+      lu: false,
+    });
 
     res.status(201).json({
       succes: true,
