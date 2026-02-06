@@ -92,8 +92,9 @@ router.get('/suivis', verifierJwt, checkUserStatus, mesProjets);
 /**
  * GET /api/projets
  * Liste des projets publiés avec filtres
+ * Auth optionnelle pour calculer estSuivi
  */
-router.get('/', listerProjets);
+router.get('/', chargerUtilisateurOptionnel, listerProjets);
 
 /**
  * GET /api/projets/:id/representants
