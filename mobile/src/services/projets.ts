@@ -316,3 +316,13 @@ export const gererEquipeProjet = async (
 ): Promise<ReponseAPI<{ projet: Projet; added: string[]; removed: string[]; errors?: string[] }>> => {
   return api.patch(`/projets/entrepreneur/${id}/equipe`, { add, remove }, true);
 };
+
+/**
+ * Recuperer les representants d'un projet (porteur + equipe)
+ * Pour la fonctionnalite "Contacter le projet"
+ */
+export const getRepresentantsProjet = async (
+  id: string
+): Promise<ReponseAPI<{ representants: Porteur[] }>> => {
+  return api.get(`/projets/${id}/representants`, true);
+};

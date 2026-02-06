@@ -91,18 +91,6 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 // Types
 type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages' | 'entrepreneur';
 
-interface Startup {
-  id: string;
-  nom: string;
-  ville: string;
-  description: string;
-  tags: string[];
-  image: string;
-  abonnes: number;
-  posts: number;
-}
-
-
 interface TrendingStartup {
   id: string;
   nom: string;
@@ -110,45 +98,11 @@ interface TrendingStartup {
   nouveauxAbonnes: number;
 }
 
-// Donnees mock pour Tendances
+// Donnees mock pour Tendances (sera remplace par API plus tard)
 const TRENDING_STARTUPS: TrendingStartup[] = [
   { id: '1', nom: 'GreenTech Lyon', secteur: 'CleanTech', nouveauxAbonnes: 124 },
   { id: '2', nom: 'MedIA Diagnostics', secteur: 'HealthTech', nouveauxAbonnes: 98 },
   { id: '3', nom: 'FinFlow Systems', secteur: 'FinTech', nouveauxAbonnes: 76 },
-];
-
-// Donnees mock pour Decouvrir
-const MOCK_STARTUPS: Startup[] = [
-  {
-    id: '1',
-    nom: 'GreenTech Lyon',
-    ville: 'Lyon',
-    description: 'Solutions de recyclage intelligent pour les entreprises',
-    tags: ['CleanTech', 'B2B', 'Impact'],
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
-    abonnes: 1247,
-    posts: 89,
-  },
-  {
-    id: '2',
-    nom: 'FoodLab Marseille',
-    ville: 'Marseille',
-    description: 'Alimentation durable et locale pour tous',
-    tags: ['FoodTech', 'B2C', 'Local'],
-    image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=400&h=300&fit=crop',
-    abonnes: 856,
-    posts: 42,
-  },
-  {
-    id: '3',
-    nom: 'MedIA Diagnostics',
-    ville: 'Paris',
-    description: 'IA au service du diagnostic medical',
-    tags: ['HealthTech', 'IA', 'Sante'],
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=300&fit=crop',
-    abonnes: 2103,
-    posts: 156,
-  },
 ];
 
 
@@ -1094,43 +1048,88 @@ export default function Accueil() {
   // PublicationCard extrait vers: src/composants/PublicationCard.tsx (optimisation P0)
   // StartupCard et TrendingItem restent inline pour l'instant (Phase 2)
 
-  const StartupCard = ({ startup }: { startup: Startup }) => {
-    const [suivi, setSuivi] = useState(false);
+  const ProjetCard = ({ projet }: { projet: Projet }) => {
+    const [suivi, setSuivi] = useState(projet.estSuivi);
+    const [nbFollowers, setNbFollowers] = useState(projet.nbFollowers);
+    const [enCours, setEnCours] = useState(false);
+
+    const handleToggleSuivre = async () => {
+      if (enCours) return;
+      try {
+        setEnCours(true);
+        const reponse = await toggleSuivreProjet(projet._id);
+        if (reponse.succes && reponse.data) {
+          setSuivi(reponse.data.estSuivi);
+          setNbFollowers(reponse.data.nbFollowers);
+        }
+      } catch (error) {
+        console.error('Erreur toggle suivre projet:', error);
+      } finally {
+        setEnCours(false);
+      }
+    };
+
+    const handleVoirFiche = () => {
+      router.push({
+        pathname: '/(app)/projet/[id]',
+        params: { id: projet._id },
+      });
+    };
+
+    const handleContacter = () => {
+      router.push({
+        pathname: '/(app)/projet/[id]',
+        params: { id: projet._id, action: 'contact' },
+      });
+    };
+
     return (
-      <View style={styles.startupCard}>
-        <Image source={{ uri: startup.image }} style={styles.startupImage} />
+      <Pressable style={styles.startupCard} onPress={handleVoirFiche}>
+        <Image
+          source={{ uri: projet.image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop' }}
+          style={styles.startupImage}
+        />
         <View style={styles.startupContent}>
           <View style={styles.startupHeader}>
-            <View>
-              <Text style={styles.startupNom}>{startup.nom}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.startupNom}>{projet.nom}</Text>
               <View style={styles.startupLocation}>
                 <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
-                <Text style={styles.startupVille}>{startup.ville}</Text>
+                <Text style={styles.startupVille}>{projet.localisation?.ville || 'France'}</Text>
               </View>
             </View>
+            {projet.logo && (
+              <Image source={{ uri: projet.logo }} style={styles.startupLogo} />
+            )}
           </View>
-          <Text style={styles.startupDescription} numberOfLines={2}>{startup.description}</Text>
+          <Text style={styles.startupDescription} numberOfLines={2}>{projet.pitch || projet.description}</Text>
           <View style={styles.startupTags}>
-            {startup.tags.map((tag, i) => (
+            {projet.tags.slice(0, 3).map((tag, i) => (
               <View key={i} style={styles.startupTag}>
                 <Text style={styles.startupTagText}>{tag}</Text>
               </View>
             ))}
+            {projet.categorie && (
+              <View style={[styles.startupTag, { backgroundColor: couleurs.primaire + '20' }]}>
+                <Text style={[styles.startupTagText, { color: couleurs.primaire }]}>{projet.categorie}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.startupStats}>
             <View style={styles.startupStat}>
               <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{startup.abonnes} abonnes</Text>
+              <Text style={styles.startupStatText}>{nbFollowers} abonnes</Text>
             </View>
             <View style={styles.startupStat}>
-              <Ionicons name="document-text-outline" size={14} color={couleurs.texteSecondaire} />
-              <Text style={styles.startupStatText}>{startup.posts} posts</Text>
+              <Ionicons name="trending-up-outline" size={14} color={couleurs.texteSecondaire} />
+              <Text style={styles.startupStatText}>{projet.maturite}</Text>
             </View>
           </View>
           <View style={styles.startupActions}>
             <Pressable
               style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi]}
-              onPress={() => setSuivi(!suivi)}
+              onPress={handleToggleSuivre}
+              disabled={enCours}
             >
               <Ionicons
                 name={suivi ? 'checkmark' : 'add'}
@@ -1141,12 +1140,15 @@ export default function Accueil() {
                 {suivi ? 'Suivi' : 'Suivre'}
               </Text>
             </Pressable>
-            <Pressable style={styles.startupBtnSecondary}>
+            <Pressable style={styles.startupBtnSecondary} onPress={handleContacter}>
               <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
+            </Pressable>
+            <Pressable style={styles.startupBtnSecondary} onPress={handleVoirFiche}>
+              <Ionicons name="eye-outline" size={18} color={couleurs.texte} />
             </Pressable>
           </View>
         </View>
-      </View>
+      </Pressable>
     );
   };
 
@@ -1422,20 +1424,25 @@ export default function Accueil() {
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Startups a decouvrir</Text>
-          {utilisateur?.statut === 'entrepreneur' && (
-            <Pressable
-              style={styles.sectionAction}
-              onPress={() => Alert.alert('Bientot disponible', 'La creation de projet sera disponible prochainement.')}
-            >
-              <Ionicons name="add-circle-outline" size={18} color={couleurs.primaire} />
-              <Text style={[styles.sectionActionText, { color: couleurs.primaire }]}>Creer mon projet</Text>
-            </Pressable>
-          )}
+          <Text style={styles.sectionTitle}>Projets a decouvrir</Text>
         </View>
-        {MOCK_STARTUPS.map((startup) => (
-          <StartupCard key={startup.id} startup={startup} />
-        ))}
+        {chargementProjets ? (
+          <View style={styles.liveEmptyState}>
+            <Text style={styles.liveEmptyText}>Chargement...</Text>
+          </View>
+        ) : projets.length === 0 ? (
+          <View style={styles.liveEmptyState}>
+            <Ionicons name="rocket-outline" size={48} color={couleurs.texteSecondaire} />
+            <Text style={styles.liveEmptyTitle}>Aucun projet pour le moment</Text>
+            <Text style={styles.liveEmptyText}>
+              Les projets publies par les entrepreneurs apparaitront ici.
+            </Text>
+          </View>
+        ) : (
+          projets.map((projet) => (
+            <ProjetCard key={projet._id} projet={projet} />
+          ))
+        )}
       </View>
     </>
   );
@@ -3649,7 +3656,16 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     padding: espacements.lg,
   },
   startupHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: espacements.sm,
+  },
+  startupLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: rayons.sm,
+    marginLeft: espacements.sm,
   },
   startupNom: {
     fontSize: 16,
