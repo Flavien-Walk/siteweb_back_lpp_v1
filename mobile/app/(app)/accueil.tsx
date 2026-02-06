@@ -1094,16 +1094,30 @@ export default function Accueil() {
           console.log('🔄 toggleSuivreProjet response:', JSON.stringify(reponse, null, 2));
         }
 
-        if (reponse.succes) {
-          // API succes=true -> l'action a reussi
-          // Le backend renvoie "suivi" et "totalFollowers" (pas "estSuivi"/"nbFollowers")
-          // ET il y a un bug backend: suivi=false meme apres un follow
-          // Donc on garde l'optimistic update et on ne sync pas avec la reponse
+        if (reponse.succes && reponse.data) {
+          // Backend renvoie maintenant estSuivi et nbFollowers
+          const apiData = reponse.data as { estSuivi?: boolean; suivi?: boolean; nbFollowers?: number; totalFollowers?: number };
+          const apiEstSuivi = apiData.estSuivi ?? apiData.suivi;
+          const apiNbFollowers = apiData.nbFollowers ?? apiData.totalFollowers;
+
           if (__DEV__) {
-            console.log('✅ Follow reussi - on garde l\'optimistic update');
+            console.log('✅ Follow reussi - API:', { apiEstSuivi, apiNbFollowers });
           }
-          // L'optimistic update est deja applique, rien a faire
-        } else {
+
+          // Utiliser les valeurs de l'API si disponibles
+          if (typeof apiEstSuivi === 'boolean') {
+            setSuivi(apiEstSuivi);
+            setProjets(prev => prev.map(p =>
+              p._id === projet._id ? { ...p, estSuivi: apiEstSuivi } : p
+            ));
+          }
+          if (typeof apiNbFollowers === 'number') {
+            setNbFollowers(apiNbFollowers);
+            setProjets(prev => prev.map(p =>
+              p._id === projet._id ? { ...p, nbFollowers: apiNbFollowers } : p
+            ));
+          }
+        } else if (!reponse.succes) {
           // Rollback si echec explicite
           console.warn('⚠️ toggleSuivreProjet: succes=false ou pas de data');
           setSuivi(previousSuivi);
