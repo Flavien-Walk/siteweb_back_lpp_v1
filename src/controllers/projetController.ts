@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import Projet, { IProjet, IMembreEquipe, IDocumentProjet, IMediaGalerie, IMetrique } from '../models/Projet.js';
+import Projet, { IProjet, IMembreEquipe, IDocumentProjet, IMediaGalerie, IMetrique, ILienProjet } from '../models/Projet.js';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 import { uploadPublicationMedias, uploadPublicationMedia, isBase64MediaDataUrl } from '../utils/cloudinary.js';
@@ -67,7 +67,7 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
     // Ajouter estSuivi et nbFollowers pour chaque projet
     const userId = req.utilisateur?._id;
     const projetsAvecSuivi = projets.map((p) => {
-      const projetObj = p.toObject();
+      const projetObj = p.toObject() as any;
       projetObj.estSuivi = userId ? p.followers.some((f: any) => f.equals(userId)) : false;
       projetObj.nbFollowers = p.followers.length;
       return projetObj;
@@ -126,7 +126,7 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
       documentsFiltered = projet.documents.filter(d => d.visibilite === 'public');
     }
 
-    const projetData = projet.toObject();
+    const projetData = projet.toObject() as any;
     projetData.documents = documentsFiltered;
 
     // Indiquer si l'utilisateur suit le projet
@@ -360,6 +360,7 @@ export const creerProjet = async (req: Request, res: Response): Promise<void> =>
       metriques: [],
       galerie: [],
       documents: [],
+      liens: [],
       statut: 'draft',
       maturite: req.body.maturite || 'idee',
       progression: 0,
@@ -411,8 +412,8 @@ export const modifierProjet = async (req: Request, res: Response): Promise<void>
       'probleme', 'solution', 'avantageConcurrentiel', 'cible',
       // Étape D - Traction & business
       'maturite', 'businessModel', 'metriques', 'objectifFinancement', 'montantLeve', 'progression', 'objectif',
-      // Étape E - Médias & documents
-      'image', 'pitchVideo', 'galerie', 'documents',
+      // Étape E - Médias & documents & liens
+      'image', 'pitchVideo', 'galerie', 'documents', 'liens',
     ];
 
     // Seul le owner peut modifier l'équipe

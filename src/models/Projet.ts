@@ -7,6 +7,7 @@ export type CategorieProjet = 'tech' | 'food' | 'sante' | 'education' | 'energie
 export type StatutProjet = 'draft' | 'published';
 export type VisibiliteDocument = 'public' | 'private';
 export type RoleEquipe = 'founder' | 'cofounder' | 'cto' | 'cmo' | 'cfo' | 'developer' | 'designer' | 'marketing' | 'sales' | 'other';
+export type TypeLien = 'site' | 'fundraising' | 'linkedin' | 'twitter' | 'instagram' | 'tiktok' | 'discord' | 'youtube' | 'doc' | 'email' | 'other';
 
 // === INTERFACES IMBRIQUÉES ===
 
@@ -43,6 +44,13 @@ export interface IMetrique {
   label: string; // Ex: "Utilisateurs actifs", "CA mensuel"
   valeur: string; // Ex: "10K", "50K€"
   icone?: string; // Nom d'icône Ionicons
+}
+
+/** Lien externe du projet */
+export interface ILienProjet {
+  type: TypeLien;
+  label?: string; // Label personnalisé (optionnel)
+  url: string;
 }
 
 // === INTERFACE PRINCIPALE ===
@@ -87,6 +95,7 @@ export interface IProjet extends Document {
   pitchVideo?: string; // URL vidéo pitch
   galerie: IMediaGalerie[];
   documents: IDocumentProjet[];
+  liens: ILienProjet[]; // Liens externes (site, réseaux, levée de fonds, etc.)
 
   // --- Étape F: Publication ---
   statut: StatutProjet;
@@ -219,6 +228,35 @@ const metriqueSchema = new Schema<IMetrique>(
   { _id: false }
 );
 
+const lienProjetSchema = new Schema<ILienProjet>(
+  {
+    type: {
+      type: String,
+      enum: ['site', 'fundraising', 'linkedin', 'twitter', 'instagram', 'tiktok', 'discord', 'youtube', 'doc', 'email', 'other'],
+      required: true,
+      default: 'other',
+    },
+    label: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+    },
+    url: {
+      type: String,
+      required: [true, 'L\'URL du lien est requise'],
+      trim: true,
+      validate: {
+        validator: function(v: string) {
+          // Accepter les URLs http/https et mailto:
+          return /^(https?:\/\/|mailto:).+/.test(v);
+        },
+        message: 'URL invalide (doit commencer par http://, https:// ou mailto:)',
+      },
+    },
+  },
+  { _id: true }
+);
+
 // === SCHÉMA PRINCIPAL ===
 
 const projetSchema = new Schema<IProjet>(
@@ -332,6 +370,10 @@ const projetSchema = new Schema<IProjet>(
     },
     galerie: [mediaGalerieSchema],
     documents: [documentProjetSchema],
+    liens: {
+      type: [lienProjetSchema],
+      default: [],
+    },
 
     // --- Étape F: Publication ---
     statut: {
