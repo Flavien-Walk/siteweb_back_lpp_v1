@@ -13,6 +13,7 @@ import {
   supprimerProjet,
   uploadMediaProjet,
   uploadDocumentProjet,
+  getRepresentantsProjet,
 } from '../controllers/projetController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -93,6 +94,12 @@ router.get('/suivis', verifierJwt, checkUserStatus, mesProjets);
  * Liste des projets publiés avec filtres
  */
 router.get('/', listerProjets);
+
+/**
+ * GET /api/projets/:id/representants
+ * Liste des personnes contactables pour un projet (public)
+ */
+router.get('/:id/representants', getRepresentantsProjet);
 
 /**
  * GET /api/projets/:id

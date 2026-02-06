@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Projet, { IProjet, IMembreEquipe, IDocumentProjet, IMediaGalerie, IMetrique } from '../models/Projet.js';
 import Utilisateur from '../models/Utilisateur.js';
+import Notification from '../models/Notification.js';
 import { uploadPublicationMedias, uploadPublicationMedia, isBase64MediaDataUrl } from '../utils/cloudinary.js';
 import AuditLog from '../models/AuditLog.js';
 
@@ -139,19 +140,37 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
 /**
  * POST /api/projets/:id/suivre
  * Suivre / ne plus suivre un projet (toggle)
+ * Crée des notifications pour tous les membres du projet lors d'un nouveau follow
  */
 export const toggleSuivreProjet = async (req: Request, res: Response): Promise<void> => {
   try {
-    const projet = await Projet.findById(req.params.id);
+    const projet = await Projet.findById(req.params.id)
+      .populate('porteur', 'prenom nom');
     if (!projet) {
       res.status(404).json({ succes: false, message: 'Projet non trouvé.' });
       return;
     }
 
-    const userId = req.utilisateur!._id;
-    const index = projet.followers.findIndex((id) => id.equals(userId));
+    // Seuls les projets publiés peuvent être suivis
+    if (projet.statut !== 'published') {
+      res.status(400).json({ succes: false, message: 'Ce projet n\'est pas disponible.' });
+      return;
+    }
 
-    if (index === -1) {
+    const userId = req.utilisateur!._id;
+    const user = req.utilisateur!;
+    const index = projet.followers.findIndex((id) => id.equals(userId));
+    const isNewFollow = index === -1;
+
+    if (isNewFollow) {
+      // Ne pas permettre de se suivre soi-même (si owner ou membre)
+      const isOwner = projet.porteur._id.equals(userId);
+      const isMember = projet.equipe.some((m) => m.utilisateur && m.utilisateur.equals(userId));
+      if (isOwner || isMember) {
+        res.status(400).json({ succes: false, message: 'Vous ne pouvez pas suivre votre propre projet.' });
+        return;
+      }
+
       projet.followers.push(userId);
     } else {
       projet.followers.splice(index, 1);
@@ -159,10 +178,52 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
 
     await projet.save();
 
+    // Créer des notifications pour tous les membres du projet (uniquement sur nouveau follow)
+    if (isNewFollow) {
+      try {
+        // Collecter tous les destinataires (owner + membres équipe)
+        const destinataires: mongoose.Types.ObjectId[] = [projet.porteur._id];
+        for (const membre of projet.equipe) {
+          if (membre.utilisateur && !membre.utilisateur.equals(projet.porteur._id)) {
+            destinataires.push(membre.utilisateur as mongoose.Types.ObjectId);
+          }
+        }
+
+        // Créer les notifications (avec gestion des doublons via l'index unique)
+        const notificationPromises = destinataires.map((destinataireId) =>
+          Notification.create({
+            destinataire: destinataireId,
+            type: 'project_follow',
+            titre: 'Nouveau follower',
+            message: `${user.prenom} ${user.nom} suit maintenant votre projet ${projet.nom}`,
+            lien: `/projets/${projet._id}`,
+            data: {
+              userId: userId.toString(),
+              userNom: user.nom,
+              userPrenom: user.prenom,
+              userAvatar: user.avatar,
+              projetId: projet._id.toString(),
+              projetNom: projet.nom,
+            },
+          }).catch((err: any) => {
+            // Ignorer les erreurs de doublon (index unique)
+            if (err.code !== 11000) {
+              console.error('Erreur création notification project_follow:', err);
+            }
+          })
+        );
+
+        await Promise.all(notificationPromises);
+      } catch (notifError) {
+        console.error('Erreur notifications project_follow:', notifError);
+        // Ne pas bloquer le follow si les notifications échouent
+      }
+    }
+
     res.json({
       succes: true,
       data: {
-        suivi: index === -1,
+        suivi: isNewFollow,
         totalFollowers: projet.followers.length,
       },
     });
@@ -780,6 +841,80 @@ export const uploadDocumentProjet = async (req: Request, res: Response): Promise
     });
   } catch (error) {
     console.error('Erreur uploadDocumentProjet:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * GET /api/projets/:id/representants
+ * Liste des personnes contactables pour un projet
+ * Retourne le porteur + membres de l'équipe
+ */
+export const getRepresentantsProjet = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const projet = await Projet.findById(req.params.id)
+      .select('nom porteur equipe statut')
+      .populate('porteur', '_id prenom nom avatar statut')
+      .populate('equipe.utilisateur', '_id prenom nom avatar statut');
+
+    if (!projet) {
+      res.status(404).json({ succes: false, message: 'Projet non trouvé.' });
+      return;
+    }
+
+    // Seuls les projets publiés sont accessibles publiquement
+    if (projet.statut !== 'published') {
+      res.status(404).json({ succes: false, message: 'Projet non trouvé.' });
+      return;
+    }
+
+    // Construire la liste des représentants
+    const representants: Array<{
+      _id: string;
+      prenom: string;
+      nom: string;
+      avatar?: string;
+      role: string;
+      isOwner: boolean;
+    }> = [];
+
+    // Ajouter le porteur
+    const porteur = projet.porteur as any;
+    if (porteur) {
+      representants.push({
+        _id: porteur._id.toString(),
+        prenom: porteur.prenom,
+        nom: porteur.nom,
+        avatar: porteur.avatar,
+        role: 'Porteur du projet',
+        isOwner: true,
+      });
+    }
+
+    // Ajouter les membres de l'équipe
+    for (const membre of projet.equipe) {
+      const user = membre.utilisateur as any;
+      if (user && !user._id.equals(porteur._id)) {
+        representants.push({
+          _id: user._id.toString(),
+          prenom: user.prenom,
+          nom: user.nom,
+          avatar: user.avatar,
+          role: membre.titre || membre.role || 'Membre de l\'équipe',
+          isOwner: false,
+        });
+      }
+    }
+
+    res.json({
+      succes: true,
+      data: {
+        projetNom: projet.nom,
+        representants,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur getRepresentantsProjet:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };

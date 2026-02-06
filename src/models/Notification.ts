@@ -16,7 +16,8 @@ export type TypeNotification =
   | 'sanction_unban'
   | 'sanction_unsuspend'
   | 'sanction_unwarn'
-  | 'moderation';
+  | 'moderation'
+  | 'project_follow';
 
 export interface INotificationData {
   userId?: string;
@@ -63,7 +64,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow'],
       required: true,
     },
     titre: {
@@ -144,6 +145,20 @@ notificationSchema.index(
     partialFilterExpression: {
       type: { $in: ['sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn'] },
       'data.eventId': { $exists: true, $ne: null },
+    },
+  }
+);
+
+// Index unique partiel pour éviter les doublons de notifications project_follow
+// Un membre de projet ne reçoit qu'une seule notification par follower par projet
+notificationSchema.index(
+  { destinataire: 1, type: 1, 'data.projetId': 1, 'data.userId': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: 'project_follow',
+      'data.projetId': { $exists: true, $ne: null },
+      'data.userId': { $exists: true, $ne: null },
     },
   }
 );
