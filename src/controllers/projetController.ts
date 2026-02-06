@@ -64,10 +64,19 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
       Projet.countDocuments(filtre),
     ]);
 
+    // Ajouter estSuivi et nbFollowers pour chaque projet
+    const userId = req.utilisateur?._id;
+    const projetsAvecSuivi = projets.map((p) => {
+      const projetObj = p.toObject();
+      projetObj.estSuivi = userId ? p.followers.some((f: any) => f.equals(userId)) : false;
+      projetObj.nbFollowers = p.followers.length;
+      return projetObj;
+    });
+
     res.json({
       succes: true,
       data: {
-        projets,
+        projets: projetsAvecSuivi,
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -121,13 +130,17 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
     projetData.documents = documentsFiltered;
 
     // Indiquer si l'utilisateur suit le projet
-    const suivi = userId ? projet.followers.some((f: any) => f._id.equals(userId)) : false;
+    const estSuivi = userId ? projet.followers.some((f: any) => f._id.equals(userId)) : false;
+
+    // Ajouter estSuivi et nbFollowers au projet pour le mobile
+    projetData.estSuivi = estSuivi;
+    projetData.nbFollowers = projet.followers.length;
 
     res.json({
       succes: true,
       data: {
         projet: projetData,
-        suivi,
+        suivi: estSuivi, // Pour compatibilité
         isOwner: userId ? projet.porteur._id.equals(userId) : false,
       },
     });
@@ -223,6 +236,10 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
     res.json({
       succes: true,
       data: {
+        // Noms attendus par le mobile
+        estSuivi: isNewFollow,
+        nbFollowers: projet.followers.length,
+        // Anciens noms pour compatibilite
         suivi: isNewFollow,
         totalFollowers: projet.followers.length,
       },
