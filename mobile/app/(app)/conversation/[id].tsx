@@ -33,6 +33,7 @@ import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
+import { useSocket, MessageSocketEvent, TypingSocketEvent } from '../../../src/contexts/SocketContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation } from '../../../src/composants';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
@@ -239,6 +240,17 @@ export default function ConversationScreen() {
   const { utilisateur } = useUser();
   const flatListRef = useRef<FlatList>(null);
 
+  // Socket pour temps réel
+  const {
+    isConnected: socketConnected,
+    onNewMessage,
+    onTyping,
+    emitTyping,
+    emitMessageRead,
+    joinConversation,
+    leaveConversation
+  } = useSocket();
+
   // State
   const [conversation, setConversation] = useState<ConversationInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -266,6 +278,11 @@ export default function ConversationScreen() {
 
   // Animation coeur double-tap
   const [heartAnimationMessage, setHeartAnimationMessage] = useState<string | null>(null);
+
+  // Typing indicator (qui est en train de taper)
+  const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingEmitRef = useRef<number>(0);
 
   // Note: Sur Android, softwareKeyboardLayoutMode="resize" dans app.json
   // gere automatiquement le redimensionnement. Pas besoin de spacer manuel.
@@ -302,7 +319,107 @@ export default function ConversationScreen() {
     chargerMessages();
   }, [chargerMessages]);
 
-  // Auto-refresh pour mise à jour temps réel (toutes les 8 secondes)
+  // === SOCKET: Rejoindre/quitter la conversation ===
+  useEffect(() => {
+    if (id && socketConnected) {
+      console.log('[CONVERSATION] Joining room:', id);
+      joinConversation(id);
+
+      return () => {
+        console.log('[CONVERSATION] Leaving room:', id);
+        leaveConversation(id);
+      };
+    }
+  }, [id, socketConnected, joinConversation, leaveConversation]);
+
+  // === SOCKET: Écouter les nouveaux messages ===
+  useEffect(() => {
+    if (!id) return;
+
+    const unsubscribe = onNewMessage((event: MessageSocketEvent) => {
+      // Vérifier que le message est pour cette conversation
+      if (event.conversationId !== id) return;
+
+      console.log('[CONVERSATION] Nouveau message reçu via socket:', event.message._id);
+
+      // Convertir le format socket vers le format Message
+      const newMessage: Message = {
+        _id: event.message._id,
+        contenu: event.message.contenu,
+        expediteur: event.message.expediteur,
+        dateCreation: event.message.dateEnvoi,
+        type: 'texte' as TypeMessage,
+        estMoi: event.message.expediteur._id === utilisateur?.id,
+        lecteurs: [],
+        reactions: [],
+      };
+
+      // Ajouter le message s'il n'existe pas déjà
+      setMessages(prev => {
+        const exists = prev.some(m => m._id === newMessage._id);
+        if (exists) return prev;
+        return [...prev, newMessage];
+      });
+
+      // Scroll vers le bas
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+
+      // Marquer comme lu si c'est pas mon message
+      if (!newMessage.estMoi) {
+        emitMessageRead(id, newMessage._id);
+      }
+    });
+
+    return unsubscribe;
+  }, [id, utilisateur?.id, onNewMessage, emitMessageRead]);
+
+  // === SOCKET: Écouter les indicateurs de frappe ===
+  useEffect(() => {
+    if (!id) return;
+
+    const unsubscribe = onTyping((event: TypingSocketEvent) => {
+      if (event.conversationId !== id) return;
+      if (event.userId === utilisateur?.id) return; // Ignorer mes propres events
+
+      setTypingUsers(prev => {
+        const newMap = new Map(prev);
+        if (event.isTyping) {
+          newMap.set(event.userId, event.userName);
+        } else {
+          newMap.delete(event.userId);
+        }
+        return newMap;
+      });
+    });
+
+    return unsubscribe;
+  }, [id, utilisateur?.id, onTyping]);
+
+  // === SOCKET: Émettre typing quand je tape ===
+  const handleTextChange = useCallback((text: string) => {
+    setMessageTexte(text);
+
+    if (!id || !socketConnected) return;
+
+    const now = Date.now();
+    // Throttle: émettre max toutes les 2 secondes
+    if (now - lastTypingEmitRef.current > 2000) {
+      emitTyping(id, true);
+      lastTypingEmitRef.current = now;
+    }
+
+    // Reset le timeout pour arrêter le typing
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      emitTyping(id, false);
+    }, 3000);
+  }, [id, socketConnected, emitTyping]);
+
+  // Auto-refresh en fallback (si socket déconnecté, polling plus fréquent)
   // Gère automatiquement l'AppState (arrête le polling en arrière-plan)
   // et rafraîchit au focus de l'écran
   useAutoRefresh({
@@ -311,9 +428,11 @@ export default function ConversationScreen() {
         await chargerMessages(true);
       }
     }, [id, chargerMessages]),
-    pollingInterval: 8000, // 8 secondes (plus réactif pour les messages)
+    // Si socket connecté: polling moins fréquent (30s) comme backup
+    // Si socket déconnecté: polling fréquent (8s) pour compenser
+    pollingInterval: socketConnected ? 30000 : 8000,
     refreshOnFocus: true,
-    minRefreshInterval: 3000, // 3 secondes minimum
+    minRefreshInterval: socketConnected ? 10000 : 3000,
     enabled: !!id && !chargement,
   });
 
@@ -1190,6 +1309,20 @@ export default function ConversationScreen() {
           }
         />
 
+        {/* Typing indicator */}
+        {typingUsers.size > 0 && (
+          <View style={styles.typingIndicator}>
+            <View style={styles.typingDots}>
+              <View style={[styles.typingDot, styles.typingDot1]} />
+              <View style={[styles.typingDot, styles.typingDot2]} />
+              <View style={[styles.typingDot, styles.typingDot3]} />
+            </View>
+            <Text style={styles.typingText}>
+              {Array.from(typingUsers.values()).join(', ')} {typingUsers.size === 1 ? 'écrit...' : 'écrivent...'}
+            </Text>
+          </View>
+        )}
+
         {/* Bottom area: Reply + Draft + Input */}
         {/* Structure identique à UnifiedCommentsSheet: composer dans le flux + spacer Android */}
         <View style={[styles.bottomArea, { paddingBottom: insets.bottom || espacements.md }]}>
@@ -1254,7 +1387,7 @@ export default function ConversationScreen() {
                 placeholder={draftMedia ? 'Ajouter une légende...' : 'Message...'}
                 placeholderTextColor={couleurs.textePlaceholder}
                 value={messageTexte}
-                onChangeText={setMessageTexte}
+                onChangeText={handleTextChange}
                 multiline
                 scrollEnabled
                 textAlignVertical="top"
@@ -1923,5 +2056,39 @@ const styles = StyleSheet.create({
   reactionPickerActionText: {
     fontSize: typographie.tailles.sm,
     color: couleurs.texte,
+  },
+  // Typing indicator
+  typingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.xs,
+    backgroundColor: couleurs.fond,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: espacements.sm,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: couleurs.texteMuted,
+    marginHorizontal: 2,
+  },
+  typingDot1: {
+    opacity: 0.4,
+  },
+  typingDot2: {
+    opacity: 0.6,
+  },
+  typingDot3: {
+    opacity: 0.8,
+  },
+  typingText: {
+    fontSize: typographie.tailles.xs,
+    color: couleurs.texteMuted,
+    fontStyle: 'italic',
   },
 });

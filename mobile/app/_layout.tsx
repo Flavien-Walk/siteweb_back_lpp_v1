@@ -11,8 +11,19 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/contextes/AuthContexte';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { UserProvider, useUser } from '../src/contexts/UserContext';
+import { SocketProvider } from '../src/contexts/SocketContext';
 import SplashScreen from '../src/composants/SplashScreen';
 import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
+
+// Wrapper pour fournir le SocketProvider avec le userId
+function SocketWrapper({ children }: { children: React.ReactNode }) {
+  const { utilisateur } = useUser();
+  return (
+    <SocketProvider userId={utilisateur?._id || null}>
+      {children}
+    </SocketProvider>
+  );
+}
 
 // Composant interne qui utilise le theme
 function AppContent() {
@@ -85,7 +96,10 @@ export default function RootLayout() {
           {/* AuthProvider est un wrapper pour compatibilité avec l'API legacy */}
           <UserProvider>
             <AuthProvider>
-              <AppContent />
+              {/* SocketProvider pour le temps reel */}
+              <SocketWrapper>
+                <AppContent />
+              </SocketWrapper>
             </AuthProvider>
           </UserProvider>
         </ThemeProvider>

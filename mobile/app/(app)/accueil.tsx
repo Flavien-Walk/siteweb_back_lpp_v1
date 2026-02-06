@@ -33,6 +33,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { espacements, rayons } from '../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
+import { useSocket } from '../../src/contexts/SocketContext';
 import { Utilisateur } from '../../src/services/auth';
 // useStaff importé uniquement dans PublicationCard extrait
 import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal } from '../../src/composants';
@@ -147,6 +148,17 @@ export default function Accueil() {
   const { utilisateur, needsStatut, refreshUser } = useUser();
   const insets = useSafeAreaInsets();
   const styles = createStyles(couleurs);
+
+  // Socket pour les compteurs en temps réel
+  const {
+    isConnected: socketConnected,
+    unreadMessages: socketUnreadMessages,
+    unreadNotifications: socketUnreadNotifications,
+    unreadDemandesAmis: socketUnreadDemandesAmis,
+    onNewMessage,
+    onNewNotification,
+    onDemandeAmi,
+  } = useSocket();
 
   // Navigation vers profil utilisateur (mon profil ou profil public)
   const naviguerVersProfil = useCallback((userId?: string) => {
@@ -1117,7 +1129,13 @@ export default function Accueil() {
     return `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase();
   };
 
-  const unreadMessages = conversations.reduce((total, conv) => total + conv.messagesNonLus, 0);
+  // Utiliser les compteurs socket si connecté, sinon fallback sur calcul local
+  const localUnreadMessages = conversations.reduce((total, conv) => total + conv.messagesNonLus, 0);
+  const unreadMessages = socketConnected ? socketUnreadMessages : localUnreadMessages;
+
+  // Compteurs notifications et demandes d'amis avec socket
+  const effectiveNotifications = socketConnected ? socketUnreadNotifications : notificationsNonLues;
+  const effectiveDemandesAmis = socketConnected ? socketUnreadDemandesAmis : demandesAmisEnAttente;
 
   // ============ COMPOSANTS LOCAUX ============
   // PublicationCard extrait vers: src/composants/PublicationCard.tsx (optimisation P0)
@@ -1336,11 +1354,11 @@ export default function Accueil() {
       </Pressable>
       <Pressable style={styles.notifButton} onPress={() => router.push('/(app)/notifications')}>
         <Ionicons name="notifications-outline" size={24} color={couleurs.texte} />
-        {(notificationsNonLues > 0 || demandesAmisEnAttente > 0) && (
-          <View style={[styles.notifBadge, demandesAmisEnAttente > 0 && styles.notifBadgeDemandes]}>
+        {(effectiveNotifications > 0 || effectiveDemandesAmis > 0) && (
+          <View style={[styles.notifBadge, effectiveDemandesAmis > 0 && styles.notifBadgeDemandes]}>
             <Text style={styles.notifBadgeText}>
               {(() => {
-                const total = notificationsNonLues + demandesAmisEnAttente;
+                const total = effectiveNotifications + effectiveDemandesAmis;
                 return total > 99 ? '99+' : total;
               })()}
             </Text>

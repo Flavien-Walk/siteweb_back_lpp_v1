@@ -9,6 +9,11 @@ export const API_URL = __DEV__
   ? 'https://siteweb-back-lpp-v1.onrender.com/api'
   : 'https://siteweb-back-lpp-v1.onrender.com/api';
 
+// URL du serveur WebSocket (sans /api)
+export const SOCKET_URL = __DEV__
+  ? 'https://siteweb-back-lpp-v1.onrender.com'
+  : 'https://siteweb-back-lpp-v1.onrender.com';
+
 // Clés de stockage
 export const STORAGE_KEYS = {
   TOKEN: 'lpp_token',
