@@ -800,10 +800,10 @@ export const getProjetsSuivisUtilisateur = async (
     const { id } = req.params;
 
     // Import dynamique pour éviter les dépendances circulaires
-    const Projet = (await import('../models/Projet.js')).default;
+    const ProjetModel = (await import('../models/Projet.js')).default as any;
 
     // Récupérer les projets que cet utilisateur suit
-    const projets = await Projet.find({
+    const projets = await ProjetModel.find({
       followers: id,
       statut: 'published',
     })
