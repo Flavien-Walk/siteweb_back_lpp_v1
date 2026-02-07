@@ -40,6 +40,8 @@ interface SwipeableScreenProps {
   onSwipeBack?: () => void;
   style?: ViewStyle;
   previousScreenColor?: string; // Couleur simulée de l'écran précédent
+  /** Contenu personnalisé pour la prévisualisation (au lieu des placeholders) */
+  previewContent?: ReactNode;
 }
 
 const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
@@ -48,6 +50,7 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
   onSwipeBack,
   style,
   previousScreenColor = '#0D0D12',
+  previewContent,
 }) => {
   const router = useRouter();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -179,7 +182,7 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      {/* Simulation de la page précédente avec effet parallaxe */}
+      {/* Prévisualisation de la page précédente avec effet parallaxe */}
       <Animated.View
         style={[
           styles.previousScreen,
@@ -190,13 +193,20 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
         ]}
         pointerEvents="none"
       >
-        {/* Contenu simulé de la page précédente */}
-        <View style={styles.previousContent}>
-          <View style={styles.previousHeader} />
-          <View style={styles.previousItem} />
-          <View style={styles.previousItem} />
-          <View style={styles.previousItem} />
-        </View>
+        {previewContent ? (
+          // Contenu personnalisé fourni
+          <View style={styles.previousContentCustom}>
+            {previewContent}
+          </View>
+        ) : (
+          // Contenu placeholder par défaut
+          <View style={styles.previousContent}>
+            <View style={styles.previousHeader} />
+            <View style={styles.previousItem} />
+            <View style={styles.previousItem} />
+            <View style={styles.previousItem} />
+          </View>
+        )}
       </Animated.View>
 
       {/* Overlay sombre sur la page précédente */}
@@ -261,6 +271,9 @@ const styles = StyleSheet.create({
     paddingTop: 100,
     paddingHorizontal: 16,
     gap: 12,
+  },
+  previousContentCustom: {
+    flex: 1,
   },
   previousHeader: {
     height: 60,

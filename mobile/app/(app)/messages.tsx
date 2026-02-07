@@ -221,6 +221,9 @@ export default function Messages() {
   // Filtrer conversations par onglet (amis/non-amis) et recherche
   const conversationsFiltrees = React.useMemo(() => {
     return conversations.filter((conv) => {
+      // Exclure les conversations sans message (créées mais annulées)
+      if (!conv.dernierMessage) return false;
+
       // Filtrage par onglet (Messages = amis, Demandes = non-amis)
       if (!conv.estGroupe && conv.participant) {
         const estAmi = amisIds.has(conv.participant._id);

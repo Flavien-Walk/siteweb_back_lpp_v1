@@ -48,6 +48,8 @@ import { getMesProjets, Projet } from '../../src/services/projets';
 import Avatar from '../../src/composants/Avatar';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
+import SwipeableScreen from '../../src/composants/SwipeableScreen';
+import { FeedPreview } from '../../src/composants/SwipeBackPreviews';
 import { getUserBadgeConfig } from '../../src/utils/userDisplay';
 
 type Onglet = 'profil-public' | 'parametres';
@@ -1411,17 +1413,18 @@ export default function Profil() {
     </ScrollView>
   );
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+  // Contenu principal du profil
+  const profilContent = (
+    <>
       <LinearGradient
         colors={[couleurs.fond, couleurs.fondSecondaire, couleurs.fond]}
         style={StyleSheet.absoluteFill}
       />
 
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
           {/* Header */}
           <View style={styles.header}>
             <Pressable style={styles.backButton} onPress={() => router.back()}>
@@ -1833,6 +1836,18 @@ export default function Profil() {
           }}
         />
       </KeyboardAvoidingView>
+    </>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {Platform.OS === 'android' ? (
+        <SwipeableScreen previousScreenColor={couleurs.fond} previewContent={<FeedPreview />}>
+          {profilContent}
+        </SwipeableScreen>
+      ) : (
+        profilContent
+      )}
     </SafeAreaView>
   );
 }

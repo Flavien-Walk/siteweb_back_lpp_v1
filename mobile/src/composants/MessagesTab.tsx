@@ -216,6 +216,9 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
   // Filtrer conversations
   const conversationsFiltrees = React.useMemo(() => {
     return conversations.filter((conv) => {
+      // Exclure les conversations sans message (créées mais annulées)
+      if (!conv.dernierMessage) return false;
+
       if (!conv.estGroupe && conv.participant) {
         const estAmi = amisIds.has(conv.participant._id);
         if (ongletActif === 'messages' && !estAmi) return false;

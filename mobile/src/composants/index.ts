@@ -43,6 +43,7 @@ export { default as LiveCard } from './LiveCard';
 // Navigation et UX
 export { default as SwipeableScreen } from './SwipeableScreen';
 export { default as StorySwipeOverlay } from './StorySwipeOverlay';
+export { FeedPreview, MessagesListPreview } from './SwipeBackPreviews';
 
 // Onglets intégrés
 export { default as MessagesTab } from './MessagesTab';

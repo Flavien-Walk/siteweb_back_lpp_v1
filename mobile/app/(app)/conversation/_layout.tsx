@@ -1,22 +1,10 @@
 /**
  * Layout pour les ecrans de conversation
+ * Utilise Slot pour que le geste back soit géré par le Stack parent
  */
 
-import { Stack } from 'expo-router';
-import { couleurs } from '../../../src/constantes/theme';
+import { Slot } from 'expo-router';
 
 export default function ConversationLayout() {
-  return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: couleurs.fond },
-        animation: 'slide_from_right',
-        // Swipe right to go back
-        gestureEnabled: true,
-        gestureDirection: 'horizontal',
-        fullScreenGestureEnabled: true,
-      }}
-    />
-  );
+  return <Slot />;
 }
