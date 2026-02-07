@@ -21,17 +21,17 @@ const badgeVariants = cva(
         reviewed: 'border-transparent bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100',
         action_taken: 'border-transparent bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
         dismissed: 'border-transparent bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100',
-        // Role variants
-        user: 'border-transparent bg-gray-100 text-gray-800',
-        modo_test: 'border-transparent bg-purple-100 text-purple-800',
-        modo: 'border-transparent bg-indigo-100 text-indigo-800',
-        admin_modo: 'border-transparent bg-blue-100 text-blue-800',
-        super_admin: 'border-transparent bg-rose-100 text-rose-800',
+        // Role variants (dark theme optimized)
+        user: 'border-transparent bg-gray-800 text-gray-200',
+        modo_test: 'border-sky-500/30 bg-sky-500/15 text-sky-300',
+        modo: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300',
+        admin_modo: 'border-amber-500/30 bg-amber-500/15 text-amber-300',
+        super_admin: 'border-purple-500/30 bg-purple-500/15 text-purple-300',
         // Misc
         success: 'border-transparent bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
         warning: 'border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100',
-        escalated: 'border-transparent bg-red-500 text-white animate-pulse',
-        live: 'border-transparent bg-red-500 text-white',
+        escalated: 'border-transparent bg-red-500 text-white glow-pulse',
+        live: 'border-red-500/50 bg-red-500/20 text-red-300',
       },
     },
     defaultVariants: {

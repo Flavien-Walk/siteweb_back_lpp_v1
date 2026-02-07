@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { auditService, type AuditListParams } from '@/services/audit'
+import { PageTransition } from '@/components/PageTransition'
 import { useAuth } from '@/auth/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -124,7 +125,7 @@ export function AuditPage() {
     page: parseInt(searchParams.get('page') || '1'),
     limit: parseInt(searchParams.get('limit') || '50'),
     action: searchParams.get('action') || undefined,
-    source: searchParams.get('source') || undefined,
+    source: (searchParams.get('source') || undefined) as 'web' | 'mobile' | 'api' | 'system' | undefined,
     dateFrom: searchParams.get('dateFrom') || undefined,
     dateTo: searchParams.get('dateTo') || undefined,
     sort: 'createdAt',
@@ -187,6 +188,7 @@ export function AuditPage() {
   const canExport = hasPermission('audit:export')
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -257,7 +259,7 @@ export function AuditPage() {
                 <label className="mb-1 block text-sm font-medium">Source</label>
                 <Select
                   value={params.source || ''}
-                  onChange={(e) => updateParams({ source: e.target.value || undefined })}
+                  onChange={(e) => updateParams({ source: (e.target.value || undefined) as 'web' | 'mobile' | 'api' | 'system' | undefined })}
                 >
                   <option value="">Toutes</option>
                   <option value="web">Web (Modération)</option>
@@ -433,6 +435,7 @@ export function AuditPage() {
         )}
       </Card>
     </div>
+    </PageTransition>
   )
 }
 

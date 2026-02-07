@@ -125,3 +125,45 @@
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* === Shimmer Skeleton === */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.08) 37%,
+    rgba(255,255,255,0.04) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* === Glow pulse for urgent items === */
+.glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(124, 92, 255, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(124, 92, 255, 0.6); }
+}
+
+/* === Table row enter animation === */
+@keyframes tableRowEnter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.table-row-animate {
+  animation: tableRowEnter 0.3s ease-out both;
+}
+
+/* === Smooth scroll === */
+html {
+  scroll-behavior: smooth;
+}

@@ -262,6 +262,7 @@ export interface DashboardStats {
   reports: {
     pending: number
     escalated: number
+    byReason?: Array<{ _id: string; count: number }>
   }
   actionsToday: number
   users: {

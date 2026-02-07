@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { reportsService, type ReportListParams } from '@/services/reports'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -117,6 +119,10 @@ export function ReportsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Signalement traité avec succès')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du traitement du signalement', { description: error.message })
     },
   })
 
@@ -144,6 +150,7 @@ export function ReportsPage() {
   const hasActiveFilters = params.status || params.reason || params.priority
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -424,6 +431,7 @@ export function ReportsPage() {
         )}
       </Card>
     </div>
+    </PageTransition>
   )
 }
 

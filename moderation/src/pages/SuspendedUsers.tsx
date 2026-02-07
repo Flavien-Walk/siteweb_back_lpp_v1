@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { usersService } from '@/services/users'
+import { PageTransition } from '@/components/PageTransition'
 import { useAuth } from '@/auth/AuthContext'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -71,6 +73,10 @@ export function SuspendedUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['users', 'banned'] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Utilisateur débanni')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du débannissement', { description: error.message })
     },
   })
 
@@ -81,6 +87,10 @@ export function SuspendedUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['users', 'suspended'] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Suspension levée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la levée de suspension', { description: error.message })
     },
   })
 
@@ -107,6 +117,7 @@ export function SuspendedUsersPage() {
   }
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -304,6 +315,7 @@ export function SuspendedUsersPage() {
         </Table>
       </Card>
     </div>
+    </PageTransition>
   )
 }
 

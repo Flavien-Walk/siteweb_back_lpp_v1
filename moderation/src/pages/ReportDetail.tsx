@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { reportsService } from '@/services/reports'
+import { PageTransition } from '@/components/PageTransition'
 import { useAuth } from '@/auth/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -105,6 +107,10 @@ export function ReportDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['reports'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       setActionReason('')
+      toast.success('Signalement traité')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du traitement du signalement', { description: error.message })
     },
   })
 
@@ -114,6 +120,10 @@ export function ReportDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['report', id] })
       setNoteContent('')
+      toast.success('Note ajoutée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de l\'ajout de la note', { description: error.message })
     },
   })
 
@@ -160,6 +170,7 @@ export function ReportDetailPage() {
   }
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
@@ -469,6 +480,7 @@ export function ReportDetailPage() {
         </div>
       </div>
     </div>
+    </PageTransition>
   )
 }
 

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { projetsService, type ProjetListParams } from '@/services/projets'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -89,6 +91,10 @@ export function ProjetsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projets'] })
       setConfirmAction(null)
+      toast.success('Projet masqué')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du masquage du projet', { description: error.message })
     },
   })
 
@@ -99,6 +105,10 @@ export function ProjetsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projets'] })
       setConfirmAction(null)
+      toast.success('Projet réactivé')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la réactivation du projet', { description: error.message })
     },
   })
 
@@ -109,6 +119,10 @@ export function ProjetsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projets'] })
       setConfirmAction(null)
+      toast.success('Projet supprimé')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la suppression du projet', { description: error.message })
     },
   })
 
@@ -148,6 +162,7 @@ export function ProjetsPage() {
   }
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -545,5 +560,6 @@ export function ProjetsPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

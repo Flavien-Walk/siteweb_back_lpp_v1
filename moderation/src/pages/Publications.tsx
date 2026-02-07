@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { publicationsService, type PublicationListParams } from '@/services/publications'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -73,6 +75,10 @@ export function PublicationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['publications'] })
       setConfirmAction(null)
+      toast.success('Publication masquée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du masquage de la publication', { description: error.message })
     },
   })
 
@@ -82,6 +88,10 @@ export function PublicationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['publications'] })
       setConfirmAction(null)
+      toast.success('Publication réactivée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la réactivation de la publication', { description: error.message })
     },
   })
 
@@ -91,6 +101,10 @@ export function PublicationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['publications'] })
       setConfirmAction(null)
+      toast.success('Publication supprimée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la suppression de la publication', { description: error.message })
     },
   })
 
@@ -123,6 +137,7 @@ export function PublicationsPage() {
   }
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -415,5 +430,6 @@ export function PublicationsPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

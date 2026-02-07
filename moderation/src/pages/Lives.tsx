@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { livesService, type LiveListParams } from '@/services/lives'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -25,7 +26,7 @@ import {
   Eye,
   Users,
 } from 'lucide-react'
-import { formatDate, formatRelativeTime } from '@/lib/utils'
+import { formatRelativeTime } from '@/lib/utils'
 
 export function LivesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -45,7 +46,7 @@ export function LivesPage() {
   const updateParams = (updates: Partial<LiveListParams>) => {
     const newParams = new URLSearchParams(searchParams)
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
+      if (value !== undefined && String(value) !== '') {
         newParams.set(key, String(value))
       } else {
         newParams.delete(key)
@@ -58,6 +59,7 @@ export function LivesPage() {
   const clearFilters = () => setSearchParams({ page: '1', limit: '20' })
 
   return (
+    <PageTransition>
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -223,5 +225,6 @@ export function LivesPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

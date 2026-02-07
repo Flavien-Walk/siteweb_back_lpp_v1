@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { usersService, type UserListParams } from '@/services/users'
+import { PageTransition } from '@/components/PageTransition'
 import { useAuth } from '@/auth/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -104,6 +106,10 @@ export function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Utilisateur banni')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du bannissement', { description: error.message })
     },
   })
 
@@ -113,6 +119,10 @@ export function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Utilisateur débanni')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du débannissement', { description: error.message })
     },
   })
 
@@ -147,6 +157,7 @@ export function UsersPage() {
   const canBan = hasPermission('users:ban')
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -413,6 +424,7 @@ export function UsersPage() {
         )}
       </Card>
     </div>
+    </PageTransition>
   )
 }
 

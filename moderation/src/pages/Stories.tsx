@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { storiesService, type StoryListParams } from '@/services/stories'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -105,6 +107,10 @@ export function StoriesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] })
       setConfirmAction(null)
+      toast.success('Story masquée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du masquage de la story', { description: error.message })
     },
   })
 
@@ -115,6 +121,10 @@ export function StoriesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] })
       setConfirmAction(null)
+      toast.success('Story réactivée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la réactivation de la story', { description: error.message })
     },
   })
 
@@ -125,6 +135,10 @@ export function StoriesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] })
       setConfirmAction(null)
+      toast.success('Story supprimée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la suppression de la story', { description: error.message })
     },
   })
 
@@ -163,6 +177,7 @@ export function StoriesPage() {
   }
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -517,5 +532,6 @@ export function StoriesPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

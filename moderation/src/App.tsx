@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/auth/AuthContext'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
@@ -241,6 +242,18 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AuthProvider>
+        <Toaster
+          theme="dark"
+          position="bottom-right"
+          richColors
+          toastOptions={{
+            style: {
+              background: 'hsl(220, 26%, 8%)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: 'hsl(225, 100%, 96%)',
+            },
+          }}
+        />
       </BrowserRouter>
     </QueryClientProvider>
   )

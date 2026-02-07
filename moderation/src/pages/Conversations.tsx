@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { conversationsService, type ConversationListParams } from '@/services/conversations'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -63,6 +64,7 @@ export function ConversationsPage() {
   const hasActiveFilters = params.type || params.participantId
 
   return (
+    <PageTransition>
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -246,5 +248,6 @@ export function ConversationsPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

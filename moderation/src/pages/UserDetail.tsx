@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { usersService } from '@/services/users'
+import { PageTransition } from '@/components/PageTransition'
 import { activityService } from '@/services/activity'
 import { useAuth } from '@/auth/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -151,6 +153,10 @@ export function UserDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', id] })
       setWarnReason('')
+      toast.success('Avertissement envoyé')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de l\'envoi de l\'avertissement', { description: error.message })
     },
   })
 
@@ -162,6 +168,10 @@ export function UserDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['user', id] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setSuspendReason('')
+      toast.success('Utilisateur suspendu')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la suspension', { description: error.message })
     },
   })
 
@@ -172,6 +182,10 @@ export function UserDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['user', id] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setBanReason('')
+      toast.success('Utilisateur banni')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du bannissement', { description: error.message })
     },
   })
 
@@ -181,6 +195,10 @@ export function UserDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', id] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Utilisateur débanni')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du débannissement', { description: error.message })
     },
   })
 
@@ -191,6 +209,10 @@ export function UserDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['user', id] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setNewRole('')
+      toast.success('Rôle modifié avec succès')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la modification du rôle', { description: error.message })
     },
   })
 
@@ -239,6 +261,7 @@ export function UserDetailPage() {
   }
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
@@ -961,6 +984,7 @@ export function UserDetailPage() {
         </div>
       </div>
     </div>
+    </PageTransition>
   )
 }
 

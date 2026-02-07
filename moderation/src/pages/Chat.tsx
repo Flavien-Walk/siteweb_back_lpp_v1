@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { chatService } from '@/services/chat'
+import { PageTransition } from '@/components/PageTransition'
 import { useAuth } from '@/auth/AuthContext'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -200,6 +201,7 @@ export function ChatPage() {
   const messages = data?.items || []
 
   return (
+    <PageTransition>
     <div className="flex h-[calc(100vh-4rem)] flex-col p-6">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
@@ -303,6 +305,7 @@ export function ChatPage() {
         </form>
       </Card>
     </div>
+    </PageTransition>
   )
 }
 

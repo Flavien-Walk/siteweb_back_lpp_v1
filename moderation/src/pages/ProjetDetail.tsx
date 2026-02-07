@@ -1,12 +1,14 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { projetsService } from '@/services/projets'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Eye, EyeOff, Trash2, RefreshCw, AlertTriangle, Briefcase, Users, MapPin, Clock } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Trash2, RefreshCw, AlertTriangle, Briefcase, Users, Clock } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 
 const categorieLabels: Record<string, string> = {
@@ -57,6 +59,10 @@ export function ProjetDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['projet', id] })
       queryClient.invalidateQueries({ queryKey: ['projets'] })
       setConfirmAction(null)
+      toast.success('Projet masqué')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du masquage du projet', { description: error.message })
     },
   })
 
@@ -67,6 +73,10 @@ export function ProjetDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['projet', id] })
       queryClient.invalidateQueries({ queryKey: ['projets'] })
       setConfirmAction(null)
+      toast.success('Projet réactivé')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la réactivation du projet', { description: error.message })
     },
   })
 
@@ -76,6 +86,10 @@ export function ProjetDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projets'] })
       window.history.back()
+      toast.success('Projet supprimé')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la suppression du projet', { description: error.message })
     },
   })
 
@@ -117,6 +131,7 @@ export function ProjetDetailPage() {
   const { projet, auditHistory } = data
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -538,5 +553,6 @@ export function ProjetDetailPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

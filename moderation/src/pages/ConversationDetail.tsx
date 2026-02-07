@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { conversationsService } from '@/services/conversations'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,6 +47,7 @@ export function ConversationDetailPage() {
   const { conversation, messages } = data
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
@@ -170,5 +172,6 @@ export function ConversationDetailPage() {
         </div>
       </div>
     </div>
+    </PageTransition>
   )
 }

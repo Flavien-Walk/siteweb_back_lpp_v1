@@ -1,7 +1,9 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { publicationsService } from '@/services/publications'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +42,10 @@ export function PublicationDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['publication', id] })
       queryClient.invalidateQueries({ queryKey: ['publications'] })
       setConfirmAction(null)
+      toast.success('Publication masquée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du masquage de la publication', { description: error.message })
     },
   })
 
@@ -49,6 +55,10 @@ export function PublicationDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['publication', id] })
       queryClient.invalidateQueries({ queryKey: ['publications'] })
       setConfirmAction(null)
+      toast.success('Publication réactivée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la réactivation de la publication', { description: error.message })
     },
   })
 
@@ -58,6 +68,10 @@ export function PublicationDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['publication', id] })
       queryClient.invalidateQueries({ queryKey: ['publications'] })
       setConfirmAction(null)
+      toast.success('Publication supprimée')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la suppression de la publication', { description: error.message })
     },
   })
 
@@ -99,6 +113,7 @@ export function PublicationDetailPage() {
   const { publication, commentaires, auditHistory } = data
 
   return (
+    <PageTransition>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -602,5 +617,6 @@ export function PublicationDetailPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { evenementsService, type EvenementListParams } from '@/services/evenements'
+import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +28,7 @@ import {
   Radio,
   QrCode,
 } from 'lucide-react'
-import { formatDate, formatRelativeTime } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 const typeLabels: Record<string, string> = {
   live: 'Live',
@@ -66,7 +67,7 @@ export function EvenementsPage() {
   const updateParams = (updates: Partial<EvenementListParams>) => {
     const newParams = new URLSearchParams(searchParams)
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
+      if (value !== undefined && String(value) !== '') {
         newParams.set(key, String(value))
       } else {
         newParams.delete(key)
@@ -81,6 +82,7 @@ export function EvenementsPage() {
   const hasActiveFilters = params.type || params.statut
 
   return (
+    <PageTransition>
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -246,5 +248,6 @@ export function EvenementsPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }
