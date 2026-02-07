@@ -13,6 +13,13 @@ import {
   Clock,
   ArrowRight,
   RefreshCw,
+  Shield,
+  Crown,
+  Eye,
+  ShieldCheck,
+  ShieldAlert,
+  Check,
+  X,
 } from 'lucide-react'
 
 export function DashboardPage() {
@@ -209,6 +216,160 @@ export function DashboardPage() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Staff Roles Guide */}
+      <div className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Guide des rôles du staff
+            </CardTitle>
+            <CardDescription>
+              Récapitulatif des rôles, permissions et responsabilités de chaque membre du staff
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {/* Modo Test */}
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Eye className="h-5 w-5 text-sky-400" />
+                  <h3 className="font-semibold text-sky-400">Modérateur Test</h3>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Rôle d'observation pour les nouveaux modérateurs en période d'essai.
+                </p>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Voir les signalements</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50" />
+                    <span className="text-muted-foreground">Traiter les signalements</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50" />
+                    <span className="text-muted-foreground">Actions sur utilisateurs</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50" />
+                    <span className="text-muted-foreground">Masquer/supprimer du contenu</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modo */}
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                  <h3 className="font-semibold text-emerald-400">Modérateur</h3>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Modérateur actif avec les outils essentiels de modération au quotidien.
+                </p>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Voir et traiter les signalements</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Voir les utilisateurs</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Avertir les utilisateurs</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Masquer du contenu</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Staff Chat</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50" />
+                    <span className="text-muted-foreground">Suspendre / Bannir</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Admin */}
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-amber-400" />
+                  <h3 className="font-semibold text-amber-400">Administrateur</h3>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Accès étendu avec pouvoir de sanction et de gestion complète du contenu.
+                </p>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Toutes les permissions Modérateur</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Escalader les signalements</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Suspendre / Bannir / Débannir</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Supprimer du contenu</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Voir les audit logs</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50" />
+                    <span className="text-muted-foreground">Modifier les rôles</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fondateur */}
+              <div className="rounded-lg border border-purple-500/30 bg-purple-500/5 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Crown className="h-5 w-5 text-purple-400" />
+                  <h3 className="font-semibold text-purple-400">Fondateur</h3>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Accès total à la plateforme. Peut promouvoir et rétrograder les membres du staff.
+                </p>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Toutes les permissions Administrateur</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Modifier les rôles du staff</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Exporter les audit logs</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Voir et modifier la configuration</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
