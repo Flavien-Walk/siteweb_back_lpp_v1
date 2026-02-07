@@ -3,7 +3,7 @@
  * Remplace Pressable/TouchableOpacity avec animations fluides
  */
 
-import React, { useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useCallback, useMemo, memo } from 'react';
 import {
   Animated,
   Pressable,
@@ -161,7 +161,7 @@ interface AnimatedBounceButtonProps extends Omit<PressableProps, 'style'> {
   disabled?: boolean;
 }
 
-export const AnimatedBounceButton: React.FC<AnimatedBounceButtonProps> = ({
+export const AnimatedBounceButton: React.FC<AnimatedBounceButtonProps> = memo(({
   style,
   children,
   disabled,
@@ -211,7 +211,7 @@ export const AnimatedBounceButton: React.FC<AnimatedBounceButtonProps> = ({
       </Animated.View>
     </Pressable>
   );
-};
+});
 
 /**
  * Variante avec ripple effect (pour les listes)
@@ -222,7 +222,7 @@ interface AnimatedListItemProps extends Omit<PressableProps, 'style'> {
   disabled?: boolean;
 }
 
-export const AnimatedListItem: React.FC<AnimatedListItemProps> = ({
+export const AnimatedListItem: React.FC<AnimatedListItemProps> = memo(({
   style,
   children,
   disabled,
@@ -302,6 +302,6 @@ export const AnimatedListItem: React.FC<AnimatedListItemProps> = ({
       </Animated.View>
     </Pressable>
   );
-};
+});
 
-export default AnimatedPressable;
+export default memo(AnimatedPressable);

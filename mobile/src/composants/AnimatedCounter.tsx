@@ -3,7 +3,7 @@
  * Pour les statistiques, likes, followers, etc.
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, memo } from 'react';
 import {
   View,
   Text,
@@ -47,7 +47,7 @@ const formatNumber = (num: number, formatLarge: boolean): string => {
   return num.toString();
 };
 
-const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
+const AnimatedCounter: React.FC<AnimatedCounterProps> = memo(({
   value,
   textStyle,
   style,
@@ -146,7 +146,7 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
       </Animated.Text>
     </View>
   );
-};
+});
 
 /**
  * Compteur avec label (pour les profils)
@@ -161,7 +161,7 @@ interface StatCounterProps {
   animateOnMount?: boolean;
 }
 
-export const StatCounter: React.FC<StatCounterProps> = ({
+export const StatCounter: React.FC<StatCounterProps> = memo(({
   value,
   label,
   textStyle,
@@ -181,7 +181,7 @@ export const StatCounter: React.FC<StatCounterProps> = ({
       <Text style={[styles.statLabel, labelStyle]}>{label}</Text>
     </View>
   );
-};
+});
 
 /**
  * Badge de notification avec compteur animé
@@ -192,7 +192,7 @@ interface NotificationBadgeProps {
   maxCount?: number;
 }
 
-export const NotificationBadge: React.FC<NotificationBadgeProps> = ({
+export const NotificationBadge: React.FC<NotificationBadgeProps> = memo(({
   count,
   style,
   maxCount = 99,
@@ -256,7 +256,7 @@ export const NotificationBadge: React.FC<NotificationBadgeProps> = ({
       <Text style={styles.badgeText}>{displayCount}</Text>
     </Animated.View>
   );
-};
+});
 
 /**
  * Compteur de changement (ex: +12, -5)
@@ -267,7 +267,7 @@ interface ChangeCounterProps {
   textStyle?: StyleProp<TextStyle>;
 }
 
-export const ChangeCounter: React.FC<ChangeCounterProps> = ({
+export const ChangeCounter: React.FC<ChangeCounterProps> = memo(({
   change,
   style,
   textStyle,
@@ -339,7 +339,7 @@ export const ChangeCounter: React.FC<ChangeCounterProps> = ({
       </Text>
     </Animated.View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

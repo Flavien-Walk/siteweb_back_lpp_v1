@@ -3,7 +3,7 @@
  * Affiche "Votre story" à gauche + les stories des autres utilisateurs
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -79,6 +79,19 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
     }
   }, [refreshing, chargerStories]);
 
+  // Memoize own story press handler
+  const handleOwnStoryPress = useCallback(() => {
+    if (mesStories.length > 0 && utilisateur) {
+      onStoryPress(
+        utilisateur.id,
+        mesStories,
+        `${utilisateur.prenom} ${utilisateur.nom}`,
+        utilisateur.avatar,
+        true
+      );
+    }
+  }, [mesStories, utilisateur, onStoryPress]);
+
   if (chargement) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -117,17 +130,7 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
             taille={68}
             hasStory={mesStories.length > 0}
             isOwn
-            onPress={() => {
-              if (mesStories.length > 0) {
-                onStoryPress(
-                  utilisateur.id,
-                  mesStories,
-                  `${utilisateur.prenom} ${utilisateur.nom}`,
-                  utilisateur.avatar,
-                  true // isOwnStory
-                );
-              }
-            }}
+            onPress={handleOwnStoryPress}
             onAddPress={onAddStoryPress}
           />
         )}
@@ -174,4 +177,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default StoriesRow;
+export default memo(StoriesRow);

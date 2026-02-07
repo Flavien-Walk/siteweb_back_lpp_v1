@@ -3,7 +3,7 @@
  * Version optimisée pour PagerView (sans header de navigation)
  */
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -46,6 +46,9 @@ interface MessagesTabProps {
   isActive?: boolean;
   onNewConversation?: () => void;
 }
+
+// Constante pour l'optimisation FlatList
+const CONVERSATION_ITEM_HEIGHT = 80; // 56px avatar + 24px padding
 
 const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewConversation }) => {
   const router = useRouter();
@@ -508,6 +511,16 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
     );
   };
 
+  // Optimisation FlatList - getItemLayout pour items de hauteur fixe
+  const getItemLayout = useCallback(
+    (_: ArrayLike<Conversation> | null | undefined, index: number) => ({
+      length: CONVERSATION_ITEM_HEIGHT,
+      offset: CONVERSATION_ITEM_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+
   return (
     <View style={styles.container}>
       {/* Header compact pour l'onglet */}
@@ -612,6 +625,11 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
           renderItem={renderConversation}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}
+          getItemLayout={getItemLayout}
+          windowSize={10}
+          initialNumToRender={10}
+          maxToRenderPerBatch={5}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={rafraichissement}

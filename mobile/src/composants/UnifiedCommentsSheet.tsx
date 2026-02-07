@@ -672,6 +672,10 @@ export default function UnifiedCommentsSheet({
               paddingTop: espacements.md,
               paddingBottom: espacements.md,
             }}
+            windowSize={8}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            removeClippedSubviews={true}
             showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"

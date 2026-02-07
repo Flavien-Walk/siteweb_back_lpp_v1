@@ -3,7 +3,7 @@
  * Decouverte de startups et communaute
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -143,6 +143,60 @@ const AnimatedPublicationWrapper = ({ children, index }: { children: React.React
     </Animated.View>
   );
 };
+
+// Composant NavTab memoizé pour éviter les re-renders inutiles sur Android
+interface NavTabProps {
+  onglet: { key: OngletActif; label: string; icon: keyof typeof Ionicons.glyphMap };
+  index: number;
+  tabWidth: number;
+  isActive: boolean;
+  opacity: Animated.AnimatedInterpolation<number>;
+  onPress: () => void;
+  unreadCount?: number;
+  couleurs: any;
+}
+
+const NavTab = memo(({ onglet, tabWidth, isActive, opacity, onPress, unreadCount, couleurs }: NavTabProps) => (
+  <Pressable
+    style={{ width: tabWidth, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}
+    onPress={onPress}
+  >
+    <Animated.View style={{ opacity, alignItems: 'center' }}>
+      <Ionicons
+        name={onglet.icon}
+        size={20}
+        color={isActive ? couleurs.primaire : couleurs.texteSecondaire}
+      />
+      <Text
+        style={{
+          fontSize: 10,
+          marginTop: 2,
+          color: isActive ? couleurs.primaire : couleurs.texteSecondaire,
+          fontWeight: isActive ? '600' : '400',
+        }}
+        numberOfLines={1}
+      >
+        {onglet.label}
+      </Text>
+    </Animated.View>
+    {onglet.key === 'messages' && unreadCount !== undefined && unreadCount > 0 && (
+      <View style={{
+        position: 'absolute',
+        top: 2,
+        right: tabWidth / 2 - 18,
+        backgroundColor: '#EF4444',
+        borderRadius: 8,
+        minWidth: 16,
+        height: 16,
+        paddingHorizontal: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{unreadCount}</Text>
+      </View>
+    )}
+  </Pressable>
+));
 
 export default function Accueil() {
   const { couleurs } = useTheme();
@@ -524,17 +578,37 @@ export default function Accueil() {
     const targetOnglet = onglets[position];
 
     if (targetOnglet) {
-      // Haptic feedback
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Haptic feedback - plus léger sur Android pour éviter le lag
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        Haptics.selectionAsync();
+      }
       setOngletActif(targetOnglet.key);
-    }
-  }, [onglets]);
 
-  // Callback pendant le scroll (pour l'indicateur animé)
+      // Sur Android, l'animation peut déjà être en cours via handleOngletPress ou swipe
+      // On ne déclenche l'animation que pour les swipes (pas les taps)
+      // L'animation spring continuera naturellement vers la bonne position
+      if (Platform.OS === 'android') {
+        Animated.spring(tabIndicatorPosition, {
+          toValue: position,
+          useNativeDriver: true,
+          tension: 300,
+          friction: 30,
+        }).start();
+      }
+    }
+  }, [onglets, tabIndicatorPosition]);
+
+  // Callback pendant le scroll - version optimisée pour Android
+  // On utilise une approche hybride: animation native quand possible
   const handlePageScroll = useCallback((event: PagerViewOnPageScrollEvent) => {
-    const { position, offset } = event.nativeEvent;
-    // Animation fluide de l'indicateur
-    tabIndicatorPosition.setValue(position + offset);
+    // Sur iOS, on peut suivre le scroll en temps réel car c'est plus fluide
+    // Sur Android, on laisse l'animation spring gérer la transition
+    if (Platform.OS === 'ios') {
+      const { position, offset } = event.nativeEvent;
+      tabIndicatorPosition.setValue(position + offset);
+    }
   }, [tabIndicatorPosition]);
 
   // Naviguer vers un onglet par index
@@ -1400,17 +1474,61 @@ export default function Accueil() {
   );
 
   const handleOngletPress = useCallback((key: OngletActif) => {
-    // Haptic feedback pour le clic
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Haptic feedback - plus léger sur Android
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Haptics.selectionAsync();
+    }
 
     const index = getOngletIndex(key);
     if (index !== -1) {
+      // Animer l'indicateur immédiatement (animation native fluide)
+      Animated.spring(tabIndicatorPosition, {
+        toValue: index,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 30,
+      }).start();
+
+      // Puis changer la page
       pagerRef.current?.setPage(index);
     }
-  }, [getOngletIndex]);
+  }, [getOngletIndex, tabIndicatorPosition]);
 
-  // Largeur d'un onglet pour l'indicateur animé
-  const TAB_WIDTH = (SCREEN_WIDTH - espacements.lg * 2) / Math.min(onglets.length, 5);
+  // Largeur d'un onglet pour l'indicateur animé - memoizé
+  const TAB_WIDTH = useMemo(() =>
+    (SCREEN_WIDTH - espacements.lg * 2) / Math.min(onglets.length, 5),
+    [onglets.length]
+  );
+
+  // Memoize l'interpolation de l'indicateur pour éviter les recalculs
+  const indicatorTranslateX = useMemo(() =>
+    tabIndicatorPosition.interpolate({
+      inputRange: onglets.map((_, i) => i),
+      outputRange: onglets.map((_, i) => i * TAB_WIDTH + 4),
+      extrapolate: 'clamp',
+    }),
+    [tabIndicatorPosition, onglets.length, TAB_WIDTH]
+  );
+
+  // Memoize les interpolations d'opacité pour chaque onglet
+  const tabOpacities = useMemo(() =>
+    onglets.map((_, index) =>
+      tabIndicatorPosition.interpolate({
+        inputRange: [index - 1, index, index + 1],
+        outputRange: [0.5, 1, 0.5],
+        extrapolate: 'clamp',
+      })
+    ),
+    [tabIndicatorPosition, onglets.length]
+  );
+
+  // Memoize les handlers de presse pour chaque onglet
+  const tabPressHandlers = useMemo(() =>
+    onglets.map((onglet) => () => handleOngletPress(onglet.key)),
+    [onglets, handleOngletPress]
+  );
 
   const renderNavigation = () => (
     <View style={styles.navigation}>
@@ -1421,58 +1539,25 @@ export default function Accueil() {
             styles.navIndicator,
             {
               width: TAB_WIDTH - 8,
-              transform: [
-                {
-                  translateX: tabIndicatorPosition.interpolate({
-                    inputRange: onglets.map((_, i) => i),
-                    outputRange: onglets.map((_, i) => i * TAB_WIDTH + 4),
-                    extrapolate: 'clamp',
-                  }),
-                },
-              ],
+              transform: [{ translateX: indicatorTranslateX }],
             },
           ]}
         />
 
-        {/* Onglets */}
-        {onglets.map((onglet, index) => {
-          // Opacité animée basée sur la position
-          const opacity = tabIndicatorPosition.interpolate({
-            inputRange: [index - 1, index, index + 1],
-            outputRange: [0.5, 1, 0.5],
-            extrapolate: 'clamp',
-          });
-
-          return (
-            <Pressable
-              key={onglet.key}
-              style={[styles.navTab, { width: TAB_WIDTH }]}
-              onPress={() => handleOngletPress(onglet.key)}
-            >
-              <Animated.View style={{ opacity, alignItems: 'center' }}>
-                <Ionicons
-                  name={onglet.icon}
-                  size={20}
-                  color={ongletActif === onglet.key ? couleurs.primaire : couleurs.texteSecondaire}
-                />
-                <Text
-                  style={[
-                    styles.navTabText,
-                    ongletActif === onglet.key && styles.navTabTextActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {onglet.label}
-                </Text>
-              </Animated.View>
-              {onglet.key === 'messages' && unreadMessages > 0 && (
-                <View style={styles.navBadge}>
-                  <Text style={styles.navBadgeText}>{unreadMessages}</Text>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
+        {/* Onglets - utilise le composant memoizé */}
+        {onglets.map((onglet, index) => (
+          <NavTab
+            key={onglet.key}
+            onglet={onglet}
+            index={index}
+            tabWidth={TAB_WIDTH}
+            isActive={ongletActif === onglet.key}
+            opacity={tabOpacities[index]}
+            onPress={tabPressHandlers[index]}
+            unreadCount={onglet.key === 'messages' ? unreadMessages : undefined}
+            couleurs={couleurs}
+          />
+        ))}
       </View>
     </View>
   );
@@ -2466,7 +2551,7 @@ export default function Accueil() {
           onPageScroll={handlePageScroll}
           overdrag={true}
           overScrollMode="always"
-          offscreenPageLimit={1}
+          offscreenPageLimit={2}
         >
           {onglets.map((onglet) => {
             if (onglet.key === 'feed') {

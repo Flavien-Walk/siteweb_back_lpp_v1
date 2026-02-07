@@ -3,7 +3,7 @@
  * Persistance via AsyncStorage
  */
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types
@@ -180,19 +180,29 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
   };
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     const newMode = mode === 'dark' ? 'light' : 'dark';
     setMode(newMode);
     saveTheme(newMode);
-  };
+  }, [mode]);
 
-  const setTheme = (newMode: ThemeMode) => {
+  const setTheme = useCallback((newMode: ThemeMode) => {
     setMode(newMode);
     saveTheme(newMode);
-  };
+  }, []);
 
-  const couleurs = mode === 'dark' ? darkTheme : lightTheme;
+  // Memoize derived values
+  const couleurs = useMemo(() => mode === 'dark' ? darkTheme : lightTheme, [mode]);
   const isDark = mode === 'dark';
+
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo<ThemeContextType>(() => ({
+    mode,
+    couleurs,
+    toggleTheme,
+    setTheme,
+    isDark,
+  }), [mode, couleurs, toggleTheme, setTheme, isDark]);
 
   // Ne pas render tant que le theme n'est pas charge
   if (!isLoaded) {
@@ -200,7 +210,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }
 
   return (
-    <ThemeContext.Provider value={{ mode, couleurs, toggleTheme, setTheme, isDark }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );

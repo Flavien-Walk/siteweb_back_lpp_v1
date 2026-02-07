@@ -15,6 +15,7 @@ import React, {
   useRef,
   useState,
   useCallback,
+  useMemo,
   ReactNode,
 } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
@@ -358,27 +359,44 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     socketRef.current?.emit('get_unread_counts');
   }, []);
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo<SocketContextType>(() => ({
+    isConnected,
+    socket: socketRef.current,
+    unreadMessages,
+    unreadNotifications,
+    unreadDemandesAmis,
+    connect,
+    disconnect,
+    onNewMessage,
+    onNewNotification,
+    onDemandeAmi,
+    onTyping,
+    emitTyping,
+    emitMessageRead,
+    joinConversation,
+    leaveConversation,
+    refreshUnreadCounts,
+  }), [
+    isConnected,
+    unreadMessages,
+    unreadNotifications,
+    unreadDemandesAmis,
+    connect,
+    disconnect,
+    onNewMessage,
+    onNewNotification,
+    onDemandeAmi,
+    onTyping,
+    emitTyping,
+    emitMessageRead,
+    joinConversation,
+    leaveConversation,
+    refreshUnreadCounts,
+  ]);
+
   return (
-    <SocketContext.Provider
-      value={{
-        isConnected,
-        socket: socketRef.current,
-        unreadMessages,
-        unreadNotifications,
-        unreadDemandesAmis,
-        connect,
-        disconnect,
-        onNewMessage,
-        onNewNotification,
-        onDemandeAmi,
-        onTyping,
-        emitTyping,
-        emitMessageRead,
-        joinConversation,
-        leaveConversation,
-        refreshUnreadCounts,
-      }}
-    >
+    <SocketContext.Provider value={contextValue}>
       {children}
     </SocketContext.Provider>
   );

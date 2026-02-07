@@ -8,7 +8,7 @@
  * - Animation fluide avec haptic feedback
  */
 
-import React, { ReactNode, useCallback, useRef } from 'react';
+import React, { ReactNode, useCallback, useRef, memo, useMemo } from 'react';
 import {
   StyleSheet,
   Dimensions,
@@ -147,38 +147,34 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
     [completeSwipe, resetPosition]
   );
 
-  // Animation de l'arrière-plan (effet parallaxe)
-  const backgroundTranslateX = translateX.interpolate({
-    inputRange: [0, SCREEN_WIDTH],
-    outputRange: [-SCREEN_WIDTH * PARALLAX_FACTOR, 0],
-    extrapolate: 'clamp',
-  });
-
-  // Opacité de l'overlay sombre
-  const overlayOpacity = translateX.interpolate({
-    inputRange: [0, SCREEN_WIDTH],
-    outputRange: [0.6, 0],
-    extrapolate: 'clamp',
-  });
-
-  // Indicateur de bord
-  const indicatorOpacity = translateX.interpolate({
-    inputRange: [0, 30, 80],
-    outputRange: [0, 1, 0.6],
-    extrapolate: 'clamp',
-  });
-
-  const indicatorTranslateX = translateX.interpolate({
-    inputRange: [0, 100],
-    outputRange: [-15, 15],
-    extrapolate: 'clamp',
-  });
-
-  const indicatorScale = translateX.interpolate({
-    inputRange: [0, 50, SWIPE_THRESHOLD],
-    outputRange: [0.8, 1, 1.1],
-    extrapolate: 'clamp',
-  });
+  // Memoize animated interpolations
+  const animatedStyles = useMemo(() => ({
+    backgroundTranslateX: translateX.interpolate({
+      inputRange: [0, SCREEN_WIDTH],
+      outputRange: [-SCREEN_WIDTH * PARALLAX_FACTOR, 0],
+      extrapolate: 'clamp',
+    }),
+    overlayOpacity: translateX.interpolate({
+      inputRange: [0, SCREEN_WIDTH],
+      outputRange: [0.6, 0],
+      extrapolate: 'clamp',
+    }),
+    indicatorOpacity: translateX.interpolate({
+      inputRange: [0, 30, 80],
+      outputRange: [0, 1, 0.6],
+      extrapolate: 'clamp',
+    }),
+    indicatorTranslateX: translateX.interpolate({
+      inputRange: [0, 100],
+      outputRange: [-15, 15],
+      extrapolate: 'clamp',
+    }),
+    indicatorScale: translateX.interpolate({
+      inputRange: [0, 50, SWIPE_THRESHOLD],
+      outputRange: [0.8, 1, 1.1],
+      extrapolate: 'clamp',
+    }),
+  }), [translateX]);
 
   return (
     <View style={[styles.container, style]}>
@@ -188,7 +184,7 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
           styles.previousScreen,
           {
             backgroundColor: previousScreenColor,
-            transform: [{ translateX: backgroundTranslateX }],
+            transform: [{ translateX: animatedStyles.backgroundTranslateX }],
           },
         ]}
         pointerEvents="none"
@@ -211,7 +207,7 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
 
       {/* Overlay sombre sur la page précédente */}
       <Animated.View
-        style={[styles.overlay, { opacity: overlayOpacity }]}
+        style={[styles.overlay, { opacity: animatedStyles.overlayOpacity }]}
         pointerEvents="none"
       />
 
@@ -220,10 +216,10 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
         style={[
           styles.indicator,
           {
-            opacity: indicatorOpacity,
+            opacity: animatedStyles.indicatorOpacity,
             transform: [
-              { translateX: indicatorTranslateX },
-              { scale: indicatorScale },
+              { translateX: animatedStyles.indicatorTranslateX },
+              { scale: animatedStyles.indicatorScale },
             ],
           },
         ]}
@@ -330,4 +326,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SwipeableScreen;
+export default memo(SwipeableScreen);

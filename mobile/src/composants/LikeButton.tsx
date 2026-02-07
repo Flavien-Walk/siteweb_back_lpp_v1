@@ -3,7 +3,7 @@
  * Animation de coeur avec bounce et scale
  */
 
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, memo } from 'react';
 import {
   View,
   StyleSheet,
@@ -205,7 +205,7 @@ interface LikeButtonCompactProps {
   disabled?: boolean;
 }
 
-export const LikeButtonCompact: React.FC<LikeButtonCompactProps> = ({
+export const LikeButtonCompact: React.FC<LikeButtonCompactProps> = memo(({
   isLiked,
   count,
   onPress,
@@ -263,7 +263,7 @@ export const LikeButtonCompact: React.FC<LikeButtonCompactProps> = ({
       )}
     </Pressable>
   );
-};
+});
 
 /**
  * Double tap like animation (pour les posts/images)
@@ -274,7 +274,7 @@ interface DoubleTapLikeProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export const DoubleTapLike: React.FC<DoubleTapLikeProps> = ({
+export const DoubleTapLike: React.FC<DoubleTapLikeProps> = memo(({
   onDoubleTap,
   children,
   style,
@@ -340,7 +340,7 @@ export const DoubleTapLike: React.FC<DoubleTapLikeProps> = ({
       </Animated.View>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -386,4 +386,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LikeButton;
+export default memo(LikeButton);

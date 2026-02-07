@@ -3,7 +3,7 @@
  * Avec actions rapides pour demandes d'amis
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -460,6 +460,10 @@ export default function Notifications() {
           renderItem={renderNotification}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}
+          windowSize={10}
+          initialNumToRender={10}
+          maxToRenderPerBatch={5}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={rafraichissement}

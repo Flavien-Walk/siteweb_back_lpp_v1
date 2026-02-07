@@ -12,7 +12,7 @@
  * Le bouton "Reessayer" permet de verifier si unban/unsuspend a ete fait.
  */
 
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 
 // Intervalle du heartbeat en ms (90 secondes - entre 60 et 120 comme demande)
@@ -316,23 +316,37 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const isAuthenticated = !!utilisateur && !accountRestriction;
   const needsStatut = isAuthenticated && !utilisateur?.statut;
 
+  // Memoize context value to prevent unnecessary re-renders of consumers
+  const contextValue = useMemo<UserContextType>(() => ({
+    utilisateur,
+    isLoading,
+    isAuthenticated,
+    needsStatut,
+    tokenReady,
+    userHydrated,
+    accountRestriction,
+    retryRestriction,
+    logoutFromRestriction,
+    refreshUser,
+    updateUser,
+    logout,
+  }), [
+    utilisateur,
+    isLoading,
+    isAuthenticated,
+    needsStatut,
+    tokenReady,
+    userHydrated,
+    accountRestriction,
+    retryRestriction,
+    logoutFromRestriction,
+    refreshUser,
+    updateUser,
+    logout,
+  ]);
+
   return (
-    <UserContext.Provider
-      value={{
-        utilisateur,
-        isLoading,
-        isAuthenticated,
-        needsStatut,
-        tokenReady,
-        userHydrated,
-        accountRestriction,
-        retryRestriction,
-        logoutFromRestriction,
-        refreshUser,
-        updateUser,
-        logout,
-      }}
-    >
+    <UserContext.Provider value={contextValue}>
       {children}
     </UserContext.Provider>
   );

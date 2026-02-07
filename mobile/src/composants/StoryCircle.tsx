@@ -3,7 +3,7 @@
  * Style Instagram : bordure colorée si story non vue, grise si vue
  */
 
-import React from 'react';
+import React, { memo, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -49,20 +49,34 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
 }) => {
   const { couleurs: themeColors } = useTheme();
 
-  // Taille de la bordure
-  const borderWidth = 3;
-  const innerSize = taille - borderWidth * 2 - 4; // 4 pour l'espace entre la bordure et l'avatar
+  // Memoize computed values
+  const { borderWidth, innerSize, displayName, outerStyles, wrapperStyles } = useMemo(() => {
+    const bw = 3;
+    return {
+      borderWidth: bw,
+      innerSize: taille - bw * 2 - 4,
+      displayName: prenom.length > 10 ? `${prenom.slice(0, 9)}…` : prenom,
+      outerStyles: {
+        width: taille,
+        height: taille,
+        borderRadius: taille / 2,
+      },
+      wrapperStyles: {
+        width: taille - bw * 2,
+        height: taille - bw * 2,
+        borderRadius: (taille - bw * 2) / 2,
+        backgroundColor: themeColors.fond,
+      },
+    };
+  }, [taille, prenom, themeColors.fond]);
 
-  // Nom affiché (prénom tronqué)
-  const displayName = prenom.length > 10 ? `${prenom.slice(0, 9)}…` : prenom;
-
-  const handlePress = () => {
+  const handlePress = useCallback(() => {
     if (hasStory && onPress) {
       onPress();
     } else if (isOwn && onAddPress) {
       onAddPress();
     }
-  };
+  }, [hasStory, onPress, isOwn, onAddPress]);
 
   return (
     <Pressable
@@ -76,78 +90,21 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
           colors={[couleurs.accent, couleurs.primaire, couleurs.secondaire]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[
-            styles.gradientBorder,
-            { width: taille, height: taille, borderRadius: taille / 2 },
-          ]}
+          style={[styles.gradientBorder, outerStyles]}
         >
-          <View
-            style={[
-              styles.avatarWrapper,
-              {
-                width: taille - borderWidth * 2,
-                height: taille - borderWidth * 2,
-                borderRadius: (taille - borderWidth * 2) / 2,
-                backgroundColor: themeColors.fond,
-              },
-            ]}
-          >
-            <Avatar
-              uri={uri}
-              prenom={prenom}
-              nom={nom}
-              taille={innerSize}
-            />
+          <View style={[styles.avatarWrapper, wrapperStyles]}>
+            <Avatar uri={uri} prenom={prenom} nom={nom} taille={innerSize} />
           </View>
         </LinearGradient>
       ) : hasStory && isSeen ? (
-        <View
-          style={[
-            styles.seenBorder,
-            {
-              width: taille,
-              height: taille,
-              borderRadius: taille / 2,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.avatarWrapper,
-              {
-                width: taille - borderWidth * 2,
-                height: taille - borderWidth * 2,
-                borderRadius: (taille - borderWidth * 2) / 2,
-                backgroundColor: themeColors.fond,
-              },
-            ]}
-          >
-            <Avatar
-              uri={uri}
-              prenom={prenom}
-              nom={nom}
-              taille={innerSize}
-            />
+        <View style={[styles.seenBorder, outerStyles]}>
+          <View style={[styles.avatarWrapper, wrapperStyles]}>
+            <Avatar uri={uri} prenom={prenom} nom={nom} taille={innerSize} />
           </View>
         </View>
       ) : (
-        <View
-          style={[
-            styles.noBorder,
-            {
-              width: taille,
-              height: taille,
-              borderRadius: taille / 2,
-              borderColor: themeColors.bordure,
-            },
-          ]}
-        >
-          <Avatar
-            uri={uri}
-            prenom={prenom}
-            nom={nom}
-            taille={taille - 4}
-          />
+        <View style={[styles.noBorder, outerStyles, { borderColor: themeColors.bordure }]}>
+          <Avatar uri={uri} prenom={prenom} nom={nom} taille={taille - 4} />
         </View>
       )}
 
@@ -221,4 +178,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default StoryCircle;
+export default memo(StoryCircle);

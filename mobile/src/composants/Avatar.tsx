@@ -3,7 +3,7 @@
  * Compatible iOS et Android avec fallback sur erreur
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -50,13 +50,25 @@ const Avatar: React.FC<AvatarProps> = ({
     setImageKey(prev => prev + 1);
   }, [uri]);
 
-  // Obtenir les initiales
-  const premiereLettre = prenom && prenom.length > 0 ? prenom[0] : '';
-  const deuxiemeLettre = nom && nom.length > 0 ? nom[0] : '';
-  const initiales = (premiereLettre + deuxiemeLettre).toUpperCase() || '?';
-
-  // Taille de police proportionnelle
-  const tailleFonte = taille * 0.4;
+  // Memoize computed values
+  const { initiales, tailleFonte, containerStyle, imageStyle } = useMemo(() => {
+    const premiereLettre = prenom && prenom.length > 0 ? prenom[0] : '';
+    const deuxiemeLettre = nom && nom.length > 0 ? nom[0] : '';
+    return {
+      initiales: (premiereLettre + deuxiemeLettre).toUpperCase() || '?',
+      tailleFonte: taille * 0.4,
+      containerStyle: {
+        width: taille,
+        height: taille,
+        borderRadius: taille / 2,
+      } as ViewStyle,
+      imageStyle: {
+        width: taille,
+        height: taille,
+        borderRadius: taille / 2,
+      } as ImageStyle,
+    };
+  }, [prenom, nom, taille]);
 
   // Callback pour gérer les erreurs de chargement
   const handleError = useCallback(() => {
@@ -110,19 +122,6 @@ const Avatar: React.FC<AvatarProps> = ({
     }
 
     return normalizedUri;
-  };
-
-  // Styles dynamiques
-  const containerStyle: ViewStyle = {
-    width: taille,
-    height: taille,
-    borderRadius: taille / 2,
-  };
-
-  const imageStyle: ImageStyle = {
-    width: taille,
-    height: taille,
-    borderRadius: taille / 2,
   };
 
   // Contenu de l'avatar (image ou initiales)
@@ -187,4 +186,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Avatar;
+export default memo(Avatar);
