@@ -167,12 +167,14 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [utilisateur, accountRestriction, startHeartbeat, stopHeartbeat]);
 
   const loadUser = async () => {
-    console.log('[UserContext:loadUser] Debut...');
+    console.log('[UserContext:loadUser] ======= DEBUT =======');
+    console.log('[UserContext:loadUser] Platform:', require('react-native').Platform.OS);
     try {
       // 1. HYDRATER LE TOKEN D'ABORD (critique pour eviter race conditions)
+      console.log('[UserContext:loadUser] Appel hydrateToken()...');
       const token = await hydrateToken();
       setTokenReady(true);
-      console.log('[UserContext:loadUser] Token hydrate:', token ? 'present' : 'absent');
+      console.log('[UserContext:loadUser] Token hydrate:', token ? `present (${token.substring(0, 20)}...)` : 'ABSENT');
 
       // 2. Charger l'utilisateur depuis le stockage local
       const localUser = await getUtilisateurLocal();
@@ -201,16 +203,35 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             console.log('[UserContext:loadUser] Erreur rafraichissement:', apiError);
           }
         }
+      } else if (token) {
+        // Pas de user local mais token existe - recuperer depuis l'API
+        // Cas: donnees locales corrompues/effacees mais token valide
+        console.log('[UserContext:loadUser] Pas de user local mais token present, tentative API...');
+        try {
+          const response = await getMoi();
+          if (response.succes && response.data) {
+            setUtilisateur(response.data.utilisateur);
+            await setUtilisateurLocal(response.data.utilisateur);
+            setAccountRestriction(null);
+            console.log('[UserContext:loadUser] User recupere depuis API OK');
+          } else {
+            console.log('[UserContext:loadUser] getMoi() echec:', response.message);
+          }
+        } catch (apiError) {
+          console.log('[UserContext:loadUser] Erreur recuperation user:', apiError);
+        }
       } else {
-        console.log('[UserContext:loadUser] Pas de user local');
+        console.log('[UserContext:loadUser] Pas de user local, pas de token -> REDIRECTION LOGIN ATTENDUE');
       }
     } catch (error) {
-      console.log('[UserContext:loadUser] Erreur:', error);
+      console.log('[UserContext:loadUser] ERREUR FATALE:', error);
       setTokenReady(true); // Marquer comme ready meme en cas d'erreur
     } finally {
       setIsLoading(false);
       setUserHydrated(true);
-      console.log('[UserContext:loadUser] Termine - userHydrated=true');
+      console.log('[UserContext:loadUser] ======= TERMINE =======');
+      console.log('[UserContext:loadUser] isLoading=false, userHydrated=true');
+      console.log('[UserContext:loadUser] utilisateur:', utilisateur ? utilisateur.email : 'NULL');
     }
   };
 

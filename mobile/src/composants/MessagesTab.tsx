@@ -1,9 +1,9 @@
 /**
- * Messages - Liste des conversations style Instagram
- * Avec swipe pour supprimer et mise à jour temps réel
+ * MessagesTab - Onglet Messages intégré dans l'accueil
+ * Version optimisée pour PagerView (sans header de navigation)
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -21,15 +21,13 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Swipeable } from 'react-native-gesture-handler';
 
-import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
-import { useUser } from '../../src/contexts/UserContext';
-import { useSocket } from '../../src/contexts/SocketContext';
-import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../../src/composants';
-import SwipeableScreen from '../../src/composants/SwipeableScreen';
-import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
+import { couleurs, espacements, rayons, typographie } from '../constantes/theme';
+import { useUser } from '../contexts/UserContext';
+import { useSocket } from '../contexts/SocketContext';
+import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../composants';
+import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 import {
   getConversations,
   rechercherUtilisateurs,
@@ -38,13 +36,18 @@ import {
   supprimerConversation,
   Conversation,
   Utilisateur,
-} from '../../src/services/messagerie';
+} from '../services/messagerie';
 import {
   getMesAmis,
   ProfilUtilisateur,
-} from '../../src/services/utilisateurs';
+} from '../services/utilisateurs';
 
-export default function Messages() {
+interface MessagesTabProps {
+  isActive?: boolean;
+  onNewConversation?: () => void;
+}
+
+const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewConversation }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { utilisateur } = useUser();
@@ -69,13 +72,12 @@ export default function Messages() {
   const [participantsSelectionnes, setParticipantsSelectionnes] = useState<Utilisateur[]>([]);
   const [nomGroupe, setNomGroupe] = useState('');
 
-  // Liste d'amis pour la création de groupe et le filtrage
+  // Liste d'amis
   const [mesAmis, setMesAmis] = useState<ProfilUtilisateur[]>([]);
   const [chargementAmis, setChargementAmis] = useState(false);
   const [amisIds, setAmisIds] = useState<Set<string>>(new Set());
 
-
-  // Extraire les contacts existants depuis les conversations
+  // Contacts existants
   const contactsExistants = React.useMemo(() => {
     const contacts: Utilisateur[] = [];
     const idsVus = new Set<string>();
@@ -85,7 +87,6 @@ export default function Messages() {
         contacts.push(conv.participant);
         idsVus.add(conv.participant._id);
       }
-      // Aussi ajouter les participants des groupes
       if (conv.participants) {
         conv.participants.forEach(p => {
           if (!idsVus.has(p._id)) {
@@ -122,22 +123,18 @@ export default function Messages() {
 
   useEffect(() => {
     chargerConversations();
-    // Charger la liste des amis pour le filtrage Messages/Demandes
     chargerAmisInitial();
   }, [chargerConversations]);
 
-  // === SOCKET: Écouter les nouveaux messages pour mettre à jour la liste ===
+  // Socket: écouter les nouveaux messages
   useEffect(() => {
     const unsubscribe = onNewMessage(() => {
-      console.log('[MESSAGES] Nouveau message reçu, rafraîchissement liste');
-      // Rafraîchir silencieusement la liste des conversations
       chargerConversations(false, true);
     });
-
     return unsubscribe;
   }, [onNewMessage, chargerConversations]);
 
-  // Charger les amis au démarrage pour le filtrage
+  // Charger les amis au démarrage
   const chargerAmisInitial = async () => {
     try {
       const reponse = await getMesAmis();
@@ -151,25 +148,25 @@ export default function Messages() {
     }
   };
 
-  // Polling pour mise à jour temps réel (toutes les 15 secondes)
-  // Réduit de 3s à 15s pour économiser la batterie et les requêtes API
-  // TODO: Remplacer par WebSocket pour temps réel optimal
+  // Polling seulement si l'onglet est actif
   useEffect(() => {
+    if (!isActive) return;
+
     const interval = setInterval(() => {
-      chargerConversations(false, true); // Silencieux
+      chargerConversations(false, true);
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [chargerConversations]);
+  }, [chargerConversations, isActive]);
 
-  // Rafraîchir quand l'écran reprend le focus
-  useFocusEffect(
-    useCallback(() => {
+  // Rafraîchir quand l'onglet devient actif
+  useEffect(() => {
+    if (isActive) {
       chargerConversations(false, true);
-    }, [chargerConversations])
-  );
+    }
+  }, [isActive, chargerConversations]);
 
-  // Recherche utilisateurs pour nouvelle conversation
+  // Recherche utilisateurs
   useEffect(() => {
     const delai = setTimeout(async () => {
       if (rechercheUtilisateur.trim().length >= 2) {
@@ -192,13 +189,12 @@ export default function Messages() {
     return () => clearTimeout(delai);
   }, [rechercheUtilisateur]);
 
-  // Charger la liste d'amis pour la création de groupe
+  // Charger amis pour groupe
   const chargerMesAmis = async () => {
     setChargementAmis(true);
     try {
       const reponse = await getMesAmis();
       if (reponse.succes && reponse.data) {
-        // Filtrer pour exclure soi-même
         const amisFiltres = reponse.data.amis.filter(
           (ami) => ami._id !== utilisateur?.id
         );
@@ -211,26 +207,22 @@ export default function Messages() {
     }
   };
 
-  // Activer le mode groupe et charger les amis
   const activerModeGroupe = async () => {
     setModeGroupe(true);
     setParticipantsSelectionnes([]);
     await chargerMesAmis();
   };
 
-  // Filtrer conversations par onglet (amis/non-amis) et recherche
+  // Filtrer conversations
   const conversationsFiltrees = React.useMemo(() => {
     return conversations.filter((conv) => {
-      // Filtrage par onglet (Messages = amis, Demandes = non-amis)
       if (!conv.estGroupe && conv.participant) {
         const estAmi = amisIds.has(conv.participant._id);
         if (ongletActif === 'messages' && !estAmi) return false;
         if (ongletActif === 'demandes' && estAmi) return false;
       }
-      // Les groupes n'apparaissent que dans l'onglet Messages
       if (conv.estGroupe && ongletActif === 'demandes') return false;
 
-      // Filtrage par recherche
       if (recherche.length < 2) return true;
       const rechercheMin = recherche.toLowerCase();
 
@@ -244,7 +236,7 @@ export default function Messages() {
     });
   }, [conversations, ongletActif, amisIds, recherche]);
 
-  // Compter les messages non lus par onglet
+  // Compteurs onglets
   const compteurOnglets = React.useMemo(() => {
     let messagesAmis = 0;
     let demandesNonAmis = 0;
@@ -265,7 +257,6 @@ export default function Messages() {
     return { messagesAmis, demandesNonAmis };
   }, [conversations, amisIds]);
 
-  // Ouvrir une conversation
   const ouvrirConversation = (conv: Conversation) => {
     router.push({
       pathname: '/(app)/conversation/[id]',
@@ -273,14 +264,12 @@ export default function Messages() {
     });
   };
 
-  // Supprimer une conversation (seulement de mon côté)
   const handleSupprimerConversation = async (convId: string) => {
     Alert.alert(
       'Supprimer la conversation',
-      'Cette conversation sera supprimée de votre liste. L\'autre personne conservera la conversation de son côté.',
+      'Cette conversation sera supprimée de votre liste.',
       [
         { text: 'Annuler', style: 'cancel', onPress: () => {
-          // Fermer le swipe
           swipeableRefs.current.get(convId)?.close();
         }},
         {
@@ -292,7 +281,7 @@ export default function Messages() {
               if (reponse.succes) {
                 setConversations(prev => prev.filter(c => c._id !== convId));
               } else {
-                Alert.alert('Erreur', reponse.message || 'Impossible de supprimer la conversation');
+                Alert.alert('Erreur', reponse.message || 'Impossible de supprimer');
               }
             } catch (error) {
               Alert.alert('Erreur', 'Impossible de supprimer la conversation');
@@ -303,15 +292,10 @@ export default function Messages() {
     );
   };
 
-  // Démarrer une conversation privée
   const demarrerConversation = async (user: Utilisateur) => {
     if (modeGroupe) {
-      // Ajouter/retirer des participants (uniquement amis)
       if (!amisIds.has(user._id)) {
-        Alert.alert(
-          'Ami requis',
-          `${user.prenom} n'est pas dans votre liste d'amis. Ajoutez-le en ami pour l'ajouter au groupe.`
-        );
+        Alert.alert('Ami requis', `${user.prenom} n'est pas dans votre liste d'amis.`);
         return;
       }
       const dejaSelectionne = participantsSelectionnes.find((p) => p._id === user._id);
@@ -321,11 +305,10 @@ export default function Messages() {
         setParticipantsSelectionnes([...participantsSelectionnes, user]);
       }
     } else {
-      // Conversation privée directe - vérifier si ami
       if (!amisIds.has(user._id)) {
         Alert.alert(
           'Ami requis',
-          `Vous ne pouvez envoyer des messages qu'à vos amis. Envoyez d'abord une demande d'ami à ${user.prenom}.`,
+          `Vous ne pouvez envoyer des messages qu'à vos amis.`,
           [
             { text: 'Annuler', style: 'cancel' },
             {
@@ -355,7 +338,6 @@ export default function Messages() {
     }
   };
 
-  // Créer un groupe
   const handleCreerGroupe = async () => {
     if (participantsSelectionnes.length === 0) {
       Alert.alert('Erreur', 'Sélectionnez au moins un participant');
@@ -392,7 +374,6 @@ export default function Messages() {
     setNomGroupe('');
   };
 
-  // Formater la date
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const maintenant = new Date();
@@ -409,7 +390,6 @@ export default function Messages() {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   };
 
-  // Render swipe actions (droite - supprimer)
   const renderRightActions = (convId: string, progress: Animated.AnimatedInterpolation<number>) => {
     const translateX = progress.interpolate({
       inputRange: [0, 1],
@@ -428,7 +408,6 @@ export default function Messages() {
     );
   };
 
-  // Render swipe actions (gauche - archiver/muet)
   const renderLeftActions = (conv: Conversation, progress: Animated.AnimatedInterpolation<number>) => {
     const translateX = progress.interpolate({
       inputRange: [0, 1],
@@ -439,10 +418,7 @@ export default function Messages() {
       <Animated.View style={[styles.swipeActionsLeft, { transform: [{ translateX }] }]}>
         <Pressable
           style={styles.swipeActionMute}
-          onPress={() => {
-            swipeableRefs.current.get(conv._id)?.close();
-            // TODO: Toggle mute
-          }}
+          onPress={() => swipeableRefs.current.get(conv._id)?.close()}
         >
           <Ionicons
             name={conv.estMuet ? 'volume-high-outline' : 'volume-mute-outline'}
@@ -454,7 +430,6 @@ export default function Messages() {
     );
   };
 
-  // Render conversation item
   const renderConversation = ({ item }: { item: Conversation }) => {
     const nom = item.estGroupe
       ? item.nomGroupe
@@ -463,10 +438,6 @@ export default function Messages() {
     const avatar = item.estGroupe
       ? item.imageGroupe
       : item.participant?.avatar;
-
-    const initiales = item.estGroupe
-      ? (item.nomGroupe?.substring(0, 2).toUpperCase() || 'GR')
-      : `${item.participant?.prenom?.[0] || ''}${item.participant?.nom?.[0] || ''}`.toUpperCase();
 
     return (
       <Swipeable
@@ -482,7 +453,6 @@ export default function Messages() {
           onPress={() => ouvrirConversation(item)}
           scaleOnPress={0.98}
         >
-          {/* Avatar */}
           <View style={styles.avatarContainer}>
             <Avatar
               uri={avatar}
@@ -498,7 +468,6 @@ export default function Messages() {
             )}
           </View>
 
-          {/* Infos */}
           <View style={styles.conversationInfo}>
             <View style={styles.conversationHeader}>
               <Text
@@ -528,7 +497,6 @@ export default function Messages() {
             </View>
           </View>
 
-          {/* Indicateur sourdine */}
           {item.estMuet && (
             <Ionicons name="volume-mute" size={16} color={couleurs.texteMuted} />
           )}
@@ -538,13 +506,9 @@ export default function Messages() {
   };
 
   return (
-    <SwipeableScreen previousScreenColor={couleurs.fond}>
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Header */}
-        <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBack}>
-          <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
-        </Pressable>
+    <View style={styles.container}>
+      {/* Header compact pour l'onglet */}
+      <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
         <Pressable
           style={styles.headerAction}
@@ -556,20 +520,20 @@ export default function Messages() {
 
       {/* Barre de recherche */}
       <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={couleurs.texteMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Rechercher une conversation..."
-            placeholderTextColor={couleurs.textePlaceholder}
-            value={recherche}
-            onChangeText={setRecherche}
-          />
-          {recherche.length > 0 && (
-            <Pressable onPress={() => setRecherche('')}>
-              <Ionicons name="close-circle" size={20} color={couleurs.texteMuted} />
-            </Pressable>
-          )}
-        </View>
+        <Ionicons name="search" size={20} color={couleurs.texteMuted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher..."
+          placeholderTextColor={couleurs.textePlaceholder}
+          value={recherche}
+          onChangeText={setRecherche}
+        />
+        {recherche.length > 0 && (
+          <Pressable onPress={() => setRecherche('')}>
+            <Ionicons name="close-circle" size={20} color={couleurs.texteMuted} />
+          </Pressable>
+        )}
+      </View>
 
       {/* Onglets Messages / Demandes */}
       <View style={styles.tabsContainer}>
@@ -668,7 +632,6 @@ export default function Messages() {
         }}
       >
         <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-          {/* Header modal */}
           <View style={styles.modalHeader}>
             <Pressable
               onPress={() => {
@@ -690,7 +653,6 @@ export default function Messages() {
             )}
           </View>
 
-          {/* Toggle groupe */}
           <Pressable
             style={styles.toggleGroupe}
             onPress={() => {
@@ -712,7 +674,6 @@ export default function Messages() {
             </Text>
           </Pressable>
 
-          {/* Nom du groupe (si mode groupe) */}
           {modeGroupe && (
             <View style={styles.groupNameContainer}>
               <TextInput
@@ -725,7 +686,6 @@ export default function Messages() {
             </View>
           )}
 
-          {/* Participants sélectionnés */}
           {modeGroupe && participantsSelectionnes.length > 0 && (
             <View style={styles.selectedContainer}>
               <FlatList
@@ -749,7 +709,6 @@ export default function Messages() {
             </View>
           )}
 
-          {/* Recherche */}
           <View style={styles.modalSearchContainer}>
             <Text style={styles.modalSearchLabel}>À :</Text>
             <TextInput
@@ -762,7 +721,6 @@ export default function Messages() {
             />
           </View>
 
-          {/* Résultats - Mode Groupe (amis uniquement) */}
           {modeGroupe ? (
             chargementAmis ? (
               <View style={styles.modalLoadingContainer}>
@@ -781,13 +739,12 @@ export default function Messages() {
                     <Text style={styles.modalEmptyText}>Aucun ami</Text>
                     <Text style={styles.modalEmptySubtext}>
                       Vous devez avoir des amis pour créer un groupe.
-                      Ajoutez des amis depuis leur profil !
                     </Text>
                   </View>
                 ) : (
                   <>
                     <Text style={styles.sectionTitle}>
-                      Sélectionnez vos amis ({mesAmis.length} ami{mesAmis.length > 1 ? 's' : ''})
+                      Sélectionnez vos amis ({mesAmis.length})
                     </Text>
                     {mesAmis.map((ami) => {
                       const estSelectionne = participantsSelectionnes.find(
@@ -838,7 +795,6 @@ export default function Messages() {
               </ScrollView>
             )
           ) : (
-            /* Mode conversation normale */
             chargementRecherche ? (
               <View style={styles.modalLoadingContainer}>
                 <ActivityIndicator size="small" color={couleurs.primaire} />
@@ -849,7 +805,6 @@ export default function Messages() {
                 contentContainerStyle={styles.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {/* Afficher les contacts existants si pas de recherche */}
                 {rechercheUtilisateur.length < 2 && contactsExistants.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Suggestions</Text>
@@ -879,7 +834,6 @@ export default function Messages() {
                   </>
                 )}
 
-                {/* Résultats de recherche */}
                 {rechercheUtilisateur.length >= 2 && utilisateursTrouves.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Résultats</Text>
@@ -922,16 +876,13 @@ export default function Messages() {
                   </>
                 )}
 
-                {/* Message si aucun résultat de recherche */}
                 {rechercheUtilisateur.length >= 2 && utilisateursTrouves.length === 0 && (
                   <View style={styles.modalEmptyContainer}>
                     <Ionicons name="search-outline" size={48} color={couleurs.texteMuted} />
                     <Text style={styles.modalEmptyText}>Aucun utilisateur trouvé</Text>
-                    <Text style={styles.modalEmptySubtext}>Essayez un autre nom</Text>
                   </View>
                 )}
 
-                {/* Message si aucun contact et pas de recherche */}
                 {rechercheUtilisateur.length < 2 && contactsExistants.length === 0 && (
                   <View style={styles.modalEmptyContainer}>
                     <Ionicons name="people-outline" size={48} color={couleurs.texteMuted} />
@@ -946,10 +897,9 @@ export default function Messages() {
           )}
         </View>
       </Modal>
-      </View>
-    </SwipeableScreen>
+    </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -964,9 +914,6 @@ const styles = StyleSheet.create({
     paddingVertical: espacements.md,
     borderBottomWidth: 1,
     borderBottomColor: couleurs.bordure,
-  },
-  headerBack: {
-    padding: espacements.xs,
   },
   headerTitle: {
     fontSize: typographie.tailles.xl,
@@ -992,7 +939,6 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.base,
     color: couleurs.texte,
   },
-  // Onglets Messages / Demandes
   tabsContainer: {
     flexDirection: 'row',
     paddingHorizontal: espacements.lg,
@@ -1074,7 +1020,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: espacements.xl,
   },
-  // Swipe actions
   swipeActionsRight: {
     width: 80,
     flexDirection: 'row',
@@ -1103,28 +1048,8 @@ const styles = StyleSheet.create({
     gap: espacements.md,
     backgroundColor: couleurs.fond,
   },
-  conversationItemPressed: {
-    backgroundColor: couleurs.fondCard,
-  },
   avatarContainer: {
     position: 'relative',
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitiales: {
-    fontSize: typographie.tailles.lg,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
   },
   groupBadge: {
     position: 'absolute',
@@ -1175,20 +1100,6 @@ const styles = StyleSheet.create({
   conversationMessageNonLu: {
     color: couleurs.texte,
     fontWeight: typographie.poids.medium,
-  },
-  badgeNonLu: {
-    backgroundColor: couleurs.primaire,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  badgeNonLuText: {
-    fontSize: typographie.tailles.xs,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.blanc,
   },
   // Modal styles
   modalContainer: {
@@ -1305,9 +1216,6 @@ const styles = StyleSheet.create({
   modalScrollContent: {
     paddingBottom: espacements.xl,
   },
-  modalListContent: {
-    paddingVertical: espacements.sm,
-  },
   modalEmptyContainer: {
     padding: espacements.xl,
     alignItems: 'center',
@@ -1347,24 +1255,6 @@ const styles = StyleSheet.create({
   utilisateurItemSelectionne: {
     backgroundColor: couleurs.primaireLight,
   },
-  utilisateurAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  utilisateurAvatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: couleurs.fondCard,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  utilisateurInitiales: {
-    fontSize: typographie.tailles.sm,
-    fontWeight: typographie.poids.bold,
-    color: couleurs.primaire,
-  },
   utilisateurInfo: {
     flex: 1,
   },
@@ -1395,3 +1285,7 @@ const styles = StyleSheet.create({
     borderColor: couleurs.primaire,
   },
 });
+
+MessagesTab.displayName = 'MessagesTab';
+
+export default MessagesTab;

@@ -21,12 +21,13 @@ import {
   Alert,
   Keyboard,
 } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
-import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+import PagerView from 'react-native-pager-view';
+import type { PagerViewOnPageSelectedEvent, PagerViewOnPageScrollEvent } from 'react-native-pager-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +37,7 @@ import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
 import { Utilisateur } from '../../src/services/auth';
 // useStaff importé uniquement dans PublicationCard extrait
-import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal } from '../../src/composants';
+import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay } from '../../src/composants';
 import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
 import { videoRegistry } from '../../src/stores/videoRegistry';
 import {
@@ -485,53 +486,6 @@ export default function Accueil() {
   const action3Anim = useRef(new Animated.Value(0)).current;
   const action4Anim = useRef(new Animated.Value(0)).current;
 
-  // Swipe pour ouvrir Story Creator (swipe vers la droite)
-  const swipeTranslateX = useRef(new Animated.Value(0)).current;
-  const SWIPE_THRESHOLD = 80; // Seuil pour déclencher l'ouverture (swipe droite = positif)
-  const SWIPE_VELOCITY_THRESHOLD = 500; // Vélocité minimum pour déclencher
-
-  const handleSwipeGesture = useCallback((event: PanGestureHandlerGestureEvent) => {
-    const { translationX, velocityX, state } = event.nativeEvent;
-
-    // Ne pas gérer le swipe si on n'est pas sur l'onglet feed
-    if (ongletActif !== 'feed') return;
-
-    if (state === State.ACTIVE) {
-      // Limiter le swipe vers la droite uniquement avec un effet de résistance
-      if (translationX > 0) {
-        // Effet de résistance (le mouvement ralentit plus on swipe)
-        const resistance = Math.abs(translationX) / SCREEN_WIDTH;
-        const dampedTranslation = translationX * (1 - resistance * 0.5);
-        swipeTranslateX.setValue(dampedTranslation);
-      }
-    } else if (state === State.END) {
-      // Vérifier si le swipe est assez fort ou assez loin
-      const shouldOpenStory = translationX > SWIPE_THRESHOLD || velocityX > SWIPE_VELOCITY_THRESHOLD;
-
-      if (shouldOpenStory && translationX > 20) {
-        // Animation de sortie vers la droite puis ouverture du StoryCreator
-        Animated.timing(swipeTranslateX, {
-          toValue: SCREEN_WIDTH,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          // Reset et ouvrir le StoryCreator
-          swipeTranslateX.setValue(0);
-          setStoryCreatorVisible(true);
-        });
-      } else {
-        // Retour à la position initiale
-        Animated.spring(swipeTranslateX, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 10,
-        }).start();
-      }
-    }
-  }, [ongletActif, swipeTranslateX]);
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-
   // Onglets de base
   const ongletsBase: { key: OngletActif; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'feed', label: 'Feed', icon: 'home-outline' },
@@ -550,6 +504,41 @@ export default function Accueil() {
     }
     return ongletsBase;
   }, [utilisateur?.statut]);
+
+  // === PAGER VIEW NAVIGATION ===
+  const pagerRef = useRef<PagerView>(null);
+  const tabIndicatorPosition = useRef(new Animated.Value(0)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  // Obtenir l'index de l'onglet actuel
+  const getOngletIndex = useCallback((key: OngletActif) => {
+    return onglets.findIndex(o => o.key === key);
+  }, [onglets]);
+
+  // Callback quand une page est sélectionnée
+  const handlePageSelected = useCallback((event: PagerViewOnPageSelectedEvent) => {
+    const { position } = event.nativeEvent;
+    const targetOnglet = onglets[position];
+
+    if (targetOnglet) {
+      // Haptic feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setOngletActif(targetOnglet.key);
+    }
+  }, [onglets]);
+
+  // Callback pendant le scroll (pour l'indicateur animé)
+  const handlePageScroll = useCallback((event: PagerViewOnPageScrollEvent) => {
+    const { position, offset } = event.nativeEvent;
+    // Animation fluide de l'indicateur
+    tabIndicatorPosition.setValue(position + offset);
+  }, [tabIndicatorPosition]);
+
+  // Naviguer vers un onglet par index
+  const naviguerVersOngletParIndex = useCallback((index: number) => {
+    if (index < 0 || index >= onglets.length) return;
+    pagerRef.current?.setPage(index);
+  }, [onglets.length]);
 
   // Rediriger vers le choix de statut si necessaire
   useEffect(() => {
@@ -642,6 +631,7 @@ export default function Accueil() {
     if (publicationId && typeof publicationId === 'string') {
       setPublicationCiblee(publicationId);
       // S'assurer qu'on est sur l'onglet feed
+      pagerRef.current?.setPageWithoutAnimation(0);
       setOngletActif('feed');
     }
   }, [publicationId]);
@@ -1142,6 +1132,9 @@ export default function Accueil() {
   // StartupCard et TrendingItem restent inline pour l'instant (Phase 2)
 
   const ProjetCard = ({ projet }: { projet: Projet }) => {
+    // Verifier si c'est le propre projet de l'utilisateur
+    const isOwnProject = utilisateur?.id === projet.porteur?._id;
+
     // State local pour optimistic update + sync avec props
     const [suivi, setSuivi] = useState(projet.estSuivi);
     const [nbFollowers, setNbFollowers] = useState(projet.nbFollowers);
@@ -1302,26 +1295,40 @@ export default function Accueil() {
           </Pressable>
           {/* Zone boutons - chacun est independant */}
           <View style={styles.startupActions}>
-            <Pressable
-              style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi, enCours && { opacity: 0.6 }]}
-              onPress={handleToggleSuivre}
-              disabled={enCours}
-            >
-              <Ionicons
-                name={suivi ? 'checkmark' : 'add'}
-                size={18}
-                color={suivi ? couleurs.primaire : couleurs.blanc}
-              />
-              <Text style={[styles.startupBtnPrimaryText, suivi && styles.startupBtnSuiviText]}>
-                {suivi ? 'Suivi' : 'Suivre'}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.startupBtnSecondary} onPress={handleContacter}>
-              <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
-            </Pressable>
-            <Pressable style={styles.startupBtnSecondary} onPress={handleVoirFiche}>
-              <Ionicons name="eye-outline" size={18} color={couleurs.texte} />
-            </Pressable>
+            {isOwnProject ? (
+              <Pressable
+                style={[styles.startupBtnPrimary, styles.startupBtnSuivi]}
+                onPress={handleVoirFiche}
+              >
+                <Ionicons name="briefcase" size={18} color={couleurs.primaire} />
+                <Text style={[styles.startupBtnPrimaryText, styles.startupBtnSuiviText]}>
+                  Mon projet
+                </Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable
+                  style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi, enCours && { opacity: 0.6 }]}
+                  onPress={handleToggleSuivre}
+                  disabled={enCours}
+                >
+                  <Ionicons
+                    name={suivi ? 'checkmark' : 'add'}
+                    size={18}
+                    color={suivi ? couleurs.primaire : couleurs.blanc}
+                  />
+                  <Text style={[styles.startupBtnPrimaryText, suivi && styles.startupBtnSuiviText]}>
+                    {suivi ? 'Suivi' : 'Suivre'}
+                  </Text>
+                </Pressable>
+                <Pressable style={styles.startupBtnSecondary} onPress={handleContacter}>
+                  <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
+                </Pressable>
+                <Pressable style={styles.startupBtnSecondary} onPress={handleVoirFiche}>
+                  <Ionicons name="eye-outline" size={18} color={couleurs.texte} />
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       </View>
@@ -1376,42 +1383,81 @@ export default function Accueil() {
     </View>
   );
 
-  const handleOngletPress = (key: OngletActif) => {
-    if (key === 'messages') {
-      // Ouvrir l'ecran de messagerie full screen
-      router.push('/(app)/messages');
-    } else {
-      setOngletActif(key);
+  const handleOngletPress = useCallback((key: OngletActif) => {
+    // Haptic feedback pour le clic
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const index = getOngletIndex(key);
+    if (index !== -1) {
+      pagerRef.current?.setPage(index);
     }
-  };
+  }, [getOngletIndex]);
+
+  // Largeur d'un onglet pour l'indicateur animé
+  const TAB_WIDTH = (SCREEN_WIDTH - espacements.lg * 2) / Math.min(onglets.length, 5);
 
   const renderNavigation = () => (
     <View style={styles.navigation}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navContent}>
-        {onglets.map((onglet) => (
-          <Pressable
-            key={onglet.key}
-            style={[styles.navTab, ongletActif === onglet.key && styles.navTabActive]}
-            onPress={() => handleOngletPress(onglet.key)}
-          >
-            <Ionicons
-              name={onglet.icon}
-              size={18}
-              color={ongletActif === onglet.key ? couleurs.primaire : couleurs.texteSecondaire}
-            />
-            <Text style={[styles.navTabText, ongletActif === onglet.key && styles.navTabTextActive]}>
-              {onglet.label}
-            </Text>
-            {onglet.key === 'messages' && unreadMessages > 0 && (
-              <View style={styles.navBadge}>
-                <Text style={styles.navBadgeText}>
-                  {unreadMessages}
+      <View style={styles.navContent}>
+        {/* Indicateur animé qui suit le scroll */}
+        <Animated.View
+          style={[
+            styles.navIndicator,
+            {
+              width: TAB_WIDTH - 8,
+              transform: [
+                {
+                  translateX: tabIndicatorPosition.interpolate({
+                    inputRange: onglets.map((_, i) => i),
+                    outputRange: onglets.map((_, i) => i * TAB_WIDTH + 4),
+                    extrapolate: 'clamp',
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+
+        {/* Onglets */}
+        {onglets.map((onglet, index) => {
+          // Opacité animée basée sur la position
+          const opacity = tabIndicatorPosition.interpolate({
+            inputRange: [index - 1, index, index + 1],
+            outputRange: [0.5, 1, 0.5],
+            extrapolate: 'clamp',
+          });
+
+          return (
+            <Pressable
+              key={onglet.key}
+              style={[styles.navTab, { width: TAB_WIDTH }]}
+              onPress={() => handleOngletPress(onglet.key)}
+            >
+              <Animated.View style={{ opacity, alignItems: 'center' }}>
+                <Ionicons
+                  name={onglet.icon}
+                  size={20}
+                  color={ongletActif === onglet.key ? couleurs.primaire : couleurs.texteSecondaire}
+                />
+                <Text
+                  style={[
+                    styles.navTabText,
+                    ongletActif === onglet.key && styles.navTabTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {onglet.label}
                 </Text>
-              </View>
-            )}
-          </Pressable>
-        ))}
-      </ScrollView>
+              </Animated.View>
+              {onglet.key === 'messages' && unreadMessages > 0 && (
+                <View style={styles.navBadge}>
+                  <Text style={styles.navBadgeText}>{unreadMessages}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 
@@ -1493,7 +1539,7 @@ export default function Accueil() {
           <Text style={styles.sectionTitle}>Tendances</Text>
           <Text style={styles.sectionSubtitle}>Startups populaires cette semaine</Text>
         </View>
-        <Pressable style={styles.sectionAction} onPress={() => setOngletActif('decouvrir')}>
+        <Pressable style={styles.sectionAction} onPress={() => pagerRef.current?.setPage(1)}>
           <Text style={styles.sectionActionText}>Voir tout</Text>
           <Ionicons name="arrow-forward" size={16} color={couleurs.texteSecondaire} />
         </Pressable>
@@ -2370,87 +2416,143 @@ export default function Accueil() {
         style={StyleSheet.absoluteFill}
       />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <PanGestureHandler
-          onGestureEvent={handleSwipeGesture}
-          onHandlerStateChange={handleSwipeGesture}
-          activeOffsetX={[-15, 15]}
-          failOffsetY={[-10, 10]}
-          enabled={ongletActif === 'feed'}
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        {renderHeader()}
+        {renderNavigation()}
+
+        {/* PagerView pour navigation fluide style Instagram */}
+        <PagerView
+          ref={pagerRef}
+          style={styles.pagerView}
+          initialPage={0}
+          onPageSelected={handlePageSelected}
+          onPageScroll={handlePageScroll}
+          overdrag={true}
+          overScrollMode="always"
+          offscreenPageLimit={1}
         >
-          <Animated.View
-            style={[
-              styles.content,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateX: swipeTranslateX }],
-              },
-            ]}
-          >
-            {renderHeader()}
-            {renderNavigation()}
-
-            <ScrollView
-              ref={scrollViewRef}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              onScroll={handleScroll}
-              onScrollBeginDrag={handleScrollBegin}
-              onMomentumScrollBegin={handleScrollBegin}
-              scrollEventThrottle={16}
-              refreshControl={
-                <RefreshControl
-                  refreshing={rafraichissement}
-                  onRefresh={handleRafraichissement}
-                  tintColor={couleurs.primaire}
-                />
-              }
-            >
-              {renderTabContent()}
-
-              <View style={styles.footer}>
-                <Text style={styles.footerLogo}>LPP</Text>
-                <Text style={styles.footerText}>La Premiere Pierre</Text>
-                <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
-              </View>
-            </ScrollView>
-
-            {/* Indicateur visuel de swipe vers Story (visible quand on swipe à droite) */}
-            <Animated.View
-              style={[
-                styles.swipeIndicator,
-                {
-                  opacity: swipeTranslateX.interpolate({
-                    inputRange: [0, 20, 100],
-                    outputRange: [0, 0.5, 1],
-                    extrapolate: 'clamp',
-                  }),
-                  transform: [
-                    {
-                      translateX: swipeTranslateX.interpolate({
-                        inputRange: [0, 100],
-                        outputRange: [-50, 0],
-                        extrapolate: 'clamp',
-                      }),
-                    },
-                  ],
-                },
-              ]}
-              pointerEvents="none"
-            >
-              <View style={styles.swipeIndicatorContent}>
-                <Ionicons name="camera" size={24} color="#fff" />
-                <Text style={styles.swipeIndicatorText}>Story</Text>
-              </View>
-            </Animated.View>
-          </Animated.View>
-        </PanGestureHandler>
-      </KeyboardAvoidingView>
+          {onglets.map((onglet) => {
+            if (onglet.key === 'feed') {
+              return (
+                <View key="feed" style={styles.pageContainer}>
+                  <StorySwipeOverlay
+                    enabled={ongletActif === 'feed'}
+                    onSwipeToStory={() => setStoryCreatorVisible(true)}
+                  >
+                    <ScrollView
+                      ref={scrollViewRef}
+                      showsVerticalScrollIndicator={false}
+                      contentContainerStyle={styles.scrollContent}
+                      keyboardShouldPersistTaps="handled"
+                      onScroll={handleScroll}
+                      onScrollBeginDrag={handleScrollBegin}
+                      onMomentumScrollBegin={handleScrollBegin}
+                      scrollEventThrottle={16}
+                      refreshControl={
+                        <RefreshControl
+                          refreshing={rafraichissement}
+                          onRefresh={handleRafraichissement}
+                          tintColor={couleurs.primaire}
+                        />
+                      }
+                    >
+                      {renderFeedContent()}
+                      <View style={styles.footer}>
+                        <Text style={styles.footerLogo}>LPP</Text>
+                        <Text style={styles.footerText}>La Premiere Pierre</Text>
+                        <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
+                      </View>
+                    </ScrollView>
+                  </StorySwipeOverlay>
+                </View>
+              );
+            }
+            if (onglet.key === 'decouvrir') {
+              return (
+                <View key="decouvrir" style={styles.pageContainer}>
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={rafraichissement}
+                        onRefresh={handleRafraichissement}
+                        tintColor={couleurs.primaire}
+                      />
+                    }
+                  >
+                    {renderDecouvrirContent()}
+                    <View style={styles.footer}>
+                      <Text style={styles.footerLogo}>LPP</Text>
+                      <Text style={styles.footerText}>La Premiere Pierre</Text>
+                      <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
+                    </View>
+                  </ScrollView>
+                </View>
+              );
+            }
+            if (onglet.key === 'live') {
+              return (
+                <View key="live" style={styles.pageContainer}>
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={rafraichissement}
+                        onRefresh={handleRafraichissement}
+                        tintColor={couleurs.primaire}
+                      />
+                    }
+                  >
+                    {renderLiveContent()}
+                    <View style={styles.footer}>
+                      <Text style={styles.footerLogo}>LPP</Text>
+                      <Text style={styles.footerText}>La Premiere Pierre</Text>
+                      <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
+                    </View>
+                  </ScrollView>
+                </View>
+              );
+            }
+            if (onglet.key === 'messages') {
+              return (
+                <View key="messages" style={styles.pageContainer}>
+                  <MessagesTab isActive={ongletActif === 'messages'} />
+                </View>
+              );
+            }
+            if (onglet.key === 'entrepreneur') {
+              return (
+                <View key="entrepreneur" style={styles.pageContainer}>
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={rafraichissement}
+                        onRefresh={handleRafraichissement}
+                        tintColor={couleurs.primaire}
+                      />
+                    }
+                  >
+                    {renderEntrepreneurContent()}
+                    <View style={styles.footer}>
+                      <Text style={styles.footerLogo}>LPP</Text>
+                      <Text style={styles.footerText}>La Premiere Pierre</Text>
+                      <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
+                    </View>
+                  </ScrollView>
+                </View>
+              );
+            }
+            return null;
+          }).filter(Boolean)}
+        </PagerView>
+      </Animated.View>
 
       {renderFAB()}
 
@@ -2854,30 +2956,12 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     paddingBottom: 100,
   },
 
-  // Swipe indicator pour Story (côté gauche pour swipe droite)
-  swipeIndicator: {
-    position: 'absolute',
-    left: 0,
-    top: '40%',
-    backgroundColor: '#10B981',
-    borderTopRightRadius: rayons.lg,
-    borderBottomRightRadius: rayons.lg,
-    paddingVertical: espacements.md,
-    paddingHorizontal: espacements.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+  // PagerView styles
+  pagerView: {
+    flex: 1,
   },
-  swipeIndicatorContent: {
-    alignItems: 'center',
-    gap: espacements.xs,
-  },
-  swipeIndicatorText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
+  pageContainer: {
+    flex: 1,
   },
 
   // Header
@@ -2954,35 +3038,38 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     color: couleurs.blanc,
   },
 
-  // Navigation
+  // Navigation avec indicateur animé
   navigation: {
     borderBottomWidth: 1,
     borderBottomColor: couleurs.bordure,
+    paddingHorizontal: espacements.lg,
   },
   navContent: {
-    paddingHorizontal: espacements.lg,
-    gap: espacements.sm,
+    flexDirection: 'row',
+    position: 'relative',
+  },
+  navIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 3,
+    backgroundColor: couleurs.primaire,
+    borderRadius: 2,
   },
   navTab: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: espacements.md,
+    justifyContent: 'center',
     paddingVertical: espacements.md,
-    gap: espacements.xs,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  navTabActive: {
-    borderBottomColor: couleurs.primaire,
+    position: 'relative',
   },
   navTabText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '600',
     color: couleurs.texteSecondaire,
+    marginTop: 2,
   },
   navTabTextActive: {
     color: couleurs.primaire,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   navBadge: {
     backgroundColor: couleurs.erreur,

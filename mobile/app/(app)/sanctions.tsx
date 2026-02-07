@@ -599,7 +599,7 @@ export default function SanctionsScreen() {
             <Ionicons name="arrow-back" size={24} color={colors.texte} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: colors.texte }]}>Mes sanctions</Text>
-        </View>
+          </View>
 
         {sanctions.length === 0 ? (
           <View style={styles.emptyContainer}>

@@ -39,3 +39,10 @@ export { default as UnifiedCommentsSheet } from './UnifiedCommentsSheet';
 
 // Composants Live (placeholder)
 export { default as LiveCard } from './LiveCard';
+
+// Navigation et UX
+export { default as SwipeableScreen } from './SwipeableScreen';
+export { default as StorySwipeOverlay } from './StorySwipeOverlay';
+
+// Onglets intégrés
+export { default as MessagesTab } from './MessagesTab';

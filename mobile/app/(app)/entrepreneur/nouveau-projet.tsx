@@ -703,19 +703,6 @@ export default function NouveauProjetScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Description detaillee</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline, { minHeight: 120 }]}
-          value={formData.description}
-          onChangeText={(text) => setFormData({ ...formData, description: text })}
-          placeholder="Decrivez votre projet en detail..."
-          placeholderTextColor={couleurs.texteSecondaire}
-          multiline
-          maxLength={5000}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Business model</Text>
         <TextInput
           style={[styles.input, styles.inputMultiline]}
@@ -848,16 +835,6 @@ export default function NouveauProjetScreen() {
             {MATURITES.find(m => m.value === formData.maturite)?.label || 'Idee'}
           </Text>
         </View>
-
-        {/* Description detaillee */}
-        {formData.description?.trim() && (
-          <View style={styles.recapSection}>
-            <Text style={styles.recapSectionTitle}>Description</Text>
-            <Text style={styles.recapSectionText} numberOfLines={3}>
-              {formData.description}
-            </Text>
-          </View>
-        )}
 
         {/* Objectif de financement */}
         {formData.objectifFinancement && formData.objectifFinancement > 0 && (

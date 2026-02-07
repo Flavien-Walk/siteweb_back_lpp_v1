@@ -144,11 +144,20 @@ export const inscription = async (
  * Récupérer les infos de l'utilisateur connecté
  */
 export const getMoi = async (): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
+  if (__DEV__) console.log('[AUTH:getMoi] Appel API /auth/moi...');
   const reponse = await api.get<{ utilisateur: any }>('/auth/moi', true);
+
+  if (__DEV__) {
+    console.log('[AUTH:getMoi] Reponse succes:', reponse.succes);
+    if (!reponse.succes) {
+      console.log('[AUTH:getMoi] Erreur:', reponse.message);
+    }
+  }
 
   if (reponse.succes && reponse.data) {
     // Normaliser l'utilisateur (transforme _id en id)
     reponse.data.utilisateur = normaliserUtilisateur(reponse.data.utilisateur);
+    if (__DEV__) console.log('[AUTH:getMoi] Utilisateur:', reponse.data.utilisateur.email);
   }
 
   return reponse as ReponseAPI<{ utilisateur: Utilisateur }>;

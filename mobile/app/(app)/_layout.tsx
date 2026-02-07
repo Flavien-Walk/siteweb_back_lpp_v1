@@ -1,6 +1,6 @@
 /**
  * Layout pour les écrans de l'application (utilisateur connecté)
- * Avec transitions personnalisées par écran
+ * Avec transitions personnalisées par écran et gestes de swipe natifs
  */
 
 import { Stack } from 'expo-router';
@@ -14,21 +14,28 @@ export default function AppLayout() {
         contentStyle: { backgroundColor: couleurs.fond },
         animation: 'slide_from_right',
         animationDuration: 250,
+        // Geste de swipe natif - montre la page précédente
+        gestureEnabled: true,
+        gestureDirection: 'horizontal',
+        fullScreenGestureEnabled: true,
       }}
     >
-      {/* Accueil - fade pour entrée initiale */}
+      {/* Accueil - fade pour entrée initiale, pas de geste back */}
       <Stack.Screen
         name="accueil"
         options={{
           animation: 'fade',
+          gestureEnabled: false,
         }}
       />
-      {/* Conversation - slide from bottom (style Instagram DM) */}
+      {/* Conversation - slide from right avec geste natif */}
       <Stack.Screen
         name="conversation"
         options={{
-          animation: 'slide_from_bottom',
-          animationDuration: 300,
+          animation: 'slide_from_right',
+          animationDuration: 250,
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
         }}
       />
       {/* Profil utilisateur - slide from right */}
@@ -59,11 +66,12 @@ export default function AppLayout() {
           animation: 'slide_from_right',
         }}
       />
-      {/* Choix statut - fade */}
+      {/* Choix statut - fade, pas de geste */}
       <Stack.Screen
         name="choix-statut"
         options={{
           animation: 'fade',
+          gestureEnabled: false,
         }}
       />
     </Stack>

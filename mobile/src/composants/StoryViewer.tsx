@@ -3,7 +3,7 @@
  * - Barre de progression en haut
  * - Tap gauche = story précédente
  * - Tap droite = story suivante
- * - Swipe down / bouton X = fermer
+ * - Swipe down / Swipe right / bouton X = fermer
  * - Support photo et vidéo
  */
 
@@ -89,8 +89,9 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   const progressAnim = useRef(new Animated.Value(0)).current;
   const progressAnimation = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Animation de swipe down
+  // Animation de swipe down et swipe right
   const translateY = useRef(new Animated.Value(0)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
 
   // Story courante
   const currentStory = stories[currentIndex];
@@ -107,6 +108,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
       setIsLoading(true);
       progressAnim.setValue(0);
       translateY.setValue(0);
+      translateX.setValue(0);
       markedSeenRef.current.clear(); // Reset le suivi des stories vues
       setViewers([]);
       setNbVues(0);
@@ -250,20 +252,34 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return gestureState.dy > 10 && Math.abs(gestureState.dx) < 30;
+        const { dx, dy } = gestureState;
+        // Swipe down OU swipe right (depuis le bord gauche simulé)
+        const isSwipeDown = dy > 10 && Math.abs(dx) < 30;
+        const isSwipeRight = dx > 15 && Math.abs(dy) < 30;
+        return isSwipeDown || isSwipeRight;
       },
       onPanResponderGrant: () => {
         pauseProgress();
         setIsPaused(true);
       },
       onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          translateY.setValue(gestureState.dy);
+        const { dx, dy } = gestureState;
+        // Détecter la direction principale
+        if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
+          // Swipe down
+          translateY.setValue(dy);
+          translateX.setValue(0);
+        } else if (dx > 0) {
+          // Swipe right
+          translateX.setValue(dx);
+          translateY.setValue(0);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100) {
-          // Fermer
+        const { dx, dy } = gestureState;
+
+        // Swipe down pour fermer
+        if (dy > 100 && Math.abs(dy) > Math.abs(dx)) {
           Animated.timing(translateY, {
             toValue: SCREEN_HEIGHT,
             duration: 200,
@@ -271,12 +287,29 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
           }).start(() => {
             onClose();
           });
-        } else {
-          // Revenir
-          Animated.spring(translateY, {
-            toValue: 0,
+        }
+        // Swipe right pour fermer
+        else if (dx > 80) {
+          Animated.timing(translateX, {
+            toValue: SCREEN_WIDTH,
+            duration: 200,
             useNativeDriver: true,
           }).start(() => {
+            onClose();
+          });
+        }
+        // Revenir à la position initiale
+        else {
+          Animated.parallel([
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+            }),
+            Animated.spring(translateX, {
+              toValue: 0,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
             setIsPaused(false);
             resumeProgress();
           });
@@ -441,7 +474,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
       <Animated.View
         style={[
           styles.container,
-          { transform: [{ translateY }] },
+          { transform: [{ translateX }, { translateY }] },
         ]}
         {...panResponder.panHandlers}
       >

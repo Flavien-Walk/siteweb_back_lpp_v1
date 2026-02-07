@@ -1418,19 +1418,19 @@ export default function Profil() {
         style={StyleSheet.absoluteFill}
       />
 
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
-          </Pressable>
-          <Text style={styles.headerTitle}>Mon profil</Text>
-          <Pressable style={styles.logoutButton} onPress={handleDeconnexion}>
-            <Ionicons name="log-out-outline" size={24} color={couleurs.erreur} />
-          </Pressable>
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Pressable style={styles.backButton} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Mon profil</Text>
+            <Pressable style={styles.logoutButton} onPress={handleDeconnexion}>
+              <Ionicons name="log-out-outline" size={24} color={couleurs.erreur} />
+            </Pressable>
         </View>
 
         {/* Onglets */}

@@ -4,7 +4,7 @@
  * UI inspirée d'Instagram : actions en bas, design épuré
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,15 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Animated,
+  Platform,
 } from 'react-native';
+import {
+  PanGestureHandler,
+  PanGestureHandlerGestureEvent,
+  State,
+} from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { Video, ResizeMode } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -94,6 +102,93 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   const [linkEditorVisible, setLinkEditorVisible] = useState(false);
   const [textEditorVisible, setTextEditorVisible] = useState(false);
   const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
+
+  // Swipe-to-close vers la gauche
+  const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+  const VELOCITY_THRESHOLD = 500;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const isValidSwipe = useRef(false);
+  const hasTriggeredHaptic = useRef(false);
+  const isClosing = useRef(false);
+
+  const resetSwipePosition = useCallback(() => {
+    hasTriggeredHaptic.current = false;
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  }, [translateX]);
+
+  const animateClose = useCallback(() => {
+    if (isClosing.current) return;
+    isClosing.current = true;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    Animated.timing(translateX, {
+      toValue: -SCREEN_WIDTH,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      isClosing.current = false;
+      translateX.setValue(0);
+      handleClose();
+    });
+  }, [translateX, handleClose]);
+
+  const onSwipeGesture = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      if (!isValidSwipe.current || isClosing.current) return;
+
+      const { translationX } = event.nativeEvent;
+      // Limiter le swipe vers la gauche uniquement (valeur négative)
+      const clampedX = Math.min(0, Math.max(translationX, -SCREEN_WIDTH));
+      translateX.setValue(clampedX);
+
+      // Haptic feedback au seuil
+      if (Math.abs(clampedX) > SWIPE_THRESHOLD && !hasTriggeredHaptic.current) {
+        hasTriggeredHaptic.current = true;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else if (Math.abs(clampedX) < SWIPE_THRESHOLD) {
+        hasTriggeredHaptic.current = false;
+      }
+    },
+    [translateX]
+  );
+
+  const onSwipeStateChange = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      const { state, translationX, velocityX } = event.nativeEvent;
+
+      if (state === State.BEGAN) {
+        isValidSwipe.current = true;
+        hasTriggeredHaptic.current = false;
+      }
+
+      if (state === State.END || state === State.CANCELLED) {
+        if (!isValidSwipe.current) {
+          resetSwipePosition();
+          return;
+        }
+
+        // Fermer si on dépasse le seuil ou si le swipe est rapide vers la gauche
+        const shouldClose =
+          translationX < -SWIPE_THRESHOLD ||
+          (velocityX < -VELOCITY_THRESHOLD && translationX < -50);
+
+        if (shouldClose) {
+          animateClose();
+        } else {
+          resetSwipePosition();
+        }
+
+        isValidSwipe.current = false;
+      }
+    },
+    [resetSwipePosition, animateClose]
+  );
 
   // Reset state à la fermeture
   const handleClose = useCallback(() => {
@@ -418,6 +513,19 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     </Pressable>
   );
 
+  // Indicateur de swipe (flèche sur le bord droit)
+  const indicatorOpacity = translateX.interpolate({
+    inputRange: [-60, -20, 0],
+    outputRange: [1, 0.5, 0],
+    extrapolate: 'clamp',
+  });
+
+  const indicatorTranslateX = translateX.interpolate({
+    inputRange: [-100, 0],
+    outputRange: [-15, 10],
+    extrapolate: 'clamp',
+  });
+
   return (
     <Modal
       visible={visible}
@@ -426,24 +534,56 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
       onRequestClose={handleClose}
       statusBarTranslucent
     >
-      <View style={[styles.container, { backgroundColor: themeColors.fond }]}>
-        {/* Header */}
-        <View
+      <View style={styles.swipeContainer}>
+        {/* Indicateur de swipe sur le bord droit */}
+        <Animated.View
           style={[
-            styles.header,
+            styles.swipeIndicator,
             {
-              paddingTop: insets.top + espacements.sm,
-              borderBottomColor: themeColors.bordure,
+              opacity: indicatorOpacity,
+              transform: [{ translateX: indicatorTranslateX }],
             },
           ]}
+          pointerEvents="none"
         >
-          <Pressable
-            style={styles.closeButton}
-            onPress={handleClose}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          <View style={styles.swipeIndicatorCircle}>
+            <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.95)" />
+          </View>
+        </Animated.View>
+
+        <PanGestureHandler
+          onGestureEvent={onSwipeGesture}
+          onHandlerStateChange={onSwipeStateChange}
+          activeOffsetX={-15}
+          failOffsetX={15}
+          failOffsetY={[-20, 20]}
+        >
+          <Animated.View
+            style={[
+              styles.container,
+              {
+                backgroundColor: themeColors.fond,
+                transform: [{ translateX }],
+              },
+            ]}
           >
-            <Ionicons name="close" size={28} color={themeColors.texte} />
-          </Pressable>
+            {/* Header */}
+            <View
+              style={[
+                styles.header,
+                {
+                  paddingTop: insets.top + espacements.sm,
+                  borderBottomColor: themeColors.bordure,
+                },
+              ]}
+            >
+              <Pressable
+                style={styles.closeButton}
+                onPress={handleClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={28} color={themeColors.texte} />
+              </Pressable>
 
           <Text style={[styles.headerTitle, { color: themeColors.texte }]}>
             Nouvelle story
@@ -635,7 +775,9 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
             </View>
           )}
         </View>
-      </View>
+      </Animated.View>
+    </PanGestureHandler>
+  </View>
 
       {/* V4 - Modales d'édition des widgets */}
       <LinkEditorSheet
@@ -660,8 +802,43 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
 };
 
 const styles = StyleSheet.create({
+  swipeContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  swipeIndicator: {
+    position: 'absolute',
+    right: 10,
+    top: '45%',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  swipeIndicatorCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
   container: {
     flex: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: -10, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 25,
+      },
+      android: {
+        elevation: 24,
+      },
+    }),
   },
   header: {
     flexDirection: 'row',

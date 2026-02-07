@@ -28,13 +28,14 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
 import { useSocket, MessageSocketEvent, TypingSocketEvent } from '../../../src/contexts/SocketContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation } from '../../../src/composants';
+import SwipeableScreen from '../../../src/composants/SwipeableScreen';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
 import { useAutoRefresh } from '../../../src/hooks/useAutoRefresh';
@@ -1239,12 +1240,13 @@ export default function ConversationScreen() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <KeyboardAvoidingView
-        style={[styles.container, { paddingTop: insets.top }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
+    <SwipeableScreen previousScreenColor={couleurs.fond}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}
+        >
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.headerBack}>
@@ -1547,7 +1549,8 @@ export default function ConversationScreen() {
           onClose={() => setFullscreenImageUrl(null)}
         />
       </KeyboardAvoidingView>
-    </GestureHandlerRootView>
+      </View>
+    </SwipeableScreen>
   );
 }
 
@@ -1555,6 +1558,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   loadingContainer: {
     justifyContent: 'center',

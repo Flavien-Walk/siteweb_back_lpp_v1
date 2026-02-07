@@ -463,8 +463,8 @@ export default function PublicationDetailPage() {
           <Ionicons name="chevron-back" size={24} color={couleurs.texte} />
         </Pressable>
         <Text style={styles.headerTitle}>Publication</Text>
-        <View style={styles.headerBtn} />
-      </View>
+          <View style={styles.headerBtn} />
+        </View>
 
       <ScrollView
         ref={scrollViewRef}

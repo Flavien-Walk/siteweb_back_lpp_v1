@@ -410,9 +410,9 @@ export default function ProfilUtilisateurPage() {
           {profil.prenom} {profil.nom}
         </Text>
         <Pressable style={styles.headerBtn}>
-          <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texte} />
-        </Pressable>
-      </View>
+            <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texte} />
+          </Pressable>
+        </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}

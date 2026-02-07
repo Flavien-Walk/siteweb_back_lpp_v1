@@ -40,16 +40,16 @@ import {
   publierProjet as publierProjetAPI,
 } from '../../../src/services/projets';
 
-// Types pour les etapes
-type Etape = 'A' | 'C' | 'D' | 'E' | 'L' | 'F';
+// Types pour les etapes (numeriques)
+type Etape = '1' | '2' | '3' | '4' | '5' | '6';
 
 const ETAPES: { key: Etape; label: string; description: string }[] = [
-  { key: 'A', label: 'Identite', description: 'Nom, pitch et categorie' },
-  { key: 'C', label: 'Proposition', description: 'Probleme et solution' },
-  { key: 'D', label: 'Business', description: 'Maturite et objectifs' },
-  { key: 'E', label: 'Medias', description: 'Images et documents' },
-  { key: 'L', label: 'Liens', description: 'Liens externes' },
-  { key: 'F', label: 'Recap', description: 'Verifier et sauvegarder' },
+  { key: '1', label: 'Identite', description: 'Nom, pitch et categorie' },
+  { key: '2', label: 'Proposition', description: 'Probleme et solution' },
+  { key: '3', label: 'Business', description: 'Maturite et objectifs' },
+  { key: '4', label: 'Medias', description: 'Images et documents' },
+  { key: '5', label: 'Liens', description: 'Liens externes' },
+  { key: '6', label: 'Recap', description: 'Verifier et sauvegarder' },
 ];
 
 const CATEGORIES: { value: CategorieProjet; label: string; icon: string }[] = [
@@ -91,7 +91,7 @@ export default function ModifierProjetScreen() {
   const styles = createStyles(couleurs);
 
   // State
-  const [etapeActive, setEtapeActive] = useState<Etape>('A');
+  const [etapeActive, setEtapeActive] = useState<Etape>('1');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [projet, setProjet] = useState<Projet | null>(null);
@@ -194,8 +194,8 @@ export default function ModifierProjetScreen() {
   };
 
   const goNext = async () => {
-    // Validation etape A
-    if (etapeActive === 'A') {
+    // Validation etape 1
+    if (etapeActive === '1') {
       if (!formData.nom?.trim() || !formData.pitch?.trim() || !formData.categorie || !formData.localisation?.ville) {
         Alert.alert('Champs requis', 'Veuillez remplir le nom, le pitch, la categorie et la ville.');
         return;
@@ -347,8 +347,8 @@ export default function ModifierProjetScreen() {
     }
   };
 
-  // Rendu etape A - Identite
-  const renderEtapeA = () => (
+  // Rendu etape 1 - Identite
+  const renderEtape1 = () => (
     <View style={styles.etapeContent}>
       <Text style={styles.etapeTitle}>Identite du projet</Text>
       <Text style={styles.etapeDescription}>
@@ -436,8 +436,8 @@ export default function ModifierProjetScreen() {
     </View>
   );
 
-  // Rendu etape C - Proposition de valeur
-  const renderEtapeC = () => (
+  // Rendu etape 2 - Proposition de valeur
+  const renderEtape2 = () => (
     <View style={styles.etapeContent}>
       <Text style={styles.etapeTitle}>Proposition de valeur</Text>
       <Text style={styles.etapeDescription}>
@@ -497,8 +497,8 @@ export default function ModifierProjetScreen() {
     </View>
   );
 
-  // Rendu etape D - Business
-  const renderEtapeD = () => (
+  // Rendu etape 3 - Business
+  const renderEtape3 = () => (
     <View style={styles.etapeContent}>
       <Text style={styles.etapeTitle}>Business & Traction</Text>
       <Text style={styles.etapeDescription}>
@@ -532,19 +532,6 @@ export default function ModifierProjetScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Description detaillee</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline, { minHeight: 120 }]}
-          value={formData.description}
-          onChangeText={(text) => setFormData({ ...formData, description: text })}
-          placeholder="Decrivez votre projet en detail..."
-          placeholderTextColor={couleurs.texteSecondaire}
-          multiline
-          maxLength={5000}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Business model</Text>
         <TextInput
           style={[styles.input, styles.inputMultiline]}
@@ -568,14 +555,14 @@ export default function ModifierProjetScreen() {
           }}
           placeholder="Ex: 50000"
           placeholderTextColor={couleurs.texteSecondaire}
-          keyboardType="numeric"
+          keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
         />
       </View>
     </View>
   );
 
-  // Rendu etape E - Medias
-  const renderEtapeE = () => (
+  // Rendu etape 4 - Medias
+  const renderEtape4 = () => (
     <View style={styles.etapeContent}>
       <Text style={styles.etapeTitle}>Medias</Text>
       <Text style={styles.etapeDescription}>
@@ -606,8 +593,8 @@ export default function ModifierProjetScreen() {
     </View>
   );
 
-  // Rendu etape L - Liens
-  const renderEtapeL = () => (
+  // Rendu etape 5 - Liens
+  const renderEtape5 = () => (
     <View style={styles.etapeContent}>
       <Text style={styles.etapeTitle}>Liens externes</Text>
       <Text style={styles.etapeDescription}>
@@ -650,8 +637,8 @@ export default function ModifierProjetScreen() {
     </View>
   );
 
-  // Rendu etape F - Recap
-  const renderEtapeF = () => (
+  // Rendu etape 6 - Recap
+  const renderEtape6 = () => (
     <View style={styles.etapeContent}>
       <Text style={styles.etapeTitle}>Recapitulatif</Text>
       <Text style={styles.etapeDescription}>
@@ -722,13 +709,13 @@ export default function ModifierProjetScreen() {
   // Rendu contenu selon etape
   const renderEtapeContent = () => {
     switch (etapeActive) {
-      case 'A': return renderEtapeA();
-      case 'C': return renderEtapeC();
-      case 'D': return renderEtapeD();
-      case 'E': return renderEtapeE();
-      case 'L': return renderEtapeL();
-      case 'F': return renderEtapeF();
-      default: return renderEtapeA();
+      case '1': return renderEtape1();
+      case '2': return renderEtape2();
+      case '3': return renderEtape3();
+      case '4': return renderEtape4();
+      case '5': return renderEtape5();
+      case '6': return renderEtape6();
+      default: return renderEtape1();
     }
   };
 
@@ -802,7 +789,7 @@ export default function ModifierProjetScreen() {
       </KeyboardAvoidingView>
 
       {/* Footer navigation */}
-      {etapeActive !== 'F' && (
+      {etapeActive !== '6' && (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, espacements.md) + espacements.sm }]}>
           <Pressable
             style={[styles.footerBtn, styles.footerBtnSecondary]}

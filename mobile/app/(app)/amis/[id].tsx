@@ -159,10 +159,10 @@ export default function ListeAmisPage() {
           <Text style={styles.headerTitle}>
             {utilisateur ? `Amis de ${utilisateur.prenom}` : 'Amis'}
           </Text>
-          <Text style={styles.headerSubtitle}>{amis.length} ami{amis.length > 1 ? 's' : ''}</Text>
+            <Text style={styles.headerSubtitle}>{amis.length} ami{amis.length > 1 ? 's' : ''}</Text>
+          </View>
+          <View style={styles.headerBtn} />
         </View>
-        <View style={styles.headerBtn} />
-      </View>
 
       {/* Liste des amis */}
       {amis.length === 0 ? (
