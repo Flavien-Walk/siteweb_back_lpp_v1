@@ -22,7 +22,6 @@ import {
   Animated,
   Dimensions,
   Keyboard,
-  KeyboardEvent,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -284,10 +283,11 @@ export default function ConversationScreen() {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingEmitRef = useRef<number>(0);
 
-  // Note: Sur Android, softwareKeyboardLayoutMode="resize" dans app.json
-  // gere automatiquement le redimensionnement. Pas besoin de spacer manuel.
-  // UnifiedCommentsSheet fonctionne differemment car c'est un Modal avec sa propre gestion.
   const inputContainerRef = useRef<View>(null);
+
+  // Android edge-to-edge: briefly disable KAV after keyboard dismiss
+  // to force it to reset its internal padding (fixes stuck layout)
+  const [kavEnabled, setKavEnabled] = useState(true);
 
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
@@ -436,9 +436,7 @@ export default function ConversationScreen() {
     enabled: !!id && !chargement,
   });
 
-  // Keyboard handling: scroll to end when keyboard appears
-  // Note: Android avec softwareKeyboardLayoutMode="resize" gere le redimensionnement automatiquement
-  // On n'ajoute PAS de spacer manuel pour eviter le double offset sur certains appareils (S10)
+  // Keyboard handling: scroll to end + Android KAV reset on dismiss
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
 
@@ -446,11 +444,22 @@ export default function ConversationScreen() {
       // Scroll vers le bas pour voir les derniers messages
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
-      }, Platform.OS === 'ios' ? 50 : 100);
+      }, Platform.OS === 'ios' ? 50 : 150);
     });
+
+    // Android edge-to-edge fix: briefly disable KAV on keyboard dismiss
+    // to force it to clear its internal padding (prevents stuck layout)
+    let keyboardHideListener: ReturnType<typeof Keyboard.addListener> | undefined;
+    if (Platform.OS === 'android') {
+      keyboardHideListener = Keyboard.addListener('keyboardDidHide', () => {
+        setKavEnabled(false);
+        setTimeout(() => setKavEnabled(true), 50);
+      });
+    }
 
     return () => {
       keyboardShowListener.remove();
+      keyboardHideListener?.remove();
     };
   }, []);
 
@@ -1243,8 +1252,9 @@ export default function ConversationScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={0}
+        enabled={kavEnabled}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -1325,8 +1335,9 @@ export default function ConversationScreen() {
         )}
 
         {/* Bottom area: Reply + Draft + Input */}
-        {/* Structure identique à UnifiedCommentsSheet: composer dans le flux + spacer Android */}
-        <View style={[styles.bottomArea, { paddingBottom: insets.bottom || espacements.md }]}>
+        <View style={[styles.bottomArea, {
+          paddingBottom: insets.bottom || espacements.md,
+        }]}>
           {/* Reply preview */}
           {replyingTo && (
             <View style={styles.replyBar}>
@@ -1416,8 +1427,6 @@ export default function ConversationScreen() {
             )}
           </View>
         </View>
-
-        {/* Note: Pas de spacer manuel Android - softwareKeyboardLayoutMode="resize" gere tout */}
 
         {/* Modal d'édition */}
         <Modal
