@@ -282,6 +282,193 @@ export interface PaginatedResponse<T> {
   hasPrevPage?: boolean
 }
 
+// ============ PUBLICATIONS ============
+
+export type PublicationType = 'post' | 'annonce' | 'update' | 'editorial' | 'live-extrait'
+
+export interface PublicationMedia {
+  type: 'image' | 'video'
+  url: string
+  thumbnailUrl?: string
+}
+
+export interface Publication {
+  _id: string
+  auteur: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    email?: string
+    role?: string
+  }
+  auteurType: 'Utilisateur' | 'Projet'
+  type: PublicationType
+  contenu: string
+  media?: string
+  medias: PublicationMedia[]
+  likes: string[]
+  likesCount: number
+  nbCommentaires: number
+  isHidden: boolean
+  projet?: {
+    _id: string
+    nom: string
+  }
+  dateCreation: string
+  dateMiseAJour: string
+}
+
+// ============ PROJETS ============
+
+export type CategorieProjet = 'tech' | 'food' | 'sante' | 'education' | 'energie' | 'culture' | 'environnement' | 'autre'
+export type MaturiteProjet = 'idee' | 'prototype' | 'lancement' | 'croissance'
+export type StatutProjet = 'draft' | 'published'
+
+export interface Projet {
+  _id: string
+  nom: string
+  description: string
+  pitch: string
+  logo?: string
+  categorie: CategorieProjet
+  maturite: MaturiteProjet
+  statut: StatutProjet
+  isHidden: boolean
+  hiddenReason?: string
+  hiddenBy?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  hiddenAt?: string
+  porteur: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    email?: string
+  }
+  equipe: {
+    nom: string
+    role: string
+    utilisateur?: {
+      _id: string
+      prenom: string
+      nom: string
+      avatar?: string
+    }
+  }[]
+  followers: string[]
+  followersCount: number
+  dateCreation: string
+  dateMiseAJour: string
+}
+
+// ============ COMMENTAIRES ============
+
+export interface Commentaire {
+  _id: string
+  publication: string | {
+    _id: string
+    contenu?: string
+    auteur?: string
+  }
+  auteur: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    email?: string
+  }
+  contenu: string
+  likes: string[]
+  likesCount: number
+  reponseA?: string
+  dateCreation: string
+  dateMiseAJour?: string
+}
+
+// ============ CONVERSATIONS ============
+
+export interface ConversationParticipant {
+  _id: string
+  prenom: string
+  nom: string
+  avatar?: string
+}
+
+export interface ModerationConversation {
+  _id: string
+  participants: ConversationParticipant[]
+  estGroupe: boolean
+  nomGroupe?: string
+  dernierMessage?: {
+    contenuCrypte?: string
+    type?: string
+    dateCreation?: string
+    expediteur?: string
+  }
+  dateCreation: string
+  dateMiseAJour: string
+}
+
+export interface ConversationMessage {
+  _id: string
+  expediteur: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+  }
+  type: 'texte' | 'image' | 'video' | 'systeme'
+  contenuCrypte: string
+  contenu?: string
+  dateCreation: string
+}
+
+// ============ LIVES ============
+
+export interface Live {
+  _id: string
+  hostUserId: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    email?: string
+  }
+  channelName: string
+  status: 'live' | 'ended'
+  title?: string
+  startedAt: string
+  endedAt?: string
+  viewerCount: number
+  peakViewerCount: number
+  dateCreation: string
+}
+
+// ============ EVENEMENTS ============
+
+export type TypeEvenement = 'live' | 'replay' | 'qr'
+export type StatutEvenement = 'a-venir' | 'en-cours' | 'termine'
+
+export interface Evenement {
+  _id: string
+  titre: string
+  description: string
+  type: TypeEvenement
+  projet?: {
+    _id: string
+    nom: string
+  }
+  date: string
+  duree: number
+  lienVideo?: string
+  statut: StatutEvenement
+  dateCreation: string
+}
+
 // ============ API RESPONSES ============
 
 export interface ApiResponse<T> {

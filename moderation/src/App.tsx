@@ -14,6 +14,15 @@ import { AuditPage } from '@/pages/Audit'
 import { ChatPage } from '@/pages/Chat'
 import { StoriesPage } from '@/pages/Stories'
 import { StoryDetailPage } from '@/pages/StoryDetail'
+import { PublicationsPage } from '@/pages/Publications'
+import { PublicationDetailPage } from '@/pages/PublicationDetail'
+import { ProjetsPage } from '@/pages/Projets'
+import { ProjetDetailPage } from '@/pages/ProjetDetail'
+import { CommentairesPage } from '@/pages/Commentaires'
+import { ConversationsPage } from '@/pages/Conversations'
+import { ConversationDetailPage } from '@/pages/ConversationDetail'
+import { LivesPage } from '@/pages/Lives'
+import { EvenementsPage } from '@/pages/Evenements'
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -119,6 +128,90 @@ function App() {
                 element={
                   <ProtectedRoute requiredPermission="content:hide">
                     <StoryDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Publications */}
+              <Route
+                path="publications"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <PublicationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="publications/:id"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <PublicationDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Projets */}
+              <Route
+                path="projets"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <ProjetsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="projets/:id"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <ProjetDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Commentaires */}
+              <Route
+                path="commentaires"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <CommentairesPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Conversations */}
+              <Route
+                path="conversations"
+                element={
+                  <ProtectedRoute requiredPermission="users:view">
+                    <ConversationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="conversations/:id"
+                element={
+                  <ProtectedRoute requiredPermission="users:view">
+                    <ConversationDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Lives */}
+              <Route
+                path="lives"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <LivesPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Événements */}
+              <Route
+                path="evenements"
+                element={
+                  <ProtectedRoute requiredPermission="content:hide">
+                    <EvenementsPage />
                   </ProtectedRoute>
                 }
               />

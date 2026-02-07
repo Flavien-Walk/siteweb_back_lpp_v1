@@ -16,6 +16,12 @@ import {
   X,
   Shield,
   Camera,
+  FileText,
+  Briefcase,
+  MessageCircle,
+  MessagesSquare,
+  Radio,
+  Calendar,
 } from 'lucide-react'
 
 interface NavItem {
@@ -54,6 +60,42 @@ const navItems: NavItem[] = [
     label: 'Stories',
     href: '/stories',
     icon: <Camera className="h-5 w-5" />,
+    permission: 'content:hide',
+  },
+  {
+    label: 'Publications',
+    href: '/publications',
+    icon: <FileText className="h-5 w-5" />,
+    permission: 'content:hide',
+  },
+  {
+    label: 'Projets',
+    href: '/projets',
+    icon: <Briefcase className="h-5 w-5" />,
+    permission: 'content:hide',
+  },
+  {
+    label: 'Commentaires',
+    href: '/commentaires',
+    icon: <MessageCircle className="h-5 w-5" />,
+    permission: 'content:hide',
+  },
+  {
+    label: 'Conversations',
+    href: '/conversations',
+    icon: <MessagesSquare className="h-5 w-5" />,
+    permission: 'users:view',
+  },
+  {
+    label: 'Lives',
+    href: '/lives',
+    icon: <Radio className="h-5 w-5" />,
+    permission: 'content:hide',
+  },
+  {
+    label: 'Événements',
+    href: '/evenements',
+    icon: <Calendar className="h-5 w-5" />,
     permission: 'content:hide',
   },
   {
