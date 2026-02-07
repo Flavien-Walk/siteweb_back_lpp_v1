@@ -1,6 +1,6 @@
 /**
  * Ecran de creation de projet - Wizard multi-etapes
- * Etape A: Identite | B: Equipe | C: Proposition | D: Business | E: Medias | F: Publication
+ * Etape 1: Identite | 2: Equipe | 3: Proposition | 4: Business | 5: Medias | 6: Publication
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -37,16 +37,16 @@ import {
 } from '../../../src/services/projets';
 import { getMesAmis, ProfilUtilisateur } from '../../../src/services/utilisateurs';
 
-// Types pour les etapes
-type Etape = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+// Types pour les etapes (numeriques)
+type Etape = '1' | '2' | '3' | '4' | '5' | '6';
 
 const ETAPES: { key: Etape; label: string; description: string }[] = [
-  { key: 'A', label: 'Identite', description: 'Nom, pitch et categorie' },
-  { key: 'B', label: 'Equipe', description: 'Porteurs et co-fondateurs' },
-  { key: 'C', label: 'Proposition', description: 'Probleme et solution' },
-  { key: 'D', label: 'Business', description: 'Maturite et objectifs' },
-  { key: 'E', label: 'Medias', description: 'Images et documents' },
-  { key: 'F', label: 'Publication', description: 'Relecture et publication' },
+  { key: '1', label: 'Identite', description: 'Nom, pitch et categorie' },
+  { key: '2', label: 'Equipe', description: 'Porteurs et co-fondateurs' },
+  { key: '3', label: 'Proposition', description: 'Probleme et solution' },
+  { key: '4', label: 'Business', description: 'Maturite et objectifs' },
+  { key: '5', label: 'Medias', description: 'Images et documents' },
+  { key: '6', label: 'Publication', description: 'Relecture et publication' },
 ];
 
 const CATEGORIES: { value: CategorieProjet; label: string; icon: string }[] = [
@@ -73,7 +73,7 @@ export default function NouveauProjetScreen() {
   const styles = createStyles(couleurs);
 
   // Etape courante
-  const [etapeActive, setEtapeActive] = useState<Etape>('A');
+  const [etapeActive, setEtapeActive] = useState<Etape>('1');
   const [loading, setLoading] = useState(false);
   const [projetId, setProjetId] = useState<string | null>(null);
 
@@ -123,7 +123,7 @@ export default function NouveauProjetScreen() {
 
   const goNext = async () => {
     // Validation selon l'etape
-    if (etapeActive === 'A') {
+    if (etapeActive === '1') {
       if (!formData.nom?.trim() || !formData.pitch?.trim() || !formData.categorie || !formData.localisation?.ville) {
         Alert.alert('Champs requis', 'Veuillez remplir le nom, le pitch, la categorie et la ville.');
         return;
@@ -152,7 +152,7 @@ export default function NouveauProjetScreen() {
       const response = await creerProjet(formData);
       if (response.succes && response.data?.projet) {
         setProjetId(response.data.projet._id);
-        setEtapeActive('B');
+        setEtapeActive('2');
       } else {
         Alert.alert('Erreur', response.message || 'Impossible de creer le projet');
       }
@@ -684,12 +684,20 @@ export default function NouveauProjetScreen() {
           style={styles.input}
           value={formData.objectifFinancement?.toString() || ''}
           onChangeText={(text) => {
-            const num = parseInt(text.replace(/\D/g, ''), 10);
-            setFormData({ ...formData, objectifFinancement: isNaN(num) ? undefined : num });
+            // Nettoyer le texte pour ne garder que les chiffres
+            const cleanedText = text.replace(/[^0-9]/g, '');
+            if (cleanedText === '') {
+              setFormData({ ...formData, objectifFinancement: undefined });
+            } else {
+              const num = parseInt(cleanedText, 10);
+              setFormData({ ...formData, objectifFinancement: num });
+            }
           }}
           placeholder="Ex: 50000"
           placeholderTextColor={couleurs.texteSecondaire}
-          keyboardType="numeric"
+          keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+          returnKeyType="done"
+          maxLength={10}
         />
       </View>
     </View>
@@ -741,6 +749,7 @@ export default function NouveauProjetScreen() {
       <View style={styles.recapCard}>
         <Text style={styles.recapTitle}>{formData.nom || 'Sans nom'}</Text>
         <Text style={styles.recapPitch}>{formData.pitch || 'Pas de pitch'}</Text>
+
         <View style={styles.recapRow}>
           <Ionicons name="location-outline" size={16} color={couleurs.texteSecondaire} />
           <Text style={styles.recapText}>{formData.localisation?.ville || 'Non renseigne'}</Text>
@@ -755,6 +764,48 @@ export default function NouveauProjetScreen() {
           <Ionicons name="trending-up-outline" size={16} color={couleurs.texteSecondaire} />
           <Text style={styles.recapText}>
             {MATURITES.find(m => m.value === formData.maturite)?.label || 'Idee'}
+          </Text>
+        </View>
+
+        {/* Description detaillee */}
+        {formData.description?.trim() && (
+          <View style={styles.recapSection}>
+            <Text style={styles.recapSectionTitle}>Description</Text>
+            <Text style={styles.recapSectionText} numberOfLines={3}>
+              {formData.description}
+            </Text>
+          </View>
+        )}
+
+        {/* Objectif de financement */}
+        {formData.objectifFinancement && formData.objectifFinancement > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="cash-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>
+              Objectif: {formData.objectifFinancement.toLocaleString('fr-FR')} EUR
+            </Text>
+          </View>
+        )}
+
+        {/* Equipe */}
+        {teamMembers.length > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="people-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>
+              {teamMembers.length} membre{teamMembers.length > 1 ? 's' : ''} dans l'equipe
+            </Text>
+          </View>
+        )}
+
+        {/* Image de couverture */}
+        <View style={styles.recapRow}>
+          <Ionicons
+            name={coverImage ? 'checkmark-circle' : 'alert-circle-outline'}
+            size={16}
+            color={coverImage ? '#10B981' : '#F59E0B'}
+          />
+          <Text style={[styles.recapText, { color: coverImage ? '#10B981' : '#F59E0B' }]}>
+            {coverImage ? 'Image de couverture ajoutee' : 'Image de couverture requise'}
           </Text>
         </View>
       </View>
@@ -791,12 +842,12 @@ export default function NouveauProjetScreen() {
   // Rendu du contenu selon l'etape
   const renderEtapeContent = () => {
     switch (etapeActive) {
-      case 'A': return renderEtapeA();
-      case 'B': return renderEtapeB();
-      case 'C': return renderEtapeC();
-      case 'D': return renderEtapeD();
-      case 'E': return renderEtapeE();
-      case 'F': return renderEtapeF();
+      case '1': return renderEtapeA();
+      case '2': return renderEtapeB();
+      case '3': return renderEtapeC();
+      case '4': return renderEtapeD();
+      case '5': return renderEtapeE();
+      case '6': return renderEtapeF();
       default: return renderEtapeA();
     }
   };
@@ -859,7 +910,7 @@ export default function NouveauProjetScreen() {
       </KeyboardAvoidingView>
 
       {/* Footer navigation */}
-      {etapeActive !== 'F' && (
+      {etapeActive !== '6' && (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, espacements.md) + espacements.sm }]}>
           <Pressable
             style={[styles.footerBtn, styles.footerBtnSecondary]}
@@ -878,7 +929,7 @@ export default function NouveauProjetScreen() {
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <Text style={styles.footerBtnPrimaryText}>
-                {etapeActive === 'A' && !projetId ? 'Creer' : 'Suivant'}
+                {etapeActive === '1' && !projetId ? 'Creer' : 'Suivant'}
               </Text>
             )}
           </Pressable>
@@ -1203,6 +1254,23 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   recapText: {
     fontSize: 14,
     color: couleurs.texte,
+  },
+  recapSection: {
+    marginTop: espacements.md,
+    paddingTop: espacements.md,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+  },
+  recapSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+    marginBottom: espacements.xs,
+  },
+  recapSectionText: {
+    fontSize: 14,
+    color: couleurs.texte,
+    lineHeight: 20,
   },
   publishBtn: {
     backgroundColor: couleurs.primaire,

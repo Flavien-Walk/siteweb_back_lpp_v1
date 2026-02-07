@@ -532,26 +532,39 @@ export default function ProjetDetailPage() {
     );
   };
 
+  // Verifier si l'utilisateur est proprietaire ou membre de l'equipe
+  const isOwnerOrMember = useMemo(() => {
+    if (!utilisateur || !projet) return false;
+    const isOwner = projet.porteur?._id === utilisateur.id;
+    const isMember = projet.equipe?.some(
+      (membre) => membre.utilisateur?._id === utilisateur.id
+    );
+    return isOwner || isMember;
+  }, [utilisateur, projet]);
+
   // Rendu des boutons d'action
   const renderActions = () => (
     <View style={styles.actionsContainer}>
-      <Pressable
-        style={[styles.actionButton, estSuivi && styles.actionButtonActive]}
-        onPress={handleToggleSuivre}
-        disabled={actionEnCours}
-      >
-        <Ionicons
-          name={estSuivi ? 'heart' : 'heart-outline'}
-          size={20}
-          color={estSuivi ? couleurs.primaire : couleurs.texte}
-        />
-        <Text style={[styles.actionButtonText, estSuivi && styles.actionButtonTextActive]}>
-          {estSuivi ? 'Suivi' : 'Suivre'}
-        </Text>
-      </Pressable>
+      {/* Bouton Suivre - masque si proprietaire ou membre */}
+      {!isOwnerOrMember && (
+        <Pressable
+          style={[styles.actionButton, estSuivi && styles.actionButtonActive]}
+          onPress={handleToggleSuivre}
+          disabled={actionEnCours}
+        >
+          <Ionicons
+            name={estSuivi ? 'heart' : 'heart-outline'}
+            size={20}
+            color={estSuivi ? couleurs.primaire : couleurs.texte}
+          />
+          <Text style={[styles.actionButtonText, estSuivi && styles.actionButtonTextActive]}>
+            {estSuivi ? 'Suivi' : 'Suivre'}
+          </Text>
+        </Pressable>
+      )}
 
       <Pressable
-        style={styles.actionButtonPrimary}
+        style={[styles.actionButtonPrimary, isOwnerOrMember && { flex: 1 }]}
         onPress={openContactModal}
         disabled={actionEnCours}
       >
@@ -963,8 +976,8 @@ export default function ProjetDetailPage() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Header animé */}
-      {renderHeader()}
+        {/* Header animé */}
+        {renderHeader()}
 
       {/* Contenu scrollable */}
       <Animated.ScrollView
