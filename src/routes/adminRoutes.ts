@@ -42,6 +42,15 @@ import {
   banUser,
   unbanUser,
   changeUserRole,
+  listPublications,
+  getPublicationDetail,
+  listCommentaires,
+  listProjets,
+  getProjetDetail,
+  listConversations,
+  getConversationMessages,
+  listLives,
+  listEvenements,
 } from '../controllers/moderationController.js';
 
 const router = Router();
@@ -209,5 +218,44 @@ router.post('/chat/read', verifierJwt, requirePermission('staff:chat'), markMess
 
 // DELETE /api/admin/chat/:id - Supprimer un message (alias)
 router.delete('/chat/:id', verifierJwt, requirePermission('staff:chat'), deleteStaffMessage);
+
+// ============ PUBLICATIONS ============
+
+// GET /api/admin/publications - Lister les publications
+router.get('/publications', verifierJwt, requirePermission('content:hide'), listPublications);
+
+// GET /api/admin/publications/:id - Détail d'une publication
+router.get('/publications/:id', verifierJwt, requirePermission('content:hide'), getPublicationDetail);
+
+// ============ COMMENTAIRES ============
+
+// GET /api/admin/commentaires - Lister les commentaires
+router.get('/commentaires', verifierJwt, requirePermission('content:hide'), listCommentaires);
+
+// ============ PROJETS ============
+
+// GET /api/admin/projets - Lister les projets
+router.get('/projets', verifierJwt, requirePermission('content:hide'), listProjets);
+
+// GET /api/admin/projets/:id - Détail d'un projet
+router.get('/projets/:id', verifierJwt, requirePermission('content:hide'), getProjetDetail);
+
+// ============ CONVERSATIONS ============
+
+// GET /api/admin/conversations - Lister les conversations
+router.get('/conversations', verifierJwt, requirePermission('users:view'), listConversations);
+
+// GET /api/admin/conversations/:id/messages - Messages d'une conversation
+router.get('/conversations/:id/messages', verifierJwt, requirePermission('users:view'), getConversationMessages);
+
+// ============ LIVES ============
+
+// GET /api/admin/lives - Lister les lives
+router.get('/lives', verifierJwt, requirePermission('content:hide'), listLives);
+
+// ============ EVENEMENTS ============
+
+// GET /api/admin/evenements - Lister les événements
+router.get('/evenements', verifierJwt, requirePermission('content:hide'), listEvenements);
 
 export default router;

@@ -106,6 +106,12 @@ export interface IProjet extends Document {
   dateCreation: Date;
   dateMiseAJour: Date;
 
+  // --- Modération ---
+  isHidden: boolean;
+  hiddenReason?: string;
+  hiddenBy?: mongoose.Types.ObjectId;
+  hiddenAt?: Date;
+
   // Champ legacy pour compatibilité
   montant: number;
 }
@@ -390,6 +396,22 @@ const projetSchema = new Schema<IProjet>(
       type: Schema.Types.ObjectId,
       ref: 'Utilisateur',
     }],
+
+    // --- Modération ---
+    isHidden: {
+      type: Boolean,
+      default: false,
+    },
+    hiddenReason: {
+      type: String,
+    },
+    hiddenBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+    },
+    hiddenAt: {
+      type: Date,
+    },
 
     // Legacy - pour rétrocompatibilité
     montant: {

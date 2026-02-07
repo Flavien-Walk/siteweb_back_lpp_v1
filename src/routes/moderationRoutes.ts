@@ -25,6 +25,10 @@ import {
   hideStory,
   unhideStory,
   deleteStoryModeration,
+  // Projets moderation
+  hideProjet,
+  unhideProjet,
+  deleteProjet,
 } from '../controllers/moderationController.js';
 
 const router = Router();
@@ -163,5 +167,28 @@ router.post('/stories/:id/unhide', requirePermission('content:hide'), unhideStor
  * Permission: content:delete
  */
 router.delete('/stories/:id', requirePermission('content:delete'), deleteStoryModeration);
+
+// ============ ROUTES PROJETS ============
+
+/**
+ * POST /api/moderation/content/projet/:id/hide
+ * Masquer un projet
+ * Permission: content:hide
+ */
+router.post('/content/projet/:id/hide', requirePermission('content:hide'), hideProjet);
+
+/**
+ * POST /api/moderation/content/projet/:id/unhide
+ * Réafficher un projet masqué
+ * Permission: content:hide
+ */
+router.post('/content/projet/:id/unhide', requirePermission('content:hide'), unhideProjet);
+
+/**
+ * DELETE /api/moderation/content/projet/:id
+ * Supprimer définitivement un projet
+ * Permission: content:delete
+ */
+router.delete('/content/projet/:id', requirePermission('content:delete'), deleteProjet);
 
 export default router;

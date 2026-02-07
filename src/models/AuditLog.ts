@@ -40,6 +40,7 @@ export type AuditTargetType =
   | 'message'
   | 'story'
   | 'live'
+  | 'projet'
   | 'report'
   | 'config'
   | 'system';
@@ -146,7 +147,7 @@ const auditLogSchema = new Schema<IAuditLog>(
     },
     targetType: {
       type: String,
-      enum: ['utilisateur', 'publication', 'commentaire', 'message', 'story', 'live', 'report', 'config', 'system'],
+      enum: ['utilisateur', 'publication', 'commentaire', 'message', 'story', 'live', 'projet', 'report', 'config', 'system'],
       required: [true, 'Le type de cible est requis'],
       index: true,
     },
