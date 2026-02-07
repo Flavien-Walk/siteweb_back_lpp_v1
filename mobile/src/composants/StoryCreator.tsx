@@ -68,6 +68,10 @@ interface StoryCreatorProps {
   visible: boolean;
   onClose: () => void;
   onStoryCreated: () => void;
+  /** Mode integre sans Modal - le parent gere l'animation de slide */
+  embedded?: boolean;
+  /** Animation du parent pour controle direct du slide (previsualisation) */
+  parentSlideAnim?: Animated.Value;
 }
 
 interface SelectedMedia {
@@ -81,6 +85,8 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   visible,
   onClose,
   onStoryCreated,
+  embedded = false,
+  parentSlideAnim,
 }) => {
   const insets = useSafeAreaInsets();
   const { couleurs: themeColors } = useTheme();
@@ -103,94 +109,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   const [textEditorVisible, setTextEditorVisible] = useState(false);
   const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
 
-  // Swipe-to-close vers la gauche
-  const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
-  const VELOCITY_THRESHOLD = 500;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const isValidSwipe = useRef(false);
-  const hasTriggeredHaptic = useRef(false);
-  const isClosing = useRef(false);
-
-  const resetSwipePosition = useCallback(() => {
-    hasTriggeredHaptic.current = false;
-    Animated.spring(translateX, {
-      toValue: 0,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
-    }).start();
-  }, [translateX]);
-
-  const animateClose = useCallback(() => {
-    if (isClosing.current) return;
-    isClosing.current = true;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    Animated.timing(translateX, {
-      toValue: -SCREEN_WIDTH,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      isClosing.current = false;
-      translateX.setValue(0);
-      handleClose();
-    });
-  }, [translateX, handleClose]);
-
-  const onSwipeGesture = useCallback(
-    (event: PanGestureHandlerGestureEvent) => {
-      if (!isValidSwipe.current || isClosing.current) return;
-
-      const { translationX } = event.nativeEvent;
-      // Limiter le swipe vers la gauche uniquement (valeur négative)
-      const clampedX = Math.min(0, Math.max(translationX, -SCREEN_WIDTH));
-      translateX.setValue(clampedX);
-
-      // Haptic feedback au seuil
-      if (Math.abs(clampedX) > SWIPE_THRESHOLD && !hasTriggeredHaptic.current) {
-        hasTriggeredHaptic.current = true;
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } else if (Math.abs(clampedX) < SWIPE_THRESHOLD) {
-        hasTriggeredHaptic.current = false;
-      }
-    },
-    [translateX]
-  );
-
-  const onSwipeStateChange = useCallback(
-    (event: PanGestureHandlerGestureEvent) => {
-      const { state, translationX, velocityX } = event.nativeEvent;
-
-      if (state === State.BEGAN) {
-        isValidSwipe.current = true;
-        hasTriggeredHaptic.current = false;
-      }
-
-      if (state === State.END || state === State.CANCELLED) {
-        if (!isValidSwipe.current) {
-          resetSwipePosition();
-          return;
-        }
-
-        // Fermer si on dépasse le seuil ou si le swipe est rapide vers la gauche
-        const shouldClose =
-          translationX < -SWIPE_THRESHOLD ||
-          (velocityX < -VELOCITY_THRESHOLD && translationX < -50);
-
-        if (shouldClose) {
-          animateClose();
-        } else {
-          resetSwipePosition();
-        }
-
-        isValidSwipe.current = false;
-      }
-    },
-    [resetSwipePosition, animateClose]
-  );
-
-  // Reset state à la fermeture
+  // Reset state à la fermeture (défini en premier pour être utilisé par animateClose)
   const handleClose = useCallback(() => {
     setSelectedMedia(null);
     setIsPublishing(false);
@@ -205,6 +124,145 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     setSelectedWidgetId(null);
     onClose();
   }, [onClose]);
+
+  // Swipe-to-close depuis le bord DROIT (swipe vers la gauche pour revenir)
+  const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+  const VELOCITY_THRESHOLD = 500;
+  const EDGE_WIDTH = 50; // Zone de detection sur le bord droit
+  const translateX = useRef(new Animated.Value(0)).current;
+  const isValidSwipe = useRef(false);
+  const hasTriggeredHaptic = useRef(false);
+  const isClosing = useRef(false);
+
+  const resetSwipePosition = useCallback(() => {
+    hasTriggeredHaptic.current = false;
+
+    // En mode embedded avec parentSlideAnim, ramener le contenu principal a SCREEN_WIDTH
+    if (embedded && parentSlideAnim) {
+      Animated.spring(parentSlideAnim, {
+        toValue: SCREEN_WIDTH,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [translateX, embedded, parentSlideAnim]);
+
+  const animateClose = useCallback(() => {
+    if (isClosing.current) return;
+    isClosing.current = true;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // En mode embedded avec parentSlideAnim, animer le contenu principal vers 0
+    if (embedded && parentSlideAnim) {
+      Animated.spring(parentSlideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start(() => {
+        isClosing.current = false;
+        handleClose();
+      });
+      return;
+    }
+
+    // En mode embedded sans parentSlideAnim
+    if (embedded) {
+      translateX.setValue(0);
+      isClosing.current = false;
+      handleClose();
+      return;
+    }
+
+    // Mode Modal: animation vers la gauche (slide out)
+    Animated.timing(translateX, {
+      toValue: -SCREEN_WIDTH,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      isClosing.current = false;
+      translateX.setValue(0);
+      handleClose();
+    });
+  }, [translateX, handleClose, embedded, parentSlideAnim]);
+
+  const onSwipeGesture = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      if (!isValidSwipe.current || isClosing.current) return;
+
+      const { translationX: gestureX } = event.nativeEvent;
+
+      // En mode embedded avec parentSlideAnim: controler le slide du parent
+      // Le swipe gauche (negatif) fait revenir le contenu principal de SCREEN_WIDTH vers 0
+      if (embedded && parentSlideAnim) {
+        const newValue = Math.max(0, SCREEN_WIDTH + gestureX);
+        parentSlideAnim.setValue(newValue);
+
+        // Haptic feedback au seuil
+        if (Math.abs(gestureX) > SWIPE_THRESHOLD && !hasTriggeredHaptic.current) {
+          hasTriggeredHaptic.current = true;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } else if (Math.abs(gestureX) < SWIPE_THRESHOLD) {
+          hasTriggeredHaptic.current = false;
+        }
+        return;
+      }
+
+      // Mode normal: animer le translateX local
+      const clampedX = Math.min(0, Math.max(gestureX, -SCREEN_WIDTH));
+      translateX.setValue(clampedX);
+
+      if (Math.abs(clampedX) > SWIPE_THRESHOLD && !hasTriggeredHaptic.current) {
+        hasTriggeredHaptic.current = true;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else if (Math.abs(clampedX) < SWIPE_THRESHOLD) {
+        hasTriggeredHaptic.current = false;
+      }
+    },
+    [translateX, embedded, parentSlideAnim]
+  );
+
+  const onSwipeStateChange = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      const { state, translationX: gestureX, velocityX, x } = event.nativeEvent;
+
+      if (state === State.BEGAN) {
+        // Verifier si le geste commence sur le bord DROIT
+        isValidSwipe.current = x >= SCREEN_WIDTH - EDGE_WIDTH;
+        hasTriggeredHaptic.current = false;
+      }
+
+      if (state === State.END || state === State.CANCELLED) {
+        if (!isValidSwipe.current) {
+          resetSwipePosition();
+          return;
+        }
+
+        // Fermer si on dépasse le seuil ou si le swipe est rapide vers la gauche
+        const shouldClose =
+          gestureX < -SWIPE_THRESHOLD ||
+          (velocityX < -VELOCITY_THRESHOLD && gestureX < -50);
+
+        if (shouldClose) {
+          animateClose();
+        } else {
+          resetSwipePosition();
+        }
+
+        isValidSwipe.current = false;
+      }
+    },
+    [resetSwipePosition, animateClose]
+  );
 
   // V4 - Fonctions de gestion des widgets
   const generateWidgetId = () => `widget-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -513,29 +571,24 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     </Pressable>
   );
 
-  // Indicateur de swipe (flèche sur le bord droit)
+  // Indicateur de swipe (fleche sur le bord gauche - geste iOS)
   const indicatorOpacity = translateX.interpolate({
-    inputRange: [-60, -20, 0],
-    outputRange: [1, 0.5, 0],
+    inputRange: [0, 20, 60],
+    outputRange: [0, 0.5, 1],
     extrapolate: 'clamp',
   });
 
   const indicatorTranslateX = translateX.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [-15, 10],
+    inputRange: [0, 100],
+    outputRange: [-15, 15],
     extrapolate: 'clamp',
   });
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={false}
-      onRequestClose={handleClose}
-      statusBarTranslucent
-    >
+  // Contenu principal (utilise par les deux modes)
+  const content = (
+    <>
       <View style={styles.swipeContainer}>
-        {/* Indicateur de swipe sur le bord droit */}
+        {/* Indicateur de swipe sur le bord gauche (geste retour iOS) */}
         <Animated.View
           style={[
             styles.swipeIndicator,
@@ -797,6 +850,24 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
         onClose={() => setEmojiPickerVisible(false)}
         onSelect={handleSelectEmoji}
       />
+    </>
+  );
+
+  // Mode integre: le parent gere l'animation, on retourne juste le contenu
+  if (embedded) {
+    return content;
+  }
+
+  // Mode Modal classique
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
+      {content}
     </Modal>
   );
 };
@@ -808,7 +879,7 @@ const styles = StyleSheet.create({
   },
   swipeIndicator: {
     position: 'absolute',
-    right: 10,
+    left: 0,
     top: '45%',
     width: 40,
     height: 40,

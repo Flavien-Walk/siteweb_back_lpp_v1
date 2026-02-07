@@ -486,6 +486,9 @@ export default function Accueil() {
   const action3Anim = useRef(new Animated.Value(0)).current;
   const action4Anim = useRef(new Animated.Value(0)).current;
 
+  // Animation slide Story Creator (contenu principal glisse a droite)
+  const storySlideAnim = useRef(new Animated.Value(0)).current;
+
   // Onglets de base
   const ongletsBase: { key: OngletActif; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'feed', label: 'Feed', icon: 'home-outline' },
@@ -596,6 +599,19 @@ export default function Accueil() {
       chargerLives();
     }
   }, [ongletActif]);
+
+  // Animation slide geree directement par StorySwipeOverlay pour apercu live
+  // Quand on ferme via le bouton ou swipe dans StoryCreator, on anime vers 0
+  useEffect(() => {
+    if (!storyCreatorVisible) {
+      Animated.spring(storySlideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [storyCreatorVisible, storySlideAnim]);
 
   // Clear active video and viewability state when switching away from feed tab
   useEffect(() => {
@@ -2078,7 +2094,7 @@ export default function Accueil() {
                       <View style={styles.entrepreneurProjectMetaItem}>
                         <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
                         <Text style={[styles.entrepreneurProjectMetaText, { color: couleurs.texteSecondaire }]}>
-                          {projet.nbFollowers || 0}
+                          {projet.nbFollowers ?? projet.followers?.length ?? 0}
                         </Text>
                       </View>
                       <View style={styles.entrepreneurProjectMetaItem}>
@@ -2411,12 +2427,33 @@ export default function Accueil() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={[couleurs.fond, couleurs.fondSecondaire, couleurs.fond]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* StoryCreator positionne derriere - visible quand le contenu principal glisse */}
+      <View style={[styles.storyCreatorBackground, { paddingTop: insets.top }]}>
+        <StoryCreator
+          visible={storyCreatorVisible}
+          onClose={() => setStoryCreatorVisible(false)}
+          onStoryCreated={handleStoryCreated}
+          embedded
+          parentSlideAnim={storySlideAnim}
+        />
+      </View>
 
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+      {/* Contenu principal - glisse vers la droite pour reveler StoryCreator */}
+      <Animated.View
+        style={[
+          styles.mainContentSlide,
+          {
+            transform: [{ translateX: storySlideAnim }],
+            paddingTop: insets.top,
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={[couleurs.fond, couleurs.fondSecondaire, couleurs.fond]}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {renderHeader()}
         {renderNavigation()}
 
@@ -2436,8 +2473,9 @@ export default function Accueil() {
               return (
                 <View key="feed" style={styles.pageContainer}>
                   <StorySwipeOverlay
-                    enabled={ongletActif === 'feed'}
+                    enabled={ongletActif === 'feed' && !storyCreatorVisible}
                     onSwipeToStory={() => setStoryCreatorVisible(true)}
+                    slideAnim={storySlideAnim}
                   >
                     <ScrollView
                       ref={scrollViewRef}
@@ -2572,6 +2610,7 @@ export default function Accueil() {
           </Pressable>
         </Animated.View>
       )}
+      </Animated.View>
 
       {/* Modal creer publication */}
       <Modal
@@ -2912,13 +2951,6 @@ export default function Accueil() {
         }}
       />
 
-      {/* Modal Création Story */}
-      <StoryCreator
-        visible={storyCreatorVisible}
-        onClose={() => setStoryCreatorVisible(false)}
-        onStoryCreated={handleStoryCreated}
-      />
-
       {/* Comments Sheet - Expérience unifiée */}
       <UnifiedCommentsSheet
         postId={commentsSheetPostId}
@@ -2954,6 +2986,25 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
+  },
+  // StoryCreator en arriere-plan (fixe, visible quand contenu principal glisse)
+  storyCreatorBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  // Contenu principal qui glisse a droite pour reveler StoryCreator
+  mainContentSlide: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    backgroundColor: couleurs.fond,
   },
 
   // PagerView styles

@@ -1,8 +1,8 @@
 /**
  * StorySwipeOverlay - Edge swipe pour ouvrir le créateur de stories
  *
- * Même logique que SwipeableScreen mais pour ouvrir les stories
- * au lieu de naviguer en arrière.
+ * Version améliorée: contrôle l'animation du parent pour un aperçu live
+ * pendant le swipe, révélant le StoryCreator derrière.
  */
 
 import React, { ReactNode, useCallback, useRef } from 'react';
@@ -18,20 +18,21 @@ import {
   PanGestureHandlerGestureEvent,
   State,
 } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Configuration
-const EDGE_WIDTH = 40; // Zone de détection sur le bord gauche
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.2; // 20% pour déclencher
+const EDGE_WIDTH = 50; // Zone de détection sur le bord gauche
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25; // 25% pour déclencher
 const VELOCITY_THRESHOLD = 500;
 
 interface StorySwipeOverlayProps {
   children: ReactNode;
   enabled?: boolean;
   onSwipeToStory: () => void;
+  /** Animation value du parent pour contrôle direct du slide */
+  slideAnim?: Animated.Value;
   style?: ViewStyle;
 }
 
@@ -39,9 +40,9 @@ const StorySwipeOverlay: React.FC<StorySwipeOverlayProps> = ({
   children,
   enabled = true,
   onSwipeToStory,
+  slideAnim,
   style,
 }) => {
-  const translateX = useRef(new Animated.Value(0)).current;
   const isValidGesture = useRef(false);
   const hasTriggeredHaptic = useRef(false);
   const hasTriggered = useRef(false);
@@ -49,13 +50,17 @@ const StorySwipeOverlay: React.FC<StorySwipeOverlayProps> = ({
   const resetPosition = useCallback(() => {
     hasTriggeredHaptic.current = false;
     hasTriggered.current = false;
-    Animated.spring(translateX, {
-      toValue: 0,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
-    }).start();
-  }, [translateX]);
+
+    // Reset l'animation du parent si fournie
+    if (slideAnim) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [slideAnim]);
 
   const triggerStoryOpen = useCallback(() => {
     if (hasTriggered.current) return;
@@ -63,21 +68,30 @@ const StorySwipeOverlay: React.FC<StorySwipeOverlayProps> = ({
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Animation de completion
-    Animated.timing(translateX, {
-      toValue: SCREEN_WIDTH * 0.3,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
+    // Animation de completion vers la droite
+    if (slideAnim) {
+      Animated.spring(slideAnim, {
+        toValue: SCREEN_WIDTH,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start(() => {
+        onSwipeToStory();
+        // Reset après un petit délai
+        setTimeout(() => {
+          hasTriggered.current = false;
+          hasTriggeredHaptic.current = false;
+        }, 100);
+      });
+    } else {
+      // Fallback si pas d'animation fournie
       onSwipeToStory();
-      // Reset après ouverture
       setTimeout(() => {
-        translateX.setValue(0);
         hasTriggered.current = false;
         hasTriggeredHaptic.current = false;
       }, 300);
-    });
-  }, [translateX, onSwipeToStory]);
+    }
+  }, [slideAnim, onSwipeToStory]);
 
   const onGestureEvent = useCallback(
     (event: PanGestureHandlerGestureEvent) => {
@@ -85,9 +99,13 @@ const StorySwipeOverlay: React.FC<StorySwipeOverlayProps> = ({
 
       const { translationX } = event.nativeEvent;
 
-      // Limiter entre 0 et une partie de l'écran (effet subtil)
-      const clampedX = Math.max(0, Math.min(translationX, SCREEN_WIDTH * 0.4));
-      translateX.setValue(clampedX * 0.15); // Mouvement subtil du contenu
+      // Limiter entre 0 et SCREEN_WIDTH
+      const clampedX = Math.max(0, Math.min(translationX, SCREEN_WIDTH));
+
+      // Mettre à jour l'animation du parent (si fournie) pour le slide live
+      if (slideAnim) {
+        slideAnim.setValue(clampedX);
+      }
 
       // Haptic feedback quand on atteint le seuil
       if (translationX > SWIPE_THRESHOLD && !hasTriggeredHaptic.current) {
@@ -97,7 +115,7 @@ const StorySwipeOverlay: React.FC<StorySwipeOverlayProps> = ({
         hasTriggeredHaptic.current = false;
       }
     },
-    [enabled, translateX]
+    [enabled, slideAnim]
   );
 
   const onHandlerStateChange = useCallback(
@@ -119,7 +137,7 @@ const StorySwipeOverlay: React.FC<StorySwipeOverlayProps> = ({
 
         const shouldTrigger =
           translationX > SWIPE_THRESHOLD ||
-          (velocityX > VELOCITY_THRESHOLD && translationX > 30);
+          (velocityX > VELOCITY_THRESHOLD && translationX > 50);
 
         if (shouldTrigger && !hasTriggered.current) {
           triggerStoryOpen();
@@ -133,63 +151,18 @@ const StorySwipeOverlay: React.FC<StorySwipeOverlayProps> = ({
     [triggerStoryOpen, resetPosition]
   );
 
-  // Indicateur de swipe (apparaît sur le bord gauche)
-  const indicatorOpacity = translateX.interpolate({
-    inputRange: [0, 5, 20],
-    outputRange: [0, 0.8, 1],
-    extrapolate: 'clamp',
-  });
-
-  const indicatorTranslateX = translateX.interpolate({
-    inputRange: [0, 30],
-    outputRange: [-20, 10],
-    extrapolate: 'clamp',
-  });
-
-  const indicatorScale = translateX.interpolate({
-    inputRange: [0, 15, 40],
-    outputRange: [0.6, 1, 1.15],
-    extrapolate: 'clamp',
-  });
-
   return (
     <View style={[styles.container, style]}>
-      {/* Indicateur de swipe vers stories */}
-      <Animated.View
-        style={[
-          styles.indicator,
-          {
-            opacity: indicatorOpacity,
-            transform: [
-              { translateX: indicatorTranslateX },
-              { scale: indicatorScale },
-            ],
-          },
-        ]}
-        pointerEvents="none"
-      >
-        <View style={styles.indicatorCircle}>
-          <Ionicons name="add" size={22} color="rgba(255,255,255,0.95)" />
-        </View>
-      </Animated.View>
-
-      {/* Contenu avec geste */}
+      {/* Contenu avec geste - le parent gère le slide */}
       <PanGestureHandler
         onGestureEvent={onGestureEvent}
         onHandlerStateChange={onHandlerStateChange}
-        activeOffsetX={10}
+        activeOffsetX={15}
         failOffsetX={-15}
         failOffsetY={[-20, 20]}
         enabled={enabled}
       >
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              transform: [{ translateX }],
-            },
-          ]}
-        >
+        <Animated.View style={styles.content}>
           {children}
         </Animated.View>
       </PanGestureHandler>
@@ -203,29 +176,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  indicator: {
-    position: 'absolute',
-    left: 0,
-    top: '35%',
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  indicatorCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(139, 92, 246, 0.9)', // Couleur primaire
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });
 
