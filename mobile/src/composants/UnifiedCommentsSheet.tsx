@@ -20,7 +20,7 @@
  * - Optimistic UI pour les nouvelles réponses
  */
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -37,6 +37,7 @@ import {
   Modal,
   LayoutAnimation,
   UIManager,
+  PanResponder,
 } from 'react-native';
 
 // Activer LayoutAnimation sur Android
@@ -133,6 +134,11 @@ export default function UnifiedCommentsSheet({
   const composerRef = useRef<View>(null);
   const openedAtRef = useRef<number>(0);
   const LOCK_DURATION = 500;
+
+  // Swipe-down-to-close refs
+  const swipeTranslateY = useRef(new Animated.Value(0)).current;
+  const SWIPE_CLOSE_THRESHOLD = 80; // px pour déclencher la fermeture
+  const VELOCITY_THRESHOLD = 300; // vélocité pour fermeture rapide
 
   // Déterminer le thème effectif
   const effectiveTheme = theme === 'auto'
@@ -250,8 +256,9 @@ export default function UnifiedCommentsSheet({
       setNewComment('');
       setReplyingTo(null);
       setExpandedThreads({}); // Reset expand state
+      swipeTranslateY.setValue(0); // Reset swipe position
     }
-  }, [visible]);
+  }, [visible, swipeTranslateY]);
 
   // Animation open/close
   useEffect(() => {
@@ -422,6 +429,69 @@ export default function UnifiedCommentsSheet({
     onClose();
   }, [onClose, isTyping, exitWriteMode]);
 
+  // Fermeture par swipe - bypass le LOCK_DURATION car le swipe est intentionnel
+  const handleSwipeClose = useCallback(() => {
+    Keyboard.dismiss();
+    setReplyingTo(null);
+    if (isTyping) {
+      exitWriteMode();
+    }
+    onClose();
+  }, [onClose, isTyping, exitWriteMode]);
+
+  // ============================================================
+  // SWIPE DOWN TO CLOSE - PanResponder
+  // ============================================================
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          // Activer si le mouvement est principalement vertical vers le bas
+          return gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        },
+        onPanResponderGrant: () => {
+          // Début du geste
+        },
+        onPanResponderMove: (_, gestureState) => {
+          // Suivre le mouvement (seulement vers le bas)
+          const clampedY = Math.max(0, gestureState.dy);
+          swipeTranslateY.setValue(clampedY);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const { dy, vy } = gestureState;
+
+          // Vérifier si on doit fermer
+          const shouldClose =
+            dy > SWIPE_CLOSE_THRESHOLD ||
+            (vy > VELOCITY_THRESHOLD && dy > 20);
+
+          if (shouldClose) {
+            // Fermer directement - le reset se fait dans useEffect quand visible=false
+            handleSwipeClose();
+          } else {
+            // Reset position
+            Animated.spring(swipeTranslateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }).start();
+          }
+        },
+        onPanResponderTerminate: () => {
+          // Geste annulé - reset
+          Animated.spring(swipeTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+        },
+      }),
+    [swipeTranslateY, currentSheetHeight, handleSwipeClose]
+  );
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
@@ -550,9 +620,15 @@ export default function UnifiedCommentsSheet({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
-      {/* Header */}
-      <View style={[styles.sheetHeader, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
-        <View style={[styles.handle, { backgroundColor: effectiveTheme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)' }]} />
+      {/* Header - Swipe down to close avec PanResponder */}
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[styles.sheetHeader, styles.sheetHeaderDraggable, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}
+      >
+        {/* Zone de drag agrandie avec handle visible */}
+        <View style={styles.dragHandleArea}>
+          <View style={[styles.handle, { backgroundColor: effectiveTheme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)' }]} />
+        </View>
         <View style={styles.headerRow}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
             Commentaires{localCount > 0 ? ` (${localCount})` : ''}
@@ -561,7 +637,7 @@ export default function UnifiedCommentsSheet({
             <Ionicons name="close" size={24} color={colors.text} />
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Body - flex:1, prend tout l'espace restant */}
       <View style={[styles.body, { backgroundColor: colors.background }]}>
@@ -668,12 +744,15 @@ export default function UnifiedCommentsSheet({
       </Animated.View>
 
       {/* Sheet animé - hauteur dynamique READ (70%) / WRITE (95%) via LayoutAnimation */}
+      {/* Combine slideAnim (open/close) + swipeTranslateY (swipe-down-to-close) */}
       <Animated.View
         style={[
           styles.sheet,
           {
             backgroundColor: colors.background,
-            transform: [{ translateY: slideAnim }],
+            transform: [
+              { translateY: Animated.add(slideAnim, swipeTranslateY) },
+            ],
             height: currentSheetHeight, // Hauteur state-based, animée via LayoutAnimation
           },
         ]}
@@ -739,12 +818,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: espacements.md,
     borderBottomWidth: 1,
   },
+  sheetHeaderDraggable: {
+    // Zone de touch étendue pour le swipe-down
+    minHeight: HEADER_HEIGHT + 10,
+  },
+  dragHandleArea: {
+    // Zone de drag plus grande autour du handle
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   handle: {
     width: 40,
-    height: 4,
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
     alignSelf: 'center',
-    marginBottom: espacements.xs,
   },
   headerRow: {
     flexDirection: 'row',
