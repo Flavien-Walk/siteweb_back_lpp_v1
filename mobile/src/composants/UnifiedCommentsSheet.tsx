@@ -33,7 +33,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Platform,
-  KeyboardEvent,
+  KeyboardAvoidingView,
   Modal,
   LayoutAnimation,
   UIManager,
@@ -127,16 +127,12 @@ export default function UnifiedCommentsSheet({
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT_READ)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  // Android: espace en bas du sheet pour pousser le contenu au-dessus du clavier
-  const [keyboardSpacer, setKeyboardSpacer] = useState(0);
-
   // Refs
   const inputRef = useRef<TextInput>(null);
   const flatListRef = useRef<FlatList>(null);
   const composerRef = useRef<View>(null);
   const openedAtRef = useRef<number>(0);
   const LOCK_DURATION = 500;
-  const EXTRA_MARGIN = 16; // Marge de sécurité au-dessus du clavier
 
   // Déterminer le thème effectif
   const effectiveTheme = theme === 'auto'
@@ -220,70 +216,24 @@ export default function UnifiedCommentsSheet({
   }, [visible, isTyping]);
 
   // ============================================================
-  // KEYBOARD HANDLER - Android: spacer en bas UNIQUEMENT en mode WRITE
-  // En mode WRITE (95%), le spacer pousse le contenu au-dessus du clavier
+  // KEYBOARD HANDLER - Scroll vers le bas quand le clavier apparaît
   // ============================================================
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-    const onShow = (e: KeyboardEvent) => {
-      const keyboardY = e.endCoordinates.screenY; // Position Y du haut du clavier
-
-      // Android en mode WRITE: calculer l'overlap et ajouter un spacer
-      if (Platform.OS === 'android') {
-        // Mesurer le composer pour calculer l'overlap
-        composerRef.current?.measureInWindow((x, y, width, height) => {
-          const composerBottom = y + height;
-          const overlap = composerBottom - keyboardY + EXTRA_MARGIN;
-
-          if (__DEV__) {
-            console.log('⌨️ [KEYBOARD SHOW] mode=WRITE, spacer calc:', {
-              composerBottom,
-              keyboardY,
-              overlap,
-              willAddSpacer: overlap > 0,
-            });
-          }
-
-          if (overlap > 0) {
-            // Ajouter un spacer en bas du sheet pour pousser le contenu vers le haut
-            setKeyboardSpacer(overlap);
-          }
-        });
-      }
-
-      // Scroll la liste vers le bas
+    const onShow = () => {
+      // Scroll la liste vers le bas pour voir les derniers commentaires
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 150);
     };
 
-    const onHide = () => {
-      // Android: retirer le spacer
-      if (Platform.OS === 'android') {
-        setKeyboardSpacer(0);
-        if (__DEV__) {
-          console.log('⌨️ [KEYBOARD HIDE] spacer reset to 0');
-        }
-      }
-    };
-
     const showSub = Keyboard.addListener(showEvent, onShow);
-    const hideSub = Keyboard.addListener(hideEvent, onHide);
 
     return () => {
       showSub.remove();
-      hideSub.remove();
     };
   }, []);
-
-  // Reset keyboard spacer quand le sheet se ferme
-  useEffect(() => {
-    if (!visible) {
-      setKeyboardSpacer(0);
-    }
-  }, [visible]);
 
   // Fetch comments
   useEffect(() => {
@@ -590,11 +540,16 @@ export default function UnifiedCommentsSheet({
   };
 
   // ============================================================
-  // INNER CONTENT - Structure flex + spacer Android pour clavier
-  // Header (hauteur fixe) + Body (flex:1) + Composer + Spacer (Android)
+  // INNER CONTENT - Structure avec KeyboardAvoidingView
+  // Header (hauteur fixe) + Body (flex:1) + Composer
+  // KeyboardAvoidingView gère le clavier sur iOS et Android
   // ============================================================
   const sheetInnerContent = (
-    <View style={styles.sheetInner}>
+    <KeyboardAvoidingView
+      style={styles.sheetInner}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
       {/* Header */}
       <View style={[styles.sheetHeader, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
         <View style={[styles.handle, { backgroundColor: effectiveTheme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)' }]} />
@@ -699,12 +654,7 @@ export default function UnifiedCommentsSheet({
           </Pressable>
         </View>
       </View>
-
-      {/* Android: Spacer pour pousser le contenu au-dessus du clavier */}
-      {Platform.OS === 'android' && keyboardSpacer > 0 && (
-        <View style={{ height: keyboardSpacer, backgroundColor: colors.surface }} />
-      )}
-    </View>
+    </KeyboardAvoidingView>
   );
 
   // ============================================================
