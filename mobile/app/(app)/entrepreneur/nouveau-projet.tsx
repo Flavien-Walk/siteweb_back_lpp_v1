@@ -30,11 +30,14 @@ import {
   ProjetFormData,
   CategorieProjet,
   MaturiteProjet,
+  DocumentProjet,
   creerProjet,
   modifierProjet,
   uploadMediaProjet,
+  uploadDocumentProjet,
   gererEquipeProjet,
 } from '../../../src/services/projets';
+import * as DocumentPicker from 'expo-document-picker';
 import { getMesAmis, ProfilUtilisateur } from '../../../src/services/utilisateurs';
 
 // Types pour les etapes (numeriques)
@@ -91,7 +94,6 @@ export default function NouveauProjetScreen() {
     description: '',
     categorie: undefined,
     secteur: '',
-    tags: [],
     localisation: { ville: '' },
     maturite: 'idee',
     probleme: '',
@@ -100,13 +102,14 @@ export default function NouveauProjetScreen() {
     cible: '',
     businessModel: '',
     objectifFinancement: undefined,
-    objectif: '',
-    metriques: [],
   });
 
   // Images selectionnees (base64)
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [galerieImages, setGalerieImages] = useState<string[]>([]);
+
+  // Documents selectionnes
+  const [documents, setDocuments] = useState<{ nom: string; base64: string; type: DocumentProjet['type'] }[]>([]);
 
   // Navigation entre etapes
   const etapeIndex = ETAPES.findIndex(e => e.key === etapeActive);
@@ -214,6 +217,49 @@ export default function NouveauProjetScreen() {
       }
       setGalerieImages([...galerieImages, ...newImages]);
     }
+  };
+
+  // Ajouter un document
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Determiner le type de document
+        let docType: DocumentProjet['type'] = 'other';
+        if (asset.mimeType?.includes('pdf')) docType = 'pdf';
+        else if (asset.mimeType?.includes('presentation')) docType = 'pptx';
+        else if (asset.mimeType?.includes('spreadsheet')) docType = 'xlsx';
+        else if (asset.mimeType?.includes('wordprocessing')) docType = 'docx';
+
+        setDocuments([...documents, {
+          nom: asset.name || 'Document',
+          base64: `data:${asset.mimeType};base64,${base64}`,
+          type: docType,
+        }]);
+      }
+    } catch (error) {
+      console.error('Erreur selection document:', error);
+      Alert.alert('Erreur', 'Impossible de selectionner le document');
+    }
+  };
+
+  // Supprimer un document
+  const removeDocument = (index: number) => {
+    setDocuments(documents.filter((_, i) => i !== index));
   };
 
   // Charger les amis entrepreneurs
@@ -356,6 +402,10 @@ export default function NouveauProjetScreen() {
       // Upload galerie si presente
       if (galerieImages.length > 0) {
         await uploadMediaProjet(projetId, galerieImages, 'galerie');
+      }
+      // Upload documents si presents
+      for (const doc of documents) {
+        await uploadDocumentProjet(projetId, doc.base64, doc.nom, doc.type, 'public');
       }
       // Publication
       const { publierProjet: publier } = await import('../../../src/services/projets');
@@ -735,6 +785,38 @@ export default function NouveauProjetScreen() {
           <Text style={styles.imagePickerText}>Ajouter des images</Text>
         </Pressable>
       </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Documents ({documents.length})</Text>
+        <Text style={styles.inputHint}>PDF, PowerPoint, Word, Excel</Text>
+
+        {/* Liste des documents ajoutes */}
+        {documents.map((doc, index) => (
+          <View key={index} style={styles.documentItem}>
+            <View style={styles.documentIcon}>
+              <Ionicons
+                name={
+                  doc.type === 'pdf' ? 'document-text' :
+                  doc.type === 'pptx' ? 'easel' :
+                  doc.type === 'xlsx' ? 'grid' :
+                  doc.type === 'docx' ? 'document' : 'document'
+                }
+                size={20}
+                color={couleurs.primaire}
+              />
+            </View>
+            <Text style={styles.documentName} numberOfLines={1}>{doc.nom}</Text>
+            <Pressable onPress={() => removeDocument(index)} style={styles.documentRemove}>
+              <Ionicons name="close-circle" size={22} color="#EF4444" />
+            </Pressable>
+          </View>
+        ))}
+
+        <Pressable style={styles.imagePickerBtn} onPress={pickDocument}>
+          <Ionicons name="folder-open-outline" size={32} color={couleurs.texteSecondaire} />
+          <Text style={styles.imagePickerText}>Ajouter un document</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -808,6 +890,26 @@ export default function NouveauProjetScreen() {
             {coverImage ? 'Image de couverture ajoutee' : 'Image de couverture requise'}
           </Text>
         </View>
+
+        {/* Galerie */}
+        {galerieImages.length > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="images-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>
+              {galerieImages.length} image{galerieImages.length > 1 ? 's' : ''} dans la galerie
+            </Text>
+          </View>
+        )}
+
+        {/* Documents */}
+        {documents.length > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="folder-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>
+              {documents.length} document{documents.length > 1 ? 's' : ''} ajoute{documents.length > 1 ? 's' : ''}
+            </Text>
+          </View>
+        )}
       </View>
 
       <Pressable
@@ -1116,6 +1218,36 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontWeight: '600',
     color: couleurs.texte,
     marginBottom: espacements.sm,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+    marginBottom: espacements.sm,
+  },
+  documentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    marginBottom: espacements.sm,
+  },
+  documentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: rayons.sm,
+    backgroundColor: couleurs.primaire + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: espacements.md,
+  },
+  documentName: {
+    flex: 1,
+    fontSize: 14,
+    color: couleurs.texte,
+  },
+  documentRemove: {
+    padding: espacements.xs,
   },
   input: {
     backgroundColor: couleurs.fondSecondaire,
