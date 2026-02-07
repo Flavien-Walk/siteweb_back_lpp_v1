@@ -19,6 +19,7 @@ import {
   Animated,
   StatusBar,
   Linking,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +35,7 @@ import { espacements, rayons, ombres } from '../../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../../src/contexts/ThemeContext';
 import { useUser } from '../../../src/contexts/UserContext';
 import Avatar from '../../../src/composants/Avatar';
+import SwipeableScreen from '../../../src/composants/SwipeableScreen';
 import {
   Projet,
   Porteur,
@@ -972,7 +974,7 @@ export default function ProjetDetailPage() {
     );
   }
 
-  return (
+  const content = (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
@@ -1090,6 +1092,12 @@ export default function ProjetDetailPage() {
       </Modal>
     </View>
   );
+
+  if (Platform.OS === 'android') {
+    return <SwipeableScreen>{content}</SwipeableScreen>;
+  }
+
+  return content;
 }
 
 const createStyles = (couleurs: ThemeCouleurs) =>

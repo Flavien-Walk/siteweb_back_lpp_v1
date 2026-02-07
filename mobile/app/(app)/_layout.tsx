@@ -4,6 +4,7 @@
  */
 
 import { Stack } from 'expo-router';
+import { Platform } from 'react-native';
 import { couleurs } from '../../src/constantes/theme';
 
 export default function AppLayout() {
@@ -46,11 +47,12 @@ export default function AppLayout() {
           animation: 'slide_from_right',
         }}
       />
-      {/* Notifications - slide from right */}
+      {/* Notifications - slide from right, gesture handled by SwipeableScreen */}
       <Stack.Screen
         name="notifications"
         options={{
           animation: 'slide_from_right',
+          gestureEnabled: false,
         }}
       />
       {/* Messages - slide from right */}
@@ -60,15 +62,15 @@ export default function AppLayout() {
           animation: 'slide_from_right',
         }}
       />
-      {/* Profil perso - slide from right avec geste natif */}
+      {/* Profil perso - slide from right, Android: SwipeableScreen, iOS: native */}
       <Stack.Screen
         name="profil"
         options={{
           presentation: 'card',
           animation: 'slide_from_right',
           animationDuration: 250,
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
+          gestureEnabled: Platform.OS === 'ios',
+          fullScreenGestureEnabled: Platform.OS === 'ios',
         }}
       />
       {/* Choix statut - fade, pas de geste */}

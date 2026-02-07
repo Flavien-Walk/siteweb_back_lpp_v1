@@ -42,6 +42,8 @@ interface SwipeableScreenProps {
   previousScreenColor?: string; // Couleur simulée de l'écran précédent
   /** Contenu personnalisé pour la prévisualisation (au lieu des placeholders) */
   previewContent?: ReactNode;
+  /** Largeur de la zone de détection du geste (défaut: 50px, mettre SCREEN_WIDTH pour pleine largeur) */
+  edgeWidth?: number;
 }
 
 const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
@@ -51,6 +53,7 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
   style,
   previousScreenColor = '#0D0D12',
   previewContent,
+  edgeWidth = EDGE_WIDTH,
 }) => {
   const router = useRouter();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -120,8 +123,8 @@ const SwipeableScreen: React.FC<SwipeableScreenProps> = ({
       if (state === State.BEGAN) {
         hasNavigated.current = false;
         hasTriggeredHaptic.current = false;
-        // Vérifier si le geste commence sur le bord gauche
-        isValidGesture.current = x <= EDGE_WIDTH;
+        // Vérifier si le geste commence dans la zone de détection
+        isValidGesture.current = x <= edgeWidth;
         gestureStartX.current = x;
       }
 

@@ -15,6 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import {
+  GestureHandlerRootView,
   PanGestureHandler,
   PanGestureHandlerGestureEvent,
   State,
@@ -340,9 +341,9 @@ export default function VideoPlayerModal({
               useNativeDriver: true,
             }),
           ]).start(() => {
+            // Fermer d'abord — ne PAS reset les valeurs ici
+            // Le useEffect sur visible les remettra à zéro à la réouverture
             isSwipeClosing.current = false;
-            translateY.setValue(0);
-            backgroundOpacity.setValue(1);
             handleClose();
           });
         } else {
@@ -367,12 +368,18 @@ export default function VideoPlayerModal({
     [translateY, backgroundOpacity, commentsOpen]
   );
 
-  // Reset swipe state when modal opens
+  // Reset swipe state + fade-in when modal opens
   useEffect(() => {
     if (visible) {
       translateY.setValue(0);
-      backgroundOpacity.setValue(1);
       isSwipeClosing.current = false;
+      // Fade-in fluide à l'ouverture (remplace animationType="fade" du Modal)
+      backgroundOpacity.setValue(0);
+      Animated.timing(backgroundOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     }
   }, [visible, translateY, backgroundOpacity]);
 
@@ -472,11 +479,12 @@ export default function VideoPlayerModal({
   return (
     <Modal
       visible={visible}
-      animationType="fade"
+      animationType="none"
       transparent={true}
       onRequestClose={handleClose}
       statusBarTranslucent
     >
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <Animated.View style={[styles.modalBackground, { opacity: backgroundOpacity }]} />
       <PanGestureHandler
         onGestureEvent={onSwipeGestureEvent}
@@ -488,7 +496,7 @@ export default function VideoPlayerModal({
         <Animated.View
           style={[
             styles.videoModalContainer,
-            { transform: [{ translateY }] },
+            { opacity: backgroundOpacity, transform: [{ translateY }] },
           ]}
         >
         {/* Video */}
@@ -671,6 +679,7 @@ export default function VideoPlayerModal({
         />
         </Animated.View>
       </PanGestureHandler>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

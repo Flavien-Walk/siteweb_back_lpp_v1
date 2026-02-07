@@ -46,6 +46,7 @@ import { getPublicationsUtilisateur, Publication } from '../../src/services/publ
 import { getMesStories, Story } from '../../src/services/stories';
 import { getMesProjets, Projet } from '../../src/services/projets';
 import Avatar from '../../src/composants/Avatar';
+import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
 import { getUserBadgeConfig } from '../../src/utils/userDisplay';
@@ -1837,11 +1838,17 @@ export default function Profil() {
     </>
   );
 
-  return (
+  const screen = (
     <SafeAreaView style={styles.container} edges={['top']}>
       {profilContent}
     </SafeAreaView>
   );
+
+  if (Platform.OS === 'android') {
+    return <SwipeableScreen>{screen}</SwipeableScreen>;
+  }
+
+  return screen;
 }
 
 // Fonction pour creer les styles dynamiques

@@ -13,18 +13,17 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  Animated,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
 import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
-import { Avatar, AnimatedPressable, SkeletonList } from '../../src/composants';
+import { Avatar, AnimatedPressable, SkeletonList, SwipeableScreen } from '../../src/composants';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import { useAutoRefresh } from '../../src/hooks/useAutoRefresh';
 import {
@@ -313,36 +312,12 @@ export default function Notifications() {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   };
 
-  // Render swipe action (supprimer)
-  const renderRightActions = (notifId: string, progress: Animated.AnimatedInterpolation<number>) => {
-    const translateX = progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [80, 0],
-    });
-
-    return (
-      <Animated.View style={[styles.swipeAction, { transform: [{ translateX }] }]}>
-        <Pressable
-          style={styles.swipeActionDelete}
-          onPress={() => handleSupprimer(notifId)}
-        >
-          <Ionicons name="trash-outline" size={22} color={couleurs.blanc} />
-        </Pressable>
-      </Animated.View>
-    );
-  };
-
   // Render notification item
   const renderNotification = ({ item }: { item: Notification }) => {
     const estEnCours = actionsEnCours.has(item._id);
     const estDemandeAmi = item.type === 'demande_ami';
 
     return (
-      <Swipeable
-        renderRightActions={(progress) => renderRightActions(item._id, progress)}
-        overshootRight={false}
-        friction={2}
-      >
         <AnimatedPressable
           style={[
             styles.notifItem,
@@ -411,7 +386,6 @@ export default function Notifications() {
           {/* Indicateur non lu */}
           {!item.lue && <View style={styles.notifIndicateur} />}
         </AnimatedPressable>
-      </Swipeable>
     );
   };
 
@@ -419,6 +393,7 @@ export default function Notifications() {
   const nbNonLues = notifications.filter(n => !n.lue).length;
 
   return (
+    <SwipeableScreen edgeWidth={Dimensions.get('window').width}>
     <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
@@ -477,6 +452,7 @@ export default function Notifications() {
         />
       )}
     </View>
+    </SwipeableScreen>
   );
 }
 
@@ -658,15 +634,5 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.danger,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  // Swipe action
-  swipeAction: {
-    width: 80,
-  },
-  swipeActionDelete: {
-    flex: 1,
-    backgroundColor: couleurs.danger,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
