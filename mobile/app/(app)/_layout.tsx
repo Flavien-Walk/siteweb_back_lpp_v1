@@ -18,8 +18,6 @@ export default function AppLayout() {
         gestureEnabled: true,
         gestureDirection: 'horizontal',
         fullScreenGestureEnabled: true,
-        // Augmenter la zone de détection du geste (défaut ~25px)
-        gestureResponseDistance: 100,
       }}
     >
       {/* Accueil - fade pour entrée initiale, pas de geste back */}
@@ -39,7 +37,6 @@ export default function AppLayout() {
           animationDuration: 250,
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
-          gestureResponseDistance: 100,
         }}
       />
       {/* Profil utilisateur - slide from right */}
@@ -72,7 +69,6 @@ export default function AppLayout() {
           animationDuration: 250,
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
-          gestureResponseDistance: 100,
         }}
       />
       {/* Choix statut - fade, pas de geste */}

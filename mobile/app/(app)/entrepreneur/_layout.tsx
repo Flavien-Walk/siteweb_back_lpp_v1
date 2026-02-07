@@ -14,6 +14,9 @@ export default function EntrepreneurLayout() {
         headerShown: false,
         contentStyle: { backgroundColor: couleurs.fond },
         animation: 'slide_from_right',
+        gestureEnabled: true,
+        gestureDirection: 'horizontal',
+        fullScreenGestureEnabled: true,
       }}
     >
       <Stack.Screen name="nouveau-projet" />

@@ -28,7 +28,6 @@ import { couleurs, espacements, rayons, typographie } from '../../src/constantes
 import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
 import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../../src/composants';
-import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import {
   getConversations,
@@ -541,8 +540,7 @@ export default function Messages() {
   };
 
   return (
-    <SwipeableScreen previousScreenColor={couleurs.fond}>
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBack}>
@@ -949,8 +947,7 @@ export default function Messages() {
           )}
         </View>
       </Modal>
-      </View>
-    </SwipeableScreen>
+    </View>
   );
 }
 

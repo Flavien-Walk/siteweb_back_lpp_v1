@@ -48,8 +48,6 @@ import { getMesProjets, Projet } from '../../src/services/projets';
 import Avatar from '../../src/composants/Avatar';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
-import SwipeableScreen from '../../src/composants/SwipeableScreen';
-import { FeedPreview } from '../../src/composants/SwipeBackPreviews';
 import { getUserBadgeConfig } from '../../src/utils/userDisplay';
 
 type Onglet = 'profil-public' | 'parametres';
@@ -1841,13 +1839,7 @@ export default function Profil() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {Platform.OS === 'android' ? (
-        <SwipeableScreen previousScreenColor={couleurs.fond} previewContent={<FeedPreview />}>
-          {profilContent}
-        </SwipeableScreen>
-      ) : (
-        profilContent
-      )}
+      {profilContent}
     </SafeAreaView>
   );
 }

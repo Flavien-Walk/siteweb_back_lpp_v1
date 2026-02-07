@@ -420,8 +420,8 @@ export default function Notifications() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
+        {/* Header */}
+        <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBack}>
           <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
         </Pressable>

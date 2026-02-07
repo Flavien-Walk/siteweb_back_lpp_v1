@@ -3,7 +3,7 @@
  * Même expérience que VideoPlayerModal : actions overlay, double-tap like, commentaires
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Image,
@@ -14,8 +14,14 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
+import {
+  PanGestureHandler,
+  PanGestureHandlerGestureEvent,
+  State,
+} from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { couleurs } from '../constantes/theme';
 import { useDoubleTap } from '../hooks/useDoubleTap';
 import HeartAnimation from './HeartAnimation';
@@ -24,6 +30,8 @@ import UnifiedCommentsSheet from './UnifiedCommentsSheet';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SWIPE_THRESHOLD = SCREEN_HEIGHT * 0.2;
+const VELOCITY_THRESHOLD = 800;
 
 interface ImageViewerModalProps {
   visible: boolean;
@@ -68,7 +76,12 @@ export default function ImageViewerModal({
   const [localLiked, setLocalLiked] = useState(liked);
   const [localLikesCount, setLocalLikesCount] = useState(likesCount);
 
-  const controlsOpacity = React.useRef(new Animated.Value(1)).current;
+  const controlsOpacity = useRef(new Animated.Value(1)).current;
+
+  // Swipe-down gesture state
+  const translateY = useRef(new Animated.Value(0)).current;
+  const backgroundOpacity = useRef(new Animated.Value(1)).current;
+  const isSwipeClosing = useRef(false);
 
   // Sync localCommentsCount with prop
   useEffect(() => {
@@ -146,15 +159,103 @@ export default function ImageViewerModal({
     onClose();
   };
 
+  // ============================================================
+  // SWIPE-DOWN GESTURE - Fermeture par glissement vers le bas
+  // ============================================================
+  const onSwipeGestureEvent = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      const { translationY } = event.nativeEvent;
+      if (translationY > 0 && !commentsOpen) {
+        translateY.setValue(translationY);
+        const progress = Math.min(translationY / SWIPE_THRESHOLD, 1);
+        backgroundOpacity.setValue(1 - progress * 0.5);
+      }
+    },
+    [translateY, backgroundOpacity, commentsOpen]
+  );
+
+  const onSwipeStateChange = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      const { state, translationY, velocityY } = event.nativeEvent;
+
+      if (state === State.END && !commentsOpen) {
+        const shouldClose =
+          translationY > SWIPE_THRESHOLD ||
+          (velocityY > VELOCITY_THRESHOLD && translationY > 50);
+
+        if (shouldClose && !isSwipeClosing.current) {
+          isSwipeClosing.current = true;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+          Animated.parallel([
+            Animated.timing(translateY, {
+              toValue: SCREEN_HEIGHT,
+              duration: 250,
+              useNativeDriver: true,
+            }),
+            Animated.timing(backgroundOpacity, {
+              toValue: 0,
+              duration: 250,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            isSwipeClosing.current = false;
+            translateY.setValue(0);
+            backgroundOpacity.setValue(1);
+            handleClose();
+          });
+        } else {
+          Animated.parallel([
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 100,
+              friction: 10,
+            }),
+            Animated.spring(backgroundOpacity, {
+              toValue: 1,
+              useNativeDriver: true,
+              tension: 100,
+              friction: 10,
+            }),
+          ]).start();
+        }
+      }
+    },
+    [translateY, backgroundOpacity, commentsOpen, handleClose]
+  );
+
+  // Reset swipe state when modal opens
+  useEffect(() => {
+    if (visible) {
+      translateY.setValue(0);
+      backgroundOpacity.setValue(1);
+      isSwipeClosing.current = false;
+    }
+  }, [visible, translateY, backgroundOpacity]);
+
   return (
     <Modal
       visible={visible}
       animationType="fade"
-      transparent={false}
+      transparent={true}
       onRequestClose={handleClose}
       statusBarTranslucent
     >
-      <View style={styles.container}>
+      <Animated.View style={[styles.modalBackground, { opacity: backgroundOpacity }]} />
+      <PanGestureHandler
+        onGestureEvent={onSwipeGestureEvent}
+        onHandlerStateChange={onSwipeStateChange}
+        activeOffsetY={20}
+        failOffsetX={[-20, 20]}
+        enabled={!commentsOpen}
+      >
+        <Animated.View
+          style={[
+            styles.container,
+            { transform: [{ translateY }] },
+          ]}
+        >
         {/* Image */}
         {imageUrl && (
           <View style={styles.imageContainer}>
@@ -245,12 +346,17 @@ export default function ImageViewerModal({
           theme="dark"
           initialCount={localCommentsCount}
         />
-      </View>
+        </Animated.View>
+      </PanGestureHandler>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+  },
   container: {
     flex: 1,
     backgroundColor: '#000',

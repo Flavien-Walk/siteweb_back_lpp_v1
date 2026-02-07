@@ -14,6 +14,12 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
+import {
+  PanGestureHandler,
+  PanGestureHandlerGestureEvent,
+  State,
+} from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,7 +32,10 @@ import VideoActionsOverlay from './VideoActionsOverlay';
 import UnifiedCommentsSheet from './UnifiedCommentsSheet';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 const FULLSCREEN_VIDEO_ID = 'fullscreen-modal';
+const SWIPE_THRESHOLD = SCREEN_HEIGHT * 0.2; // 20% pour fermer
+const VELOCITY_THRESHOLD = 800;
 
 export type VideoOrigin = 'feed' | 'profil' | 'post' | 'story';
 
@@ -98,6 +107,11 @@ export default function VideoPlayerModal({
   const [localLikesCount, setLocalLikesCount] = useState(likesCount);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlsOpacity = useRef(new Animated.Value(1)).current;
+
+  // Swipe-down gesture state
+  const translateY = useRef(new Animated.Value(0)).current;
+  const backgroundOpacity = useRef(new Animated.Value(1)).current;
+  const isSwipeClosing = useRef(false);
 
   // Track if we've already applied the initial position
   const hasAppliedInitialPosition = useRef(false);
@@ -284,6 +298,85 @@ export default function VideoPlayerModal({
   });
 
   // ============================================================
+  // SWIPE-DOWN GESTURE - Fermeture par glissement vers le bas
+  // ============================================================
+  const onSwipeGestureEvent = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      const { translationY } = event.nativeEvent;
+      // Only allow downward swipe
+      if (translationY > 0 && !commentsOpen) {
+        translateY.setValue(translationY);
+        // Fade background as user swipes
+        const progress = Math.min(translationY / SWIPE_THRESHOLD, 1);
+        backgroundOpacity.setValue(1 - progress * 0.5);
+      }
+    },
+    [translateY, backgroundOpacity, commentsOpen]
+  );
+
+  const onSwipeStateChange = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      const { state, translationY, velocityY } = event.nativeEvent;
+
+      if (state === State.END && !commentsOpen) {
+        const shouldClose =
+          translationY > SWIPE_THRESHOLD ||
+          (velocityY > VELOCITY_THRESHOLD && translationY > 50);
+
+        if (shouldClose && !isSwipeClosing.current) {
+          isSwipeClosing.current = true;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+          // Animate out
+          Animated.parallel([
+            Animated.timing(translateY, {
+              toValue: SCREEN_HEIGHT,
+              duration: 250,
+              useNativeDriver: true,
+            }),
+            Animated.timing(backgroundOpacity, {
+              toValue: 0,
+              duration: 250,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            isSwipeClosing.current = false;
+            translateY.setValue(0);
+            backgroundOpacity.setValue(1);
+            handleClose();
+          });
+        } else {
+          // Spring back
+          Animated.parallel([
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 100,
+              friction: 10,
+            }),
+            Animated.spring(backgroundOpacity, {
+              toValue: 1,
+              useNativeDriver: true,
+              tension: 100,
+              friction: 10,
+            }),
+          ]).start();
+        }
+      }
+    },
+    [translateY, backgroundOpacity, commentsOpen]
+  );
+
+  // Reset swipe state when modal opens
+  useEffect(() => {
+    if (visible) {
+      translateY.setValue(0);
+      backgroundOpacity.setValue(1);
+      isSwipeClosing.current = false;
+    }
+  }, [visible, translateY, backgroundOpacity]);
+
+  // ============================================================
   // COMMENTS SHEET CALLBACKS - Pause/Resume vidéo selon mode READ/WRITE
   // ============================================================
   const handleCommentsBeginTyping = useCallback(async () => {
@@ -380,11 +473,24 @@ export default function VideoPlayerModal({
     <Modal
       visible={visible}
       animationType="fade"
-      transparent={false}
+      transparent={true}
       onRequestClose={handleClose}
       statusBarTranslucent
     >
-      <View style={styles.videoModalContainer}>
+      <Animated.View style={[styles.modalBackground, { opacity: backgroundOpacity }]} />
+      <PanGestureHandler
+        onGestureEvent={onSwipeGestureEvent}
+        onHandlerStateChange={onSwipeStateChange}
+        activeOffsetY={20}
+        failOffsetX={[-20, 20]}
+        enabled={!commentsOpen}
+      >
+        <Animated.View
+          style={[
+            styles.videoModalContainer,
+            { transform: [{ translateY }] },
+          ]}
+        >
         {/* Video */}
         {videoUrl && (
           <View style={styles.videoTouchArea}>
@@ -563,12 +669,17 @@ export default function VideoPlayerModal({
           onBeginTyping={handleCommentsBeginTyping}
           onEndTyping={handleCommentsEndTyping}
         />
-      </View>
+        </Animated.View>
+      </PanGestureHandler>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+  },
   videoModalContainer: {
     flex: 1,
     backgroundColor: '#000',

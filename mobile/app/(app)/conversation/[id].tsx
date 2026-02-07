@@ -35,8 +35,6 @@ import { couleurs, espacements, rayons, typographie } from '../../../src/constan
 import { useUser } from '../../../src/contexts/UserContext';
 import { useSocket, MessageSocketEvent, TypingSocketEvent } from '../../../src/contexts/SocketContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation } from '../../../src/composants';
-import SwipeableScreen from '../../../src/composants/SwipeableScreen';
-import { MessagesListPreview } from '../../../src/composants/SwipeBackPreviews';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
 import { useAutoRefresh } from '../../../src/hooks/useAutoRefresh';
@@ -1552,16 +1550,6 @@ export default function ConversationScreen() {
       </KeyboardAvoidingView>
     </View>
   );
-
-  // Sur Android, utiliser SwipeableScreen pour le geste de retour
-  // Sur iOS, le geste natif fonctionne
-  if (Platform.OS === 'android') {
-    return (
-      <SwipeableScreen previousScreenColor={couleurs.fond} previewContent={<MessagesListPreview />}>
-        {conversationContent}
-      </SwipeableScreen>
-    );
-  }
 
   return conversationContent;
 }
