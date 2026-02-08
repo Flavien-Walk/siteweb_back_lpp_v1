@@ -975,9 +975,63 @@ export default function Accueil() {
     }
   };
 
+  // TODO: Passer a false pour retirer le mock et utiliser les vrais lives
+  const MOCK_LIVES_ENABLED = true;
+
   const chargerLives = async () => {
     try {
       setChargementLives(true);
+
+      if (MOCK_LIVES_ENABLED) {
+        // Mock data pour preview UI
+        const now = new Date();
+        const mockLives: LiveAPI[] = [
+          {
+            _id: 'mock-1',
+            channelName: 'ch-mock-1',
+            title: 'Pitch deck review en direct',
+            startedAt: new Date(now.getTime() - 45 * 60000).toISOString(),
+            viewerCount: 142,
+            host: { _id: 'u1', prenom: 'Sarah', nom: 'Martin', avatar: undefined },
+          },
+          {
+            _id: 'mock-2',
+            channelName: 'ch-mock-2',
+            title: 'Live coding React Native',
+            startedAt: new Date(now.getTime() - 22 * 60000).toISOString(),
+            viewerCount: 89,
+            host: { _id: 'u2', prenom: 'Thomas', nom: 'Dubois', avatar: undefined },
+          },
+          {
+            _id: 'mock-3',
+            channelName: 'ch-mock-3',
+            title: 'Q&A startup financement',
+            startedAt: new Date(now.getTime() - 8 * 60000).toISOString(),
+            viewerCount: 67,
+            host: { _id: 'u3', prenom: 'Amina', nom: 'Keita', avatar: undefined },
+          },
+          {
+            _id: 'mock-4',
+            channelName: 'ch-mock-4',
+            title: 'Design UI/UX tips',
+            startedAt: new Date(now.getTime() - 3 * 60000).toISOString(),
+            viewerCount: 34,
+            host: { _id: 'u4', prenom: 'Lucas', nom: 'Bernard', avatar: undefined },
+          },
+          {
+            _id: 'mock-5',
+            channelName: 'ch-mock-5',
+            title: undefined,
+            startedAt: new Date(now.getTime() - 95 * 60000).toISOString(),
+            viewerCount: 213,
+            host: { _id: 'u5', prenom: 'Emma', nom: 'Laurent', avatar: undefined },
+          },
+        ];
+        setLives(mockLives);
+        setChargementLives(false);
+        return;
+      }
+
       const reponse = await getActiveLives();
       if (reponse.succes && reponse.data) {
         // Filtrer les lives fantomes (> 12h = clairement perime/jamais termine)
@@ -1984,9 +2038,11 @@ export default function Accueil() {
 
     // Stats reelles uniquement
     const totalViewers = lives.reduce((sum, l) => sum + l.viewerCount, 0);
+    const featuredLive = livesTries[0];
+    const autresLives = livesTries.slice(1);
 
     return (
-      <View style={styles.section}>
+      <View style={styles.liveContainer}>
         {/* ====== HEADER ====== */}
         <View style={styles.liveHeader}>
           <View style={styles.liveHeaderLeft}>
@@ -2002,32 +2058,26 @@ export default function Accueil() {
             onPress={() => router.push('/live/start')}
             style={({ pressed }) => [pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
           >
-            <LinearGradient
-              colors={['#EF4444', '#DC2626']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.goLiveBtn}
-            >
-              <Ionicons name="radio" size={15} color="#fff" />
+            <View style={styles.goLiveBtn}>
+              <Ionicons name="radio" size={15} color={couleurs.blanc} />
               <Text style={styles.goLiveBtnText}>Go Live</Text>
-            </LinearGradient>
+            </View>
           </Pressable>
         </View>
 
         {chargementLives ? (
           <SkeletonList type="post" count={3} />
         ) : lives.length === 0 ? (
-          /* ====== EMPTY STATE - pas de fausses donnees ====== */
+          /* ====== EMPTY STATE ====== */
           <View style={styles.liveEmptyState}>
-            {/* Hero CTA */}
             <LinearGradient
-              colors={['#1E1B4B', '#312E81', '#3730A3']}
+              colors={[couleurs.primaireDark, couleurs.primaire, `${couleurs.primaireLight}88`]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.liveEmptyHero}
             >
               <View style={styles.liveEmptyIconRing}>
-                <Ionicons name="videocam" size={32} color="#A5B4FC" />
+                <Ionicons name="videocam" size={32} color={couleurs.primaireLight} />
               </View>
               <Text style={styles.liveEmptyTitle}>Personne n'est en direct</Text>
               <Text style={styles.liveEmptySubtitle}>
@@ -2035,89 +2085,81 @@ export default function Accueil() {
               </Text>
               <Pressable
                 onPress={() => router.push('/live/start')}
-                style={({ pressed }) => [styles.liveEmptyCTA, pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
+                style={({ pressed }) => [pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
               >
-                <LinearGradient
-                  colors={['#EF4444', '#DC2626']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.liveEmptyCTAGradient}
-                >
-                  <Ionicons name="radio" size={18} color="#fff" />
+                <View style={styles.liveEmptyCTABtn}>
+                  <Ionicons name="radio" size={18} color={couleurs.blanc} />
                   <Text style={styles.liveEmptyCTAText}>Lancer mon live</Text>
-                </LinearGradient>
+                </View>
               </Pressable>
             </LinearGradient>
 
+            {/* Divider */}
+            <View style={styles.liveDivider} />
+
             {/* Comment ca marche */}
-            <View style={styles.liveHowTo}>
-              <Text style={styles.liveHowToTitle}>Comment ca marche</Text>
+            <View style={styles.liveHowToSection}>
+              <View style={styles.liveSectionHeader}>
+                <Ionicons name="help-circle" size={18} color={couleurs.primaire} />
+                <Text style={styles.liveSectionTitle}>Comment ca marche</Text>
+              </View>
               <View style={styles.liveHowToSteps}>
-                <View style={styles.liveHowToStep}>
-                  <View style={[styles.liveHowToStepNum, { backgroundColor: '#EF444420' }]}>
-                    <Text style={[styles.liveHowToStepNumText, { color: '#EF4444' }]}>1</Text>
+                {[
+                  { num: '1', title: 'Lancez', desc: 'Appuyez sur Go Live', color: couleurs.erreur },
+                  { num: '2', title: 'Diffusez', desc: 'En video ou audio', color: couleurs.primaire },
+                  { num: '3', title: 'Interagissez', desc: 'Avec votre audience', color: couleurs.secondaire },
+                ].map((step) => (
+                  <View key={step.num} style={styles.liveHowToStep}>
+                    <View style={[styles.liveHowToStepNum, { backgroundColor: `${step.color}20` }]}>
+                      <Text style={[styles.liveHowToStepNumText, { color: step.color }]}>{step.num}</Text>
+                    </View>
+                    <Text style={styles.liveHowToStepTitle}>{step.title}</Text>
+                    <Text style={styles.liveHowToStepDesc}>{step.desc}</Text>
                   </View>
-                  <Text style={styles.liveHowToStepTitle}>Lancez</Text>
-                  <Text style={styles.liveHowToStepDesc}>Appuyez sur Go Live</Text>
-                </View>
-                <View style={styles.liveHowToStep}>
-                  <View style={[styles.liveHowToStepNum, { backgroundColor: `${couleurs.primaire}20` }]}>
-                    <Text style={[styles.liveHowToStepNumText, { color: couleurs.primaire }]}>2</Text>
-                  </View>
-                  <Text style={styles.liveHowToStepTitle}>Diffusez</Text>
-                  <Text style={styles.liveHowToStepDesc}>En video ou audio</Text>
-                </View>
-                <View style={styles.liveHowToStep}>
-                  <View style={[styles.liveHowToStepNum, { backgroundColor: '#10B98120' }]}>
-                    <Text style={[styles.liveHowToStepNumText, { color: '#10B981' }]}>3</Text>
-                  </View>
-                  <Text style={styles.liveHowToStepTitle}>Interagissez</Text>
-                  <Text style={styles.liveHowToStepDesc}>Avec votre audience</Text>
-                </View>
+                ))}
               </View>
             </View>
           </View>
         ) : (
           /* ====== LIVES ACTIFS ====== */
-          <View style={styles.livesContainer}>
-            {/* Barre de recherche + tri */}
-            <View style={styles.liveToolbar}>
-              <View style={styles.liveSearchBar}>
-                <Ionicons name="search" size={16} color={couleurs.texteSecondaire} />
-                <TextInput
-                  style={styles.liveSearchInput}
-                  placeholder="Rechercher un live..."
-                  placeholderTextColor={couleurs.texteMuted}
-                  value={rechercheLive}
-                  onChangeText={setRechercheLive}
-                  returnKeyType="search"
-                />
-                {rechercheLive.length > 0 && (
-                  <Pressable onPress={() => setRechercheLive('')}>
-                    <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
-                  </Pressable>
-                )}
-              </View>
-              <View style={styles.liveSortRow}>
-                <Pressable
-                  style={[styles.liveSortChip, triLive === 'populaire' && styles.liveSortChipActive]}
-                  onPress={() => setTriLive('populaire')}
-                >
-                  <Ionicons name="flame" size={13} color={triLive === 'populaire' ? '#fff' : couleurs.texteSecondaire} />
-                  <Text style={[styles.liveSortChipText, triLive === 'populaire' && styles.liveSortChipTextActive]}>Tendances</Text>
+          <View style={styles.livesActiveContainer}>
+            {/* Barre de recherche */}
+            <View style={styles.liveSearchBar}>
+              <Ionicons name="search" size={16} color={couleurs.texteSecondaire} />
+              <TextInput
+                style={styles.liveSearchInput}
+                placeholder="Rechercher un live..."
+                placeholderTextColor={couleurs.texteMuted}
+                value={rechercheLive}
+                onChangeText={setRechercheLive}
+                returnKeyType="search"
+              />
+              {rechercheLive.length > 0 && (
+                <Pressable onPress={() => setRechercheLive('')}>
+                  <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
                 </Pressable>
-                <Pressable
-                  style={[styles.liveSortChip, triLive === 'recent' && styles.liveSortChipActive]}
-                  onPress={() => setTriLive('recent')}
-                >
-                  <Ionicons name="time" size={13} color={triLive === 'recent' ? '#fff' : couleurs.texteSecondaire} />
-                  <Text style={[styles.liveSortChipText, triLive === 'recent' && styles.liveSortChipTextActive]}>Recents</Text>
-                </Pressable>
-                {/* Stats compactes */}
-                <View style={styles.liveStatsCompact}>
-                  <Ionicons name="eye" size={12} color={couleurs.texteSecondaire} />
-                  <Text style={styles.liveStatsCompactText}>{formatViewerCount(totalViewers)}</Text>
-                </View>
+              )}
+            </View>
+
+            {/* Tri + stats */}
+            <View style={styles.liveSortRow}>
+              <Pressable
+                style={[styles.liveSortChip, triLive === 'populaire' && styles.liveSortChipActive]}
+                onPress={() => setTriLive('populaire')}
+              >
+                <Ionicons name="flame" size={13} color={triLive === 'populaire' ? couleurs.blanc : couleurs.texteSecondaire} />
+                <Text style={[styles.liveSortChipText, triLive === 'populaire' && styles.liveSortChipTextActive]}>Tendances</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.liveSortChip, triLive === 'recent' && styles.liveSortChipActive]}
+                onPress={() => setTriLive('recent')}
+              >
+                <Ionicons name="time" size={13} color={triLive === 'recent' ? couleurs.blanc : couleurs.texteSecondaire} />
+                <Text style={[styles.liveSortChipText, triLive === 'recent' && styles.liveSortChipTextActive]}>Recents</Text>
+              </Pressable>
+              <View style={styles.liveStatsCompact}>
+                <Ionicons name="eye" size={12} color={couleurs.texteSecondaire} />
+                <Text style={styles.liveStatsCompactText}>{formatViewerCount(totalViewers)}</Text>
               </View>
             </View>
 
@@ -2128,22 +2170,52 @@ export default function Accueil() {
                 <Text style={styles.liveNoResultsText}>Aucun live pour "{rechercheLive}"</Text>
               </View>
             ) : (
-              <View style={styles.liveGrid}>
-                {livesTries.map((live, i) => (
-                  <View key={live._id} style={i === 0 ? styles.liveGridItemFull : styles.liveGridItemHalf}>
+              <>
+                {/* Section A la une */}
+                {featuredLive && (
+                  <View style={styles.liveSection}>
+                    <View style={styles.liveSectionHeader}>
+                      <Ionicons name="flame" size={18} color={couleurs.accent} />
+                      <Text style={styles.liveSectionTitle}>A la une</Text>
+                    </View>
                     <LiveCard
-                      live={live}
-                      onPress={() => rejoindreUnLive(live)}
-                      variant={i === 0 ? 'featured' : 'grid'}
-                      index={i}
+                      live={featuredLive}
+                      onPress={() => rejoindreUnLive(featuredLive)}
+                      variant="featured"
+                      index={0}
                     />
                   </View>
-                ))}
-                {/* Filler si nombre impair (excluant le featured) */}
-                {livesTries.length > 1 && (livesTries.length - 1) % 2 !== 0 && (
-                  <View style={styles.liveGridItemHalf} />
                 )}
-              </View>
+
+                {/* Divider */}
+                {autresLives.length > 0 && <View style={styles.liveDivider} />}
+
+                {/* Section En direct - scroll horizontal */}
+                {autresLives.length > 0 && (
+                  <View style={styles.liveSection}>
+                    <View style={styles.liveSectionHeader}>
+                      <Ionicons name="radio" size={18} color={couleurs.erreur} />
+                      <Text style={styles.liveSectionTitle}>En direct</Text>
+                      <Text style={styles.liveSectionCount}>{autresLives.length}</Text>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.liveTrendingScroll}
+                    >
+                      {autresLives.map((live, i) => (
+                        <LiveCard
+                          key={live._id}
+                          live={live}
+                          onPress={() => rejoindreUnLive(live)}
+                          variant="card"
+                          index={i + 1}
+                        />
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}
@@ -4703,6 +4775,10 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
 
   // ============ LIVE TAB ============
+  liveContainer: {
+    paddingHorizontal: espacements.lg,
+    marginBottom: espacements.xl,
+  },
   liveHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -4717,7 +4793,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   liveCountBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EF4444',
+    backgroundColor: couleurs.erreur,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -4727,12 +4803,12 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#fff',
+    backgroundColor: couleurs.blanc,
   },
   liveCountText: {
-    color: '#fff',
+    color: couleurs.blanc,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '700' as const,
   },
   goLiveBtn: {
     flexDirection: 'row',
@@ -4741,16 +4817,45 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 20,
+    backgroundColor: couleurs.erreur,
   },
   goLiveBtnText: {
-    color: '#fff',
+    color: couleurs.blanc,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '700' as const,
   },
-  // Toolbar (search + sort)
-  liveToolbar: {
-    gap: espacements.sm,
+  // Section pattern (matches decouvrir)
+  liveSection: {
+    paddingTop: espacements.md,
   },
+  liveSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: espacements.md,
+  },
+  liveSectionTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: couleurs.texte,
+    flex: 1,
+  },
+  liveSectionCount: {
+    fontSize: 13,
+    color: couleurs.texteMuted,
+    fontWeight: '500' as const,
+  },
+  liveDivider: {
+    height: 1,
+    backgroundColor: couleurs.bordure,
+    marginVertical: espacements.sm,
+  },
+  // Horizontal scroll (matches decouvrir trending)
+  liveTrendingScroll: {
+    gap: 12,
+    paddingBottom: espacements.sm,
+  },
+  // Search bar
   liveSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4768,6 +4873,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     color: couleurs.texte,
     paddingVertical: 4,
   },
+  // Sort chips
   liveSortRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4790,17 +4896,17 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   liveSortChipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: couleurs.texteSecondaire,
   },
   liveSortChipTextActive: {
-    color: '#fff',
+    color: couleurs.blanc,
   },
   liveStatsCompact: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginLeft: 'auto',
+    marginLeft: 'auto' as const,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
@@ -4808,7 +4914,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   liveStatsCompactText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: couleurs.texteSecondaire,
   },
   // No results
@@ -4821,22 +4927,10 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   liveNoResultsText: {
     fontSize: 14,
     color: couleurs.texteSecondaire,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
-  // Grid (Twitch-like)
-  liveGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espacements.sm,
-  },
-  liveGridItemFull: {
-    width: '100%',
-  },
-  liveGridItemHalf: {
-    width: (SCREEN_WIDTH - espacements.lg * 2 - espacements.sm) / 2,
-  },
-  // Container
-  livesContainer: {
+  // Active lives container
+  livesActiveContainer: {
     gap: espacements.md,
   },
   // Empty state
@@ -4856,48 +4950,42 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     height: 72,
     borderRadius: 36,
     borderWidth: 2,
-    borderColor: 'rgba(165, 180, 252, 0.3)',
-    backgroundColor: 'rgba(165, 180, 252, 0.1)',
+    borderColor: `${couleurs.primaireLight}40`,
+    backgroundColor: `${couleurs.primaireLight}15`,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: espacements.xs,
   },
   liveEmptyTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#E0E7FF',
-    textAlign: 'center',
+    fontWeight: '700' as const,
+    color: couleurs.blanc,
+    textAlign: 'center' as const,
   },
   liveEmptySubtitle: {
     fontSize: 14,
-    color: 'rgba(199, 210, 254, 0.6)',
-    textAlign: 'center',
+    color: `${couleurs.blanc}99`,
+    textAlign: 'center' as const,
     lineHeight: 20,
   },
-  liveEmptyCTA: {
-    marginTop: espacements.sm,
-  },
-  liveEmptyCTAGradient: {
+  liveEmptyCTABtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 28,
     paddingVertical: 13,
     borderRadius: 24,
+    backgroundColor: couleurs.erreur,
+    marginTop: espacements.sm,
   },
   liveEmptyCTAText: {
-    color: '#fff',
+    color: couleurs.blanc,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '700' as const,
   },
   // How-to section
-  liveHowTo: {
+  liveHowToSection: {
     gap: espacements.md,
-  },
-  liveHowToTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: couleurs.texte,
   },
   liveHowToSteps: {
     flexDirection: 'row',
@@ -4923,17 +5011,17 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   liveHowToStepNumText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '700' as const,
   },
   liveHowToStepTitle: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: couleurs.texte,
   },
   liveHowToStepDesc: {
     fontSize: 10,
     color: couleurs.texteSecondaire,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
 
   // Messages

@@ -1,6 +1,7 @@
 /**
  * LiveCard - Carte de preview pour un live en cours
- * 3 variantes : 'featured' (hero), 'card' (compact horizontal), 'grid' (Twitch-like grid)
+ * 3 variantes : 'featured' (hero), 'card' (scroll horizontal), 'grid' (grille 2 colonnes)
+ * Utilise le theme de l'app pour toutes les couleurs
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -8,22 +9,10 @@ import { View, Text, StyleSheet, Pressable, Animated as RNAnimated } from 'react
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { espacements, rayons } from '../constantes/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import Avatar from './Avatar';
 import type { Live } from '../services/live';
 import { formatLiveDuration, formatViewerCount } from '../services/live';
-
-// Gradients variés pour chaque carte
-const GRADIENTS: [string, string, string][] = [
-  ['#4F46E5', '#7C3AED', '#EC4899'],
-  ['#0EA5E9', '#6366F1', '#8B5CF6'],
-  ['#10B981', '#059669', '#047857'],
-  ['#F59E0B', '#EF4444', '#DC2626'],
-  ['#8B5CF6', '#EC4899', '#F43F5E'],
-  ['#06B6D4', '#3B82F6', '#6366F1'],
-];
-
-const getGradient = (index: number): [string, string, string] =>
-  GRADIENTS[index % GRADIENTS.length];
 
 interface LiveCardProps {
   live: Live;
@@ -33,6 +22,7 @@ interface LiveCardProps {
 }
 
 const LiveCard: React.FC<LiveCardProps> = ({ live, onPress, variant = 'card', index = 0 }) => {
+  const { couleurs } = useTheme();
   const pulseAnim = useRef(new RNAnimated.Value(1)).current;
 
   useEffect(() => {
@@ -46,57 +36,58 @@ const LiveCard: React.FC<LiveCardProps> = ({ live, onPress, variant = 'card', in
     return () => pulse.stop();
   }, []);
 
-  const gradient = getGradient(index);
+  // Gradients derives du theme
+  const GRADIENTS: [string, string][] = [
+    [couleurs.primaireDark, couleurs.primaire],
+    [couleurs.secondaireDark, couleurs.secondaire],
+    ['#7C3AED', couleurs.primaire],
+    [couleurs.primaire, '#EC4899'],
+    ['#0EA5E9', couleurs.primaireDark],
+    [couleurs.secondaire, '#06B6D4'],
+  ];
+  const grad = GRADIENTS[index % GRADIENTS.length];
 
   // ============ FEATURED ============
   if (variant === 'featured') {
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => [styles.featuredContainer, pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] }]}>
+      <Pressable onPress={onPress} style={({ pressed }) => [{ borderRadius: rayons.lg, overflow: 'hidden' }, pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] }]}>
         <LinearGradient
-          colors={gradient}
+          colors={[grad[0], grad[1], `${grad[1]}CC`]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.featuredGradient}
+          style={{ padding: espacements.lg, minHeight: 200, justifyContent: 'space-between' }}
         >
-          {/* Top row */}
-          <View style={styles.featuredBadgeRow}>
-            <View style={styles.liveBadge}>
-              <RNAnimated.View style={[styles.liveDot, { opacity: pulseAnim }]} />
-              <Text style={styles.liveBadgeText}>LIVE</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: couleurs.erreur, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, gap: 6 }}>
+              <RNAnimated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: couleurs.blanc, opacity: pulseAnim }} />
+              <Text style={{ color: couleurs.blanc, fontSize: 12, fontWeight: '700', letterSpacing: 1 }}>LIVE</Text>
             </View>
-            <View style={styles.viewerBadge}>
-              <Ionicons name="eye" size={14} color="#fff" />
-              <Text style={styles.viewerBadgeText}>{formatViewerCount(live.viewerCount)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, gap: 4 }}>
+              <Ionicons name="eye" size={14} color={couleurs.blanc} />
+              <Text style={{ color: couleurs.blanc, fontSize: 12, fontWeight: '600' }}>{formatViewerCount(live.viewerCount)}</Text>
             </View>
           </View>
 
-          {/* Center */}
-          <View style={styles.featuredCenter}>
-            <View style={styles.featuredAvatarRing}>
-              <Avatar
-                uri={live.host?.avatar}
-                prenom={live.host?.prenom || ''}
-                nom={live.host?.nom || ''}
-                taille={64}
-              />
+          <View style={{ alignItems: 'center', paddingVertical: espacements.md }}>
+            <View style={{ borderRadius: 40, borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)', padding: 3, marginBottom: espacements.sm }}>
+              <Avatar uri={live.host?.avatar} prenom={live.host?.prenom || ''} nom={live.host?.nom || ''} taille={60} />
             </View>
-            <Text style={styles.featuredTitle} numberOfLines={2}>
+            <Text style={{ color: couleurs.blanc, fontSize: 17, fontWeight: '700', textAlign: 'center', marginBottom: 4 }} numberOfLines={2}>
               {live.title || `${live.host?.prenom} est en direct`}
             </Text>
-            <Text style={styles.featuredHost}>
+            <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
               {live.host?.prenom} {live.host?.nom}
             </Text>
           </View>
 
-          {/* Bottom */}
-          <View style={styles.featuredBottom}>
-            <View style={styles.durationBadge}>
-              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.durationText}>{formatLiveDuration(live.startedAt)}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14 }}>
+              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.75)" />
+              <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '500' }}>{formatLiveDuration(live.startedAt)}</Text>
             </View>
-            <View style={styles.joinBtn}>
-              <Text style={styles.joinBtnText}>Rejoindre</Text>
-              <Ionicons name="arrow-forward" size={14} color="#fff" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 }}>
+              <Text style={{ color: couleurs.blanc, fontSize: 13, fontWeight: '600' }}>Rejoindre</Text>
+              <Ionicons name="arrow-forward" size={14} color={couleurs.blanc} />
             </View>
           </View>
         </LinearGradient>
@@ -104,352 +95,83 @@ const LiveCard: React.FC<LiveCardProps> = ({ live, onPress, variant = 'card', in
     );
   }
 
-  // ============ GRID (Twitch-like) ============
+  // ============ GRID ============
   if (variant === 'grid') {
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => [styles.gridContainer, pressed && { opacity: 0.92, transform: [{ scale: 0.97 }] }]}>
-        {/* Thumbnail area */}
+      <Pressable onPress={onPress} style={({ pressed }) => [{ flex: 1, borderRadius: rayons.lg, overflow: 'hidden', backgroundColor: couleurs.fondCard, borderWidth: 1, borderColor: couleurs.bordure }, pressed && { opacity: 0.92, transform: [{ scale: 0.97 }] }]}>
         <LinearGradient
-          colors={gradient}
+          colors={[grad[0], grad[1]]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.gridThumbnail}
+          style={{ height: 110, padding: espacements.sm, justifyContent: 'space-between' }}
         >
-          <View style={styles.gridBadgeRow}>
-            <View style={styles.liveBadgeSmall}>
-              <RNAnimated.View style={[styles.liveDotSmall, { opacity: pulseAnim }]} />
-              <Text style={styles.liveBadgeTextSmall}>LIVE</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: couleurs.erreur, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, gap: 4 }}>
+              <RNAnimated.View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: couleurs.blanc, opacity: pulseAnim }} />
+              <Text style={{ color: couleurs.blanc, fontSize: 9, fontWeight: '700' }}>LIVE</Text>
             </View>
-            <View style={styles.gridViewerBadge}>
-              <Ionicons name="eye" size={10} color="#fff" />
-              <Text style={styles.gridViewerText}>{formatViewerCount(live.viewerCount)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, gap: 3 }}>
+              <Ionicons name="eye" size={10} color={couleurs.blanc} />
+              <Text style={{ color: couleurs.blanc, fontSize: 10, fontWeight: '600' }}>{formatViewerCount(live.viewerCount)}</Text>
             </View>
           </View>
-          <View style={styles.gridThumbnailCenter}>
-            <Avatar
-              uri={live.host?.avatar}
-              prenom={live.host?.prenom || ''}
-              nom={live.host?.nom || ''}
-              taille={48}
-            />
+          <View style={{ alignItems: 'center' }}>
+            <Avatar uri={live.host?.avatar} prenom={live.host?.prenom || ''} nom={live.host?.nom || ''} taille={40} />
           </View>
-          <View style={styles.gridDurationWrap}>
-            <Text style={styles.gridDurationText}>{formatLiveDuration(live.startedAt)}</Text>
+          <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 }}>
+            <Text style={{ color: couleurs.blanc, fontSize: 9, fontWeight: '500' }}>{formatLiveDuration(live.startedAt)}</Text>
           </View>
         </LinearGradient>
-
-        {/* Info area */}
-        <View style={styles.gridInfo}>
-          <View style={styles.gridInfoAvatar}>
-            <Avatar
-              uri={live.host?.avatar}
-              prenom={live.host?.prenom || ''}
-              nom={live.host?.nom || ''}
-              taille={28}
-            />
-          </View>
-          <View style={styles.gridInfoText}>
-            <Text style={styles.gridHostName} numberOfLines={1}>
-              {live.host?.prenom} {live.host?.nom}
-            </Text>
-            <Text style={styles.gridTitle} numberOfLines={1}>
-              {live.title || 'En direct'}
-            </Text>
-          </View>
+        <View style={{ padding: espacements.sm, gap: 2 }}>
+          <Text style={{ color: couleurs.texte, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+            {live.host?.prenom} {live.host?.nom}
+          </Text>
+          <Text style={{ color: couleurs.texteSecondaire, fontSize: 11 }} numberOfLines={1}>
+            {live.title || 'En direct'}
+          </Text>
         </View>
       </Pressable>
     );
   }
 
-  // ============ CARD (compact horizontal) ============
+  // ============ CARD (scroll horizontal) ============
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.cardContainer, pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] }]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [{ width: 200, borderRadius: rayons.lg, overflow: 'hidden', backgroundColor: couleurs.fondCard, borderWidth: 1, borderColor: couleurs.bordure }, pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] }]}>
       <LinearGradient
-        colors={[gradient[0], gradient[1]]}
+        colors={[grad[0], grad[1]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.cardGradient}
+        style={{ height: 120, padding: espacements.sm, justifyContent: 'space-between' }}
       >
-        <View style={styles.cardBadgeRow}>
-          <View style={styles.liveBadgeSmall}>
-            <RNAnimated.View style={[styles.liveDotSmall, { opacity: pulseAnim }]} />
-            <Text style={styles.liveBadgeTextSmall}>LIVE</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: couleurs.erreur, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, gap: 4 }}>
+            <RNAnimated.View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: couleurs.blanc, opacity: pulseAnim }} />
+            <Text style={{ color: couleurs.blanc, fontSize: 10, fontWeight: '700' }}>LIVE</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, gap: 3 }}>
+            <Ionicons name="eye" size={11} color={couleurs.blanc} />
+            <Text style={{ color: couleurs.blanc, fontSize: 11, fontWeight: '600' }}>{formatViewerCount(live.viewerCount)}</Text>
           </View>
         </View>
-        <View style={styles.cardAvatarSection}>
-          <Avatar
-            uri={live.host?.avatar}
-            prenom={live.host?.prenom || ''}
-            nom={live.host?.nom || ''}
-            taille={44}
-          />
+        <View style={{ alignItems: 'center' }}>
+          <Avatar uri={live.host?.avatar} prenom={live.host?.prenom || ''} nom={live.host?.nom || ''} taille={44} />
         </View>
-        <Text style={styles.cardHostName} numberOfLines={1}>
-          {live.host?.prenom} {live.host?.nom?.charAt(0)}.
-        </Text>
-        {live.title && (
-          <Text style={styles.cardTitle} numberOfLines={1}>{live.title}</Text>
-        )}
-        <View style={styles.cardStats}>
-          <View style={styles.cardStat}>
-            <Ionicons name="eye" size={11} color="rgba(255,255,255,0.6)" />
-            <Text style={styles.cardStatText}>{formatViewerCount(live.viewerCount)}</Text>
-          </View>
-          <View style={styles.cardStat}>
-            <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.6)" />
-            <Text style={styles.cardStatText}>{formatLiveDuration(live.startedAt)}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+            <Text style={{ color: couleurs.blanc, fontSize: 10, fontWeight: '500' }}>{formatLiveDuration(live.startedAt)}</Text>
           </View>
         </View>
       </LinearGradient>
+      <View style={{ padding: espacements.sm, gap: 2 }}>
+        <Text style={{ color: couleurs.texte, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+          {live.host?.prenom} {live.host?.nom}
+        </Text>
+        <Text style={{ color: couleurs.texteSecondaire, fontSize: 11 }} numberOfLines={1}>
+          {live.title || 'En direct'}
+        </Text>
+      </View>
     </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  // ============ SHARED ============
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    gap: 6,
-  },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#fff',
-  },
-  liveBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  liveBadgeSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 4,
-  },
-  liveDotSmall: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#fff',
-  },
-  liveBadgeTextSmall: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-
-  // ============ FEATURED ============
-  featuredContainer: {
-    borderRadius: rayons.lg,
-    overflow: 'hidden',
-  },
-  featuredGradient: {
-    padding: espacements.lg,
-    borderRadius: rayons.lg,
-    minHeight: 220,
-    justifyContent: 'space-between',
-  },
-  featuredBadgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  viewerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    gap: 4,
-  },
-  viewerBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  featuredCenter: {
-    alignItems: 'center',
-    paddingVertical: espacements.md,
-  },
-  featuredAvatarRing: {
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.35)',
-    padding: 3,
-    marginBottom: espacements.sm,
-  },
-  featuredTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  featuredHost: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
-  },
-  featuredBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  durationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-  },
-  durationText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  joinBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  joinBtnText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  // ============ GRID (Twitch-like) ============
-  gridContainer: {
-    flex: 1,
-    borderRadius: rayons.lg,
-    overflow: 'hidden',
-    backgroundColor: '#1A1A2E',
-  },
-  gridThumbnail: {
-    height: 120,
-    padding: espacements.sm,
-    justifyContent: 'space-between',
-  },
-  gridBadgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  gridViewerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    gap: 3,
-  },
-  gridViewerText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  gridThumbnailCenter: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gridDurationWrap: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  gridDurationText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '500',
-  },
-  gridInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: espacements.sm,
-    gap: espacements.sm,
-  },
-  gridInfoAvatar: {},
-  gridInfoText: {
-    flex: 1,
-  },
-  gridHostName: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  gridTitle: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
-    marginTop: 1,
-  },
-
-  // ============ CARD (compact) ============
-  cardContainer: {
-    width: 150,
-    borderRadius: rayons.lg,
-    overflow: 'hidden',
-  },
-  cardGradient: {
-    padding: espacements.md,
-    borderRadius: rayons.lg,
-    alignItems: 'center',
-    minHeight: 175,
-    justifyContent: 'space-between',
-  },
-  cardBadgeRow: {
-    alignSelf: 'flex-start',
-  },
-  cardAvatarSection: {
-    marginVertical: espacements.sm,
-  },
-  cardHostName: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  cardTitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 11,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  cardStats: {
-    flexDirection: 'row',
-    gap: espacements.sm,
-    marginTop: espacements.sm,
-  },
-  cardStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  cardStatText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 10,
-    fontWeight: '500',
-  },
-});
 
 export default LiveCard;
