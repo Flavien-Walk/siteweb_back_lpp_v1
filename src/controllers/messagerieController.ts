@@ -610,9 +610,9 @@ export const ajouterParticipants = async (
       throw new ErreurAPI('Groupe non trouvé.', 404);
     }
 
-    // Vérifier que l'utilisateur est admin ou membre
-    if (!groupe.participants.some((p) => p.toString() === userId.toString())) {
-      throw new ErreurAPI('Vous ne faites pas partie de ce groupe.', 403);
+    // Seuls les admins du groupe peuvent ajouter des participants
+    if (!groupe.admins.some((a) => a.toString() === userId.toString())) {
+      throw new ErreurAPI('Seuls les admins peuvent ajouter des participants.', 403);
     }
 
     // Filtrer les nouveaux participants valides
