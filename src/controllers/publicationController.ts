@@ -586,6 +586,11 @@ export const ajouterCommentaire = async (
       throw new ErreurAPI('Publication non trouvée.', 404);
     }
 
+    // RED-09: Block comments on hidden/moderated publications
+    if (publication.isHidden) {
+      throw new ErreurAPI('Impossible de commenter une publication modérée.', 403);
+    }
+
     // Si c'est une réponse, vérifier que le commentaire parent existe
     let reponseAId = null;
     if (donnees.reponseA) {
