@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: couleurs.blanc,
-    fontSize: typographie.tailles.md,
+    fontSize: typographie.tailles.base,
     fontWeight: typographie.poids.semibold,
   },
 });

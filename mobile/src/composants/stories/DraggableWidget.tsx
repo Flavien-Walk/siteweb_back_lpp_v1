@@ -135,7 +135,7 @@ const DraggableWidget: React.FC<DraggableWidgetProps> = ({
           onPress={() => onDelete(widget.id)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="close-circle" size={24} color={couleurs.erreur} />
+          <Ionicons name="close-circle" size={24} color={couleurs.danger} />
         </Pressable>
       )}
     </Animated.View>

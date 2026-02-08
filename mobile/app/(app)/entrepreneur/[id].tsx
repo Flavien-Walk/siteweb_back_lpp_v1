@@ -475,7 +475,7 @@ export default function ProjetEntrepreneurScreen() {
                   style={styles.listItem}
                   onPress={() => {
                     setShowFollowersModal(false);
-                    router.push(`/profil/${follower._id}`);
+                    router.push(`/profil/${follower._id}` as any);
                   }}
                 >
                   {follower.avatar ? (

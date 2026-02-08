@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     borderRadius: rayons.md,
     paddingHorizontal: espacements.md,
     paddingVertical: espacements.sm,
-    fontSize: typographie.tailles.md,
+    fontSize: typographie.tailles.base,
   },
   styleOptions: {
     flexDirection: 'row',
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: couleurs.blanc,
-    fontSize: typographie.tailles.md,
+    fontSize: typographie.tailles.base,
     fontWeight: typographie.poids.semibold,
   },
 });

@@ -19,7 +19,7 @@ import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
 function SocketWrapper({ children }: { children: React.ReactNode }) {
   const { utilisateur } = useUser();
   return (
-    <SocketProvider userId={utilisateur?._id || null}>
+    <SocketProvider userId={utilisateur?.id || null}>
       {children}
     </SocketProvider>
   );

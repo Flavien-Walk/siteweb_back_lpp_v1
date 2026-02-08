@@ -350,6 +350,7 @@ export default function ConversationScreen() {
         dateCreation: event.message.dateEnvoi,
         type: 'texte' as TypeMessage,
         estMoi: event.message.expediteur._id === utilisateur?.id,
+        estLu: false,
         lecteurs: [],
         reactions: [],
       };
