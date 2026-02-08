@@ -116,25 +116,42 @@ export const getOptimizedAvatarUrl = (publicId: string, size: number = 200): str
   });
 };
 
+// Types MIME autorisés (whitelist stricte)
+const ALLOWED_IMAGE_MIMES = [
+  'data:image/jpeg;',
+  'data:image/jpg;',
+  'data:image/png;',
+  'data:image/webp;',
+  'data:image/gif;',
+  'data:image/heic;',
+  'data:image/heif;',
+];
+
+const ALLOWED_VIDEO_MIMES = [
+  'data:video/mp4;',
+  'data:video/quicktime;',
+  'data:video/webm;',
+];
+
 /**
- * Vérifier si une chaîne est une data URL base64 (image)
+ * Vérifier si une chaîne est une data URL base64 avec un type MIME image autorisé
  */
 export const isBase64DataUrl = (str: string): boolean => {
-  return str.startsWith('data:image/');
+  return ALLOWED_IMAGE_MIMES.some((mime) => str.startsWith(mime));
 };
 
 /**
- * Vérifier si une chaîne est une data URL base64 (vidéo)
+ * Vérifier si une chaîne est une data URL base64 avec un type MIME vidéo autorisé
  */
 export const isBase64VideoDataUrl = (str: string): boolean => {
-  return str.startsWith('data:video/');
+  return ALLOWED_VIDEO_MIMES.some((mime) => str.startsWith(mime));
 };
 
 /**
- * Vérifier si une chaîne est une data URL base64 (image ou vidéo)
+ * Vérifier si une chaîne est une data URL base64 avec un type MIME autorisé (image ou vidéo)
  */
 export const isBase64MediaDataUrl = (str: string): boolean => {
-  return str.startsWith('data:image/') || str.startsWith('data:video/');
+  return isBase64DataUrl(str) || isBase64VideoDataUrl(str);
 };
 
 /**
