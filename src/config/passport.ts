@@ -33,10 +33,13 @@ export const configurerPassport = (): void => {
 
             // Vérifier si un utilisateur existe avec cet email
             const email = profile.emails?.[0]?.value;
-            if (email) {
+            const emailVerified = (profile.emails?.[0] as any)?.verified === true
+              || (profile.emails?.[0] as any)?.verified === 'true';
+
+            if (email && emailVerified) {
               utilisateur = await Utilisateur.findOne({ email });
               if (utilisateur) {
-                // Lier le compte Google sans écraser le provider local
+                // Lier le compte Google (email vérifié par Google)
                 if (!utilisateur.providerId) {
                   utilisateur.providerId = profile.id;
                 }
@@ -165,7 +168,11 @@ export const configurerPassport = (): void => {
                   return done(null, utilisateur);
                 }
 
-                if (email) {
+                // Ne lier que si l'email est vérifié par Apple
+                const emailVerified = idToken?.email_verified === true
+                  || idToken?.email_verified === 'true';
+
+                if (email && emailVerified) {
                   utilisateur = await Utilisateur.findOne({ email });
                   if (utilisateur) {
                     if (!utilisateur.providerId) {
