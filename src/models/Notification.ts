@@ -17,7 +17,8 @@ export type TypeNotification =
   | 'sanction_unsuspend'
   | 'sanction_unwarn'
   | 'moderation'
-  | 'project_follow';
+  | 'project_follow'
+  | 'broadcast';
 
 export interface INotificationData {
   userId?: string;
@@ -41,6 +42,9 @@ export interface INotificationData {
   actorRole?: string;
   // EventId pour idempotency des sanctions (anti-doublon)
   eventId?: string;
+  // Champ pour les notifications broadcast
+  broadcastBadge?: 'actu' | 'maintenance' | 'mise_a_jour' | 'evenement' | 'important';
+  broadcastId?: string;
 }
 
 export interface INotification extends Document {
@@ -64,7 +68,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow', 'broadcast'],
       required: true,
     },
     titre: {
@@ -103,6 +107,9 @@ const notificationSchema = new Schema<INotification>(
         actorRole: String,
         // EventId pour idempotency des sanctions (anti-doublon)
         eventId: String,
+        // Champ pour les notifications broadcast
+        broadcastBadge: { type: String, enum: ['actu', 'maintenance', 'mise_a_jour', 'evenement', 'important'] },
+        broadcastId: String,
       },
       default: null,
     },

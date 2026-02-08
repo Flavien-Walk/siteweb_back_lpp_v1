@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
-import { requirePermission, requireStaff } from '../middlewares/checkUserStatus.js';
+import { requirePermission, requireStaff, requireMinRole } from '../middlewares/checkUserStatus.js';
 import {
   listerReports,
   traiterReport,
@@ -29,6 +29,10 @@ import {
   getDashboard,
   getMe,
 } from '../controllers/dashboardController.js';
+import {
+  sendBroadcast,
+  listBroadcasts,
+} from '../controllers/broadcastController.js';
 import {
   listUsers,
   getUserModerationDetails,
@@ -257,5 +261,13 @@ router.get('/lives', verifierJwt, requirePermission('content:hide'), listLives);
 
 // GET /api/admin/evenements - Lister les événements
 router.get('/evenements', verifierJwt, requirePermission('content:hide'), listEvenements);
+
+// ============ NOTIFICATIONS BROADCAST ============
+
+// GET /api/admin/notifications/broadcast - Historique des notifications broadcast
+router.get('/notifications/broadcast', verifierJwt, requireMinRole('admin_modo'), listBroadcasts);
+
+// POST /api/admin/notifications/broadcast - Envoyer une notification broadcast
+router.post('/notifications/broadcast', verifierJwt, requireMinRole('admin_modo'), sendBroadcast);
 
 export default router;
