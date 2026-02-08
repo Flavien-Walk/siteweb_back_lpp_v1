@@ -173,10 +173,9 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
 
     const userId = req.utilisateur!._id;
     const user = req.utilisateur!;
-    const index = projet.followers.findIndex((id) => id.equals(userId));
-    const isNewFollow = index === -1;
+    const isCurrentlyFollowing = projet.followers.some((id) => id.equals(userId));
 
-    if (isNewFollow) {
+    if (!isCurrentlyFollowing) {
       // Ne pas permettre de se suivre soi-même (si owner ou membre)
       const isOwner = projet.porteur._id.equals(userId);
       const isMember = projet.equipe.some((m) => m.utilisateur && m.utilisateur.equals(userId));
@@ -185,12 +184,22 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
         return;
       }
 
-      projet.followers.push(userId);
+      // RED-01: Atomic $addToSet — prevents duplicates even under concurrent requests
+      await Projet.findByIdAndUpdate(req.params.id, {
+        $addToSet: { followers: userId },
+      });
     } else {
-      projet.followers.splice(index, 1);
+      // RED-01: Atomic $pull — safe concurrent unfollow
+      await Projet.findByIdAndUpdate(req.params.id, {
+        $pull: { followers: userId },
+      });
     }
 
-    await projet.save();
+    const isNewFollow = !isCurrentlyFollowing;
+
+    // Re-fetch to get accurate count after atomic update
+    const updatedProjet = await Projet.findById(req.params.id).select('followers');
+    const nbFollowers = updatedProjet?.followers.length || 0;
 
     // Créer des notifications pour tous les membres du projet (uniquement sur nouveau follow)
     if (isNewFollow) {
@@ -239,10 +248,10 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
       data: {
         // Noms attendus par le mobile
         estSuivi: isNewFollow,
-        nbFollowers: projet.followers.length,
+        nbFollowers,
         // Anciens noms pour compatibilite
         suivi: isNewFollow,
-        totalFollowers: projet.followers.length,
+        totalFollowers: nbFollowers,
       },
     });
   } catch (error) {
