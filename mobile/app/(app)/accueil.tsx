@@ -4777,6 +4777,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   // ============ LIVE TAB ============
   liveContainer: {
     paddingHorizontal: espacements.lg,
+    paddingTop: espacements.lg,
     marginBottom: espacements.xl,
   },
   liveHeader: {
