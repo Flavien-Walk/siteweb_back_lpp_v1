@@ -494,6 +494,20 @@ export default function Accueil() {
   const [chargementProjets, setChargementProjets] = useState(false);
   const [categorieFiltre, setCategorieFiltre] = useState<CategorieProjet | 'all'>('all');
   const [rechercheProjet, setRechercheProjet] = useState('');
+  const [rechercheProjetDebounced, setRechercheProjetDebounced] = useState('');
+
+  // Debounce recherche projet (400ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setRechercheProjetDebounced(rechercheProjet);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [rechercheProjet]);
+
+  // Lancer la recherche quand le texte debounced change
+  useEffect(() => {
+    chargerProjets(categorieFiltre, rechercheProjetDebounced);
+  }, [rechercheProjetDebounced]);
 
   // Projets Entrepreneur (mes projets)
   const [mesProjetsEntrepreneur, setMesProjetsEntrepreneur] = useState<Projet[]>([]);
@@ -1749,10 +1763,12 @@ export default function Accueil() {
 
   const handleCategorieChange = (cat: CategorieProjet | 'all') => {
     setCategorieFiltre(cat);
-    chargerProjets(cat, rechercheProjet);
+    chargerProjets(cat, rechercheProjetDebounced);
   };
 
   const handleRechercheProjetSubmit = () => {
+    // Bypass debounce — recherche immediate sur submit clavier
+    setRechercheProjetDebounced(rechercheProjet);
     chargerProjets(categorieFiltre, rechercheProjet);
   };
 
@@ -1772,7 +1788,7 @@ export default function Accueil() {
             returnKeyType="search"
           />
           {rechercheProjet.length > 0 && (
-            <Pressable onPress={() => { setRechercheProjet(''); chargerProjets(categorieFiltre, ''); }}>
+            <Pressable onPress={() => { setRechercheProjet(''); setRechercheProjetDebounced(''); chargerProjets(categorieFiltre, ''); }}>
               <Ionicons name="close-circle" size={18} color={couleurs.texteMuted} />
             </Pressable>
           )}
@@ -1894,7 +1910,7 @@ export default function Accueil() {
             {rechercheProjet ? (
               <Pressable
                 style={styles.decouvrirEmptyBtn}
-                onPress={() => { setRechercheProjet(''); chargerProjets(categorieFiltre, ''); }}
+                onPress={() => { setRechercheProjet(''); setRechercheProjetDebounced(''); chargerProjets(categorieFiltre, ''); }}
               >
                 <Text style={styles.decouvrirEmptyBtnText}>Effacer la recherche</Text>
               </Pressable>
