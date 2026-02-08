@@ -175,6 +175,30 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   });
 
+  // Rate limiter pour les opérations d'écriture (publications, messages, amis)
+  const limiterWrite = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30, // max 30 créations par fenêtre
+    message: {
+      succes: false,
+      message: 'Trop de requêtes. Veuillez réessayer dans quelques minutes.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Rate limiter pour les messages (plus permissif car usage intensif)
+  const limiterMessages = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 60, // max 60 messages par fenêtre
+    message: {
+      succes: false,
+      message: 'Trop de messages envoyés. Veuillez patienter.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   app.use('/api/', limiter);
   app.use('/api/auth/connexion', limiterAuth);
   app.use('/api/auth/inscription', limiterAuth);
@@ -185,6 +209,12 @@ export const creerApp = (): Application => {
   app.use('/api/moderation/users/:id/warn', limiterModerationActions);
   app.use('/api/moderation/users/:id/suspend', limiterModerationActions);
   app.use('/api/moderation/users/:id/ban', limiterModerationActions);
+  // Opérations d'écriture
+  app.use('/api/publications', limiterWrite);
+  app.use('/api/projets/entrepreneur', limiterWrite);
+  app.use('/api/utilisateurs/:id/demande-ami', limiterWrite);
+  app.use('/api/messagerie/envoyer', limiterMessages);
+  app.use('/api/messagerie/groupes', limiterWrite);
 
   // ============================================
   // MIDDLEWARES DE PARSING
