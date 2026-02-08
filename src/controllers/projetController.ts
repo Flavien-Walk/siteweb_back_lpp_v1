@@ -43,11 +43,12 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
 
     // Par défaut, ne montrer que les projets publiés
     const filtre: Record<string, unknown> = { statut: 'published' };
-    if (categorie) filtre.categorie = categorie;
-    if (secteur) filtre.secteur = secteur;
-    if (maturite) filtre.maturite = maturite;
-    if (q) {
-      filtre.$text = { $search: q as string };
+    // Sanitize: n'accepter que des strings (bloquer les opérateurs MongoDB $ne, $gt, etc.)
+    if (typeof categorie === 'string') filtre.categorie = categorie;
+    if (typeof secteur === 'string') filtre.secteur = secteur;
+    if (typeof maturite === 'string') filtre.maturite = maturite;
+    if (typeof q === 'string' && q.trim()) {
+      filtre.$text = { $search: q.trim() };
     }
 
     const pageNum = Math.max(1, parseInt(page as string, 10));

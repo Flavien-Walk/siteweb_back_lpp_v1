@@ -13,8 +13,8 @@ export const listerEvenements = async (req: Request, res: Response): Promise<voi
     const skip = (pageNum - 1) * limitNum;
 
     const filtre: Record<string, unknown> = {};
-    if (type) filtre.type = type;
-    if (statut) filtre.statut = statut;
+    if (typeof type === 'string') filtre.type = type;
+    if (typeof statut === 'string') filtre.statut = statut;
 
     const [evenements, total] = await Promise.all([
       Evenement.find(filtre)
