@@ -271,14 +271,10 @@ export const requeteAPI = async <T>(
 
   // Ajouter le token si nécessaire
   if (avecAuth) {
-    console.log('[API:requete] avecAuth=true, endpoint:', endpoint);
-    console.log('[API:requete] tokenHydrated:', tokenHydrated, 'memoryToken:', memoryToken ? 'present' : 'null');
-
     // S'assurer que le token est hydraté
     if (!tokenHydrated) {
-      console.log('[API:requete] Token pas hydrate, attente...');
+      if (__DEV__) console.log('[API:requete] Token pas hydrate, attente...');
       await waitForTokenReady();
-      console.log('[API:requete] Apres hydratation - memoryToken:', memoryToken ? 'present' : 'null');
     }
 
     const token = memoryToken;
@@ -293,8 +289,6 @@ export const requeteAPI = async <T>(
         erreurs: { code: 'AUTH_MISSING_TOKEN' },
       };
     }
-
-    console.log('[API:requete] Token OK, appel API...');
     headersComplets['Authorization'] = `Bearer ${token}`;
   }
 
@@ -328,7 +322,7 @@ export const requeteAPI = async <T>(
     // Gérer les 401 Unauthorized avec retry une fois
     // IMPORTANT: On rehydrate le token et on retente UNE SEULE fois
     if (response.status === 401 && avecAuth && !isRetrying401) {
-      console.log('[API:requete] 401 recu, tentative de rehydratation...');
+      if (__DEV__) console.log('[API:requete] 401 recu, tentative de rehydratation...');
       isRetrying401 = true;
 
       // Forcer la rehydratation depuis SecureStore
@@ -338,12 +332,12 @@ export const requeteAPI = async <T>(
 
       // Si on a un token apres rehydratation, retenter
       if (memoryToken) {
-        console.log('[API:requete] Token rehydrate, retry...');
+        if (__DEV__) console.log('[API:requete] Token rehydrate, retry...');
         isRetrying401 = false;
         // Retenter la requete (recursive, mais avec flag reset)
         return requeteAPI<T>(endpoint, options);
       } else {
-        console.log('[API:requete] Pas de token apres rehydratation');
+        if (__DEV__) console.log('[API:requete] Pas de token apres rehydratation');
         console.log('[NAV] redirect login because AUTH_TOKEN_EXPIRED (no token after rehydrate)');
         isRetrying401 = false;
         return {

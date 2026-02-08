@@ -130,23 +130,23 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
   // Connexion au socket
   const connect = useCallback(() => {
     if (!userId) {
-      console.log('[SOCKET] Pas de userId, connexion ignoree');
+      if (__DEV__) console.log('[SOCKET] Pas de userId, connexion ignoree');
       return;
     }
 
     const token = getTokenSync();
     if (!token) {
-      console.log('[SOCKET] Pas de token, connexion ignoree');
+      if (__DEV__) console.log('[SOCKET] Pas de token, connexion ignoree');
       return;
     }
 
     // Deconnexion existante si necessaire
     if (socketRef.current?.connected) {
-      console.log('[SOCKET] Deja connecte, skip');
+      if (__DEV__) console.log('[SOCKET] Deja connecte, skip');
       return;
     }
 
-    console.log('[SOCKET] Connexion en cours...');
+    if (__DEV__) console.log('[SOCKET] Connexion en cours...');
 
     socketRef.current = io(SOCKET_URL, {
       auth: { token, userId },
@@ -160,7 +160,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
 
     // Event handlers
     socketRef.current.on('connect', () => {
-      console.log('[SOCKET] Connecte! ID:', socketRef.current?.id);
+      if (__DEV__) console.log('[SOCKET] Connecte! ID:', socketRef.current?.id);
       setIsConnected(true);
 
       // Demander les compteurs initiaux
@@ -168,18 +168,18 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     });
 
     socketRef.current.on('disconnect', (reason) => {
-      console.log('[SOCKET] Deconnecte:', reason);
+      if (__DEV__) console.log('[SOCKET] Deconnecte:', reason);
       setIsConnected(false);
     });
 
     socketRef.current.on('connect_error', (error) => {
-      console.log('[SOCKET] Erreur connexion:', error.message);
+      if (__DEV__) console.log('[SOCKET] Erreur connexion:', error.message);
       setIsConnected(false);
     });
 
     // Compteurs non-lus
     socketRef.current.on('unread_counts', (data: UnreadCountsEvent) => {
-      console.log('[SOCKET] Compteurs recus:', data);
+      if (__DEV__) console.log('[SOCKET] Compteurs recus:', data);
       setUnreadMessages(data.messages || 0);
       setUnreadNotifications(data.notifications || 0);
       setUnreadDemandesAmis(data.demandesAmis || 0);
@@ -187,7 +187,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
 
     // Nouveaux messages - update du compteur + appeler les callbacks des composants
     socketRef.current.on('new_message', (event: MessageSocketEvent) => {
-      console.log('[SOCKET] new_message recu:', event?.conversationId, event?.message?._id);
+      if (__DEV__) console.log('[SOCKET] new_message recu:', event?.conversationId, event?.message?._id);
       setUnreadMessages((prev) => prev + 1);
       // Appeler tous les callbacks enregistres
       messageCallbacksRef.current.forEach((callback) => {
@@ -201,7 +201,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
 
     // Nouvelles notifications - update du compteur + appeler les callbacks
     socketRef.current.on('new_notification', (event: NotificationSocketEvent) => {
-      console.log('[SOCKET] new_notification recu:', event?.type, event?._id);
+      if (__DEV__) console.log('[SOCKET] new_notification recu:', event?.type, event?._id);
       setUnreadNotifications((prev) => prev + 1);
       // Appeler tous les callbacks enregistres
       notificationCallbacksRef.current.forEach((callback) => {
@@ -215,7 +215,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
 
     // Nouvelles demandes d'amis - update du compteur + appeler les callbacks
     socketRef.current.on('demande_ami', (event: DemandeAmiSocketEvent) => {
-      console.log('[SOCKET] demande_ami recu:', event?.type, event?.utilisateur?._id);
+      if (__DEV__) console.log('[SOCKET] demande_ami recu:', event?.type, event?.utilisateur?._id);
       if (event.type === 'received') {
         setUnreadDemandesAmis((prev) => prev + 1);
       }
@@ -231,7 +231,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
 
     // Typing events - appeler les callbacks
     socketRef.current.on('typing', (event: TypingSocketEvent) => {
-      console.log('[SOCKET] typing recu:', event?.conversationId, event?.isTyping);
+      if (__DEV__) console.log('[SOCKET] typing recu:', event?.conversationId, event?.isTyping);
       typingCallbacksRef.current.forEach((callback) => {
         try {
           callback(event);
@@ -251,7 +251,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     }
 
     if (socketRef.current) {
-      console.log('[SOCKET] Deconnexion...');
+      if (__DEV__) console.log('[SOCKET] Deconnexion...');
       socketRef.current.disconnect();
       socketRef.current = null;
       setIsConnected(false);
@@ -263,13 +263,13 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
         // Retour au foreground - reconnecter
-        console.log('[SOCKET] App au foreground, reconnexion...');
+        if (__DEV__) console.log('[SOCKET] App au foreground, reconnexion...');
         if (userId && !socketRef.current?.connected) {
           connect();
         }
       } else if (appStateRef.current === 'active' && nextAppState.match(/inactive|background/)) {
         // Passage en background - garder la connexion mais en mode economie
-        console.log('[SOCKET] App en background');
+        if (__DEV__) console.log('[SOCKET] App en background');
         // On ne deconnecte pas pour garder les notifs push
       }
       appStateRef.current = nextAppState;
@@ -292,17 +292,17 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
   // Listener pour nouveaux messages - utilise les refs pour garantir que les callbacks fonctionnent
   // meme si le socket se connecte apres l'enregistrement du callback
   const onNewMessage = useCallback((callback: (event: MessageSocketEvent) => void) => {
-    console.log('[SOCKET] Enregistrement callback onNewMessage');
+    if (__DEV__) console.log('[SOCKET] Enregistrement callback onNewMessage');
     messageCallbacksRef.current.add(callback);
     return () => {
-      console.log('[SOCKET] Desenregistrement callback onNewMessage');
+      if (__DEV__) console.log('[SOCKET] Desenregistrement callback onNewMessage');
       messageCallbacksRef.current.delete(callback);
     };
   }, []);
 
   // Listener pour nouvelles notifications
   const onNewNotification = useCallback((callback: (event: NotificationSocketEvent) => void) => {
-    console.log('[SOCKET] Enregistrement callback onNewNotification');
+    if (__DEV__) console.log('[SOCKET] Enregistrement callback onNewNotification');
     notificationCallbacksRef.current.add(callback);
     return () => {
       notificationCallbacksRef.current.delete(callback);
@@ -311,7 +311,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
 
   // Listener pour demandes d'amis
   const onDemandeAmi = useCallback((callback: (event: DemandeAmiSocketEvent) => void) => {
-    console.log('[SOCKET] Enregistrement callback onDemandeAmi');
+    if (__DEV__) console.log('[SOCKET] Enregistrement callback onDemandeAmi');
     demandeAmiCallbacksRef.current.add(callback);
     return () => {
       demandeAmiCallbacksRef.current.delete(callback);
@@ -341,16 +341,16 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
   // Rejoindre une conversation (pour recevoir les messages en temps reel)
   const joinConversation = useCallback((conversationId: string) => {
     if (!socketRef.current?.connected) {
-      console.log('[SOCKET] Impossible de rejoindre conversation (socket non connecte):', conversationId);
+      if (__DEV__) console.log('[SOCKET] Impossible de rejoindre conversation (socket non connecte):', conversationId);
       return;
     }
-    console.log('[SOCKET] Rejoindre conversation:', conversationId, 'socket:', socketRef.current.id);
+    if (__DEV__) console.log('[SOCKET] Rejoindre conversation:', conversationId, 'socket:', socketRef.current.id);
     socketRef.current.emit('join_conversation', { conversationId });
   }, []);
 
   // Quitter une conversation
   const leaveConversation = useCallback((conversationId: string) => {
-    console.log('[SOCKET] Quitter conversation:', conversationId);
+    if (__DEV__) console.log('[SOCKET] Quitter conversation:', conversationId);
     socketRef.current?.emit('leave_conversation', { conversationId });
   }, []);
 

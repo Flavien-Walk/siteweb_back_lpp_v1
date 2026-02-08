@@ -322,11 +322,11 @@ export default function ConversationScreen() {
   // === SOCKET: Rejoindre/quitter la conversation ===
   useEffect(() => {
     if (id && socketConnected) {
-      console.log('[CONVERSATION] Joining room:', id);
+      if (__DEV__) console.log('[CONVERSATION] Joining room:', id);
       joinConversation(id);
 
       return () => {
-        console.log('[CONVERSATION] Leaving room:', id);
+        if (__DEV__) console.log('[CONVERSATION] Leaving room:', id);
         leaveConversation(id);
       };
     }
@@ -340,7 +340,7 @@ export default function ConversationScreen() {
       // Vérifier que le message est pour cette conversation
       if (event.conversationId !== id) return;
 
-      console.log('[CONVERSATION] Nouveau message reçu via socket:', event.message._id);
+      if (__DEV__) console.log('[CONVERSATION] Nouveau message reçu via socket:', event.message._id);
 
       // Convertir le format socket vers le format Message
       const newMessage: Message = {
@@ -504,7 +504,12 @@ export default function ConversationScreen() {
         replyTo: replyingTo?._id,
       });
       if (reponse.succes && reponse.data) {
-        setMessages((prev) => [...prev, reponse.data!.message]);
+        // Dedup: socket may have already delivered this message
+        setMessages((prev) => {
+          const exists = prev.some(m => m._id === reponse.data!.message._id);
+          if (exists) return prev;
+          return [...prev, reponse.data!.message];
+        });
         setReplyingTo(null);
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
@@ -700,7 +705,12 @@ export default function ConversationScreen() {
       });
 
       if (reponse.succes && reponse.data) {
-        setMessages((prev) => [...prev, reponse.data!.message]);
+        // Dedup: socket may have already delivered this message
+        setMessages((prev) => {
+          const exists = prev.some(m => m._id === reponse.data!.message._id);
+          if (exists) return prev;
+          return [...prev, reponse.data!.message];
+        });
         setDraftMedia(null);
         setReplyingTo(null);
         setTimeout(() => {
