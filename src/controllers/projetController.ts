@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Projet, { IProjet, IMembreEquipe, IDocumentProjet, IMediaGalerie, IMetrique, ILienProjet } from '../models/Projet.js';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
+import Report from '../models/Report.js';
 import { uploadPublicationMedias, uploadPublicationMedia, isBase64MediaDataUrl } from '../utils/cloudinary.js';
 import AuditLog from '../models/AuditLog.js';
 
@@ -749,7 +750,28 @@ export const supprimerProjet = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    await Projet.findByIdAndDelete(projetId);
+    // RED-03: Cascade delete — clean up all references to this project
+    await Promise.all([
+      Projet.findByIdAndDelete(projetId),
+      // Remove all notifications referencing this project
+      Notification.deleteMany({ 'data.projetId': projetId }),
+      // Remove all reports targeting this project
+      Report.deleteMany({ targetType: 'projet', targetId: projetId }),
+    ]);
+
+    // Audit log
+    try {
+      await AuditLog.create({
+        action: 'content:other',
+        targetType: 'publication',
+        targetId: projetId,
+        performedBy: userId,
+        metadata: { type: 'project_deleted', nom: projet.nom },
+        source: 'api',
+      });
+    } catch (auditErr) {
+      console.error('Erreur audit log suppression projet:', auditErr);
+    }
 
     res.json({ succes: true, message: 'Projet supprimé.' });
   } catch (error) {
