@@ -188,7 +188,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     // Nouveaux messages - update du compteur + appeler les callbacks des composants
     socketRef.current.on('new_message', (event: MessageSocketEvent) => {
       if (__DEV__) console.log('[SOCKET] new_message recu:', event?.conversationId, event?.message?._id);
-      setUnreadMessages((prev) => prev + 1);
+      // Ne pas incrémenter le compteur pour ses propres messages
+      if (event?.message?.expediteur?._id !== userId) {
+        setUnreadMessages((prev) => prev + 1);
+      }
       // Appeler tous les callbacks enregistres
       messageCallbacksRef.current.forEach((callback) => {
         try {
