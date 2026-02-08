@@ -148,37 +148,78 @@ export function initializeSocket(httpServer: HttpServer): Server {
     });
 
     // === EVENT: Rejoindre une conversation ===
-    socket.on('join_conversation', ({ conversationId }: { conversationId: string }) => {
-      console.log(`[SOCKET] ${userId} rejoint conversation: ${conversationId}`);
-      socket.join(`conversation:${conversationId}`);
+    socket.on('join_conversation', async ({ conversationId }: { conversationId: string }) => {
+      try {
+        if (!mongoose.Types.ObjectId.isValid(conversationId)) return;
+
+        // Vérifier que l'utilisateur est participant de la conversation
+        const conversation = await Conversation.findOne({
+          _id: conversationId,
+          participants: new mongoose.Types.ObjectId(userId),
+        }).select('_id');
+
+        if (!conversation) {
+          console.warn(`[SOCKET][SECURITY] ${userId} tentative join conversation non autorisée: ${conversationId}`);
+          return;
+        }
+
+        socket.join(`conversation:${conversationId}`);
+      } catch (error) {
+        console.error('[SOCKET] Erreur join_conversation:', error);
+      }
     });
 
     // === EVENT: Quitter une conversation ===
     socket.on('leave_conversation', ({ conversationId }: { conversationId: string }) => {
-      console.log(`[SOCKET] ${userId} quitte conversation: ${conversationId}`);
       socket.leave(`conversation:${conversationId}`);
     });
 
     // === EVENT: Indicateur de frappe ===
-    socket.on('typing', ({ conversationId, isTyping }: { conversationId: string; isTyping: boolean }) => {
-      // Émettre aux autres membres de la conversation
-      socket.to(`conversation:${conversationId}`).emit('typing', {
-        conversationId,
-        userId,
-        userName: socket.userName,
-        isTyping,
-      });
+    socket.on('typing', async ({ conversationId, isTyping }: { conversationId: string; isTyping: boolean }) => {
+      try {
+        if (!mongoose.Types.ObjectId.isValid(conversationId)) return;
+
+        // Vérifier appartenance avant d'émettre
+        const conversation = await Conversation.findOne({
+          _id: conversationId,
+          participants: new mongoose.Types.ObjectId(userId),
+        }).select('_id');
+
+        if (!conversation) return;
+
+        socket.to(`conversation:${conversationId}`).emit('typing', {
+          conversationId,
+          userId,
+          userName: socket.userName,
+          isTyping,
+        });
+      } catch (error) {
+        console.error('[SOCKET] Erreur typing:', error);
+      }
     });
 
     // === EVENT: Message lu ===
     socket.on('message_read', async ({ conversationId, messageId }: { conversationId: string; messageId: string }) => {
       try {
-        // Mettre à jour le message en base
-        await Message.findByIdAndUpdate(messageId, {
-          $addToSet: { lecteurs: new mongoose.Types.ObjectId(userId) }
-        });
+        if (!mongoose.Types.ObjectId.isValid(conversationId) || !mongoose.Types.ObjectId.isValid(messageId)) return;
 
-        // Notifier les autres (pour mettre à jour les checkmarks)
+        // Vérifier que l'utilisateur est participant de la conversation
+        const conversation = await Conversation.findOne({
+          _id: conversationId,
+          participants: new mongoose.Types.ObjectId(userId),
+        }).select('_id');
+
+        if (!conversation) {
+          console.warn(`[SOCKET][SECURITY] ${userId} tentative message_read non autorisée: ${conversationId}`);
+          return;
+        }
+
+        // Vérifier que le message appartient bien à cette conversation
+        await Message.findOneAndUpdate(
+          { _id: messageId, conversation: conversationId },
+          { $addToSet: { lecteurs: new mongoose.Types.ObjectId(userId) } }
+        );
+
         socket.to(`conversation:${conversationId}`).emit('message_read', {
           conversationId,
           messageId,
