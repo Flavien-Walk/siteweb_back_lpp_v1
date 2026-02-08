@@ -403,24 +403,29 @@ export const modifierProjet = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Champs modifiables (Étapes A-E)
-    // Note: seul le porteur peut modifier l'équipe
+    // Séparer les droits owner vs membre d'équipe
     const isOwner = projet.porteur.equals(userId);
-    const champsModifiables = [
+
+    // Membres d'équipe: uniquement médias, documents, liens, métriques
+    const champsMembre = [
+      'galerie', 'documents', 'liens', 'metriques', 'pitchVideo',
+    ];
+
+    // Owner: tous les champs
+    const champsOwner = [
       // Étape A - Identité
       'nom', 'description', 'pitch', 'logo', 'categorie', 'secteur', 'tags', 'localisation',
       // Étape C - Proposition de valeur
       'probleme', 'solution', 'avantageConcurrentiel', 'cible',
       // Étape D - Traction & business
-      'maturite', 'businessModel', 'metriques', 'objectifFinancement', 'montantLeve', 'progression', 'objectif',
-      // Étape E - Médias & documents & liens
-      'image', 'pitchVideo', 'galerie', 'documents', 'liens',
+      'maturite', 'businessModel', 'objectifFinancement', 'montantLeve', 'progression', 'objectif',
+      // Étape E - Médias (partagé avec membres)
+      ...champsMembre,
+      // Gestion d'équipe (owner uniquement)
+      'image', 'equipe',
     ];
 
-    // Seul le owner peut modifier l'équipe
-    if (isOwner) {
-      champsModifiables.push('equipe');
-    }
+    const champsModifiables = isOwner ? champsOwner : champsMembre;
 
     // Appliquer les modifications
     for (const champ of champsModifiables) {
