@@ -215,6 +215,11 @@ export const creerApp = (): Application => {
   app.use('/api/utilisateurs/:id/demande-ami', limiterWrite);
   app.use('/api/messagerie/envoyer', limiterMessages);
   app.use('/api/messagerie/groupes', limiterWrite);
+  // RED-13: Rate limit on story view tracking
+  app.use('/api/stories/:id/seen', limiterWrite);
+  // RED-08: Rate limit on live join/leave
+  app.use('/api/live/:id/join', limiterWrite);
+  app.use('/api/live/:id/leave', limiterWrite);
 
   // ============================================
   // MIDDLEWARES DE PARSING

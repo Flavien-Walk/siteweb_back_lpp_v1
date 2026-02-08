@@ -460,19 +460,29 @@ export const toggleLikePublication = async (
       try {
         const likeur = await Utilisateur.findById(userId).select('prenom nom avatar');
         if (likeur) {
-          await Notification.create({
+          // RED-14: Dedup — only create notification if one doesn't already exist
+          const existingNotif = await Notification.findOne({
             destinataire: auteurPublicationId,
             type: 'nouveau_like',
-            titre: 'Nouveau like',
-            message: `${likeur.prenom} ${likeur.nom} a aimé votre publication.`,
-            data: {
-              userId: userId.toString(),
-              userNom: likeur.nom,
-              userPrenom: likeur.prenom,
-              userAvatar: likeur.avatar || null,
-              publicationId: id,
-            },
+            'data.userId': userId.toString(),
+            'data.publicationId': id,
           });
+
+          if (!existingNotif) {
+            await Notification.create({
+              destinataire: auteurPublicationId,
+              type: 'nouveau_like',
+              titre: 'Nouveau like',
+              message: `${likeur.prenom} ${likeur.nom} a aimé votre publication.`,
+              data: {
+                userId: userId.toString(),
+                userNom: likeur.nom,
+                userPrenom: likeur.prenom,
+                userAvatar: likeur.avatar || null,
+                publicationId: id,
+              },
+            });
+          }
         }
       } catch (notifError) {
         console.error('Erreur création notification like publication:', notifError);
