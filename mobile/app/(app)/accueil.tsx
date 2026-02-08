@@ -57,7 +57,9 @@ import {
 } from '../../src/services/messagerie';
 import {
   Projet,
+  CategorieProjet,
   getProjets,
+  getProjetsTendance,
   toggleSuivreProjet,
   getMesProjetsEntrepreneur,
   StatsEntrepreneur,
@@ -488,7 +490,10 @@ export default function Accueil() {
 
   // Projets (startups) API - Decouvrir
   const [projets, setProjets] = useState<Projet[]>([]);
+  const [projetsTendance, setProjetsTendance] = useState<Projet[]>([]);
   const [chargementProjets, setChargementProjets] = useState(false);
+  const [categorieFiltre, setCategorieFiltre] = useState<CategorieProjet | 'all'>('all');
+  const [rechercheProjet, setRechercheProjet] = useState('');
 
   // Projets Entrepreneur (mes projets)
   const [mesProjetsEntrepreneur, setMesProjetsEntrepreneur] = useState<Projet[]>([]);
@@ -895,15 +900,27 @@ export default function Accueil() {
     }
   };
 
-  const chargerProjets = async () => {
+  const chargerProjets = async (filtreCategorie?: CategorieProjet | 'all', filtreRecherche?: string) => {
     try {
       setChargementProjets(true);
-      const reponse = await getProjets({ limit: 10 });
-      if (reponse.succes && reponse.data) {
-        setProjets(reponse.data.projets);
+      const cat = filtreCategorie ?? categorieFiltre;
+      const q = filtreRecherche ?? rechercheProjet;
+      const filtres: Record<string, any> = { limit: 20 };
+      if (cat !== 'all') filtres.categorie = cat;
+      if (q.trim()) filtres.q = q.trim();
+
+      const [projetsRes, tendanceRes] = await Promise.all([
+        getProjets(filtres),
+        getProjetsTendance(5),
+      ]);
+      if (projetsRes.succes && projetsRes.data) {
+        setProjets(projetsRes.data.projets);
+      }
+      if (tendanceRes.succes && tendanceRes.data) {
+        setProjetsTendance(tendanceRes.data.projets);
       }
     } catch (error) {
-      console.error('Erreur chargement projets:', error);
+      if (__DEV__) console.error('Erreur chargement projets:', error);
     } finally {
       setChargementProjets(false);
     }
@@ -1711,55 +1728,177 @@ export default function Accueil() {
     </>
   );
 
+  // Categories pour les filtres decouvrir
+  const DECOUVRIR_CATEGORIES: { value: CategorieProjet | 'all'; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
+    { value: 'all', label: 'Tout', icon: 'apps', color: couleurs.primaire },
+    { value: 'tech', label: 'Tech', icon: 'hardware-chip', color: '#3B82F6' },
+    { value: 'food', label: 'Food', icon: 'restaurant', color: '#F97316' },
+    { value: 'sante', label: 'Sante', icon: 'medkit', color: '#EF4444' },
+    { value: 'education', label: 'Education', icon: 'school', color: '#8B5CF6' },
+    { value: 'energie', label: 'Energie', icon: 'flash', color: '#F59E0B' },
+    { value: 'culture', label: 'Culture', icon: 'color-palette', color: '#EC4899' },
+    { value: 'environnement', label: 'Eco', icon: 'leaf', color: '#10B981' },
+  ];
+
+  const MATURITE_LABELS: Record<string, { label: string; color: string }> = {
+    idee: { label: 'Idee', color: '#9CA3AF' },
+    prototype: { label: 'Prototype', color: '#F59E0B' },
+    lancement: { label: 'Lancement', color: '#3B82F6' },
+    croissance: { label: 'Croissance', color: '#10B981' },
+  };
+
+  const handleCategorieChange = (cat: CategorieProjet | 'all') => {
+    setCategorieFiltre(cat);
+    chargerProjets(cat, rechercheProjet);
+  };
+
+  const handleRechercheProjetSubmit = () => {
+    chargerProjets(categorieFiltre, rechercheProjet);
+  };
+
   const renderDecouvrirContent = () => (
     <>
-      <View style={styles.heroSection}>
-        <LinearGradient
-          colors={[couleurs.primaireDark, '#0F172A']}
-          style={styles.heroCard}
-        >
-          <View style={styles.heroBadge}>
-            <Ionicons name="sparkles" size={14} color={couleurs.secondaire} />
-            <Text style={styles.heroBadgeText}>Nouveautes</Text>
-          </View>
-          <Text style={styles.heroTitle}>Decouvrez les startups de demain</Text>
-          <Text style={styles.heroSubtitle}>
-            Explorez les projets innovants, suivez leur actualite et echangez avec les fondateurs.
-          </Text>
-          <View style={styles.heroStats}>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>127</Text>
-              <Text style={styles.heroStatLabel}>Startups</Text>
-            </View>
-            <View style={styles.heroStatDivider} />
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>2.4K</Text>
-              <Text style={styles.heroStatLabel}>Membres</Text>
-            </View>
-            <View style={styles.heroStatDivider} />
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>15</Text>
-              <Text style={styles.heroStatLabel}>Secteurs</Text>
-            </View>
-          </View>
-        </LinearGradient>
+      {/* Barre de recherche projet */}
+      <View style={styles.decouvrirSearchSection}>
+        <View style={styles.decouvrirSearchBar}>
+          <Ionicons name="search" size={16} color={couleurs.texteMuted} />
+          <TextInput
+            style={styles.decouvrirSearchInput}
+            placeholder="Rechercher un projet..."
+            placeholderTextColor={couleurs.texteMuted}
+            value={rechercheProjet}
+            onChangeText={setRechercheProjet}
+            onSubmitEditing={handleRechercheProjetSubmit}
+            returnKeyType="search"
+          />
+          {rechercheProjet.length > 0 && (
+            <Pressable onPress={() => { setRechercheProjet(''); chargerProjets(categorieFiltre, ''); }}>
+              <Ionicons name="close-circle" size={18} color={couleurs.texteMuted} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Projets a decouvrir</Text>
-        </View>
-        {chargementProjets ? (
-          <View style={styles.liveEmptyState}>
-            <Text style={styles.liveEmptyText}>Chargement...</Text>
+      {/* Filtres categories */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.decouvrirCategoriesContainer}
+        style={styles.decouvrirCategoriesScroll}
+      >
+        {DECOUVRIR_CATEGORIES.map((cat) => {
+          const isActive = categorieFiltre === cat.value;
+          return (
+            <Pressable
+              key={cat.value}
+              onPress={() => handleCategorieChange(cat.value)}
+              style={[
+                styles.decouvrirCategorieChip,
+                isActive
+                  ? { backgroundColor: cat.color + '20', borderColor: cat.color }
+                  : { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure },
+              ]}
+            >
+              <Ionicons name={cat.icon} size={14} color={isActive ? cat.color : couleurs.texteMuted} />
+              <Text style={[
+                styles.decouvrirCategorieText,
+                { color: isActive ? cat.color : couleurs.texteSecondaire },
+              ]}>
+                {cat.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* Section Trending */}
+      {projetsTendance.length > 0 && categorieFiltre === 'all' && !rechercheProjet && (
+        <View style={styles.decouvrirSection}>
+          <View style={styles.decouvrirSectionHeader}>
+            <Ionicons name="flame" size={18} color="#F59E0B" />
+            <Text style={styles.decouvrirSectionTitle}>Tendances</Text>
           </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.decouvrirTrendingScroll}>
+            {projetsTendance.map((projet, index) => {
+              const mat = MATURITE_LABELS[projet.maturite] || MATURITE_LABELS.idee;
+              const catConf = DECOUVRIR_CATEGORIES.find(c => c.value === projet.categorie);
+              return (
+                <Pressable
+                  key={projet._id}
+                  style={styles.decouvrirTrendingCard}
+                  onPress={() => router.push({ pathname: '/(app)/projet/[id]', params: { id: projet._id } })}
+                >
+                  {projet.image ? (
+                    <Image source={{ uri: projet.image }} style={styles.decouvrirTrendingImage} />
+                  ) : (
+                    <LinearGradient
+                      colors={[catConf?.color || couleurs.primaire, couleurs.fondSecondaire]}
+                      style={styles.decouvrirTrendingImagePlaceholder}
+                    >
+                      <Ionicons name={catConf?.icon || 'rocket'} size={28} color="rgba(255,255,255,0.6)" />
+                    </LinearGradient>
+                  )}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.85)']}
+                    style={styles.decouvrirTrendingOverlay}
+                  >
+                    <View style={styles.decouvrirTrendingRankBadge}>
+                      <Text style={styles.decouvrirTrendingRankText}>#{index + 1}</Text>
+                    </View>
+                    <Text style={styles.decouvrirTrendingNom} numberOfLines={1}>{projet.nom}</Text>
+                    <Text style={styles.decouvrirTrendingPitch} numberOfLines={1}>{projet.pitch}</Text>
+                    <View style={styles.decouvrirTrendingMeta}>
+                      <View style={[styles.decouvrirMaturiteBadge, { backgroundColor: mat.color + '30' }]}>
+                        <Text style={[styles.decouvrirMaturiteText, { color: mat.color }]}>{mat.label}</Text>
+                      </View>
+                      <View style={styles.decouvrirTrendingStat}>
+                        <Ionicons name="people" size={11} color="rgba(255,255,255,0.7)" />
+                        <Text style={styles.decouvrirTrendingStatText}>{projet.nbFollowers}</Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Section liste des projets */}
+      <View style={styles.decouvrirSection}>
+        <View style={styles.decouvrirSectionHeader}>
+          <Ionicons name="compass" size={18} color={couleurs.primaire} />
+          <Text style={styles.decouvrirSectionTitle}>
+            {categorieFiltre !== 'all'
+              ? DECOUVRIR_CATEGORIES.find(c => c.value === categorieFiltre)?.label || 'Projets'
+              : 'Tous les projets'}
+          </Text>
+          <Text style={styles.decouvrirSectionCount}>{projets.length}</Text>
+        </View>
+
+        {chargementProjets ? (
+          <SkeletonList type="post" count={3} />
         ) : projets.length === 0 ? (
-          <View style={styles.liveEmptyState}>
-            <Ionicons name="rocket-outline" size={48} color={couleurs.texteSecondaire} />
-            <Text style={styles.liveEmptyTitle}>Aucun projet pour le moment</Text>
-            <Text style={styles.liveEmptyText}>
-              Les projets publies par les entrepreneurs apparaitront ici.
+          <View style={styles.decouvrirEmptyState}>
+            <View style={styles.decouvrirEmptyIcon}>
+              <Ionicons name="rocket-outline" size={40} color={couleurs.primaire} />
+            </View>
+            <Text style={styles.decouvrirEmptyTitle}>
+              {rechercheProjet ? `Aucun resultat pour "${rechercheProjet}"` : 'Aucun projet pour le moment'}
             </Text>
+            <Text style={styles.decouvrirEmptySubtitle}>
+              {rechercheProjet
+                ? 'Essayez avec d\'autres mots-cles'
+                : 'Les projets publies par les entrepreneurs apparaitront ici.'}
+            </Text>
+            {rechercheProjet ? (
+              <Pressable
+                style={styles.decouvrirEmptyBtn}
+                onPress={() => { setRechercheProjet(''); chargerProjets(categorieFiltre, ''); }}
+              >
+                <Text style={styles.decouvrirEmptyBtnText}>Effacer la recherche</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           projets.map((projet) => (
@@ -4107,6 +4246,190 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   heroStatDivider: {
     width: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+
+  // ========== DECOUVRIR REFONTE ==========
+  decouvrirSearchSection: {
+    paddingHorizontal: espacements.lg,
+    paddingTop: espacements.sm,
+    paddingBottom: espacements.xs,
+  },
+  decouvrirSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondCard,
+    borderRadius: rayons.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    paddingHorizontal: 14,
+    height: 44,
+    gap: 10,
+  },
+  decouvrirSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: couleurs.texte,
+    paddingVertical: 0,
+  },
+  decouvrirCategoriesScroll: {
+    maxHeight: 50,
+  },
+  decouvrirCategoriesContainer: {
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.sm,
+    gap: 8,
+  },
+  decouvrirCategorieChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+  },
+  decouvrirCategorieText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+  },
+  decouvrirSection: {
+    paddingHorizontal: espacements.lg,
+    paddingTop: espacements.md,
+  },
+  decouvrirSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: espacements.md,
+  },
+  decouvrirSectionTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: couleurs.texte,
+    flex: 1,
+  },
+  decouvrirSectionCount: {
+    fontSize: 13,
+    color: couleurs.texteMuted,
+    fontWeight: '500' as const,
+  },
+  // Trending cards
+  decouvrirTrendingScroll: {
+    gap: 12,
+    paddingBottom: espacements.sm,
+  },
+  decouvrirTrendingCard: {
+    width: SCREEN_WIDTH * 0.52,
+    height: 180,
+    borderRadius: rayons.lg,
+    overflow: 'hidden',
+    position: 'relative' as const,
+  },
+  decouvrirTrendingImage: {
+    width: '100%',
+    height: '100%',
+  },
+  decouvrirTrendingImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  decouvrirTrendingOverlay: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    paddingTop: 40,
+  },
+  decouvrirTrendingRankBadge: {
+    position: 'absolute' as const,
+    top: -28,
+    left: 12,
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  decouvrirTrendingRankText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800' as const,
+  },
+  decouvrirTrendingNom: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700' as const,
+    marginBottom: 2,
+  },
+  decouvrirTrendingPitch: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    marginBottom: 8,
+  },
+  decouvrirTrendingMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  decouvrirMaturiteBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  decouvrirMaturiteText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+  },
+  decouvrirTrendingStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  decouvrirTrendingStatText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+  },
+  // Empty state decouvrir
+  decouvrirEmptyState: {
+    alignItems: 'center',
+    paddingVertical: espacements.xxl,
+    paddingHorizontal: espacements.lg,
+  },
+  decouvrirEmptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: couleurs.primaire + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espacements.md,
+  },
+  decouvrirEmptyTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: couleurs.texte,
+    marginBottom: espacements.xs,
+    textAlign: 'center',
+  },
+  decouvrirEmptySubtitle: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  decouvrirEmptyBtn: {
+    marginTop: espacements.md,
+    backgroundColor: couleurs.primaire,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  decouvrirEmptyBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600' as const,
   },
 
   // Startup Card
