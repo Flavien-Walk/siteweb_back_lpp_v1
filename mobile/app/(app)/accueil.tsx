@@ -547,6 +547,8 @@ export default function Accueil() {
   // Lives
   const [lives, setLives] = useState<LiveAPI[]>([]);
   const [chargementLives, setChargementLives] = useState(false);
+  const [rechercheLive, setRechercheLive] = useState('');
+  const [triLive, setTriLive] = useState<'populaire' | 'recent'>('populaire');
   const [storyIsOwn, setStoryIsOwn] = useState(false);
   const [storyUserId, setStoryUserId] = useState('');
   const [storiesRefreshKey, setStoriesRefreshKey] = useState(0);
@@ -1957,45 +1959,46 @@ export default function Accueil() {
     }
   };
 
-  const renderLiveContent = () => (
-    <View style={styles.section}>
-      {/* Header */}
-      <View style={styles.liveHeader}>
-        <View style={styles.liveHeaderLeft}>
-          <Text style={styles.sectionTitle}>En direct</Text>
-          {lives.length > 0 && (
-            <View style={styles.liveCountBadge}>
-              <Text style={styles.liveCountText}>{lives.length}</Text>
-            </View>
-          )}
-        </View>
-        <Pressable
-          onPress={() => router.push('/live/start')}
-          style={({ pressed }) => [pressed && { opacity: 0.85 }]}
-        >
-          <LinearGradient
-            colors={['#EF4444', '#DC2626']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.goLiveBtn}
-          >
-            <Ionicons name="videocam" size={16} color="#fff" />
-            <Text style={styles.goLiveBtnText}>Go Live</Text>
-          </LinearGradient>
-        </Pressable>
-      </View>
+  const renderLiveContent = () => {
+    // Filtrer les lives par recherche
+    const livesFiltres = rechercheLive.length >= 2
+      ? lives.filter(l =>
+          `${l.host?.prenom} ${l.host?.nom}`.toLowerCase().includes(rechercheLive.toLowerCase()) ||
+          (l.title || '').toLowerCase().includes(rechercheLive.toLowerCase())
+        )
+      : lives;
 
-      {chargementLives ? (
-        <SkeletonList type="post" count={2} />
-      ) : lives.length === 0 ? (
-        <View style={styles.liveEmptyState}>
-          <View style={styles.liveEmptyIconContainer}>
-            <Ionicons name="videocam-outline" size={44} color={couleurs.primaire} />
+    // Trier
+    const livesTries = [...livesFiltres].sort((a, b) =>
+      triLive === 'populaire'
+        ? b.viewerCount - a.viewerCount
+        : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+
+    // Featured = le plus regarde
+    const featuredLive = livesTries[0];
+    const autresLives = livesTries.slice(1);
+
+    // Stats globales
+    const totalViewers = lives.reduce((sum, l) => sum + l.viewerCount, 0);
+    const livesRecents = lives.filter(l => {
+      const diff = Date.now() - new Date(l.startedAt).getTime();
+      return diff < 30 * 60 * 1000; // < 30 min
+    });
+
+    return (
+      <View style={styles.section}>
+        {/* Header */}
+        <View style={styles.liveHeader}>
+          <View style={styles.liveHeaderLeft}>
+            <View style={styles.liveHeaderDot} />
+            <Text style={styles.sectionTitle}>En direct</Text>
+            {lives.length > 0 && (
+              <View style={styles.liveCountBadge}>
+                <Text style={styles.liveCountText}>{lives.length}</Text>
+              </View>
+            )}
           </View>
-          <Text style={styles.liveEmptyTitle}>Aucun live en cours</Text>
-          <Text style={styles.liveEmptyText}>
-            Soyez le premier a partager un moment en direct avec la communaute !
-          </Text>
           <Pressable
             onPress={() => router.push('/live/start')}
             style={({ pressed }) => [pressed && { opacity: 0.85 }]}
@@ -2004,57 +2007,197 @@ export default function Accueil() {
               colors={['#EF4444', '#DC2626']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.liveStartBtn}
+              style={styles.goLiveBtn}
             >
-              <Ionicons name="videocam" size={18} color="#fff" />
-              <Text style={styles.liveStartBtnText}>Demarrer un live</Text>
+              <Ionicons name="videocam" size={16} color="#fff" />
+              <Text style={styles.goLiveBtnText}>Go Live</Text>
             </LinearGradient>
           </Pressable>
         </View>
-      ) : (
-        <View style={styles.livesContainer}>
-          {/* Featured live - le premier */}
-          <LiveCard
-            live={lives[0]}
-            onPress={() => rejoindreUnLive(lives[0])}
-            variant="featured"
-          />
 
-          {/* Autres lives en scroll horizontal */}
-          {lives.length > 1 && (
-            <View style={styles.moreLivesSection}>
-              <Text style={styles.moreLivesTitle}>Autres lives</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.moreLivesScroll}
+        {chargementLives ? (
+          <SkeletonList type="post" count={3} />
+        ) : lives.length === 0 ? (
+          /* ============ EMPTY STATE ============ */
+          <View style={styles.liveEmptyState}>
+            <LinearGradient
+              colors={['#312E81', '#1E1B4B']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.liveEmptyGradient}
+            >
+              <View style={styles.liveEmptyIconContainer}>
+                <Ionicons name="videocam-outline" size={40} color="#818CF8" />
+              </View>
+              <Text style={styles.liveEmptyTitle}>Aucun live en cours</Text>
+              <Text style={styles.liveEmptyText}>
+                Soyez le premier a partager un moment en direct avec la communaute !
+              </Text>
+              <Pressable
+                onPress={() => router.push('/live/start')}
+                style={({ pressed }) => [pressed && { opacity: 0.85 }]}
               >
-                {lives.slice(1).map((live) => (
-                  <View key={live._id} style={{ marginRight: espacements.md }}>
-                    <LiveCard
-                      live={live}
-                      onPress={() => rejoindreUnLive(live)}
-                      variant="card"
-                    />
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-      )}
+                <LinearGradient
+                  colors={['#EF4444', '#DC2626']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.liveStartBtn}
+                >
+                  <Ionicons name="videocam" size={18} color="#fff" />
+                  <Text style={styles.liveStartBtnText}>Lancer mon live</Text>
+                </LinearGradient>
+              </Pressable>
+            </LinearGradient>
 
-      {/* Tip */}
-      <View style={styles.liveInfo}>
-        <View style={styles.liveInfoIconWrap}>
-          <Ionicons name="sparkles" size={14} color={couleurs.primaire} />
+            {/* Features du live */}
+            <View style={styles.liveFeatures}>
+              <View style={styles.liveFeatureItem}>
+                <View style={[styles.liveFeatureIcon, { backgroundColor: '#EF444420' }]}>
+                  <Ionicons name="radio-outline" size={18} color="#EF4444" />
+                </View>
+                <Text style={styles.liveFeatureTitle}>Direct</Text>
+                <Text style={styles.liveFeatureDesc}>Stream en temps reel</Text>
+              </View>
+              <View style={styles.liveFeatureItem}>
+                <View style={[styles.liveFeatureIcon, { backgroundColor: `${couleurs.primaire}20` }]}>
+                  <Ionicons name="people-outline" size={18} color={couleurs.primaire} />
+                </View>
+                <Text style={styles.liveFeatureTitle}>Audience</Text>
+                <Text style={styles.liveFeatureDesc}>Viewers en direct</Text>
+              </View>
+              <View style={styles.liveFeatureItem}>
+                <View style={[styles.liveFeatureIcon, { backgroundColor: '#10B98120' }]}>
+                  <Ionicons name="chatbubbles-outline" size={18} color="#10B981" />
+                </View>
+                <Text style={styles.liveFeatureTitle}>Chat</Text>
+                <Text style={styles.liveFeatureDesc}>Interactions live</Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          /* ============ LIVES ACTIFS ============ */
+          <View style={styles.livesContainer}>
+            {/* Stats ribbon */}
+            <View style={styles.liveStatsRibbon}>
+              <View style={styles.liveStatItem}>
+                <Ionicons name="eye" size={14} color={couleurs.primaire} />
+                <Text style={styles.liveStatValue}>{formatViewerCount(totalViewers)}</Text>
+                <Text style={styles.liveStatLabel}>viewers</Text>
+              </View>
+              <View style={styles.liveStatDivider} />
+              <View style={styles.liveStatItem}>
+                <Ionicons name="radio" size={14} color="#EF4444" />
+                <Text style={styles.liveStatValue}>{lives.length}</Text>
+                <Text style={styles.liveStatLabel}>{lives.length > 1 ? 'lives' : 'live'}</Text>
+              </View>
+              {livesRecents.length > 0 && (
+                <>
+                  <View style={styles.liveStatDivider} />
+                  <View style={styles.liveStatItem}>
+                    <Ionicons name="flash" size={14} color="#F59E0B" />
+                    <Text style={styles.liveStatValue}>{livesRecents.length}</Text>
+                    <Text style={styles.liveStatLabel}>nouveau{livesRecents.length > 1 ? 'x' : ''}</Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* Search bar (si 2+ lives) */}
+            {lives.length >= 2 && (
+              <View style={styles.liveSearchBar}>
+                <Ionicons name="search" size={16} color={couleurs.texteSecondaire} />
+                <TextInput
+                  style={styles.liveSearchInput}
+                  placeholder="Rechercher un live..."
+                  placeholderTextColor={couleurs.texteMuted}
+                  value={rechercheLive}
+                  onChangeText={setRechercheLive}
+                  returnKeyType="search"
+                />
+                {rechercheLive.length > 0 && (
+                  <Pressable onPress={() => setRechercheLive('')}>
+                    <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            {/* Sort chips */}
+            <View style={styles.liveSortRow}>
+              <Text style={styles.liveSortLabel}>Trier par</Text>
+              <Pressable
+                style={[styles.liveSortChip, triLive === 'populaire' && styles.liveSortChipActive]}
+                onPress={() => setTriLive('populaire')}
+              >
+                <Ionicons name="flame" size={13} color={triLive === 'populaire' ? '#fff' : couleurs.texteSecondaire} />
+                <Text style={[styles.liveSortChipText, triLive === 'populaire' && styles.liveSortChipTextActive]}>Populaires</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.liveSortChip, triLive === 'recent' && styles.liveSortChipActive]}
+                onPress={() => setTriLive('recent')}
+              >
+                <Ionicons name="time" size={13} color={triLive === 'recent' ? '#fff' : couleurs.texteSecondaire} />
+                <Text style={[styles.liveSortChipText, triLive === 'recent' && styles.liveSortChipTextActive]}>Recents</Text>
+              </Pressable>
+            </View>
+
+            {/* Resultats filtres */}
+            {livesFiltres.length === 0 && rechercheLive.length >= 2 ? (
+              <View style={styles.liveNoResults}>
+                <Ionicons name="search-outline" size={32} color={couleurs.texteSecondaire} />
+                <Text style={styles.liveNoResultsText}>Aucun live ne correspond a "{rechercheLive}"</Text>
+              </View>
+            ) : (
+              <>
+                {/* Featured live */}
+                {featuredLive && (
+                  <LiveCard
+                    live={featuredLive}
+                    onPress={() => rejoindreUnLive(featuredLive)}
+                    variant="featured"
+                    index={0}
+                  />
+                )}
+
+                {/* Grille des autres lives (Twitch-like) */}
+                {autresLives.length > 0 && (
+                  <View style={styles.liveGridSection}>
+                    <Text style={styles.liveGridTitle}>
+                      {triLive === 'populaire' ? 'Autres lives populaires' : 'Autres lives recents'}
+                    </Text>
+                    <View style={styles.liveGrid}>
+                      {autresLives.map((live, i) => (
+                        <View key={live._id} style={styles.liveGridItem}>
+                          <LiveCard
+                            live={live}
+                            onPress={() => rejoindreUnLive(live)}
+                            variant="grid"
+                            index={i + 1}
+                          />
+                        </View>
+                      ))}
+                      {/* Filler pour grille paire */}
+                      {autresLives.length % 2 !== 0 && <View style={styles.liveGridItem} />}
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Tip */}
+        <View style={styles.liveInfo}>
+          <View style={styles.liveInfoIconWrap}>
+            <Ionicons name="sparkles" size={14} color={couleurs.primaire} />
+          </View>
+          <Text style={styles.liveInfoText}>
+            Lancez un live pour partager un moment en direct. Vos followers seront notifies automatiquement !
+          </Text>
         </View>
-        <Text style={styles.liveInfoText}>
-          Lancez un live pour partager un moment en direct. Vos followers seront notifies !
-        </Text>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderMessagesContent = () => {
     const conversationsFiltrees = conversations.filter(conv =>
@@ -4693,13 +4836,20 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     alignItems: 'center',
     gap: espacements.sm,
   },
+  liveHeaderDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#EF4444',
+  },
   liveCountBadge: {
     backgroundColor: '#EF4444',
-    width: 22,
+    minWidth: 22,
     height: 22,
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 6,
   },
   liveCountText: {
     color: '#fff',
@@ -4719,20 +4869,204 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  livesContainer: {
-    gap: espacements.lg,
+  // Stats ribbon
+  liveStatsRibbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    gap: espacements.md,
   },
-  moreLivesSection: {
+  liveStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  liveStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: couleurs.texte,
+  },
+  liveStatLabel: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+  },
+  liveStatDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: couleurs.bordure,
+  },
+  // Search
+  liveSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    paddingHorizontal: espacements.md,
+    paddingVertical: espacements.sm,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
     gap: espacements.sm,
   },
-  moreLivesTitle: {
+  liveSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: couleurs.texte,
+    paddingVertical: 4,
+  },
+  // Sort chips
+  liveSortRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+  },
+  liveSortLabel: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginRight: espacements.xs,
+  },
+  liveSortChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: couleurs.fondSecondaire,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  liveSortChipActive: {
+    backgroundColor: couleurs.primaire,
+    borderColor: couleurs.primaire,
+  },
+  liveSortChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+  },
+  liveSortChipTextActive: {
+    color: '#fff',
+  },
+  // No results
+  liveNoResults: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.xxl,
+    gap: espacements.md,
+  },
+  liveNoResultsText: {
+    fontSize: 14,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+  },
+  // Grid
+  liveGridSection: {
+    gap: espacements.sm,
+  },
+  liveGridTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: couleurs.texte,
   },
-  moreLivesScroll: {
-    paddingVertical: espacements.xs,
+  liveGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espacements.sm,
   },
+  liveGridItem: {
+    width: (SCREEN_WIDTH - espacements.lg * 2 - espacements.sm) / 2,
+  },
+  // Container
+  livesContainer: {
+    gap: espacements.md,
+  },
+  // Empty state
+  liveEmptyState: {
+    gap: espacements.lg,
+  },
+  liveEmptyGradient: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: espacements.xxl,
+    paddingHorizontal: espacements.lg,
+    gap: espacements.md,
+    borderRadius: rayons.lg,
+  },
+  liveEmptyIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(129, 140, 248, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espacements.xs,
+  },
+  liveEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  liveEmptyText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: espacements.sm,
+  },
+  liveStartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: espacements.xs,
+  },
+  liveStartBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  // Features cards
+  liveFeatures: {
+    flexDirection: 'row',
+    gap: espacements.sm,
+  },
+  liveFeatureItem: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.lg,
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.sm,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    gap: 6,
+  },
+  liveFeatureIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveFeatureTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  liveFeatureDesc: {
+    fontSize: 10,
+    color: couleurs.texteSecondaire,
+    textAlign: 'center',
+  },
+  // Info tip
   liveInfo: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -4758,52 +5092,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 12,
     color: couleurs.texteSecondaire,
     lineHeight: 18,
-  },
-  liveEmptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: espacements.xxl,
-    paddingHorizontal: espacements.lg,
-    gap: espacements.md,
-    backgroundColor: couleurs.fondSecondaire,
-    borderRadius: rayons.lg,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-  },
-  liveEmptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: `${couleurs.primaire}15`,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: espacements.xs,
-  },
-  liveEmptyTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: couleurs.texte,
-  },
-  liveEmptyText: {
-    fontSize: 14,
-    color: couleurs.texteSecondaire,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: espacements.md,
-  },
-  liveStartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espacements.sm,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    marginTop: espacements.xs,
-  },
-  liveStartBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
   },
 
   // Messages
