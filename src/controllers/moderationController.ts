@@ -13,6 +13,11 @@ import { Message, Conversation } from '../models/Message.js';
 import Live from '../models/Live.js';
 import Evenement from '../models/Evenement.js';
 import { auditLogger } from '../utils/auditLogger.js';
+
+// Escape special regex characters to prevent ReDoS attacks
+const escapeRegex = (str: string): string => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 import { createSanctionNotification, createReverseSanctionNotification } from '../utils/sanctionNotification.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
@@ -1199,10 +1204,10 @@ export const listUsers = async (
       filter.role = role;
     }
 
-    // Recherche par nom/email
+    // Recherche par nom/email (escaped to prevent ReDoS)
     const search = req.query.search as string;
     if (search && search.length >= 2) {
-      const searchRegex = new RegExp(search, 'i');
+      const searchRegex = new RegExp(escapeRegex(search.slice(0, 100)), 'i');
       filter.$or = [
         { prenom: searchRegex },
         { nom: searchRegex },
@@ -2410,7 +2415,7 @@ export const listPublications = async (
     // Recherche texte
     const search = req.query.search as string;
     if (search && search.length >= 2) {
-      filter.contenu = new RegExp(search, 'i');
+      filter.contenu = new RegExp(escapeRegex(search.slice(0, 100)), 'i');
     }
 
     // Filtre par dates
@@ -2541,7 +2546,7 @@ export const listCommentaires = async (
     // Recherche texte
     const search = req.query.search as string;
     if (search && search.length >= 2) {
-      filter.contenu = new RegExp(search, 'i');
+      filter.contenu = new RegExp(escapeRegex(search.slice(0, 100)), 'i');
     }
 
     // Filtre par dates
@@ -2628,7 +2633,7 @@ export const listProjets = async (
     // Recherche texte
     const search = req.query.search as string;
     if (search && search.length >= 2) {
-      const searchRegex = new RegExp(search, 'i');
+      const searchRegex = new RegExp(escapeRegex(search.slice(0, 100)), 'i');
       filter.$or = [
         { nom: searchRegex },
         { description: searchRegex },
