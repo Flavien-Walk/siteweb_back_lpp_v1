@@ -71,7 +71,7 @@ export default function CommentsOverlay({
   // Charger les commentaires quand visible et postId change
   useEffect(() => {
     if (visible && postId) {
-      console.log('[COMMENTS_OVERLAY] Loading comments for postId=', postId);
+      if (__DEV__) console.log('[COMMENTS_OVERLAY] Loading comments for postId=', postId);
       chargerCommentaires();
     }
   }, [visible, postId]);
@@ -80,7 +80,7 @@ export default function CommentsOverlay({
   useEffect(() => {
     if (visible) {
       openedAtRef.current = Date.now();
-      console.log('[COMMENTS_OVERLAY] visible=true, lock engaged');
+      if (__DEV__) console.log('[COMMENTS_OVERLAY] visible=true, lock engaged');
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -208,10 +208,10 @@ export default function CommentsOverlay({
     // State lock : empêcher fermeture accidentelle pendant LOCK_DURATION après ouverture
     const timeSinceOpen = Date.now() - openedAtRef.current;
     if (timeSinceOpen < LOCK_DURATION) {
-      console.log('[COMMENTS_OVERLAY] Close blocked (lock active, wait', LOCK_DURATION - timeSinceOpen, 'ms)');
+      if (__DEV__) console.log('[COMMENTS_OVERLAY] Close blocked (lock active, wait', LOCK_DURATION - timeSinceOpen, 'ms)');
       return;
     }
-    console.log('[COMMENTS_OVERLAY] closing');
+    if (__DEV__) console.log('[COMMENTS_OVERLAY] closing');
     Keyboard.dismiss();
     setReplyingTo(null);
     onClose();
@@ -375,6 +375,10 @@ export default function CommentsOverlay({
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              windowSize={7}
+              initialNumToRender={10}
+              maxToRenderPerBatch={5}
+              removeClippedSubviews={Platform.OS === 'android'}
             />
           )}
 

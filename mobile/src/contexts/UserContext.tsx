@@ -86,7 +86,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       // Si erreur avec code ACCOUNT_BANNED/ACCOUNT_SUSPENDED,
       // le callback sera declenche automatiquement par api.ts
     } catch (error) {
-      console.log('[UserContext] Erreur revalidation:', error);
+      if (__DEV__) console.log('[UserContext] Erreur revalidation:', error);
     }
   }, []);
 
@@ -95,11 +95,11 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     // Ne pas demarrer si deja actif
     if (heartbeatTimer.current) return;
 
-    console.log('[UserContext] Demarrage heartbeat (90s)');
+    if (__DEV__) console.log('[UserContext] Demarrage heartbeat (90s)');
     heartbeatTimer.current = setInterval(() => {
       // Seulement si l'app est au premier plan
       if (appState.current === 'active') {
-        console.log('[UserContext] Heartbeat - verification statut...');
+        if (__DEV__) console.log('[UserContext] Heartbeat - verification statut...');
         revalidateUserStatus();
       }
     }, HEARTBEAT_INTERVAL);
@@ -108,7 +108,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   // Fonction pour arreter le heartbeat
   const stopHeartbeat = useCallback(() => {
     if (heartbeatTimer.current) {
-      console.log('[UserContext] Arret heartbeat');
+      if (__DEV__) console.log('[UserContext] Arret heartbeat');
       clearInterval(heartbeatTimer.current);
       heartbeatTimer.current = null;
     }
@@ -119,7 +119,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   // L'utilisateur reste "identifie" mais bloque par accountRestriction
   useEffect(() => {
     setAccountRestrictionCallback((info: AccountRestrictionInfo) => {
-      console.log('[UserContext] Compte restreint:', info.type);
+      if (__DEV__) console.log('[UserContext] Compte restreint:', info.type);
       setAccountRestriction(info);
       // NE PAS faire setUtilisateur(null) - on garde les infos pour AccountRestrictedScreen
       // NE PAS supprimer le token - permet le retry apres unban/unsuspend
@@ -135,7 +135,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       // Quand l'app revient au premier plan
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[UserContext] App revenue au foreground, revalidation du statut...');
+        if (__DEV__) console.log('[UserContext] App revenue au foreground, revalidation du statut...');
         revalidateUserStatus();
       }
       appState.current = nextAppState;
@@ -167,18 +167,18 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [utilisateur, accountRestriction, startHeartbeat, stopHeartbeat]);
 
   const loadUser = async () => {
-    console.log('[UserContext:loadUser] ======= DEBUT =======');
-    console.log('[UserContext:loadUser] Platform:', require('react-native').Platform.OS);
+    if (__DEV__) console.log('[UserContext:loadUser] ======= DEBUT =======');
+    if (__DEV__) console.log('[UserContext:loadUser] Platform:', require('react-native').Platform.OS);
     try {
       // 1. HYDRATER LE TOKEN D'ABORD (critique pour eviter race conditions)
-      console.log('[UserContext:loadUser] Appel hydrateToken()...');
+      if (__DEV__) console.log('[UserContext:loadUser] Appel hydrateToken()...');
       const token = await hydrateToken();
       setTokenReady(true);
-      console.log('[UserContext:loadUser] Token hydrate:', token ? `present (${token.substring(0, 20)}...)` : 'ABSENT');
+      if (__DEV__) console.log('[UserContext:loadUser] Token hydrate:', token ? 'present' : 'ABSENT');
 
       // 2. Charger l'utilisateur depuis le stockage local
       const localUser = await getUtilisateurLocal();
-      console.log('[UserContext:loadUser] User local:', localUser ? localUser.email : 'null');
+      if (__DEV__) console.log('[UserContext:loadUser] User local:', localUser ? localUser.email : 'null');
 
       if (localUser) {
         setUtilisateur(localUser);
@@ -186,52 +186,52 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         // 3. Rafraichir depuis l'API si on a un token
         if (token) {
           try {
-            console.log('[UserContext:loadUser] Appel getMoi()...');
+            if (__DEV__) console.log('[UserContext:loadUser] Appel getMoi()...');
             const response = await getMoi();
             if (response.succes && response.data) {
               setUtilisateur(response.data.utilisateur);
               await setUtilisateurLocal(response.data.utilisateur);
               // Si on arrive ici, le compte n'est plus restreint
               setAccountRestriction(null);
-              console.log('[UserContext:loadUser] User rafraichi OK');
+              if (__DEV__) console.log('[UserContext:loadUser] User rafraichi OK');
             } else {
-              console.log('[UserContext:loadUser] getMoi() echec:', response.message);
+              if (__DEV__) console.log('[UserContext:loadUser] getMoi() echec:', response.message);
             }
             // Si erreur 403 banni/suspendu, le callback sera declenche
           } catch (apiError) {
             // Garder les donnees locales si l'API echoue (erreur reseau)
-            console.log('[UserContext:loadUser] Erreur rafraichissement:', apiError);
+            if (__DEV__) console.log('[UserContext:loadUser] Erreur rafraichissement:', apiError);
           }
         }
       } else if (token) {
         // Pas de user local mais token existe - recuperer depuis l'API
         // Cas: donnees locales corrompues/effacees mais token valide
-        console.log('[UserContext:loadUser] Pas de user local mais token present, tentative API...');
+        if (__DEV__) console.log('[UserContext:loadUser] Pas de user local mais token present, tentative API...');
         try {
           const response = await getMoi();
           if (response.succes && response.data) {
             setUtilisateur(response.data.utilisateur);
             await setUtilisateurLocal(response.data.utilisateur);
             setAccountRestriction(null);
-            console.log('[UserContext:loadUser] User recupere depuis API OK');
+            if (__DEV__) console.log('[UserContext:loadUser] User recupere depuis API OK');
           } else {
-            console.log('[UserContext:loadUser] getMoi() echec:', response.message);
+            if (__DEV__) console.log('[UserContext:loadUser] getMoi() echec:', response.message);
           }
         } catch (apiError) {
-          console.log('[UserContext:loadUser] Erreur recuperation user:', apiError);
+          if (__DEV__) console.log('[UserContext:loadUser] Erreur recuperation user:', apiError);
         }
       } else {
-        console.log('[UserContext:loadUser] Pas de user local, pas de token -> REDIRECTION LOGIN ATTENDUE');
+        if (__DEV__) console.log('[UserContext:loadUser] Pas de user local, pas de token -> REDIRECTION LOGIN ATTENDUE');
       }
     } catch (error) {
-      console.log('[UserContext:loadUser] ERREUR FATALE:', error);
+      if (__DEV__) console.log('[UserContext:loadUser] ERREUR FATALE:', error);
       setTokenReady(true); // Marquer comme ready meme en cas d'erreur
     } finally {
       setIsLoading(false);
       setUserHydrated(true);
-      console.log('[UserContext:loadUser] ======= TERMINE =======');
-      console.log('[UserContext:loadUser] isLoading=false, userHydrated=true');
-      console.log('[UserContext:loadUser] utilisateur:', utilisateur ? utilisateur.email : 'NULL');
+      if (__DEV__) console.log('[UserContext:loadUser] ======= TERMINE =======');
+      if (__DEV__) console.log('[UserContext:loadUser] isLoading=false, userHydrated=true');
+      if (__DEV__) console.log('[UserContext:loadUser] utilisateur:', utilisateur ? utilisateur.email : 'NULL');
     }
   };
 
@@ -268,34 +268,34 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
    * @returns true si la restriction est levee, false sinon
    */
   const retryRestriction = useCallback(async (): Promise<boolean> => {
-    console.log('[RESTRICTION_REFRESH] retryRestriction() called');
-    console.log('[RESTRICTION_REFRESH] current state - utilisateur:', utilisateur?.email || 'null', 'accountRestriction:', accountRestriction?.type || 'null');
+    if (__DEV__) console.log('[RESTRICTION_REFRESH] retryRestriction() called');
+    if (__DEV__) console.log('[RESTRICTION_REFRESH] current state - utilisateur:', utilisateur?.email || 'null', 'accountRestriction:', accountRestriction?.type || 'null');
     try {
-      console.log('[RESTRICTION_REFRESH] calling /auth/moi...');
+      if (__DEV__) console.log('[RESTRICTION_REFRESH] calling /auth/moi...');
       const response = await getMoi();
-      console.log('[RESTRICTION_REFRESH] /auth/moi status=', response.succes ? '200 OK' : 'FAIL', 'payload=', response.succes ? 'user data' : response.message);
+      if (__DEV__) console.log('[RESTRICTION_REFRESH] /auth/moi status=', response.succes ? '200 OK' : 'FAIL', 'payload=', response.succes ? 'user data' : response.message);
 
       if (response.succes && response.data) {
         // Succes = compte n'est plus restreint
-        console.log('[RESTRICTION_REFRESH] Restriction levee! Setting user and clearing restriction...');
+        if (__DEV__) console.log('[RESTRICTION_REFRESH] Restriction levee! Setting user and clearing restriction...');
         setUtilisateur(response.data.utilisateur);
         await setUtilisateurLocal(response.data.utilisateur);
         setAccountRestriction(null);
-        console.log('[RESTRICTION_REFRESH] State updated - returning true');
+        if (__DEV__) console.log('[RESTRICTION_REFRESH] State updated - returning true');
         return true;
       }
 
       // Verifier si c'est une erreur 403 (encore restreint)
       if (response.erreurs?.code === 'ACCOUNT_BANNED' || response.erreurs?.code === 'ACCOUNT_SUSPENDED') {
-        console.log('[RESTRICTION_REFRESH] Still restricted:', response.erreurs.code);
+        if (__DEV__) console.log('[RESTRICTION_REFRESH] Still restricted:', response.erreurs.code);
         return false;
       }
 
       // Echec mais pas 403 = erreur reseau ou autre
-      console.log('[RESTRICTION_REFRESH] Retry failed (not 403):', response.message);
+      if (__DEV__) console.log('[RESTRICTION_REFRESH] Retry failed (not 403):', response.message);
       return false;
     } catch (error) {
-      console.log('[RESTRICTION_REFRESH] Retry error:', error);
+      if (__DEV__) console.log('[RESTRICTION_REFRESH] Retry error:', error);
       return false;
     }
   }, [utilisateur, accountRestriction]);
@@ -306,8 +306,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
    * Supprime le token et redirige vers login
    */
   const logoutFromRestriction = useCallback(async (): Promise<void> => {
-    console.log('[TOKEN] removeToken called from logoutFromRestriction (voluntary logout)');
-    console.log('[NAV] redirect login because user clicked "Se deconnecter"');
+    if (__DEV__) console.log('[TOKEN] removeToken called from logoutFromRestriction (voluntary logout)');
+    if (__DEV__) console.log('[NAV] redirect login because user clicked "Se deconnecter"');
     await removeToken();
     setUtilisateur(null);
     setAccountRestriction(null);
