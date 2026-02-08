@@ -190,17 +190,17 @@ export const envoyerDemandeAmi = async (
 
     // Vérifier si l'autre a déjà envoyé une demande (accepter automatiquement)
     if (utilisateur.demandesAmisRecues?.some((d) => d.toString() === cibleId)) {
-      // Accepter la demande existante
-      utilisateur.amis = [...(utilisateur.amis || []), cible._id];
-      utilisateur.demandesAmisRecues = utilisateur.demandesAmisRecues?.filter(
-        (d) => d.toString() !== cibleId
-      );
-      cible.amis = [...(cible.amis || []), userId];
-      cible.demandesAmisEnvoyees = cible.demandesAmisEnvoyees?.filter(
-        (d) => d.toString() !== userId.toString()
-      );
-
-      await Promise.all([utilisateur.save(), cible.save()]);
+      // RED-02: Atomic accept — $addToSet for amis, $pull for demandes
+      await Promise.all([
+        Utilisateur.findByIdAndUpdate(userId, {
+          $addToSet: { amis: cible._id },
+          $pull: { demandesAmisRecues: cible._id },
+        }),
+        Utilisateur.findByIdAndUpdate(cibleId, {
+          $addToSet: { amis: userId },
+          $pull: { demandesAmisEnvoyees: userId },
+        }),
+      ]);
 
       // Supprimer la notification de demande d'ami existante
       await Notification.deleteMany({
@@ -228,11 +228,15 @@ export const envoyerDemandeAmi = async (
       return;
     }
 
-    // Envoyer la demande
-    utilisateur.demandesAmisEnvoyees = [...(utilisateur.demandesAmisEnvoyees || []), cible._id];
-    cible.demandesAmisRecues = [...(cible.demandesAmisRecues || []), userId];
-
-    await Promise.all([utilisateur.save(), cible.save()]);
+    // RED-02: Atomic send — $addToSet prevents duplicates under concurrency
+    await Promise.all([
+      Utilisateur.findByIdAndUpdate(userId, {
+        $addToSet: { demandesAmisEnvoyees: cible._id },
+      }),
+      Utilisateur.findByIdAndUpdate(cibleId, {
+        $addToSet: { demandesAmisRecues: userId },
+      }),
+    ]);
 
     // Vérifier si une notification de demande d'ami existe déjà (éviter les doublons)
     const notificationExistante = await Notification.findOne({
@@ -355,23 +359,27 @@ export const accepterDemandeAmi = async (
       return;
     }
 
-    // Vérifier si la demande existe
-    if (!utilisateur.demandesAmisRecues?.some((d) => d.toString() === demandeurId)) {
+    // RED-02: Atomic accept with condition — prevents race with simultaneous reject
+    // Only proceed if the request still exists (atomic pull + check)
+    const pullResult = await Utilisateur.findOneAndUpdate(
+      { _id: userId, demandesAmisRecues: demandeur._id },
+      {
+        $addToSet: { amis: demandeur._id },
+        $pull: { demandesAmisRecues: demandeur._id },
+      },
+      { new: true }
+    );
+
+    if (!pullResult) {
       res.status(400).json({ succes: false, message: 'Aucune demande de cet utilisateur.' });
       return;
     }
 
-    // Ajouter aux amis
-    utilisateur.amis = [...(utilisateur.amis || []), demandeur._id];
-    utilisateur.demandesAmisRecues = utilisateur.demandesAmisRecues?.filter(
-      (d) => d.toString() !== demandeurId
-    );
-    demandeur.amis = [...(demandeur.amis || []), userId];
-    demandeur.demandesAmisEnvoyees = demandeur.demandesAmisEnvoyees?.filter(
-      (d) => d.toString() !== userId.toString()
-    );
-
-    await Promise.all([utilisateur.save(), demandeur.save()]);
+    // Atomic update on the other side too
+    await Utilisateur.findByIdAndUpdate(demandeurId, {
+      $addToSet: { amis: userId },
+      $pull: { demandesAmisEnvoyees: userId },
+    });
 
     // Supprimer la notification de demande d'ami correspondante
     await Notification.deleteMany({
@@ -441,15 +449,15 @@ export const refuserDemandeAmi = async (
       return;
     }
 
-    // Retirer la demande
-    utilisateur.demandesAmisRecues = utilisateur.demandesAmisRecues?.filter(
-      (d) => d.toString() !== demandeurId
-    );
-    demandeur.demandesAmisEnvoyees = demandeur.demandesAmisEnvoyees?.filter(
-      (d) => d.toString() !== userId.toString()
-    );
-
-    await Promise.all([utilisateur.save(), demandeur.save()]);
+    // RED-02: Atomic reject — $pull prevents race with simultaneous accept
+    await Promise.all([
+      Utilisateur.findByIdAndUpdate(userId, {
+        $pull: { demandesAmisRecues: new mongoose.Types.ObjectId(demandeurId) },
+      }),
+      Utilisateur.findByIdAndUpdate(demandeurId, {
+        $pull: { demandesAmisEnvoyees: userId },
+      }),
+    ]);
 
     // Supprimer la notification de demande d'ami correspondante
     await Notification.deleteMany({
