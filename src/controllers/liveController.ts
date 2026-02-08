@@ -21,6 +21,10 @@ const schemaStartLive = z.object({
   title: z.string().max(100).optional(),
 });
 
+// RED-08: Track unique viewers per live to prevent count manipulation
+// Map<liveId, Set<userId>>
+const activeViewersPerLive = new Map<string, Set<string>>();
+
 // Schema de validation pour demander un token
 const schemaGetToken = z.object({
   channelName: z.string().min(1, 'Le nom du canal est requis'),
@@ -115,6 +119,9 @@ export const endLive = async (
     live.status = 'ended';
     live.endedAt = new Date();
     await live.save();
+
+    // RED-08: Cleanup viewer tracking for this live
+    activeViewersPerLive.delete(live._id.toString());
 
     res.json({
       succes: true,
@@ -231,10 +238,29 @@ export const joinLive = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+    const userId = req.utilisateur?._id?.toString() || req.ip || 'anonymous';
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new ErreurAPI('ID de live invalide.', 400);
     }
+
+    // RED-08: Check if user already joined this live (dedup)
+    if (!activeViewersPerLive.has(id)) {
+      activeViewersPerLive.set(id, new Set());
+    }
+    const viewers = activeViewersPerLive.get(id)!;
+
+    if (viewers.has(userId)) {
+      // Already joined — return current count without incrementing
+      const live = await Live.findOne({ _id: id, status: 'live' }).select('viewerCount');
+      if (!live) {
+        throw new ErreurAPI('Live non trouvé ou terminé.', 404);
+      }
+      res.json({ succes: true, data: { viewerCount: live.viewerCount } });
+      return;
+    }
+
+    viewers.add(userId);
 
     const live = await Live.findOneAndUpdate(
       { _id: id, status: 'live' },
@@ -243,6 +269,7 @@ export const joinLive = async (
     );
 
     if (!live) {
+      viewers.delete(userId); // Rollback
       throw new ErreurAPI('Live non trouvé ou terminé.', 404);
     }
 
@@ -274,9 +301,28 @@ export const leaveLive = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+    const userId = req.utilisateur?._id?.toString() || req.ip || 'anonymous';
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new ErreurAPI('ID de live invalide.', 400);
+    }
+
+    // RED-08: Only decrement if user was actually tracked as viewer
+    const viewers = activeViewersPerLive.get(id);
+    if (!viewers || !viewers.has(userId)) {
+      // Not tracked — return current count without decrementing
+      const live = await Live.findOne({ _id: id, status: 'live' }).select('viewerCount');
+      if (!live) {
+        throw new ErreurAPI('Live non trouvé ou terminé.', 404);
+      }
+      res.json({ succes: true, data: { viewerCount: live.viewerCount } });
+      return;
+    }
+
+    viewers.delete(userId);
+    // Cleanup empty sets
+    if (viewers.size === 0) {
+      activeViewersPerLive.delete(id);
     }
 
     const live = await Live.findOneAndUpdate(
