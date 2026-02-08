@@ -248,9 +248,23 @@ export default function Notifications() {
         return 'checkmark-circle';
       case 'sanction_unwarn':
         return 'checkmark-circle';
+      case 'broadcast':
+        return 'megaphone';
       case 'systeme':
       default:
         return 'notifications';
+    }
+  };
+
+  // Icône broadcast spécifique selon le badge
+  const getBroadcastIconForBadge = (badge?: string): keyof typeof Ionicons.glyphMap => {
+    switch (badge) {
+      case 'maintenance': return 'construct';
+      case 'mise_a_jour': return 'sparkles';
+      case 'evenement': return 'calendar';
+      case 'important': return 'alert-circle';
+      case 'actu':
+      default: return 'megaphone';
     }
   };
 
@@ -285,8 +299,22 @@ export default function Notifications() {
         return couleurs.succes;
       case 'sanction_unwarn':
         return couleurs.succes;
+      case 'broadcast':
+        return '#7C5CFF'; // Violet primaire
       default:
         return couleurs.texteSecondaire;
+    }
+  };
+
+  // Couleur broadcast selon le badge
+  const getBroadcastColor = (badge?: string): string => {
+    switch (badge) {
+      case 'maintenance': return '#F59E0B'; // Amber
+      case 'mise_a_jour': return '#10B981'; // Emerald
+      case 'evenement': return '#8B5CF6'; // Purple
+      case 'important': return '#EF4444'; // Red
+      case 'actu':
+      default: return '#3B82F6'; // Blue
     }
   };
 
@@ -312,10 +340,25 @@ export default function Notifications() {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   };
 
+  // Label du badge broadcast
+  const getBroadcastLabel = (badge?: string): string => {
+    switch (badge) {
+      case 'maintenance': return 'Maintenance';
+      case 'mise_a_jour': return 'Mise à jour';
+      case 'evenement': return 'Événement';
+      case 'important': return 'Important';
+      case 'actu':
+      default: return 'Actualité';
+    }
+  };
+
   // Render notification item
   const renderNotification = ({ item }: { item: Notification }) => {
     const estEnCours = actionsEnCours.has(item._id);
     const estDemandeAmi = item.type === 'demande_ami';
+    const estBroadcast = item.type === 'broadcast';
+    const broadcastColor = estBroadcast ? getBroadcastColor(item.data?.broadcastBadge) : getNotifColor(item.type);
+    const broadcastIcon = estBroadcast ? getBroadcastIconForBadge(item.data?.broadcastBadge) : getNotifIcon(item.type);
 
     return (
         <AnimatedPressable
@@ -328,34 +371,48 @@ export default function Notifications() {
         >
           {/* Avatar ou icône */}
           <View style={styles.notifIconContainer}>
-            {item.data?.userPrenom ? (
+            {!estBroadcast && item.data?.userPrenom ? (
               <Avatar
                 uri={item.data.userAvatar}
                 prenom={item.data.userPrenom}
                 nom={item.data.userNom}
                 taille={48}
-                gradientColors={[getNotifColor(item.type), couleurs.primaireDark]}
+                gradientColors={[broadcastColor, couleurs.primaireDark]}
               />
             ) : (
-              <View style={[styles.notifIconBg, { backgroundColor: getNotifColor(item.type) + '20' }]}>
+              <View style={[styles.notifIconBg, { backgroundColor: broadcastColor + '20' }]}>
                 <Ionicons
-                  name={getNotifIcon(item.type)}
+                  name={broadcastIcon}
                   size={22}
-                  color={getNotifColor(item.type)}
+                  color={broadcastColor}
                 />
               </View>
             )}
             {/* Badge type */}
-            <View style={[styles.notifTypeBadge, { backgroundColor: getNotifColor(item.type) }]}>
-              <Ionicons name={getNotifIcon(item.type)} size={10} color={couleurs.blanc} />
+            <View style={[styles.notifTypeBadge, { backgroundColor: broadcastColor }]}>
+              <Ionicons name={broadcastIcon} size={10} color={couleurs.blanc} />
             </View>
           </View>
 
           {/* Contenu */}
           <View style={styles.notifContent}>
+            {/* Badge label pour broadcast */}
+            {estBroadcast && (
+              <View style={[styles.broadcastBadge, { backgroundColor: broadcastColor + '20' }]}>
+                <Ionicons name={broadcastIcon} size={10} color={broadcastColor} />
+                <Text style={[styles.broadcastBadgeText, { color: broadcastColor }]}>
+                  {getBroadcastLabel(item.data?.broadcastBadge)}
+                </Text>
+              </View>
+            )}
             <Text style={[styles.notifMessage, !item.lue && styles.notifMessageNonLu]}>
-              {item.message}
+              {estBroadcast ? item.titre : item.message}
             </Text>
+            {estBroadcast && item.message && (
+              <Text style={styles.notifSubMessage} numberOfLines={2}>
+                {item.message}
+              </Text>
+            )}
             <Text style={styles.notifDate}>{formatDateRelative(item.dateCreation)}</Text>
           </View>
 
@@ -603,10 +660,30 @@ const styles = StyleSheet.create({
   notifMessageNonLu: {
     fontWeight: typographie.poids.medium,
   },
+  notifSubMessage: {
+    fontSize: typographie.tailles.xs,
+    color: couleurs.texteSecondaire,
+    lineHeight: 18,
+    marginTop: 2,
+  },
   notifDate: {
     fontSize: typographie.tailles.xs,
     color: couleurs.texteMuted,
     marginTop: 4,
+  },
+  broadcastBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  broadcastBadgeText: {
+    fontSize: typographie.tailles.xs,
+    fontWeight: typographie.poids.semibold,
   },
   notifIndicateur: {
     width: 8,

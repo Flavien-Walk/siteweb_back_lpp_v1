@@ -22,7 +22,9 @@ export type TypeNotification =
   // Types de levée de sanctions
   | 'sanction_unban'
   | 'sanction_unsuspend'
-  | 'sanction_unwarn';
+  | 'sanction_unwarn'
+  // Broadcast (notifications envoyées par l'équipe)
+  | 'broadcast';
 
 export interface Notification {
   _id: string;
@@ -52,6 +54,9 @@ export interface Notification {
     };
     actorId?: string;
     actorRole?: string;
+    // Données broadcast
+    broadcastBadge?: 'actu' | 'maintenance' | 'mise_a_jour' | 'evenement' | 'important';
+    broadcastId?: string;
   };
 }
 
