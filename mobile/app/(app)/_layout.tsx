@@ -73,15 +73,6 @@ export default function AppLayout() {
           fullScreenGestureEnabled: Platform.OS === 'ios',
         }}
       />
-      {/* Startup Radar - slide from bottom, style modal */}
-      <Stack.Screen
-        name="startup"
-        options={{
-          animation: 'slide_from_bottom',
-          animationDuration: 300,
-          gestureEnabled: true,
-        }}
-      />
       {/* Choix statut - fade, pas de geste */}
       <Stack.Screen
         name="choix-statut"
