@@ -44,9 +44,36 @@ let io: Server | null = null;
  * Initialiser Socket.io sur le serveur HTTP
  */
 export function initializeSocket(httpServer: HttpServer): Server {
+  // CORS: même whitelist que app.ts (JAMAIS de "*")
+  const prodOrigins = [
+    process.env.CLIENT_URL,
+  ].filter(Boolean) as string[];
+
+  const localModerationOrigins = process.env.LOCAL_MODERATION_ORIGINS
+    ? process.env.LOCAL_MODERATION_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : [];
+
+  const allowedOrigins = [...prodOrigins, ...localModerationOrigins];
+
+  const vercelPreviewRegex =
+    /^https:\/\/siteweb-front-lpp-v100-[a-z0-9-]+\.vercel\.app$/i;
+
   io = new Server(httpServer, {
     cors: {
-      origin: '*', // En prod, restreindre aux domaines autorisés
+      origin: (origin, cb) => {
+        // Apps mobiles natives (pas d'origin header)
+        if (!origin) {
+          return cb(null, true);
+        }
+        if (allowedOrigins.includes(origin)) {
+          return cb(null, true);
+        }
+        if (vercelPreviewRegex.test(origin)) {
+          return cb(null, true);
+        }
+        console.warn(`[SOCKET] Origin refusée: ${origin}`);
+        return cb(new Error(`Origin non autorisée: ${origin}`));
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -65,11 +92,16 @@ export function initializeSocket(httpServer: HttpServer): Server {
         return next(new Error('Token manquant'));
       }
 
-      // Vérifier le JWT
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || 'secret'
-      ) as AuthPayload;
+      // Vérifier le JWT (pas de fallback — JWT_SECRET DOIT être défini)
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error('[SOCKET] FATAL: JWT_SECRET non défini');
+        return next(new Error('Configuration serveur invalide'));
+      }
+
+      const decoded = jwt.verify(token, jwtSecret, {
+        algorithms: ['HS256'],
+      }) as AuthPayload;
 
       // Vérifier que l'userId correspond
       if (userId && decoded.id !== userId) {
