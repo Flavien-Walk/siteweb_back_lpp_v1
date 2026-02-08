@@ -2233,7 +2233,7 @@ export default function Accueil() {
     { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
     { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => router.push('/live/start') },
     { id: 3, icon: 'camera-outline' as const, label: 'Story', color: '#10B981', action: () => setStoryCreatorVisible(true) },
-    { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => Alert.alert('Startup', 'Bientot disponible !') },
+    { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => router.push('/(app)/startup') },
   ];
 
   const toggleFab = () => {
