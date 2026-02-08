@@ -535,3 +535,5 @@ export function StoriesPage() {
     </PageTransition>
   )
 }
+
+export default StoriesPage

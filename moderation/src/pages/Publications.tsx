@@ -433,3 +433,5 @@ export function PublicationsPage() {
     </PageTransition>
   )
 }
+
+export default PublicationsPage

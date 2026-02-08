@@ -175,3 +175,5 @@ export function ConversationDetailPage() {
     </PageTransition>
   )
 }
+
+export default ConversationDetailPage

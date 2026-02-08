@@ -58,8 +58,8 @@ export function WeeklyTrendChart({ data }: WeeklyTrendProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ width: '100%', minHeight: 200, height: 200 }}>
+            <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorReports" x1="0" y1="0" x2="0" y2="1">
@@ -139,8 +139,8 @@ export function ReasonDistributionChart({ data }: ReasonDistributionProps) {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <div className="h-[200px] w-[200px] shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ width: 200, minHeight: 200, height: 200 }}>
+              <ResponsiveContainer width={200} height={200}>
                 <PieChart>
                   <Pie
                     data={chartData}

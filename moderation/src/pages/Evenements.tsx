@@ -251,3 +251,5 @@ export function EvenementsPage() {
     </PageTransition>
   )
 }
+
+export default EvenementsPage

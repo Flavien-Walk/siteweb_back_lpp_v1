@@ -620,3 +620,5 @@ export function PublicationDetailPage() {
     </PageTransition>
   )
 }
+
+export default PublicationDetailPage

@@ -306,3 +306,5 @@ export function CommentairesPage() {
     </PageTransition>
   )
 }
+
+export default CommentairesPage

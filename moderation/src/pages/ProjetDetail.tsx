@@ -556,3 +556,5 @@ export function ProjetDetailPage() {
     </PageTransition>
   )
 }
+
+export default ProjetDetailPage

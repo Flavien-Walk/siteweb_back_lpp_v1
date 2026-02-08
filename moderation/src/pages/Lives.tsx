@@ -228,3 +228,5 @@ export function LivesPage() {
     </PageTransition>
   )
 }
+
+export default LivesPage

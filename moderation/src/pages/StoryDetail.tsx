@@ -488,3 +488,5 @@ export function StoryDetailPage() {
     </PageTransition>
   )
 }
+
+export default StoryDetailPage

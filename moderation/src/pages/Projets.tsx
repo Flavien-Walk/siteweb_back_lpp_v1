@@ -563,3 +563,5 @@ export function ProjetsPage() {
     </PageTransition>
   )
 }
+
+export default ProjetsPage

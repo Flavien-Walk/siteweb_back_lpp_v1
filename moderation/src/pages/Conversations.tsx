@@ -251,3 +251,5 @@ export function ConversationsPage() {
     </PageTransition>
   )
 }
+
+export default ConversationsPage

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -5,36 +6,49 @@ import { AuthProvider } from '@/auth/AuthContext'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/Login'
-import { DashboardPage } from '@/pages/Dashboard'
-import { ReportsPage } from '@/pages/Reports'
-import { ReportDetailPage } from '@/pages/ReportDetail'
-import { UsersPage } from '@/pages/Users'
-import { UserDetailPage } from '@/pages/UserDetail'
-import { SuspendedUsersPage } from '@/pages/SuspendedUsers'
-import { AuditPage } from '@/pages/Audit'
-import { ChatPage } from '@/pages/Chat'
-import { StoriesPage } from '@/pages/Stories'
-import { StoryDetailPage } from '@/pages/StoryDetail'
-import { PublicationsPage } from '@/pages/Publications'
-import { PublicationDetailPage } from '@/pages/PublicationDetail'
-import { ProjetsPage } from '@/pages/Projets'
-import { ProjetDetailPage } from '@/pages/ProjetDetail'
-import { CommentairesPage } from '@/pages/Commentaires'
-import { ConversationsPage } from '@/pages/Conversations'
-import { ConversationDetailPage } from '@/pages/ConversationDetail'
-import { LivesPage } from '@/pages/Lives'
-import { EvenementsPage } from '@/pages/Evenements'
-import { NotificationsPage } from '@/pages/Notifications'
 
-// Create React Query client
+// Lazy-loaded pages — each chunk loads only when navigated to
+const DashboardPage = lazy(() => import('@/pages/Dashboard'))
+const ReportsPage = lazy(() => import('@/pages/Reports'))
+const ReportDetailPage = lazy(() => import('@/pages/ReportDetail'))
+const UsersPage = lazy(() => import('@/pages/Users'))
+const UserDetailPage = lazy(() => import('@/pages/UserDetail'))
+const SuspendedUsersPage = lazy(() => import('@/pages/SuspendedUsers'))
+const AuditPage = lazy(() => import('@/pages/Audit'))
+const ChatPage = lazy(() => import('@/pages/Chat'))
+const StoriesPage = lazy(() => import('@/pages/Stories'))
+const StoryDetailPage = lazy(() => import('@/pages/StoryDetail'))
+const PublicationsPage = lazy(() => import('@/pages/Publications'))
+const PublicationDetailPage = lazy(() => import('@/pages/PublicationDetail'))
+const ProjetsPage = lazy(() => import('@/pages/Projets'))
+const ProjetDetailPage = lazy(() => import('@/pages/ProjetDetail'))
+const CommentairesPage = lazy(() => import('@/pages/Commentaires'))
+const ConversationsPage = lazy(() => import('@/pages/Conversations'))
+const ConversationDetailPage = lazy(() => import('@/pages/ConversationDetail'))
+const LivesPage = lazy(() => import('@/pages/Lives'))
+const EvenementsPage = lazy(() => import('@/pages/Evenements'))
+const NotificationsPage = lazy(() => import('@/pages/Notifications'))
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60, // 1 minute
+      staleTime: 1000 * 60,
       retry: 1,
     },
   },
 })
+
+function PageLoader() {
+  return (
+    <div className="flex h-[50vh] items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  )
+}
+
+function Lazy({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>
+}
 
 function NotFoundPage() {
   return (
@@ -56,10 +70,8 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
 
-            {/* Protected routes */}
             <Route
               element={
                 <ProtectedRoute>
@@ -67,185 +79,41 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              {/* Dashboard */}
-              <Route index element={<DashboardPage />} />
+              <Route index element={<Lazy><DashboardPage /></Lazy>} />
 
-              {/* Reports */}
-              <Route
-                path="reports"
-                element={
-                  <ProtectedRoute requiredPermission="reports:view">
-                    <ReportsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="reports/:id"
-                element={
-                  <ProtectedRoute requiredPermission="reports:view">
-                    <ReportDetailPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="reports" element={<ProtectedRoute requiredPermission="reports:view"><Lazy><ReportsPage /></Lazy></ProtectedRoute>} />
+              <Route path="reports/:id" element={<ProtectedRoute requiredPermission="reports:view"><Lazy><ReportDetailPage /></Lazy></ProtectedRoute>} />
 
-              {/* Users */}
-              <Route
-                path="users"
-                element={
-                  <ProtectedRoute requiredPermission="users:view">
-                    <UsersPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="users/:id"
-                element={
-                  <ProtectedRoute requiredPermission="users:view">
-                    <UserDetailPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="users" element={<ProtectedRoute requiredPermission="users:view"><Lazy><UsersPage /></Lazy></ProtectedRoute>} />
+              <Route path="users/:id" element={<ProtectedRoute requiredPermission="users:view"><Lazy><UserDetailPage /></Lazy></ProtectedRoute>} />
 
-              {/* Suspended Users */}
-              <Route
-                path="suspended"
-                element={
-                  <ProtectedRoute requiredPermission="users:view">
-                    <SuspendedUsersPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="suspended" element={<ProtectedRoute requiredPermission="users:view"><Lazy><SuspendedUsersPage /></Lazy></ProtectedRoute>} />
 
-              {/* Stories */}
-              <Route
-                path="stories"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <StoriesPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="stories/:id"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <StoryDetailPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="stories" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><StoriesPage /></Lazy></ProtectedRoute>} />
+              <Route path="stories/:id" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><StoryDetailPage /></Lazy></ProtectedRoute>} />
 
-              {/* Publications */}
-              <Route
-                path="publications"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <PublicationsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="publications/:id"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <PublicationDetailPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="publications" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><PublicationsPage /></Lazy></ProtectedRoute>} />
+              <Route path="publications/:id" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><PublicationDetailPage /></Lazy></ProtectedRoute>} />
 
-              {/* Projets */}
-              <Route
-                path="projets"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <ProjetsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="projets/:id"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <ProjetDetailPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="projets" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><ProjetsPage /></Lazy></ProtectedRoute>} />
+              <Route path="projets/:id" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><ProjetDetailPage /></Lazy></ProtectedRoute>} />
 
-              {/* Commentaires */}
-              <Route
-                path="commentaires"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <CommentairesPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="commentaires" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><CommentairesPage /></Lazy></ProtectedRoute>} />
 
-              {/* Conversations */}
-              <Route
-                path="conversations"
-                element={
-                  <ProtectedRoute requiredPermission="users:view">
-                    <ConversationsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="conversations/:id"
-                element={
-                  <ProtectedRoute requiredPermission="users:view">
-                    <ConversationDetailPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="conversations" element={<ProtectedRoute requiredPermission="users:view"><Lazy><ConversationsPage /></Lazy></ProtectedRoute>} />
+              <Route path="conversations/:id" element={<ProtectedRoute requiredPermission="users:view"><Lazy><ConversationDetailPage /></Lazy></ProtectedRoute>} />
 
-              {/* Lives */}
-              <Route
-                path="lives"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <LivesPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="lives" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><LivesPage /></Lazy></ProtectedRoute>} />
 
-              {/* Événements */}
-              <Route
-                path="evenements"
-                element={
-                  <ProtectedRoute requiredPermission="content:hide">
-                    <EvenementsPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="evenements" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><EvenementsPage /></Lazy></ProtectedRoute>} />
 
-              {/* Audit */}
-              <Route
-                path="audit"
-                element={
-                  <ProtectedRoute requiredPermission="audit:view">
-                    <AuditPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="audit" element={<ProtectedRoute requiredPermission="audit:view"><Lazy><AuditPage /></Lazy></ProtectedRoute>} />
 
-              {/* Notifications Broadcast */}
-              <Route
-                path="notifications"
-                element={<NotificationsPage />}
-              />
+              <Route path="notifications" element={<Lazy><NotificationsPage /></Lazy>} />
 
-              {/* Chat */}
-              <Route
-                path="chat"
-                element={
-                  <ProtectedRoute requiredPermission="staff:chat">
-                    <ChatPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="chat" element={<ProtectedRoute requiredPermission="staff:chat"><Lazy><ChatPage /></Lazy></ProtectedRoute>} />
             </Route>
 
-            {/* 404 */}
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AuthProvider>
