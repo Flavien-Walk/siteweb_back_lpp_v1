@@ -5,7 +5,7 @@ import { Message, Conversation, chiffrerMessage, TypeMessage } from '../models/M
 import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64DataUrl, isBase64VideoDataUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
-import { emitNewMessage } from '../socket/index.js';
+import { emitNewMessage, forceLeaveConversation } from '../socket/index.js';
 
 /**
  * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
@@ -699,6 +699,9 @@ export const retirerParticipant = async (
     groupe.admins = groupe.admins.filter(
       (a) => a.toString() !== participantId
     );
+
+    // RED-06: Force leave socket room immediately
+    forceLeaveConversation(participantId, groupeId);
 
     // Si le groupe est vide, le supprimer
     if (groupe.participants.length === 0) {
