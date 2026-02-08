@@ -404,16 +404,22 @@ export const traiterReport = async (
         // Log de l'action
         await auditLogger.actions.deleteContent(req, 'publication', report.targetId, donnees.adminNote || 'Contenu supprimé suite à signalement', report._id);
       } else if (donnees.action === 'warn_user' && report.targetType === 'utilisateur') {
-        // Avertir l'utilisateur signalé
-        const targetUser = await Utilisateur.findById(report.targetId);
+        // Avertir l'utilisateur signalé (atomic)
+        const warning: IWarning = {
+          reason: donnees.warningReason || donnees.adminNote || `Avertissement suite au signalement #${report._id}`,
+          issuedBy: adminId,
+          issuedAt: new Date(),
+        };
+        const targetUser = await Utilisateur.findByIdAndUpdate(
+          report.targetId,
+          {
+            $push: { warnings: warning },
+            $inc: { 'moderation.warnCountSinceLastAutoSuspension': 1 },
+            $set: { 'moderation.updatedAt': new Date() },
+          },
+          { new: true }
+        );
         if (targetUser) {
-          const warning: IWarning = {
-            reason: donnees.warningReason || donnees.adminNote || `Avertissement suite au signalement #${report._id}`,
-            issuedBy: adminId,
-            issuedAt: new Date(),
-          };
-          targetUser.warnings.push(warning);
-          await targetUser.save();
           // Log de l'action
           await auditLogger.actions.warnUser(req, targetUser._id, warning.reason, {
             relatedReport: report._id,
@@ -421,13 +427,15 @@ export const traiterReport = async (
           });
         }
       } else if (donnees.action === 'suspend_user' && report.targetType === 'utilisateur') {
-        // Suspendre l'utilisateur signalé
-        const targetUser = await Utilisateur.findById(report.targetId);
+        // Suspendre l'utilisateur signalé (atomic)
+        const hours = donnees.suspensionHours || 24; // Par défaut 24h
+        const suspendedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+        const targetUser = await Utilisateur.findByIdAndUpdate(
+          report.targetId,
+          { $set: { suspendedUntil, suspendReason: donnees.adminNote || `Suspension suite au signalement #${report._id}` } },
+          { new: true }
+        );
         if (targetUser) {
-          const hours = donnees.suspensionHours || 24; // Par défaut 24h
-          const suspendedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
-          targetUser.suspendedUntil = suspendedUntil;
-          await targetUser.save();
           // Log de l'action
           await auditLogger.actions.suspendUser(
             req,
@@ -939,9 +947,8 @@ export const addReportNote = async (
       createdAt: new Date(),
     };
 
-    // Ajouter la note au report
-    report.notes.push(newNote);
-    await report.save();
+    // Atomic: push note without read-modify-write race
+    await Report.findByIdAndUpdate(reportId, { $push: { notes: newNote } });
 
     // Récupérer le report mis à jour avec les notes populées
     const updatedReport = await Report.findById(reportId)

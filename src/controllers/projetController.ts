@@ -625,22 +625,30 @@ export const gererEquipeProjet = async (req: Request, res: Response): Promise<vo
     const addedMembers: string[] = [];
     const removedMembers: string[] = [];
 
-    // Traiter les suppressions d'abord
+    // Traiter les suppressions d'abord (atomic)
     if (Array.isArray(remove) && remove.length > 0) {
-      for (const membreId of remove) {
-        if (!mongoose.Types.ObjectId.isValid(membreId)) continue;
-        const idx = projet.equipe.findIndex(
+      const validRemoveIds = remove.filter((id: string) => mongoose.Types.ObjectId.isValid(id));
+      for (const membreId of validRemoveIds) {
+        const isInTeam = projet.equipe.some(
           (m) => m.utilisateur && m.utilisateur.toString() === membreId
         );
-        if (idx !== -1) {
-          projet.equipe.splice(idx, 1);
+        if (isInTeam) {
           removedMembers.push(membreId);
         }
       }
+      if (removedMembers.length > 0) {
+        await Projet.findByIdAndUpdate(projetId, {
+          $pull: { equipe: { utilisateur: { $in: removedMembers.map(id => new mongoose.Types.ObjectId(id)) } } },
+        });
+      }
     }
 
-    // Traiter les ajouts
+    // Traiter les ajouts — validate then atomic push
+    const membersToAdd: IMembreEquipe[] = [];
     if (Array.isArray(add) && add.length > 0) {
+      // Re-fetch projet to get current state after removals
+      const projetCurrent = await Projet.findById(projetId);
+
       for (const membreId of add) {
         if (!mongoose.Types.ObjectId.isValid(membreId)) {
           errors.push(`ID invalide: ${membreId}`);
@@ -656,7 +664,7 @@ export const gererEquipeProjet = async (req: Request, res: Response): Promise<vo
         }
 
         // Vérifier si déjà dans l'équipe
-        const dejaPresent = projet.equipe.some(
+        const dejaPresent = projetCurrent?.equipe.some(
           (m) => m.utilisateur && m.utilisateur.equals(membreObjectId)
         );
         if (dejaPresent) {
@@ -682,17 +690,20 @@ export const gererEquipeProjet = async (req: Request, res: Response): Promise<vo
           continue;
         }
 
-        // Ajouter à l'équipe
-        projet.equipe.push({
+        membersToAdd.push({
           utilisateur: membreObjectId,
           nom: `${membre.prenom} ${membre.nom}`,
           role: 'other',
         } as IMembreEquipe);
         addedMembers.push(membreId);
       }
-    }
 
-    await projet.save();
+      if (membersToAdd.length > 0) {
+        await Projet.findByIdAndUpdate(projetId, {
+          $push: { equipe: { $each: membersToAdd } },
+        });
+      }
+    }
 
     // Recharger avec populate
     const projetUpdated = await Projet.findById(projetId)
@@ -797,7 +808,8 @@ export const uploadMediaProjet = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    if (!projet.porteur.equals(userId)) {
+    // IDOR fix: allow team members, not just owner
+    if (!canEditProject(projet, userId)) {
       res.status(403).json({ succes: false, message: 'Accès non autorisé.' });
       return;
     }
@@ -817,25 +829,23 @@ export const uploadMediaProjet = async (req: Request, res: Response): Promise<vo
     // Upload sur Cloudinary
     const uploadResults = await uploadPublicationMedias(mediasValides, projetId);
 
-    // Mettre à jour le projet selon le type
+    // Mettre à jour le projet selon le type (atomic)
     if (type === 'logo' && uploadResults.length > 0) {
-      projet.logo = uploadResults[0].url;
+      await Projet.findByIdAndUpdate(projetId, { $set: { logo: uploadResults[0].url } });
     } else if (type === 'cover' && uploadResults.length > 0) {
-      projet.image = uploadResults[0].url;
+      await Projet.findByIdAndUpdate(projetId, { $set: { image: uploadResults[0].url } });
     } else if (type === 'pitchVideo' && uploadResults.length > 0) {
-      projet.pitchVideo = uploadResults[0].url;
+      await Projet.findByIdAndUpdate(projetId, { $set: { pitchVideo: uploadResults[0].url } });
     } else {
-      // Galerie - ajouter les médias
+      // Galerie - ajouter les médias atomiquement
       const nouveauxMedias: IMediaGalerie[] = uploadResults.map((r, index) => ({
         url: r.url,
         type: r.type,
         thumbnailUrl: r.thumbnailUrl,
         ordre: projet.galerie.length + index,
       }));
-      projet.galerie.push(...nouveauxMedias);
+      await Projet.findByIdAndUpdate(projetId, { $push: { galerie: { $each: nouveauxMedias } } });
     }
-
-    await projet.save();
 
     res.json({
       succes: true,
@@ -865,7 +875,8 @@ export const uploadDocumentProjet = async (req: Request, res: Response): Promise
       return;
     }
 
-    if (!projet.porteur.equals(userId)) {
+    // IDOR fix: allow team members, not just owner
+    if (!canEditProject(projet, userId)) {
       res.status(403).json({ succes: false, message: 'Accès non autorisé.' });
       return;
     }
@@ -886,8 +897,8 @@ export const uploadDocumentProjet = async (req: Request, res: Response): Promise
       dateAjout: new Date(),
     };
 
-    projet.documents.push(nouveauDocument);
-    await projet.save();
+    // Atomic: push document without read-modify-write race
+    await Projet.findByIdAndUpdate(projetId, { $push: { documents: nouveauDocument } });
 
     res.json({
       succes: true,

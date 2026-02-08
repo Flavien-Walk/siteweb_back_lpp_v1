@@ -630,10 +630,6 @@ export const ajouterParticipants = async (
       throw new ErreurAPI('Aucun nouveau participant valide.', 400);
     }
 
-    // Ajouter les participants
-    groupe.participants.push(...nouveauxUtilisateurs.map((u) => u._id));
-    groupe.dateMiseAJour = new Date();
-
     // Message système
     const noms = nouveauxUtilisateurs.map((u) => u.prenom).join(', ');
     const messageSysteme = await Message.create({
@@ -644,8 +640,11 @@ export const ajouterParticipants = async (
       lecteurs: [userId],
     });
 
-    groupe.dernierMessage = messageSysteme._id;
-    await groupe.save();
+    // Atomic: add participants without read-modify-write race
+    await Conversation.findByIdAndUpdate(groupeId, {
+      $addToSet: { participants: { $each: nouveauxUtilisateurs.map((u) => u._id) } },
+      $set: { dateMiseAJour: new Date(), dernierMessage: messageSysteme._id },
+    });
 
     res.json({
       succes: true,
@@ -692,19 +691,19 @@ export const retirerParticipant = async (
       throw new ErreurAPI('Impossible de retirer le créateur du groupe.', 403);
     }
 
-    // Retirer le participant
-    groupe.participants = groupe.participants.filter(
-      (p) => p.toString() !== participantId
-    );
-    groupe.admins = groupe.admins.filter(
-      (a) => a.toString() !== participantId
-    );
-
     // RED-06: Force leave socket room immediately
     forceLeaveConversation(participantId, groupeId);
 
+    // Atomic: remove participant and admin entry
+    const participantObjectId = new mongoose.Types.ObjectId(participantId);
+    const updated = await Conversation.findByIdAndUpdate(
+      groupeId,
+      { $pull: { participants: participantObjectId, admins: participantObjectId } },
+      { new: true }
+    );
+
     // Si le groupe est vide, le supprimer
-    if (groupe.participants.length === 0) {
+    if (!updated || updated.participants.length === 0) {
       await Conversation.findByIdAndDelete(groupeId);
       await Message.deleteMany({ conversation: groupeId });
 
@@ -716,14 +715,13 @@ export const retirerParticipant = async (
     }
 
     // Si le créateur part, transférer à un autre admin ou premier membre
-    if (groupe.createur?.toString() === participantId) {
-      groupe.createur = groupe.admins[0] || groupe.participants[0];
-      if (!groupe.admins.includes(groupe.createur)) {
-        groupe.admins.push(groupe.createur);
-      }
+    if (updated.createur?.toString() === participantId) {
+      const newCreator = updated.admins[0] || updated.participants[0];
+      await Conversation.findByIdAndUpdate(groupeId, {
+        $set: { createur: newCreator },
+        $addToSet: { admins: newCreator },
+      });
     }
-
-    groupe.dateMiseAJour = new Date();
 
     // Message système
     const participantRetire = await Utilisateur.findById(participantId).select('prenom');
@@ -732,15 +730,16 @@ export const retirerParticipant = async (
       : `${req.utilisateur!.prenom} a retiré ${participantRetire?.prenom || 'un membre'} du groupe`;
 
     const messageSysteme = await Message.create({
-      conversation: groupe._id,
+      conversation: updated._id,
       expediteur: userId,
       type: 'systeme',
       contenuCrypte: chiffrerMessage(messageTexte),
       lecteurs: [userId],
     });
 
-    groupe.dernierMessage = messageSysteme._id;
-    await groupe.save();
+    await Conversation.findByIdAndUpdate(groupeId, {
+      $set: { dateMiseAJour: new Date(), dernierMessage: messageSysteme._id },
+    });
 
     res.json({
       succes: true,
@@ -781,15 +780,12 @@ export const toggleMuet = async (
       (id) => id.toString() === userId.toString()
     );
 
+    // Atomic: toggle mute without read-modify-write race
     if (estMuet) {
-      conversation.muetPar = conversation.muetPar.filter(
-        (id) => id.toString() !== userId.toString()
-      );
+      await Conversation.findByIdAndUpdate(conversationId, { $pull: { muetPar: userId } });
     } else {
-      conversation.muetPar.push(userId);
+      await Conversation.findByIdAndUpdate(conversationId, { $addToSet: { muetPar: userId } });
     }
-
-    await conversation.save();
 
     res.json({
       succes: true,
@@ -1213,38 +1209,39 @@ export const reagirMessage = async (
       throw new ErreurAPI('Vous ne faites pas partie de cette conversation.', 403);
     }
 
-    // Trouver la réaction existante de l'utilisateur
-    const existingReactionIndex = message.reactions.findIndex(
+    // Atomic reaction management — remove existing, then add new if needed
+    const existingReaction = message.reactions.find(
       (r) => r.userId.toString() === userId.toString()
     );
 
     if (donnees.reactionType === null) {
-      // Supprimer la réaction
-      if (existingReactionIndex !== -1) {
-        message.reactions.splice(existingReactionIndex, 1);
-      }
-    } else {
-      // Ajouter ou mettre à jour la réaction
-      if (existingReactionIndex !== -1) {
-        // Même réaction = supprimer (toggle)
-        if (message.reactions[existingReactionIndex].type === donnees.reactionType) {
-          message.reactions.splice(existingReactionIndex, 1);
-        } else {
-          // Différente réaction = remplacer
-          message.reactions[existingReactionIndex].type = donnees.reactionType;
-          message.reactions[existingReactionIndex].createdAt = new Date();
-        }
-      } else {
-        // Nouvelle réaction
-        message.reactions.push({
-          userId,
-          type: donnees.reactionType,
-          createdAt: new Date(),
+      // Remove reaction atomically
+      if (existingReaction) {
+        await Message.findByIdAndUpdate(messageId, {
+          $pull: { reactions: { userId } },
         });
       }
+    } else if (existingReaction) {
+      if (existingReaction.type === donnees.reactionType) {
+        // Same reaction = toggle off
+        await Message.findByIdAndUpdate(messageId, {
+          $pull: { reactions: { userId } },
+        });
+      } else {
+        // Different reaction = replace atomically (pull then push)
+        await Message.findByIdAndUpdate(messageId, {
+          $pull: { reactions: { userId } },
+        });
+        await Message.findByIdAndUpdate(messageId, {
+          $push: { reactions: { userId, type: donnees.reactionType, createdAt: new Date() } },
+        });
+      }
+    } else {
+      // New reaction
+      await Message.findByIdAndUpdate(messageId, {
+        $push: { reactions: { userId, type: donnees.reactionType, createdAt: new Date() } },
+      });
     }
-
-    await message.save();
 
     // Récupérer le message avec les reactions peuplées
     const messageUpdated = await Message.findById(messageId)

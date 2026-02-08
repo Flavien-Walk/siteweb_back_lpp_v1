@@ -155,23 +155,21 @@ export const warnUser = async (
       source,
     };
 
-    target.warnings.push(warning);
-
-    // Initialiser moderation si necessaire
-    if (!target.moderation) {
-      target.moderation = {
-        status: 'active',
-        warnCountSinceLastAutoSuspension: 0,
-        autoSuspensionsCount: 0,
-        updatedAt: new Date(),
-      };
+    // Atomic: push warning + increment counter without read-modify-write race
+    const updatedTarget = await Utilisateur.findByIdAndUpdate(
+      target._id,
+      {
+        $push: { warnings: warning },
+        $inc: { 'moderation.warnCountSinceLastAutoSuspension': 1 },
+        $set: { 'moderation.updatedAt': new Date() },
+        $setOnInsert: { 'moderation.status': 'active', 'moderation.autoSuspensionsCount': 0 },
+      },
+      { new: true }
+    );
+    if (updatedTarget) {
+      // Refresh target for subsequent auto-escalation logic
+      Object.assign(target, updatedTarget.toObject());
     }
-
-    // Incrementer le compteur de warnings depuis la derniere auto-suspension
-    target.moderation.warnCountSinceLastAutoSuspension += 1;
-    target.moderation.updatedAt = new Date();
-
-    await target.save();
 
     // Log de l'action du moderateur avec eventId
     await AuditLog.create({
@@ -406,15 +404,19 @@ export const removeWarning = async (
 
     const source = (req.body.source as 'mobile' | 'moderation' | 'api') || 'moderation';
     const removedWarning = target.warnings[warningIndex];
-    target.warnings.splice(warningIndex, 1);
 
-    // Decrementer le compteur de warnings si positif
+    // Atomic: pull warning + decrement counter without read-modify-write race
+    const updateOps: any = {
+      $pull: { warnings: { _id: removedWarning._id } },
+      $set: { 'moderation.updatedAt': new Date() },
+    };
     if (target.moderation && target.moderation.warnCountSinceLastAutoSuspension > 0) {
-      target.moderation.warnCountSinceLastAutoSuspension -= 1;
-      target.moderation.updatedAt = new Date();
+      updateOps.$inc = { 'moderation.warnCountSinceLastAutoSuspension': -1 };
     }
-
-    await target.save();
+    const updatedTarget = await Utilisateur.findByIdAndUpdate(target._id, updateOps, { new: true });
+    if (updatedTarget) {
+      Object.assign(target, updatedTarget.toObject());
+    }
 
     // Log de l'action avec eventId
     await AuditLog.create({

@@ -90,10 +90,10 @@ test('forceLeaveConversation imported in messagerie controller', () => {
 });
 
 test('forceLeaveConversation called in retirerParticipant', () => {
-  // Check it's called after participant removal
-  const idx1 = messagerieCode.indexOf('groupe.participants = groupe.participants.filter');
-  const idx2 = messagerieCode.indexOf('forceLeaveConversation(participantId');
-  assert(idx1 > 0 && idx2 > idx1, 'forceLeaveConversation not called after removal');
+  // Check it's called near participant removal (atomic $pull)
+  const idx1 = messagerieCode.indexOf('forceLeaveConversation(participantId');
+  const idx2 = messagerieCode.indexOf('$pull: { participants:');
+  assert(idx1 > 0 && idx2 > 0, 'forceLeaveConversation not found near atomic participant removal');
 });
 
 // ============================================
