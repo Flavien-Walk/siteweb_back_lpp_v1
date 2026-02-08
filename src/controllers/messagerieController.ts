@@ -165,7 +165,7 @@ export const getMessages = async (
     const { conversationId } = req.params;
     const userId = req.utilisateur!._id;
     const { page = '1', limit = '50' } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10));
+    const pageNum = Math.min(1000, Math.max(1, parseInt(page as string, 10)));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10)));
     const skip = (pageNum - 1) * limitNum;
 

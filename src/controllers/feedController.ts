@@ -23,7 +23,7 @@ const normalizePublicationMedias = (pub: any): any => {
 export const getFeed = async (req: Request, res: Response): Promise<void> => {
   try {
     const { type, page = '1', limit = '20' } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10));
+    const pageNum = Math.min(1000, Math.max(1, parseInt(page as string, 10)));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
     const skip = (pageNum - 1) * limitNum;
 

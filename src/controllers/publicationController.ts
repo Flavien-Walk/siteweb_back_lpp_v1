@@ -91,7 +91,7 @@ export const getPublications = async (
 ): Promise<void> => {
   try {
     const { page = '1', limit = '20', type } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10));
+    const pageNum = Math.min(1000, Math.max(1, parseInt(page as string, 10)));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
     const skip = (pageNum - 1) * limitNum;
 
@@ -503,7 +503,7 @@ export const getCommentaires = async (
   try {
     const { id } = req.params;
     const { page = '1', limit = '20' } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10));
+    const pageNum = Math.min(1000, Math.max(1, parseInt(page as string, 10)));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
     const skip = (pageNum - 1) * limitNum;
 

@@ -224,9 +224,10 @@ export const dechiffrerMessage = (ciphertext: string): string => {
     }
   }
 
-  // Fallback: texte non chiffré (données très anciennes ou corruption)
-  console.warn('[CryptoMessage] Format non reconnu, retour du texte brut');
-  return ciphertext;
+  // Format non reconnu : retourner un placeholder au lieu du contenu brut
+  // Évite d'exposer des données potentiellement corrompues ou manipulées
+  console.error('[CryptoMessage] Format non reconnu, contenu masqué pour sécurité');
+  return '[Message illisible]';
 };
 
 /**
