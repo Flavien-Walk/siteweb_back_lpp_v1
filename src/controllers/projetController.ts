@@ -12,6 +12,13 @@ import AuditLog from '../models/AuditLog.js';
 // =====================================================
 
 /**
+ * Echappe les caracteres speciaux regex pour eviter les injections ReDoS
+ */
+const escapeRegex = (str: string): string => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Vérifie si deux utilisateurs sont amis
  */
 const isFriend = async (userIdA: mongoose.Types.ObjectId, userIdB: mongoose.Types.ObjectId): Promise<boolean> => {
@@ -49,7 +56,13 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
     if (typeof secteur === 'string') filtre.secteur = secteur;
     if (typeof maturite === 'string') filtre.maturite = maturite;
     if (typeof q === 'string' && q.trim()) {
-      filtre.$text = { $search: q.trim() };
+      const searchRegex = new RegExp(escapeRegex(q.trim().slice(0, 100)), 'i');
+      filtre.$or = [
+        { nom: searchRegex },
+        { pitch: searchRegex },
+        { description: searchRegex },
+        { tags: searchRegex },
+      ];
     }
 
     const pageNum = Math.min(1000, Math.max(1, parseInt(page as string, 10)));
