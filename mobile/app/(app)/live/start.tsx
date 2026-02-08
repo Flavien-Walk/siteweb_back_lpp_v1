@@ -23,7 +23,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, type ThemeCouleurs } from '../../../src/contexts/ThemeContext';
 import { useUser } from '../../../src/contexts/UserContext';
 import { espacements, rayons } from '../../../src/constantes/theme';
-import { Avatar, Bouton, ChampTexte } from '../../../src/composants';
+import { Avatar, Bouton, ChampTexte, SwipeableScreen } from '../../../src/composants';
 import { startLive } from '../../../src/services/live';
 
 const MAX_TITRE = 100;
@@ -94,6 +94,7 @@ export default function LiveStartScreen() {
   };
 
   return (
+    <SwipeableScreen>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -252,6 +253,7 @@ export default function LiveStartScreen() {
         </View>
       </View>
     </View>
+    </SwipeableScreen>
   );
 }
 
