@@ -109,19 +109,15 @@ export const modifierProfil = async (
     const donnees = schemaModifierProfil.parse(req.body);
     const userId = req.utilisateur!._id;
 
-    // Vérifier si l'email est déjà utilisé par un autre utilisateur
+    // RED-07: Block direct email change — not allowed without verification
     if (donnees.email) {
-      const utilisateurExistant = await Utilisateur.findOne({
-        email: donnees.email,
-        _id: { $ne: userId },
-      });
-
-      if (utilisateurExistant) {
-        throw new ErreurAPI('Cette adresse email est déjà utilisée.', 409);
-      }
+      throw new ErreurAPI(
+        'Le changement d\'email n\'est pas autorisé via cette route. Contactez le support.',
+        403
+      );
     }
 
-    // Mettre à jour l'utilisateur
+    // Mettre à jour l'utilisateur (email excluded by guard above)
     const utilisateur = await Utilisateur.findByIdAndUpdate(
       userId,
       { $set: donnees },
