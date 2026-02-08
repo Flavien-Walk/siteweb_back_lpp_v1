@@ -24,6 +24,7 @@ import { ConversationsPage } from '@/pages/Conversations'
 import { ConversationDetailPage } from '@/pages/ConversationDetail'
 import { LivesPage } from '@/pages/Lives'
 import { EvenementsPage } from '@/pages/Evenements'
+import { NotificationsPage } from '@/pages/Notifications'
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -225,6 +226,12 @@ function App() {
                     <AuditPage />
                   </ProtectedRoute>
                 }
+              />
+
+              {/* Notifications Broadcast */}
+              <Route
+                path="notifications"
+                element={<NotificationsPage />}
               />
 
               {/* Chat */}

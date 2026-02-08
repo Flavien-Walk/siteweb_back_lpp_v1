@@ -470,6 +470,25 @@ export interface Evenement {
   dateCreation: string
 }
 
+// ============ BROADCAST NOTIFICATIONS ============
+
+export type BroadcastBadge = 'actu' | 'maintenance' | 'mise_a_jour' | 'evenement' | 'important'
+
+export interface BroadcastNotification {
+  _id: string
+  titre: string
+  message: string
+  badge: BroadcastBadge
+  sentBy: {
+    _id: string
+    prenom: string
+    nom: string
+    role: string
+  }
+  recipientCount: number
+  dateCreation: string
+}
+
 // ============ API RESPONSES ============
 
 export interface ApiResponse<T> {

@@ -24,6 +24,7 @@ import {
   Radio,
   Calendar,
   ChevronDown,
+  Bell,
 } from 'lucide-react'
 
 interface NavItem {
@@ -68,6 +69,7 @@ const navSections: NavSection[] = [
   {
     title: 'Système',
     items: [
+      { label: 'Notifications', href: '/notifications', icon: <Bell className="h-4 w-4" /> },
       { label: 'Audit Logs', href: '/audit', icon: <ScrollText className="h-4 w-4" />, permission: 'audit:view' },
       { label: 'Staff Chat', href: '/chat', icon: <MessageSquare className="h-4 w-4" />, permission: 'staff:chat' },
     ],
