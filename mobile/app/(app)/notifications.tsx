@@ -3,7 +3,7 @@
  * Avec actions rapides pour demandes d'amis
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,9 @@ import {
   RefreshControl,
   Alert,
   Dimensions,
+  Animated,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +51,7 @@ export default function Notifications() {
   const [chargement, setChargement] = useState(true);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [actionsEnCours, setActionsEnCours] = useState<Set<string>>(new Set());
+  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   // Charger les notifications
   const chargerNotifications = useCallback(async (estRefresh = false) => {
@@ -352,6 +355,28 @@ export default function Notifications() {
     }
   };
 
+  // Render swipe action (supprimer)
+  const renderRightActions = (notifId: string, progress: Animated.AnimatedInterpolation<number>) => {
+    const translateX = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [80, 0],
+    });
+
+    return (
+      <Animated.View style={[styles.swipeActionsRight, { transform: [{ translateX }] }]}>
+        <Pressable
+          style={styles.swipeActionDelete}
+          onPress={() => {
+            swipeableRefs.current.get(notifId)?.close();
+            handleSupprimer(notifId);
+          }}
+        >
+          <Ionicons name="trash-outline" size={22} color={couleurs.blanc} />
+        </Pressable>
+      </Animated.View>
+    );
+  };
+
   // Render notification item
   const renderNotification = ({ item }: { item: Notification }) => {
     const estEnCours = actionsEnCours.has(item._id);
@@ -361,6 +386,12 @@ export default function Notifications() {
     const broadcastIcon = estBroadcast ? getBroadcastIconForBadge(item.data?.broadcastBadge) : getNotifIcon(item.type);
 
     return (
+      <Swipeable
+        ref={(ref) => { swipeableRefs.current.set(item._id, ref); }}
+        renderRightActions={(progress) => renderRightActions(item._id, progress)}
+        overshootRight={false}
+        friction={2}
+      >
         <AnimatedPressable
           style={[
             styles.notifItem,
@@ -443,6 +474,7 @@ export default function Notifications() {
           {/* Indicateur non lu */}
           {!item.lue && <View style={styles.notifIndicateur} />}
         </AnimatedPressable>
+      </Swipeable>
     );
   };
 
@@ -465,12 +497,17 @@ export default function Notifications() {
             </View>
           )}
         </View>
-        {nbNonLues > 0 && (
-          <Pressable onPress={handleMarquerToutesLues} style={styles.headerAction}>
-            <Ionicons name="checkmark-done-outline" size={22} color={couleurs.primaire} />
-          </Pressable>
-        )}
-        {nbNonLues === 0 && <View style={{ width: 40 }} />}
+        <Pressable
+          onPress={nbNonLues > 0 ? handleMarquerToutesLues : undefined}
+          style={[styles.headerAction, nbNonLues === 0 && styles.headerActionDisabled]}
+          disabled={nbNonLues === 0}
+        >
+          <Ionicons
+            name="checkmark-done-outline"
+            size={22}
+            color={nbNonLues > 0 ? couleurs.primaire : couleurs.texteMuted}
+          />
+        </Pressable>
       </View>
 
       {/* Liste des notifications */}
@@ -567,6 +604,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerActionDisabled: {
+    opacity: 0.4,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -597,6 +637,17 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: couleurs.bordure,
+  },
+  // Swipe actions
+  swipeActionsRight: {
+    width: 80,
+    flexDirection: 'row',
+  },
+  swipeActionDelete: {
+    flex: 1,
+    backgroundColor: couleurs.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Notification item
   notifItem: {
