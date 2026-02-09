@@ -319,7 +319,7 @@ export default function ProjetEntrepreneurScreen() {
             onPress={() => setShowFollowersModal(true)}
           >
             <Ionicons name="people" size={24} color={couleurs.primaire} />
-            <Text style={styles.statValue}>{projet.nbFollowers || 0}</Text>
+            <Text style={styles.statValue}>{projet.nbFollowers || projet.followers?.length || 0}</Text>
             <Text style={styles.statLabel}>Abonnés</Text>
             <View style={styles.statCardIndicator}>
               <Ionicons name="chevron-forward" size={12} color={couleurs.texteSecondaire} />
@@ -463,7 +463,7 @@ export default function ProjetEntrepreneurScreen() {
             </Pressable>
             <Text style={styles.modalTitle}>Abonnés</Text>
             <View style={styles.modalHeaderRight}>
-              <Text style={styles.modalCount}>{projet.nbFollowers || 0}</Text>
+              <Text style={styles.modalCount}>{projet.nbFollowers || projet.followers?.length || 0}</Text>
             </View>
           </View>
 

@@ -808,7 +808,7 @@ export default function ProfilUtilisateurPage() {
                           <Text style={styles.projetName} numberOfLines={2}>{projet.nom}</Text>
                           <View style={styles.projetStats}>
                             <Ionicons name="people" size={12} color={couleurs.blanc} />
-                            <Text style={styles.projetFollowers}>{projet.nbFollowers || 0}</Text>
+                            <Text style={styles.projetFollowers}>{projet.nbFollowers || projet.followers?.length || 0}</Text>
                           </View>
                         </View>
                       </View>
