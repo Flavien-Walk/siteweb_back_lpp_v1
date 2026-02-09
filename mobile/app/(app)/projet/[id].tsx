@@ -21,7 +21,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -240,9 +240,11 @@ export default function ProjetDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => {
-    chargerProjet();
-  }, [chargerProjet]);
+  useFocusEffect(
+    useCallback(() => {
+      chargerProjet();
+    }, [chargerProjet])
+  );
 
   // Ouvrir le modal contact si action=contact
   useEffect(() => {

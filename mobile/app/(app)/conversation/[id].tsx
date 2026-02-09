@@ -33,7 +33,7 @@ import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
 import { useSocket, MessageSocketEvent, TypingSocketEvent } from '../../../src/contexts/SocketContext';
-import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation } from '../../../src/composants';
+import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation, SwipeableScreen } from '../../../src/composants';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
 import { useAutoRefresh } from '../../../src/hooks/useAutoRefresh';
@@ -221,6 +221,7 @@ const SwipeableMessage = memo(({ children, onSwipeReply }: SwipeableMessageProps
         onHandlerStateChange={onHandlerStateChange}
         activeOffsetX={SWIPE_DEADZONE}
         failOffsetY={[-8, 8]}
+        hitSlop={{ left: -60 }}
         minPointers={1}
         maxPointers={1}
       >
@@ -1571,7 +1572,11 @@ export default function ConversationScreen() {
     </View>
   );
 
-  return conversationContent;
+  return (
+    <SwipeableScreen>
+      {conversationContent}
+    </SwipeableScreen>
+  );
 }
 
 const styles = StyleSheet.create({

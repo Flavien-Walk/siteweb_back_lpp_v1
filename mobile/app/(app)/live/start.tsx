@@ -3,7 +3,7 @@
  * Interface style Instagram/Twitch avec preview camera, controles, titre
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  ImageBackground,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -24,7 +25,7 @@ import { useTheme, type ThemeCouleurs } from '../../../src/contexts/ThemeContext
 import { useUser } from '../../../src/contexts/UserContext';
 import { espacements, rayons } from '../../../src/constantes/theme';
 import { Avatar, Bouton, ChampTexte, SwipeableScreen } from '../../../src/composants';
-import { startLive } from '../../../src/services/live';
+import { startLive, LIVE_THUMBNAILS } from '../../../src/services/live';
 
 const MAX_TITRE = 100;
 
@@ -40,6 +41,14 @@ export default function LiveStartScreen() {
   const [cameraActive, setCameraActive] = useState(true);
   const [micActive, setMicActive] = useState(true);
   const [chargement, setChargement] = useState(false);
+
+  // Image de fond qui change a chaque visite
+  const [thumbIndex, setThumbIndex] = useState(() => Math.floor(Math.random() * LIVE_THUMBNAILS.length));
+  const previewImage = LIVE_THUMBNAILS[thumbIndex % LIVE_THUMBNAILS.length];
+
+  const changerImage = useCallback(() => {
+    setThumbIndex(prev => (prev + 1) % LIVE_THUMBNAILS.length);
+  }, []);
 
   // Pulse LIVE badge
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -121,32 +130,43 @@ export default function LiveStartScreen() {
           {/* ====== PREVIEW CAMERA ====== */}
           <View style={styles.previewWrapper}>
             <View style={styles.previewCard}>
-              <LinearGradient
-                colors={[couleurs.fondCard, couleurs.fondSecondaire, couleurs.fondCard]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.previewGradient}
+              <ImageBackground
+                source={{ uri: previewImage }}
+                style={styles.previewImage}
+                resizeMode="cover"
               >
-                {/* Badge LIVE */}
-                <View style={styles.liveBadge}>
-                  <Animated.View style={[styles.liveBadgeDot, { opacity: pulseAnim }]} />
-                  <Text style={styles.liveBadgeText}>LIVE</Text>
-                </View>
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.55)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={styles.previewGradient}
+                >
+                  {/* Badge LIVE + Bouton refresh */}
+                  <View style={styles.previewTopRow}>
+                    <View style={styles.liveBadge}>
+                      <Animated.View style={[styles.liveBadgeDot, { opacity: pulseAnim }]} />
+                      <Text style={styles.liveBadgeText}>LIVE</Text>
+                    </View>
+                    <Pressable onPress={changerImage} style={styles.refreshBtn}>
+                      <Ionicons name="refresh" size={18} color="rgba(255,255,255,0.9)" />
+                    </Pressable>
+                  </View>
 
-                {/* Avatar + nom */}
-                <View style={styles.previewAvatarRing}>
-                  <Avatar
-                    uri={utilisateur?.avatar}
-                    prenom={utilisateur?.prenom || ''}
-                    nom={utilisateur?.nom || ''}
-                    taille={64}
-                  />
-                </View>
-                <Text style={styles.previewNom}>
-                  {utilisateur?.prenom} {utilisateur?.nom}
-                </Text>
-                <Text style={styles.previewSub}>Votre apercu live</Text>
-              </LinearGradient>
+                  {/* Avatar + nom */}
+                  <View style={styles.previewAvatarRing}>
+                    <Avatar
+                      uri={utilisateur?.avatar}
+                      prenom={utilisateur?.prenom || ''}
+                      nom={utilisateur?.nom || ''}
+                      taille={64}
+                    />
+                  </View>
+                  <Text style={styles.previewNom}>
+                    {utilisateur?.prenom} {utilisateur?.nom}
+                  </Text>
+                  <Text style={styles.previewSub}>Votre apercu live</Text>
+                </LinearGradient>
+              </ImageBackground>
             </View>
 
             {/* ====== CONTROLES CAMERA / MICRO ====== */}
@@ -296,11 +316,29 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     borderWidth: 1,
     borderColor: couleurs.bordure,
   },
+  previewImage: {
+    width: '100%',
+  },
   previewGradient: {
     alignItems: 'center',
     paddingVertical: espacements.xxl,
     paddingHorizontal: espacements.lg,
     gap: espacements.md,
+  },
+  previewTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: espacements.sm,
+  },
+  refreshBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   liveBadge: {
     flexDirection: 'row',
@@ -310,7 +348,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 20,
     gap: 6,
-    marginBottom: espacements.sm,
   },
   liveBadgeDot: {
     width: 8,
@@ -327,18 +364,24 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   previewAvatarRing: {
     borderRadius: 40,
     borderWidth: 3,
-    borderColor: couleurs.bordureLight,
+    borderColor: 'rgba(255,255,255,0.4)',
     padding: 3,
   },
   previewNom: {
     fontSize: 17,
     fontWeight: '700',
-    color: couleurs.texte,
+    color: couleurs.blanc,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   previewSub: {
     fontSize: 13,
-    color: couleurs.texteMuted,
+    color: 'rgba(255,255,255,0.7)',
     marginTop: -4,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 
   // ====== CONTROLES ======

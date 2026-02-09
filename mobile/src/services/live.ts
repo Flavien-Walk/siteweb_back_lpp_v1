@@ -18,6 +18,7 @@ export interface Live {
   _id: string;
   channelName: string;
   title?: string;
+  thumbnail?: string;
   startedAt: string;
   viewerCount: number;
   host: LiveHost;
@@ -131,6 +132,24 @@ export const getUserLiveStatus = async (
   userId: string
 ): Promise<ReponseAPI<LiveStatusResponse>> => {
   return api.get(`/live/user/${userId}`, true);
+};
+
+// ============ IMAGES DE FOND LIVE ============
+
+/** Images Unsplash libres de droits pour les fonds de LiveCard */
+export const LIVE_THUMBNAILS = [
+  'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=600&h=400&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=600&h=400&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&h=400&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=600&h=400&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=600&h=400&fit=crop&q=80',
+];
+
+/** Retourne une image de fond pour un live (par son index ou aléatoire) */
+export const getLiveThumbnail = (index?: number): string => {
+  const i = index !== undefined ? index % LIVE_THUMBNAILS.length : Math.floor(Math.random() * LIVE_THUMBNAILS.length);
+  return LIVE_THUMBNAILS[i];
 };
 
 // ============ HELPERS ============

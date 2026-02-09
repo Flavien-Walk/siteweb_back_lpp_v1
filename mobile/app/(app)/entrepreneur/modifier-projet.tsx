@@ -34,11 +34,16 @@ import {
   LienProjet,
   TypeLien,
   Projet,
+  Metrique,
+  DocumentProjet,
+  VisibiliteDocument,
   modifierProjet,
   uploadMediaProjet,
+  uploadDocumentProjet,
   getProjet,
   publierProjet as publierProjetAPI,
 } from '../../../src/services/projets';
+import * as DocumentPicker from 'expo-document-picker';
 
 // Types pour les etapes (numeriques)
 type Etape = '1' | '2' | '3' | '4' | '5' | '6';
@@ -84,6 +89,17 @@ const TYPES_LIENS: { value: TypeLien; label: string; icon: string; placeholder: 
   { value: 'other', label: 'Autre', icon: 'link-outline', placeholder: 'https://...' },
 ];
 
+const METRIQUE_ICONES: { value: string; icon: string }[] = [
+  { value: 'analytics-outline', icon: 'analytics-outline' },
+  { value: 'people-outline', icon: 'people-outline' },
+  { value: 'cash-outline', icon: 'cash-outline' },
+  { value: 'trending-up-outline', icon: 'trending-up-outline' },
+  { value: 'star-outline', icon: 'star-outline' },
+  { value: 'cart-outline', icon: 'cart-outline' },
+  { value: 'globe-outline', icon: 'globe-outline' },
+  { value: 'time-outline', icon: 'time-outline' },
+];
+
 export default function ModifierProjetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { couleurs } = useTheme();
@@ -120,13 +136,29 @@ export default function ModifierProjetScreen() {
   // Images
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [coverChanged, setCoverChanged] = useState(false);
-  const [galerieImages, setGalerieImages] = useState<string[]>([]);
 
   // Modal ajout lien
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [newLinkType, setNewLinkType] = useState<TypeLien>('site');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [newLinkLabel, setNewLinkLabel] = useState('');
+
+  // Tags
+  const [tagInput, setTagInput] = useState('');
+
+  // Metriques
+  const [showMetriqueModal, setShowMetriqueModal] = useState(false);
+  const [newMetriqueLabel, setNewMetriqueLabel] = useState('');
+  const [newMetriqueValeur, setNewMetriqueValeur] = useState('');
+  const [newMetriqueIcone, setNewMetriqueIcone] = useState('analytics-outline');
+
+  // Galerie
+  const [galerieImages, setGalerieImages] = useState<string[]>([]);
+  const [galerieChanged, setGalerieChanged] = useState(false);
+
+  // Documents
+  const [newDocuments, setNewDocuments] = useState<{ nom: string; base64: string; type: DocumentProjet['type']; visibilite: VisibiliteDocument }[]>([]);
+  const [existingDocuments, setExistingDocuments] = useState<DocumentProjet[]>([]);
 
   // Charger le projet existant
   useEffect(() => {
@@ -166,6 +198,14 @@ export default function ModifierProjetScreen() {
         // Image existante
         if (p.image) {
           setCoverImage(p.image);
+        }
+        // Galerie existante
+        if (p.galerie && p.galerie.length > 0) {
+          setGalerieImages(p.galerie.map((g: any) => g.url));
+        }
+        // Documents existants
+        if (p.documents && p.documents.length > 0) {
+          setExistingDocuments(p.documents);
         }
       } else {
         Alert.alert('Erreur', 'Projet non trouve');
@@ -215,6 +255,7 @@ export default function ModifierProjetScreen() {
     if (!id) return;
     setSaving(true);
     try {
+      console.log('[saveDraft] tags:', formData.tags?.length, 'metriques:', formData.metriques?.length, 'liens:', formData.liens?.length);
       await modifierProjet(id, formData);
     } catch (error) {
       console.error('Erreur sauvegarde:', error);
@@ -289,6 +330,118 @@ export default function ModifierProjetScreen() {
     return typeInfo?.label || 'Lien';
   };
 
+  // Gestion des tags
+  const addTag = () => {
+    const trimmed = tagInput.trim();
+    if (!trimmed) return;
+    if ((formData.tags || []).includes(trimmed)) { setTagInput(''); return; }
+    if ((formData.tags || []).length >= 10) {
+      Alert.alert('Maximum', 'Vous pouvez ajouter 10 tags maximum');
+      return;
+    }
+    setFormData({ ...formData, tags: [...(formData.tags || []), trimmed] });
+    setTagInput('');
+  };
+
+  const removeTag = (index: number) => {
+    const tags = [...(formData.tags || [])];
+    tags.splice(index, 1);
+    setFormData({ ...formData, tags });
+  };
+
+  // Gestion des metriques
+  const addMetrique = () => {
+    if (!newMetriqueLabel.trim() || !newMetriqueValeur.trim()) {
+      Alert.alert('Champs requis', 'Le label et la valeur sont requis');
+      return;
+    }
+    const metrique: Metrique = {
+      label: newMetriqueLabel.trim(),
+      valeur: newMetriqueValeur.trim(),
+      icone: newMetriqueIcone || undefined,
+    };
+    setFormData({ ...formData, metriques: [...(formData.metriques || []), metrique] });
+    setNewMetriqueLabel('');
+    setNewMetriqueValeur('');
+    setNewMetriqueIcone('analytics-outline');
+    setShowMetriqueModal(false);
+  };
+
+  const removeMetrique = (index: number) => {
+    const metriques = [...(formData.metriques || [])];
+    metriques.splice(index, 1);
+    setFormData({ ...formData, metriques });
+  };
+
+  // Galerie
+  const pickGalerieImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const newImages: string[] = [];
+      for (const asset of result.assets) {
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const mimeType = asset.mimeType || 'image/jpeg';
+        newImages.push(`data:${mimeType};base64,${base64}`);
+      }
+      setGalerieImages([...galerieImages, ...newImages]);
+      setGalerieChanged(true);
+    }
+  };
+
+  // Documents
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        let docType: DocumentProjet['type'] = 'other';
+        if (asset.mimeType?.includes('pdf')) docType = 'pdf';
+        else if (asset.mimeType?.includes('presentation')) docType = 'pptx';
+        else if (asset.mimeType?.includes('spreadsheet')) docType = 'xlsx';
+        else if (asset.mimeType?.includes('wordprocessing')) docType = 'docx';
+
+        setNewDocuments([...newDocuments, {
+          nom: asset.name || 'Document',
+          base64: `data:${asset.mimeType};base64,${base64}`,
+          type: docType,
+          visibilite: 'public' as VisibiliteDocument,
+        }]);
+      }
+    } catch (error) {
+      console.error('Erreur selection document:', error);
+      Alert.alert('Erreur', 'Impossible de selectionner le document');
+    }
+  };
+
+  const removeNewDocument = (index: number) => {
+    setNewDocuments(newDocuments.filter((_, i) => i !== index));
+  };
+
+  const toggleNewDocVisibility = (index: number) => {
+    setNewDocuments(newDocuments.map((doc, i) =>
+      i === index
+        ? { ...doc, visibilite: (doc.visibilite === 'public' ? 'private' : 'public') as VisibiliteDocument }
+        : doc
+    ));
+  };
+
   // Sauvegarder et quitter
   const saveAndExit = async () => {
     if (!id) return;
@@ -298,8 +451,25 @@ export default function ModifierProjetScreen() {
       if (coverChanged && coverImage && coverImage.startsWith('data:')) {
         await uploadMediaProjet(id, [coverImage], 'cover');
       }
+      // Upload nouvelles images galerie
+      if (galerieChanged) {
+        const newGalerieImages = galerieImages.filter(img => img.startsWith('data:'));
+        if (newGalerieImages.length > 0) {
+          await uploadMediaProjet(id, newGalerieImages, 'galerie');
+        }
+      }
+      // Upload nouveaux documents
+      for (const doc of newDocuments) {
+        await uploadDocumentProjet(id, doc.base64, doc.nom, doc.type, doc.visibilite);
+      }
       // Sauvegarder les donnees
-      await modifierProjet(id, formData);
+      console.log('[saveAndExit] formData envoyee:', JSON.stringify({
+        tags: formData.tags,
+        metriques: formData.metriques,
+        liens: formData.liens,
+      }));
+      const saveResult = await modifierProjet(id, formData);
+      console.log('[saveAndExit] resultat:', JSON.stringify(saveResult));
       Alert.alert('Succes', 'Modifications enregistrees', [
         { text: 'OK', onPress: () => router.back() }
       ]);
@@ -319,6 +489,17 @@ export default function ModifierProjetScreen() {
       // Upload cover si nouvelle
       if (coverChanged && coverImage && coverImage.startsWith('data:')) {
         await uploadMediaProjet(id, [coverImage], 'cover');
+      }
+      // Upload nouvelles images galerie
+      if (galerieChanged) {
+        const newGalerieImages = galerieImages.filter(img => img.startsWith('data:'));
+        if (newGalerieImages.length > 0) {
+          await uploadMediaProjet(id, newGalerieImages, 'galerie');
+        }
+      }
+      // Upload nouveaux documents
+      for (const doc of newDocuments) {
+        await uploadDocumentProjet(id, doc.base64, doc.nom, doc.type, doc.visibilite);
       }
       // Sauvegarder puis publier
       await modifierProjet(id, formData);
@@ -432,6 +613,45 @@ export default function ModifierProjetScreen() {
           placeholderTextColor={couleurs.texteSecondaire}
           maxLength={50}
         />
+      </View>
+
+      {/* Tags */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Tags</Text>
+        <Text style={styles.inputHint}>Validez pour ajouter un tag (max 10)</Text>
+
+        {(formData.tags || []).length > 0 && (
+          <View style={styles.tagsContainer}>
+            {formData.tags!.map((tag, i) => (
+              <View key={i} style={styles.tagChip}>
+                <Text style={styles.tagChipText}>{tag}</Text>
+                <Pressable onPress={() => removeTag(i)} hitSlop={8}>
+                  <Ionicons name="close-circle" size={16} color={couleurs.texteSecondaire} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={{ flexDirection: 'row', gap: espacements.sm }}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            value={tagInput}
+            onChangeText={setTagInput}
+            placeholder="Ex: IA, Fintech, GreenTech..."
+            placeholderTextColor={couleurs.texteSecondaire}
+            maxLength={30}
+            onSubmitEditing={addTag}
+            returnKeyType="done"
+            blurOnSubmit={false}
+          />
+          <Pressable
+            style={[styles.addLinkBtn, { paddingHorizontal: espacements.md, flex: 0 }]}
+            onPress={addTag}
+          >
+            <Ionicons name="add" size={22} color={couleurs.primaire} />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -558,6 +778,36 @@ export default function ModifierProjetScreen() {
           keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
         />
       </View>
+
+      {/* Metriques / KPIs */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Metriques cles</Text>
+        <Text style={styles.inputHint}>Chiffres cles a afficher sur la fiche (CA, utilisateurs, etc.)</Text>
+
+        {(formData.metriques || []).map((metrique, index) => (
+          <View key={index} style={styles.metriqueItem}>
+            <View style={styles.metriqueIconBox}>
+              <Ionicons
+                name={(metrique.icone || 'analytics-outline') as any}
+                size={20}
+                color={couleurs.primaire}
+              />
+            </View>
+            <View style={styles.metriqueInfo}>
+              <Text style={styles.metriqueValeur}>{metrique.valeur}</Text>
+              <Text style={styles.metriqueLabel}>{metrique.label}</Text>
+            </View>
+            <Pressable onPress={() => removeMetrique(index)} style={{ padding: espacements.xs }}>
+              <Ionicons name="close-circle" size={22} color="#EF4444" />
+            </Pressable>
+          </View>
+        ))}
+
+        <Pressable style={styles.addLinkBtn} onPress={() => setShowMetriqueModal(true)}>
+          <Ionicons name="add-circle-outline" size={24} color={couleurs.primaire} />
+          <Text style={styles.addLinkBtnText}>Ajouter une metrique</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -589,6 +839,114 @@ export default function ModifierProjetScreen() {
         {coverImage && !coverImage.startsWith('data:') && (
           <Image source={{ uri: coverImage }} style={styles.previewImage} />
         )}
+      </View>
+
+      {/* Galerie */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Galerie ({galerieImages.length} images)</Text>
+        {galerieImages.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: espacements.sm }}>
+            {galerieImages.map((img, i) => (
+              <View key={i} style={{ marginRight: espacements.sm, position: 'relative' }}>
+                <Image source={{ uri: img }} style={{ width: 120, height: 90, borderRadius: rayons.md }} />
+                <Pressable
+                  style={{
+                    position: 'absolute', top: 4, right: 4,
+                    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12,
+                    width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+                  }}
+                  onPress={() => {
+                    setGalerieImages(galerieImages.filter((_, idx) => idx !== i));
+                    setGalerieChanged(true);
+                  }}
+                >
+                  <Ionicons name="close" size={16} color="#fff" />
+                </Pressable>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+        <Pressable style={styles.imagePickerBtn} onPress={pickGalerieImages}>
+          <Ionicons name="images-outline" size={32} color={couleurs.texteSecondaire} />
+          <Text style={styles.imagePickerText}>Ajouter des images</Text>
+        </Pressable>
+      </View>
+
+      {/* Documents */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Documents ({existingDocuments.length + newDocuments.length})</Text>
+        <Text style={styles.inputHint}>PDF, PowerPoint, Word, Excel</Text>
+
+        {/* Documents existants (du serveur) */}
+        {existingDocuments.map((doc, index) => (
+          <View key={`existing-${index}`} style={styles.linkItem}>
+            <View style={styles.linkIcon}>
+              <Ionicons
+                name={
+                  doc.type === 'pdf' ? 'document-text' :
+                  doc.type === 'pptx' ? 'easel' :
+                  doc.type === 'xlsx' ? 'grid' :
+                  doc.type === 'docx' ? 'document' : 'document'
+                }
+                size={20}
+                color={couleurs.primaire}
+              />
+            </View>
+            <View style={styles.linkInfo}>
+              <Text style={styles.linkLabel} numberOfLines={1}>{doc.nom}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                <Ionicons
+                  name={doc.visibilite === 'public' ? 'eye-outline' : 'lock-closed-outline'}
+                  size={12}
+                  color={doc.visibilite === 'public' ? '#10B981' : couleurs.texteSecondaire}
+                />
+                <Text style={{ fontSize: 11, color: doc.visibilite === 'public' ? '#10B981' : couleurs.texteSecondaire }}>
+                  {doc.visibilite === 'public' ? 'Public' : 'Prive'}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="cloud-done-outline" size={18} color={couleurs.texteSecondaire} />
+          </View>
+        ))}
+
+        {/* Nouveaux documents */}
+        {newDocuments.map((doc, index) => (
+          <View key={`new-${index}`} style={styles.linkItem}>
+            <View style={styles.linkIcon}>
+              <Ionicons
+                name={
+                  doc.type === 'pdf' ? 'document-text' :
+                  doc.type === 'pptx' ? 'easel' :
+                  doc.type === 'xlsx' ? 'grid' :
+                  doc.type === 'docx' ? 'document' : 'document'
+                }
+                size={20}
+                color={couleurs.primaire}
+              />
+            </View>
+            <View style={styles.linkInfo}>
+              <Text style={styles.linkLabel} numberOfLines={1}>{doc.nom}</Text>
+              <Pressable onPress={() => toggleNewDocVisibility(index)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                <Ionicons
+                  name={doc.visibilite === 'public' ? 'eye-outline' : 'lock-closed-outline'}
+                  size={12}
+                  color={doc.visibilite === 'public' ? '#10B981' : couleurs.texteSecondaire}
+                />
+                <Text style={{ fontSize: 11, color: doc.visibilite === 'public' ? '#10B981' : couleurs.texteSecondaire }}>
+                  {doc.visibilite === 'public' ? 'Public' : 'Prive'}
+                </Text>
+              </Pressable>
+            </View>
+            <Pressable onPress={() => removeNewDocument(index)} style={{ padding: espacements.xs }}>
+              <Ionicons name="close-circle" size={22} color="#EF4444" />
+            </Pressable>
+          </View>
+        ))}
+
+        <Pressable style={styles.imagePickerBtn} onPress={pickDocument}>
+          <Ionicons name="folder-open-outline" size={32} color={couleurs.texteSecondaire} />
+          <Text style={styles.imagePickerText}>Ajouter un document</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -670,6 +1028,30 @@ export default function ModifierProjetScreen() {
             {(formData.liens?.length || 0)} lien(s) externe(s)
           </Text>
         </View>
+        {(formData.tags || []).length > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="pricetags-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>{formData.tags!.length} tag{formData.tags!.length > 1 ? 's' : ''}</Text>
+          </View>
+        )}
+        {(formData.metriques || []).length > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="analytics-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>{formData.metriques!.length} metrique{formData.metriques!.length > 1 ? 's' : ''}</Text>
+          </View>
+        )}
+        {galerieImages.length > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="images-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>{galerieImages.length} image{galerieImages.length > 1 ? 's' : ''} galerie</Text>
+          </View>
+        )}
+        {(existingDocuments.length + newDocuments.length) > 0 && (
+          <View style={styles.recapRow}>
+            <Ionicons name="document-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>{existingDocuments.length + newDocuments.length} document{(existingDocuments.length + newDocuments.length) > 1 ? 's' : ''}</Text>
+          </View>
+        )}
       </View>
 
       <Pressable
@@ -886,6 +1268,76 @@ export default function ModifierProjetScreen() {
             </View>
 
             <Pressable style={styles.modalConfirmBtn} onPress={addLink}>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.modalConfirmBtnText}>Ajouter</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal ajout metrique */}
+      <Modal
+        visible={showMetriqueModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowMetriqueModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + espacements.md }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Ajouter une metrique</Text>
+              <Pressable onPress={() => setShowMetriqueModal(false)}>
+                <Ionicons name="close" size={24} color={couleurs.texte} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.modalSubtitle}>Icone</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: espacements.lg }}>
+              <View style={{ flexDirection: 'row', gap: espacements.sm }}>
+                {METRIQUE_ICONES.map((mi) => (
+                  <Pressable
+                    key={mi.value}
+                    style={[
+                      styles.metriqueIconBtn,
+                      newMetriqueIcone === mi.value && styles.metriqueIconBtnActive,
+                    ]}
+                    onPress={() => setNewMetriqueIcone(mi.value)}
+                  >
+                    <Ionicons
+                      name={mi.icon as any}
+                      size={22}
+                      color={newMetriqueIcone === mi.value ? '#FFFFFF' : couleurs.texte}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalInputLabel}>Valeur *</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newMetriqueValeur}
+                onChangeText={setNewMetriqueValeur}
+                placeholder="Ex: 15 000, 42%, 3.5M..."
+                placeholderTextColor={couleurs.texteSecondaire}
+                maxLength={30}
+              />
+            </View>
+
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalInputLabel}>Label *</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newMetriqueLabel}
+                onChangeText={setNewMetriqueLabel}
+                placeholder="Ex: Utilisateurs actifs, CA mensuel..."
+                placeholderTextColor={couleurs.texteSecondaire}
+                maxLength={50}
+              />
+            </View>
+
+            <Pressable style={styles.modalConfirmBtn} onPress={addMetrique}>
               <Ionicons name="add" size={20} color="#FFFFFF" />
               <Text style={styles.modalConfirmBtnText}>Ajouter</Text>
             </Pressable>
@@ -1360,5 +1812,87 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  // Tags
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espacements.sm,
+    marginBottom: espacements.sm,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.full,
+    paddingHorizontal: espacements.md,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    gap: 6,
+  },
+  tagChipText: {
+    fontSize: 13,
+    color: couleurs.texte,
+  },
+  // Metriques
+  metriqueItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: couleurs.fondSecondaire,
+    borderRadius: rayons.md,
+    padding: espacements.md,
+    marginBottom: espacements.sm,
+  },
+  metriqueIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: couleurs.primaire + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metriqueInfo: {
+    flex: 1,
+    marginLeft: espacements.md,
+  },
+  metriqueValeur: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: couleurs.texte,
+  },
+  metriqueLabel: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+  },
+  metriqueIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: couleurs.fondSecondaire,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metriqueIconBtnActive: {
+    backgroundColor: couleurs.primaire,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: couleurs.texteSecondaire,
+    marginTop: 4,
+  },
+  visibilityToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 4,
+    borderRadius: rayons.full,
+    backgroundColor: couleurs.fondSecondaire,
+  },
+  visibilityText: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
   },
 });

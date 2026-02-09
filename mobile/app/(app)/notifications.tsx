@@ -3,7 +3,7 @@
  * Avec actions rapides pour demandes d'amis
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +41,84 @@ import {
   refuserDemandeAmi,
 } from '../../src/services/utilisateurs';
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+/**
+ * Swipe gauche uniquement pour supprimer.
+ * activeOffsetX={-15} : n'active que les swipes vers la gauche
+ * failOffsetX={15}    : echoue si swipe vers la droite → SwipeableScreen prend le relais
+ * failOffsetY          : echoue si scroll vertical → FlatList scroll normalement
+ */
+const SwipeLeftToDelete = ({ children, onDelete }: { children: React.ReactNode; onDelete: () => void }) => {
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const gestureEvent = useMemo(
+    () => Animated.event(
+      [{ nativeEvent: { translationX: translateX } }],
+      { useNativeDriver: true }
+    ),
+    [translateX]
+  );
+
+  const clampedX = translateX.interpolate({
+    inputRange: [-SCREEN_WIDTH, 0],
+    outputRange: [-SCREEN_WIDTH, 0],
+    extrapolate: 'clamp',
+  });
+
+  const onHandlerStateChange = useCallback(({ nativeEvent }: any) => {
+    if (nativeEvent.oldState === State.ACTIVE) {
+      if (nativeEvent.translationX < -80 || nativeEvent.velocityX < -500) {
+        Animated.timing(translateX, {
+          toValue: -SCREEN_WIDTH,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          translateX.setValue(0);
+          onDelete();
+        });
+      } else {
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+  }, [translateX, onDelete]);
+
+  return (
+    <View style={{ overflow: 'hidden' }}>
+      <View style={swipeStyles.deleteBg}>
+        <Ionicons name="trash-outline" size={22} color={couleurs.blanc} />
+      </View>
+      <PanGestureHandler
+        activeOffsetX={-15}
+        failOffsetX={15}
+        failOffsetY={[-15, 15]}
+        onGestureEvent={gestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+      >
+        <Animated.View style={[swipeStyles.foreground, { transform: [{ translateX: clampedX }] }]}>
+          {children}
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
+  );
+};
+
+const swipeStyles = StyleSheet.create({
+  deleteBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: couleurs.danger,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingRight: espacements.xl,
+  },
+  foreground: {
+    backgroundColor: couleurs.fond,
+  },
+});
+
 export default function Notifications() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -51,7 +129,6 @@ export default function Notifications() {
   const [chargement, setChargement] = useState(true);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [actionsEnCours, setActionsEnCours] = useState<Set<string>>(new Set());
-  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   // Charger les notifications
   const chargerNotifications = useCallback(async (estRefresh = false) => {
@@ -355,25 +432,15 @@ export default function Notifications() {
     }
   };
 
-  // Render swipe action (supprimer)
-  const renderRightActions = (notifId: string, progress: Animated.AnimatedInterpolation<number>) => {
-    const translateX = progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [80, 0],
-    });
-
-    return (
-      <Animated.View style={[styles.swipeActionsRight, { transform: [{ translateX }] }]}>
-        <Pressable
-          style={styles.swipeActionDelete}
-          onPress={() => {
-            swipeableRefs.current.get(notifId)?.close();
-            handleSupprimer(notifId);
-          }}
-        >
-          <Ionicons name="trash-outline" size={22} color={couleurs.blanc} />
-        </Pressable>
-      </Animated.View>
+  // Long press pour supprimer une notification
+  const handleLongPress = (notif: Notification) => {
+    Alert.alert(
+      'Supprimer',
+      'Supprimer cette notification ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Supprimer', style: 'destructive', onPress: () => handleSupprimer(notif._id) },
+      ]
     );
   };
 
@@ -386,18 +453,14 @@ export default function Notifications() {
     const broadcastIcon = estBroadcast ? getBroadcastIconForBadge(item.data?.broadcastBadge) : getNotifIcon(item.type);
 
     return (
-      <Swipeable
-        ref={(ref) => { swipeableRefs.current.set(item._id, ref); }}
-        renderRightActions={(progress) => renderRightActions(item._id, progress)}
-        overshootRight={false}
-        friction={2}
-      >
+      <SwipeLeftToDelete onDelete={() => handleSupprimer(item._id)}>
         <AnimatedPressable
           style={[
             styles.notifItem,
             !item.lue && styles.notifItemNonLue,
           ]}
           onPress={() => handleNotificationPress(item)}
+          onLongPress={() => handleLongPress(item)}
           scaleOnPress={0.98}
         >
           {/* Avatar ou icône */}
@@ -474,7 +537,7 @@ export default function Notifications() {
           {/* Indicateur non lu */}
           {!item.lue && <View style={styles.notifIndicateur} />}
         </AnimatedPressable>
-      </Swipeable>
+      </SwipeLeftToDelete>
     );
   };
 
@@ -637,17 +700,6 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: couleurs.bordure,
-  },
-  // Swipe actions
-  swipeActionsRight: {
-    width: 80,
-    flexDirection: 'row',
-  },
-  swipeActionDelete: {
-    flex: 1,
-    backgroundColor: couleurs.danger,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   // Notification item
   notifItem: {

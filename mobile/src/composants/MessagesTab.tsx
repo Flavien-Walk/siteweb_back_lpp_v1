@@ -414,28 +414,6 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
     );
   };
 
-  const renderLeftActions = (conv: Conversation, progress: Animated.AnimatedInterpolation<number>) => {
-    const translateX = progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [-80, 0],
-    });
-
-    return (
-      <Animated.View style={[styles.swipeActionsLeft, { transform: [{ translateX }] }]}>
-        <Pressable
-          style={styles.swipeActionMute}
-          onPress={() => swipeableRefs.current.get(conv._id)?.close()}
-        >
-          <Ionicons
-            name={conv.estMuet ? 'volume-high-outline' : 'volume-mute-outline'}
-            size={24}
-            color={couleurs.blanc}
-          />
-        </Pressable>
-      </Animated.View>
-    );
-  };
-
   const renderConversation = ({ item }: { item: Conversation }) => {
     const nom = item.estGroupe
       ? item.nomGroupe
@@ -449,10 +427,9 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
       <Swipeable
         ref={(ref) => { swipeableRefs.current.set(item._id, ref); }}
         renderRightActions={(progress) => renderRightActions(item._id, progress)}
-        renderLeftActions={(progress) => renderLeftActions(item, progress)}
         overshootRight={false}
-        overshootLeft={false}
         friction={2}
+        dragOffsetFromLeftEdge={500}
       >
         <AnimatedPressable
           style={styles.conversationItem}
@@ -503,9 +480,6 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
             </View>
           </View>
 
-          {item.estMuet && (
-            <Ionicons name="volume-mute" size={16} color={couleurs.texteMuted} />
-          )}
         </AnimatedPressable>
       </Swipeable>
     );
@@ -1045,19 +1019,9 @@ const styles = StyleSheet.create({
     width: 80,
     flexDirection: 'row',
   },
-  swipeActionsLeft: {
-    width: 80,
-    flexDirection: 'row',
-  },
   swipeActionDelete: {
     flex: 1,
     backgroundColor: couleurs.danger,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  swipeActionMute: {
-    flex: 1,
-    backgroundColor: couleurs.primaire,
     justifyContent: 'center',
     alignItems: 'center',
   },

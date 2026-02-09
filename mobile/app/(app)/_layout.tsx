@@ -29,15 +29,14 @@ export default function AppLayout() {
           gestureEnabled: false,
         }}
       />
-      {/* Conversation - slide from right avec geste natif */}
+      {/* Conversation - slide from right, geste géré par SwipeableScreen */}
       <Stack.Screen
         name="conversation"
         options={{
           presentation: 'card',
           animation: 'slide_from_right',
           animationDuration: 250,
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
+          gestureEnabled: false,
         }}
       />
       {/* Profil utilisateur - slide from right */}
