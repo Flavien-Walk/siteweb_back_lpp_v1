@@ -815,7 +815,7 @@ export const getProjetsSuivisUtilisateur = async (
       followers: id,
       statut: 'published',
     })
-      .select('nom description pitch logo image categorie secteur maturite localisation nbFollowers datePublication')
+      .select('nom description pitch logo image categorie secteur maturite localisation followers datePublication')
       .populate('porteur', 'prenom nom avatar')
       .sort({ datePublication: -1 })
       .limit(50)

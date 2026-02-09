@@ -285,7 +285,14 @@ export const mesProjets = async (req: Request, res: Response): Promise<void> => 
       .sort({ dateMiseAJour: -1 })
       .populate('porteur', 'prenom nom avatar');
 
-    res.json({ succes: true, data: { projets } });
+    // Ajouter nbFollowers et estSuivi pour chaque projet
+    const projetsAvecStats = projets.map((p) => ({
+      ...p.toObject(),
+      nbFollowers: p.followers.length,
+      estSuivi: true,
+    }));
+
+    res.json({ succes: true, data: { projets: projetsAvecStats } });
   } catch (error) {
     console.error('Erreur mesProjets:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
