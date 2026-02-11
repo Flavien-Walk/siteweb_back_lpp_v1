@@ -1,0 +1,419 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  Edit3, MapPin, Users, Briefcase, Calendar, BookOpen,
+  Heart, Settings, Camera,
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { getPublicationsUtilisateur, Publication } from '../services/publications';
+import { getMesAmis, ProfilUtilisateur } from '../services/utilisateurs';
+import { couleurs } from '../styles/theme';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+type Tab = 'publications' | 'amis' | 'projets';
+
+export default function Profil() {
+  const { utilisateur, deconnexion } = useAuth();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>('publications');
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [amis, setAmis] = useState<ProfilUtilisateur[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!utilisateur) return;
+    (async () => {
+      setLoading(true);
+      const [pubRes, amisRes] = await Promise.all([
+        getPublicationsUtilisateur(utilisateur.id),
+        getMesAmis(),
+      ]);
+      if (pubRes.succes && pubRes.data) {
+        setPublications(pubRes.data.publications);
+      }
+      if (amisRes.succes && amisRes.data) {
+        setAmis(amisRes.data.amis);
+      }
+      setLoading(false);
+    })();
+  }, [utilisateur]);
+
+  if (!utilisateur) return null;
+
+  const dateInscription = utilisateur.dateInscription
+    ? format(new Date(utilisateur.dateInscription), 'MMMM yyyy', { locale: fr })
+    : '';
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.coverArea}>
+        <div style={styles.coverGradient} />
+        <div style={styles.profileHeader}>
+          <div style={styles.avatarContainer}>
+            {utilisateur.avatar ? (
+              <img src={utilisateur.avatar} alt="" style={styles.avatar} />
+            ) : (
+              <div style={styles.avatarPlaceholder}>
+                <span style={styles.avatarLetter}>{utilisateur.prenom[0]}</span>
+              </div>
+            )}
+          </div>
+          <div style={styles.profileInfo}>
+            <h1 style={styles.name}>{utilisateur.prenom} {utilisateur.nom}</h1>
+            <div style={styles.badges}>
+              {utilisateur.statut === 'entrepreneur' && (
+                <span style={styles.badgeEntrepreneur}>
+                  <Briefcase size={12} /> Entrepreneur
+                </span>
+              )}
+              {utilisateur.statut !== 'entrepreneur' && (
+                <span style={styles.badgeVisiteur}>
+                  <BookOpen size={12} /> Investisseur
+                </span>
+              )}
+            </div>
+            {utilisateur.bio && <p style={styles.bio}>{utilisateur.bio}</p>}
+            <div style={styles.metaRow}>
+              {dateInscription && (
+                <span style={styles.metaItem}>
+                  <Calendar size={14} /> Membre depuis {dateInscription}
+                </span>
+              )}
+              <span style={styles.metaItem}>
+                <Users size={14} /> {utilisateur.nbAmis || amis.length} amis
+              </span>
+            </div>
+          </div>
+          <motion.button
+            style={styles.editBtn}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Settings size={18} />
+          </motion.button>
+        </div>
+      </div>
+
+      <div style={styles.stats}>
+        <div style={styles.statCard}>
+          <span style={styles.statValue}>{publications.length}</span>
+          <span style={styles.statLabel}>Publications</span>
+        </div>
+        <div style={styles.statCard}>
+          <span style={styles.statValue}>{amis.length}</span>
+          <span style={styles.statLabel}>Amis</span>
+        </div>
+        <div style={styles.statCard}>
+          <span style={styles.statValue}>{utilisateur.projetsSuivis || 0}</span>
+          <span style={styles.statLabel}>Projets suivis</span>
+        </div>
+      </div>
+
+      <div style={styles.tabBar}>
+        {([
+          { key: 'publications' as Tab, label: 'Publications' },
+          { key: 'amis' as Tab, label: 'Amis' },
+        ]).map((tab) => (
+          <button
+            key={tab.key}
+            style={{
+              ...styles.tab,
+              color: activeTab === tab.key ? couleurs.primaire : couleurs.texteSecondaire,
+              borderBottomColor: activeTab === tab.key ? couleurs.primaire : 'transparent',
+            }}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={styles.tabContent}>
+        {activeTab === 'publications' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            {loading ? (
+              [1, 2, 3].map((i) => (
+                <div key={i} className="skeleton" style={{ height: 120, borderRadius: 12, marginBottom: 12 }} />
+              ))
+            ) : publications.length > 0 ? (
+              publications.map((pub) => (
+                <div key={pub._id} style={styles.pubCard}>
+                  <p style={styles.pubContent}>{pub.contenu}</p>
+                  {pub.medias?.[0] && (
+                    <img src={pub.medias[0].url} alt="" style={styles.pubMedia} />
+                  )}
+                  <div style={styles.pubStats}>
+                    <span><Heart size={14} color={couleurs.danger} /> {pub.nbLikes}</span>
+                    <span>{pub.nbCommentaires} commentaires</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p style={styles.emptyText}>Aucune publication</p>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === 'amis' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={styles.amisGrid}>
+            {amis.map((ami) => (
+              <motion.div
+                key={ami._id}
+                style={styles.amiCard}
+                whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+                onClick={() => navigate(`/utilisateur/${ami._id}`)}
+              >
+                <div style={styles.amiAvatar}>
+                  {ami.avatar ? (
+                    <img src={ami.avatar} alt="" style={styles.amiAvatarImg} />
+                  ) : (
+                    <span style={styles.amiInitial}>{ami.prenom[0]}</span>
+                  )}
+                </div>
+                <span style={styles.amiName}>{ami.prenom} {ami.nom}</span>
+                {ami.statut && (
+                  <span style={styles.amiStatut}>
+                    {ami.statut === 'entrepreneur' ? 'Entrepreneur' : 'Investisseur'}
+                  </span>
+                )}
+              </motion.div>
+            ))}
+            {amis.length === 0 && <p style={styles.emptyText}>Aucun ami</p>}
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {},
+  coverArea: {
+    position: 'relative' as const,
+    marginBottom: 24,
+    paddingTop: 60,
+  },
+  coverGradient: {
+    position: 'absolute' as const,
+    top: 0,
+    left: -40,
+    right: -40,
+    height: 120,
+    background: `linear-gradient(135deg, ${couleurs.primaire}, ${couleurs.secondaire})`,
+    borderRadius: '0 0 24px 24px',
+    opacity: 0.15,
+  },
+  profileHeader: {
+    display: 'flex',
+    gap: 20,
+    alignItems: 'flex-start',
+    position: 'relative' as const,
+  },
+  avatarContainer: {
+    flexShrink: 0,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: '50%',
+    objectFit: 'cover' as const,
+    border: `3px solid ${couleurs.primaire}`,
+  },
+  avatarPlaceholder: {
+    width: 88,
+    height: 88,
+    borderRadius: '50%',
+    backgroundColor: couleurs.primaire,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: `3px solid ${couleurs.primaireDark}`,
+  },
+  avatarLetter: {
+    fontSize: '2rem',
+    fontWeight: '700',
+    color: couleurs.blanc,
+  },
+  profileInfo: {
+    flex: 1,
+    paddingTop: 8,
+  },
+  name: {
+    fontSize: '1.5rem',
+    fontWeight: '700',
+    color: couleurs.texte,
+    marginBottom: 6,
+  },
+  badges: {
+    display: 'flex',
+    gap: 8,
+    marginBottom: 8,
+  },
+  badgeEntrepreneur: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '4px 10px',
+    borderRadius: 8,
+    backgroundColor: couleurs.accentLight,
+    color: couleurs.accent,
+    fontSize: '0.75rem',
+    fontWeight: '600',
+  },
+  badgeVisiteur: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '4px 10px',
+    borderRadius: 8,
+    backgroundColor: couleurs.secondaireLight,
+    color: couleurs.secondaire,
+    fontSize: '0.75rem',
+    fontWeight: '600',
+  },
+  bio: {
+    fontSize: '0.9375rem',
+    color: couleurs.texteSecondaire,
+    lineHeight: 1.5,
+    marginBottom: 8,
+  },
+  metaRow: {
+    display: 'flex',
+    gap: 16,
+    flexWrap: 'wrap' as const,
+  },
+  metaItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: '0.8125rem',
+    color: couleurs.texteMuted,
+  },
+  editBtn: {
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: couleurs.fondCard,
+    border: `1px solid ${couleurs.bordure}`,
+    color: couleurs.texteSecondaire,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stats: {
+    display: 'flex',
+    gap: 12,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: couleurs.fondCard,
+    border: `1px solid ${couleurs.bordure}`,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: 4,
+  },
+  statValue: {
+    fontSize: '1.25rem',
+    fontWeight: '700',
+    color: couleurs.primaire,
+  },
+  statLabel: {
+    fontSize: '0.75rem',
+    color: couleurs.texteSecondaire,
+  },
+  tabBar: {
+    display: 'flex',
+    borderBottom: `1px solid ${couleurs.bordure}`,
+    marginBottom: 24,
+    gap: 4,
+  },
+  tab: {
+    padding: '12px 20px',
+    background: 'none',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    fontSize: '0.9375rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 150ms ease',
+  },
+  tabContent: {},
+  pubCard: {
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: couleurs.fondCard,
+    border: `1px solid ${couleurs.bordure}`,
+    marginBottom: 12,
+  },
+  pubContent: {
+    fontSize: '0.9375rem',
+    color: couleurs.texte,
+    lineHeight: 1.5,
+    marginBottom: 8,
+    whiteSpace: 'pre-wrap' as const,
+  },
+  pubMedia: {
+    width: '100%',
+    maxHeight: 300,
+    objectFit: 'cover' as const,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  pubStats: {
+    display: 'flex',
+    gap: 16,
+    fontSize: '0.8125rem',
+    color: couleurs.texteSecondaire,
+  },
+  amisGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+    gap: 12,
+  },
+  amiCard: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: couleurs.fondCard,
+    border: `1px solid ${couleurs.bordure}`,
+    cursor: 'pointer',
+    transition: 'all 200ms ease',
+  },
+  amiAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: '50%',
+    backgroundColor: couleurs.primaire,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  amiAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' as const },
+  amiInitial: { color: couleurs.blanc, fontWeight: '600' },
+  amiName: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: couleurs.texte,
+    textAlign: 'center' as const,
+  },
+  amiStatut: {
+    fontSize: '0.6875rem',
+    color: couleurs.texteSecondaire,
+  },
+  emptyText: {
+    textAlign: 'center' as const,
+    padding: 40,
+    color: couleurs.texteSecondaire,
+    fontSize: '0.9375rem',
+  },
+};
