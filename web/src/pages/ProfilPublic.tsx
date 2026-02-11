@@ -159,7 +159,7 @@ export default function ProfilPublic() {
                 </span>
               ) : (
                 <span style={styles.badgeVisiteur}>
-                  <BookOpen size={12} /> Investisseur
+                  <BookOpen size={12} /> Visiteur
                 </span>
               )}
             </div>

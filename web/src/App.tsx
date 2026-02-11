@@ -14,6 +14,7 @@ import Profil from './pages/Profil';
 import Lives from './pages/Lives';
 import Notifications from './pages/Notifications';
 import ProfilPublic from './pages/ProfilPublic';
+import ChoixStatut from './pages/ChoixStatut';
 import { couleurs } from './styles/theme';
 
 function LoadingScreen() {
@@ -93,6 +94,14 @@ export default function App() {
         }
       />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route
+        path="/choix-statut"
+        element={
+          <ProtectedRoute>
+            <ChoixStatut />
+          </ProtectedRoute>
+        }
+      />
       <Route
         element={
           <ProtectedRoute>

@@ -37,11 +37,12 @@ export default function Profil() {
         getMesProjets(),
       ]);
       if (pubRes.succes && pubRes.data) {
-        // Filter client-side to ensure only user's own publications show
-        const mesPubs = pubRes.data.publications.filter(
-          (p) => p.auteur._id === utilisateur.id || p.auteur._id === (utilisateur as any)._id
+        // Filter strictly: only user's own publications
+        setPublications(
+          pubRes.data.publications.filter(
+            (p) => p.auteur._id === utilisateur.id
+          )
         );
-        setPublications(mesPubs.length > 0 ? mesPubs : pubRes.data.publications);
       }
       if (amisRes.succes && amisRes.data) {
         setAmis(amisRes.data.amis);
@@ -83,7 +84,7 @@ export default function Profil() {
               )}
               {utilisateur.statut !== 'entrepreneur' && (
                 <span style={styles.badgeVisiteur}>
-                  <BookOpen size={12} /> Investisseur
+                  <BookOpen size={12} /> Visiteur
                 </span>
               )}
             </div>
@@ -189,7 +190,7 @@ export default function Profil() {
                 <span style={styles.amiName}>{ami.prenom} {ami.nom}</span>
                 {ami.statut && (
                   <span style={styles.amiStatut}>
-                    {ami.statut === 'entrepreneur' ? 'Entrepreneur' : 'Investisseur'}
+                    {ami.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
                   </span>
                 )}
               </motion.div>

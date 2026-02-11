@@ -46,7 +46,7 @@ export default function Inscription() {
     try {
       const reponse = await inscription({ ...form, cguAcceptees });
       if (reponse.succes) {
-        navigate('/');
+        navigate('/choix-statut', { replace: true });
       } else {
         setErreur(reponse.message || 'Erreur lors de l\'inscription');
       }
