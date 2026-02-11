@@ -1,6 +1,9 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { setToken } from './services/api';
 import MainLayout from './components/layout/MainLayout';
+import Landing from './pages/Landing';
 import Connexion from './pages/Connexion';
 import Inscription from './pages/Inscription';
 import Feed from './pages/Feed';
@@ -12,46 +15,67 @@ import Lives from './pages/Lives';
 import Notifications from './pages/Notifications';
 import { couleurs } from './styles/theme';
 
+function LoadingScreen() {
+  return (
+    <div style={styles.loadingScreen}>
+      <div style={styles.loader} />
+      <span style={styles.loadingText}>Chargement...</span>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { utilisateur, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div style={styles.loadingScreen}>
-        <div style={styles.loader} />
-        <span style={styles.loadingText}>Chargement...</span>
-      </div>
-    );
-  }
-
-  if (!utilisateur) {
-    return <Navigate to="/connexion" replace />;
-  }
-
+  if (loading) return <LoadingScreen />;
+  if (!utilisateur) return <Navigate to="/connexion" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { utilisateur, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div style={styles.loadingScreen}>
-        <div style={styles.loader} />
-      </div>
-    );
-  }
-
-  if (utilisateur) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (loading) return <LoadingScreen />;
+  if (utilisateur) return <Navigate to="/feed" replace />;
   return <>{children}</>;
+}
+
+function HomeRoute({ children }: { children: React.ReactNode }) {
+  const { utilisateur, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (utilisateur) return <Navigate to="/feed" replace />;
+  return <>{children}</>;
+}
+
+function AuthCallback() {
+  const navigate = useNavigate();
+  const { rafraichirUtilisateur } = useAuth();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      setToken(token);
+      rafraichirUtilisateur().then(() => {
+        navigate('/feed', { replace: true });
+      });
+    } else {
+      navigate('/connexion', { replace: true });
+    }
+  }, [navigate, rafraichirUtilisateur]);
+
+  return <LoadingScreen />;
 }
 
 export default function App() {
   return (
     <Routes>
+      <Route
+        path="/"
+        element={
+          <HomeRoute>
+            <Landing />
+          </HomeRoute>
+        }
+      />
       <Route
         path="/connexion"
         element={
@@ -68,6 +92,7 @@ export default function App() {
           </PublicRoute>
         }
       />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route
         element={
           <ProtectedRoute>
@@ -75,7 +100,7 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Feed />} />
+        <Route path="feed" element={<Feed />} />
         <Route path="decouvrir" element={<Decouvrir />} />
         <Route path="projets/:id" element={<ProjetDetail />} />
         <Route path="messagerie" element={<Messagerie />} />

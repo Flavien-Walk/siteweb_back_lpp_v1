@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { User, Mail, Lock, Eye, EyeOff, ArrowRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { couleurs } from '../styles/theme';
+import BoutonsOAuth from '../components/BoutonsOAuth';
 
 export default function Inscription() {
   const [form, setForm] = useState({
@@ -194,6 +195,8 @@ export default function Inscription() {
               {!loading && <ArrowRight size={18} />}
             </motion.button>
           </form>
+
+          <BoutonsOAuth />
 
           <p style={styles.switchText}>
             Déjà un compte ?{' '}

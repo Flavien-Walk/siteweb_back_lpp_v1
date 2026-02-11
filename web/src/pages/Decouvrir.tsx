@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Users, TrendingUp, Filter, X } from 'lucide-react';
-import { getProjets } from '../services/projets';
+import { getProjets, getProjetsTendance } from '../services/projets';
 import type { Projet, CategorieProjet, MaturiteProjet } from '../services/projets';
 import { couleurs } from '../styles/theme';
 
@@ -85,11 +85,21 @@ function ProjetCard({ projet, index }: { projet: Projet; index: number }) {
 
 export default function Decouvrir() {
   const [projets, setProjets] = useState<Projet[]>([]);
+  const [tendances, setTendances] = useState<Projet[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [categorie, setCategorie] = useState<CategorieProjet | ''>('');
   const [maturite, setMaturite] = useState<MaturiteProjet | ''>('');
   const [showFilters, setShowFilters] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    getProjetsTendance(8).then((res) => {
+      if (res.succes && res.data) {
+        setTendances(res.data.projets);
+      }
+    });
+  }, []);
 
   const chargerProjets = useCallback(async () => {
     setLoading(true);
@@ -130,6 +140,44 @@ export default function Decouvrir() {
           <p style={styles.pageSubtitle}>Explore les projets qui façonnent demain</p>
         </div>
       </motion.div>
+
+      {tendances.length > 0 && (
+        <div style={styles.tendancesSection}>
+          <div style={styles.tendancesHeader}>
+            <TrendingUp size={18} color={couleurs.secondaire} />
+            <span style={styles.tendancesTitle}>Tendances</span>
+          </div>
+          <div style={styles.tendancesScroll}>
+            {tendances.map((p, i) => (
+              <motion.div
+                key={p._id}
+                style={styles.tendanceCard}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}
+                onClick={() => navigate(`/projets/${p._id}`)}
+              >
+                <img
+                  src={p.image || p.logo || 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=200&h=120&fit=crop&q=80'}
+                  alt={p.nom}
+                  style={styles.tendanceImg}
+                />
+                <div style={styles.tendanceBody}>
+                  <span style={styles.tendanceName}>{p.nom}</span>
+                  <span style={styles.tendanceCat}>
+                    {CATEGORIES.find((c) => c.value === p.categorie)?.emoji}{' '}
+                    {CATEGORIES.find((c) => c.value === p.categorie)?.label || p.categorie}
+                  </span>
+                  <span style={styles.tendanceFollowers}>
+                    <Users size={12} /> {p.nbFollowers || 0}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={styles.searchBar}>
         <Search size={20} color={couleurs.texteSecondaire} />
@@ -441,5 +489,65 @@ const styles: Record<string, React.CSSProperties> = {
   emptySubtext: {
     fontSize: '0.875rem',
     color: couleurs.texteSecondaire,
+  },
+  tendancesSection: {
+    marginBottom: 24,
+  },
+  tendancesHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  tendancesTitle: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  tendancesScroll: {
+    display: 'flex',
+    gap: 14,
+    overflowX: 'auto' as const,
+    paddingBottom: 8,
+  },
+  tendanceCard: {
+    minWidth: 200,
+    backgroundColor: couleurs.fondCard,
+    borderRadius: 14,
+    border: `1px solid ${couleurs.bordure}`,
+    overflow: 'hidden' as const,
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'box-shadow 200ms ease',
+  },
+  tendanceImg: {
+    width: '100%',
+    height: 100,
+    objectFit: 'cover' as const,
+  },
+  tendanceBody: {
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  tendanceName: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: couleurs.texte,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+  },
+  tendanceCat: {
+    fontSize: '0.75rem',
+    color: couleurs.texteSecondaire,
+  },
+  tendanceFollowers: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: '0.75rem',
+    color: couleurs.texteMuted,
   },
 };

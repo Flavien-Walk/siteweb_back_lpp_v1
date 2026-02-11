@@ -14,7 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { couleurs } from '../../styles/theme';
 
 const NAV_ITEMS = [
-  { to: '/', icon: Home, label: 'Accueil' },
+  { to: '/feed', icon: Home, label: 'Accueil' },
   { to: '/decouvrir', icon: Compass, label: 'Découvrir' },
   { to: '/lives', icon: Radio, label: 'Lives' },
   { to: '/messagerie', icon: MessageCircle, label: 'Messages' },

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { couleurs } from '../styles/theme';
+import BoutonsOAuth from '../components/BoutonsOAuth';
 
 export default function Connexion() {
   const [email, setEmail] = useState('');
@@ -146,6 +147,8 @@ export default function Connexion() {
               {!loading && <ArrowRight size={18} />}
             </motion.button>
           </form>
+
+          <BoutonsOAuth />
 
           <p style={styles.switchText}>
             Pas encore de compte ?{' '}
