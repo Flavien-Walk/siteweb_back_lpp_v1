@@ -209,6 +209,18 @@ function CommentsPanel({
     charger();
   }, [charger]);
 
+  // Silent auto-refresh every 15s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const res = await getCommentaires(publicationId, 1, 50);
+      if (res.succes && res.data) {
+        setCommentaires(res.data.commentaires);
+        onCountUpdate(res.data.pagination?.total ?? res.data.commentaires.length);
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [publicationId, onCountUpdate]);
+
   const handleSend = async () => {
     if (!newComment.trim() || sending) return;
     setSending(true);
@@ -497,6 +509,25 @@ export default function Feed() {
   useEffect(() => {
     chargerDonnees();
   }, [chargerDonnees]);
+
+  // Silent background polling every 30s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const res = await getPublications(1, 30);
+      if (res.succes && res.data) {
+        setPublications((prev) => {
+          const prevIds = new Set(prev.map((p) => p._id));
+          const nouvelles = res.data!.publications.filter((p) => !prevIds.has(p._id));
+          const mises = prev.map((p) => {
+            const fresh = res.data!.publications.find((f) => f._id === p._id);
+            return fresh ? { ...p, nbLikes: fresh.nbLikes, aLike: fresh.aLike, nbCommentaires: fresh.nbCommentaires } : p;
+          });
+          return nouvelles.length > 0 ? [...nouvelles, ...mises] : mises;
+        });
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handlePost = async () => {
     if (!newPost.trim()) return;
