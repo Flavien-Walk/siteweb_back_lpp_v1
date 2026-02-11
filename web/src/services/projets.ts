@@ -132,6 +132,10 @@ export const getProjetsTendance = async (limit = 5): Promise<ReponseAPI<{ projet
   return api.get(`/projets?limit=${limit}&sort=popular`, true);
 };
 
+export const getMesProjets = async (): Promise<ReponseAPI<{ projets: Projet[] }>> => {
+  return api.get('/projets/suivis', true);
+};
+
 export const getProjetsSuivisUtilisateur = async (userId: string): Promise<ReponseAPI<{ projets: Projet[] }>> => {
   return api.get(`/utilisateurs/${userId}/projets-suivis`, true);
 };

@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, ArrowRight, ChevronDown, MapPin, Users,
   Search, Heart, Rocket, Eye, TrendingUp,
-  Shield, Lock, Star,
+  Shield, Lock, Star, LayoutDashboard,
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { couleurs } from '../styles/theme';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://siteweb-back-lpp-v1.onrender.com/api';
@@ -17,6 +18,7 @@ const scrollToSection = (id: string) => {
 // ─── Header ──────────────────────────────────────────────────────
 function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
+  const { utilisateur } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -48,10 +50,18 @@ function LandingHeader() {
         </nav>
 
         <div style={s.headerActions}>
-          <Link to="/connexion" style={s.loginBtn}>Se connecter</Link>
-          <Link to="/inscription" style={s.signupBtn}>
-            S'inscrire <ArrowRight size={16} />
-          </Link>
+          {utilisateur ? (
+            <Link to="/feed" style={s.signupBtn}>
+              <LayoutDashboard size={16} /> Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link to="/connexion" style={s.loginBtn}>Se connecter</Link>
+              <Link to="/inscription" style={s.signupBtn}>
+                S'inscrire <ArrowRight size={16} />
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
@@ -60,6 +70,8 @@ function LandingHeader() {
 
 // ─── Hero ────────────────────────────────────────────────────────
 function Hero() {
+  const { utilisateur } = useAuth();
+
   return (
     <section style={s.heroSection}>
       <div style={s.heroBg} />
@@ -90,12 +102,20 @@ function Hero() {
         </p>
 
         <div style={s.heroCtas}>
-          <Link to="/inscription" style={s.heroPrimaryBtn}>
-            Commencer maintenant <ArrowRight size={18} />
-          </Link>
-          <button onClick={() => scrollToSection('projets')} style={s.heroSecondaryBtn}>
-            Découvrir les projets
-          </button>
+          {utilisateur ? (
+            <Link to="/feed" style={s.heroPrimaryBtn}>
+              <LayoutDashboard size={18} /> Accéder au dashboard
+            </Link>
+          ) : (
+            <>
+              <Link to="/inscription" style={s.heroPrimaryBtn}>
+                Commencer maintenant <ArrowRight size={18} />
+              </Link>
+              <button onClick={() => scrollToSection('projets')} style={s.heroSecondaryBtn}>
+                Découvrir les projets
+              </button>
+            </>
+          )}
         </div>
       </motion.div>
 
@@ -281,7 +301,7 @@ function FeaturedProjects() {
       )}
 
       <div style={s.sectionCta}>
-        <Link to="/inscription" style={s.outlineBtn}>
+        <Link to={projets.length > 0 ? '/decouvrir' : '/inscription'} style={s.outlineBtn}>
           Voir tous les projets <ArrowRight size={16} />
         </Link>
       </div>
@@ -470,6 +490,8 @@ function SecuritySection() {
 
 // ─── CTA Final ──────────────────────────────────────────────────
 function CtaFinal() {
+  const { utilisateur } = useAuth();
+
   return (
     <section style={s.ctaSection}>
       <div style={s.ctaBg} />
@@ -479,17 +501,29 @@ function CtaFinal() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
       >
-        <h2 style={s.ctaTitle}>Prêt à poser ta première pierre ?</h2>
+        <h2 style={s.ctaTitle}>
+          {utilisateur ? 'Explore les derniers projets' : 'Prêt à poser ta première pierre ?'}
+        </h2>
         <p style={s.ctaSubtitle}>
-          Rejoins une communauté de passionnés et participe à des projets qui changent les choses.
+          {utilisateur
+            ? 'Retrouve ton fil d\'actualité, tes projets suivis et ta communauté.'
+            : 'Rejoins une communauté de passionnés et participe à des projets qui changent les choses.'}
         </p>
         <div style={s.ctaBtns}>
-          <Link to="/inscription" style={s.heroPrimaryBtn}>
-            Créer mon compte <ArrowRight size={18} />
-          </Link>
-          <Link to="/connexion" style={s.heroSecondaryBtn}>
-            Se connecter
-          </Link>
+          {utilisateur ? (
+            <Link to="/feed" style={s.heroPrimaryBtn}>
+              <LayoutDashboard size={18} /> Mon dashboard
+            </Link>
+          ) : (
+            <>
+              <Link to="/inscription" style={s.heroPrimaryBtn}>
+                Créer mon compte <ArrowRight size={18} />
+              </Link>
+              <Link to="/connexion" style={s.heroSecondaryBtn}>
+                Se connecter
+              </Link>
+            </>
+          )}
         </div>
       </motion.div>
     </section>

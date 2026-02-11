@@ -1,62 +1,139 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Users, Briefcase, Calendar, BookOpen,
-  Heart, Settings, MapPin, FolderHeart,
+  Heart, UserPlus, UserCheck, UserX, MessageCircle,
+  MapPin, FolderHeart, Clock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  getProfilUtilisateur, envoyerDemandeAmi, annulerDemandeAmi,
+  accepterDemandeAmi, supprimerAmi, getAmisUtilisateur,
+} from '../services/utilisateurs';
+import type { ProfilUtilisateur } from '../services/utilisateurs';
 import { getPublicationsUtilisateur } from '../services/publications';
 import type { Publication } from '../services/publications';
-import { getMesAmis } from '../services/utilisateurs';
-import type { ProfilUtilisateur } from '../services/utilisateurs';
-import { getMesProjets } from '../services/projets';
+import { getProjetsSuivisUtilisateur } from '../services/projets';
 import type { Projet } from '../services/projets';
+import { getOuCreerConversationPrivee } from '../services/messagerie';
 import { couleurs } from '../styles/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 type Tab = 'publications' | 'amis' | 'projets';
 
-export default function Profil() {
-  const { utilisateur } = useAuth();
+export default function ProfilPublic() {
+  const { id } = useParams<{ id: string }>();
+  const { utilisateur: moi } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>('publications');
+  const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [amis, setAmis] = useState<ProfilUtilisateur[]>([]);
-  const [projetsSuivis, setProjetsSuivis] = useState<Projet[]>([]);
+  const [projets, setProjets] = useState<Projet[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>('publications');
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    if (!utilisateur) return;
+    if (!id) return;
+    // If viewing own profile, redirect
+    if (moi && (id === moi.id || id === (moi as any)._id)) {
+      navigate('/profil', { replace: true });
+      return;
+    }
     (async () => {
       setLoading(true);
-      const [pubRes, amisRes, projetsRes] = await Promise.all([
-        getPublicationsUtilisateur(utilisateur.id),
-        getMesAmis(),
-        getMesProjets(),
+      const [profilRes, pubRes, amisRes, projetsRes] = await Promise.all([
+        getProfilUtilisateur(id),
+        getPublicationsUtilisateur(id),
+        getAmisUtilisateur(id),
+        getProjetsSuivisUtilisateur(id),
       ]);
+      if (profilRes.succes && profilRes.data) {
+        setProfil(profilRes.data.utilisateur);
+      }
       if (pubRes.succes && pubRes.data) {
-        // Filter client-side to ensure only user's own publications show
-        const mesPubs = pubRes.data.publications.filter(
-          (p) => p.auteur._id === utilisateur.id || p.auteur._id === (utilisateur as any)._id
-        );
-        setPublications(mesPubs.length > 0 ? mesPubs : pubRes.data.publications);
+        setPublications(pubRes.data.publications);
       }
       if (amisRes.succes && amisRes.data) {
         setAmis(amisRes.data.amis);
       }
       if (projetsRes.succes && projetsRes.data) {
-        setProjetsSuivis(projetsRes.data.projets);
+        setProjets(projetsRes.data.projets);
       }
       setLoading(false);
     })();
-  }, [utilisateur]);
+  }, [id, moi, navigate]);
 
-  if (!utilisateur) return null;
+  const handleDemandeAmi = async () => {
+    if (!id || actionLoading) return;
+    setActionLoading(true);
+    const res = await envoyerDemandeAmi(id);
+    if (res.succes && profil) {
+      setProfil({ ...profil, demandeEnvoyee: true });
+    }
+    setActionLoading(false);
+  };
 
-  const dateInscription = utilisateur.dateInscription
-    ? format(new Date(utilisateur.dateInscription), 'MMMM yyyy', { locale: fr })
+  const handleAnnulerDemande = async () => {
+    if (!id || actionLoading) return;
+    setActionLoading(true);
+    const res = await annulerDemandeAmi(id);
+    if (res.succes && profil) {
+      setProfil({ ...profil, demandeEnvoyee: false });
+    }
+    setActionLoading(false);
+  };
+
+  const handleAccepterDemande = async () => {
+    if (!id || actionLoading) return;
+    setActionLoading(true);
+    const res = await accepterDemandeAmi(id);
+    if (res.succes && profil) {
+      setProfil({ ...profil, estAmi: true, demandeRecue: false });
+    }
+    setActionLoading(false);
+  };
+
+  const handleSupprimerAmi = async () => {
+    if (!id || actionLoading) return;
+    setActionLoading(true);
+    const res = await supprimerAmi(id);
+    if (res.succes && profil) {
+      setProfil({ ...profil, estAmi: false });
+    }
+    setActionLoading(false);
+  };
+
+  const handleMessage = async () => {
+    if (!id) return;
+    const res = await getOuCreerConversationPrivee(id);
+    if (res.succes) {
+      navigate('/messagerie');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={styles.page}>
+        <div className="skeleton" style={{ height: 120, borderRadius: 16, marginBottom: 16 }} />
+        <div className="skeleton" style={{ height: 60, borderRadius: 14, marginBottom: 16 }} />
+        <div className="skeleton" style={{ height: 200, borderRadius: 14 }} />
+      </div>
+    );
+  }
+
+  if (!profil) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.emptyText}>Utilisateur introuvable</div>
+      </div>
+    );
+  }
+
+  const dateInscription = profil.dateInscription
+    ? format(new Date(profil.dateInscription), 'MMMM yyyy', { locale: fr })
     : '';
 
   return (
@@ -65,29 +142,28 @@ export default function Profil() {
         <div style={styles.coverGradient} />
         <div style={styles.profileHeader}>
           <div style={styles.avatarContainer}>
-            {utilisateur.avatar ? (
-              <img src={utilisateur.avatar} alt="" style={styles.avatar} />
+            {profil.avatar ? (
+              <img src={profil.avatar} alt="" style={styles.avatar} />
             ) : (
               <div style={styles.avatarPlaceholder}>
-                <span style={styles.avatarLetter}>{utilisateur.prenom[0]}</span>
+                <span style={styles.avatarLetter}>{profil.prenom[0]}</span>
               </div>
             )}
           </div>
           <div style={styles.profileInfo}>
-            <h1 style={styles.name}>{utilisateur.prenom} {utilisateur.nom}</h1>
+            <h1 style={styles.name}>{profil.prenom} {profil.nom}</h1>
             <div style={styles.badges}>
-              {utilisateur.statut === 'entrepreneur' && (
+              {profil.statut === 'entrepreneur' ? (
                 <span style={styles.badgeEntrepreneur}>
                   <Briefcase size={12} /> Entrepreneur
                 </span>
-              )}
-              {utilisateur.statut !== 'entrepreneur' && (
+              ) : (
                 <span style={styles.badgeVisiteur}>
                   <BookOpen size={12} /> Investisseur
                 </span>
               )}
             </div>
-            {utilisateur.bio && <p style={styles.bio}>{utilisateur.bio}</p>}
+            {profil.bio && <p style={styles.bio}>{profil.bio}</p>}
             <div style={styles.metaRow}>
               {dateInscription && (
                 <span style={styles.metaItem}>
@@ -95,18 +171,78 @@ export default function Profil() {
                 </span>
               )}
               <span style={styles.metaItem}>
-                <Users size={14} /> {utilisateur.nbAmis || amis.length} amis
+                <Users size={14} /> {profil.nbAmis || amis.length} amis
               </span>
             </div>
           </div>
-          <motion.button
-            style={styles.editBtn}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Settings size={18} />
-          </motion.button>
         </div>
+      </div>
+
+      <div style={styles.actionRow}>
+        {profil.estAmi ? (
+          <>
+            <motion.button
+              style={styles.friendBtn}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSupprimerAmi}
+              disabled={actionLoading}
+            >
+              <UserCheck size={16} /> Ami
+            </motion.button>
+            <motion.button
+              style={styles.messageBtn}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleMessage}
+            >
+              <MessageCircle size={16} /> Message
+            </motion.button>
+          </>
+        ) : profil.demandeEnvoyee ? (
+          <motion.button
+            style={styles.pendingBtn}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleAnnulerDemande}
+            disabled={actionLoading}
+          >
+            <Clock size={16} /> Demande envoy&eacute;e
+          </motion.button>
+        ) : profil.demandeRecue ? (
+          <>
+            <motion.button
+              style={styles.acceptBtn}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleAccepterDemande}
+              disabled={actionLoading}
+            >
+              <UserPlus size={16} /> Accepter
+            </motion.button>
+            <motion.button
+              style={styles.messageBtn}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleMessage}
+            >
+              <MessageCircle size={16} /> Message
+            </motion.button>
+          </>
+        ) : (
+          <>
+            <motion.button
+              style={styles.addFriendBtn}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleDemandeAmi}
+              disabled={actionLoading}
+            >
+              <UserPlus size={16} /> Ajouter en ami
+            </motion.button>
+            <motion.button
+              style={styles.messageBtn}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleMessage}
+            >
+              <MessageCircle size={16} /> Message
+            </motion.button>
+          </>
+        )}
       </div>
 
       <div style={styles.stats}>
@@ -119,7 +255,7 @@ export default function Profil() {
           <span style={styles.statLabel}>Amis</span>
         </div>
         <div style={styles.statCard}>
-          <span style={styles.statValue}>{projetsSuivis.length || utilisateur.projetsSuivis || 0}</span>
+          <span style={styles.statValue}>{profil.projetsSuivis || projets.length}</span>
           <span style={styles.statLabel}>Projets suivis</span>
         </div>
       </div>
@@ -147,11 +283,7 @@ export default function Profil() {
       <div style={styles.tabContent}>
         {activeTab === 'publications' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            {loading ? (
-              [1, 2, 3].map((i) => (
-                <div key={i} className="skeleton" style={{ height: 120, borderRadius: 12, marginBottom: 12 }} />
-              ))
-            ) : publications.length > 0 ? (
+            {publications.length > 0 ? (
               publications.map((pub) => (
                 <div key={pub._id} style={styles.pubCard}>
                   <p style={styles.pubContent}>{pub.contenu}</p>
@@ -187,11 +319,6 @@ export default function Profil() {
                   )}
                 </div>
                 <span style={styles.amiName}>{ami.prenom} {ami.nom}</span>
-                {ami.statut && (
-                  <span style={styles.amiStatut}>
-                    {ami.statut === 'entrepreneur' ? 'Entrepreneur' : 'Investisseur'}
-                  </span>
-                )}
               </motion.div>
             ))}
             {amis.length === 0 && <p style={styles.emptyText}>Aucun ami</p>}
@@ -200,12 +327,8 @@ export default function Profil() {
 
         {activeTab === 'projets' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            {loading ? (
-              [1, 2, 3].map((i) => (
-                <div key={i} className="skeleton" style={{ height: 100, borderRadius: 14, marginBottom: 12 }} />
-              ))
-            ) : projetsSuivis.length > 0 ? (
-              projetsSuivis.map((projet) => (
+            {projets.length > 0 ? (
+              projets.map((projet) => (
                 <motion.div
                   key={projet._id}
                   style={styles.projetCard}
@@ -269,9 +392,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-start',
     position: 'relative' as const,
   },
-  avatarContainer: {
-    flexShrink: 0,
-  },
+  avatarContainer: { flexShrink: 0 },
   avatar: {
     width: 88,
     height: 88,
@@ -294,21 +415,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: '700',
     color: couleurs.blanc,
   },
-  profileInfo: {
-    flex: 1,
-    paddingTop: 8,
-  },
+  profileInfo: { flex: 1, paddingTop: 8 },
   name: {
     fontSize: '1.5rem',
     fontWeight: '700',
     color: couleurs.texte,
     marginBottom: 6,
   },
-  badges: {
-    display: 'flex',
-    gap: 8,
-    marginBottom: 8,
-  },
+  badges: { display: 'flex', gap: 8, marginBottom: 8 },
   badgeEntrepreneur: {
     display: 'flex',
     alignItems: 'center',
@@ -337,11 +451,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     marginBottom: 8,
   },
-  metaRow: {
-    display: 'flex',
-    gap: 16,
-    flexWrap: 'wrap' as const,
-  },
+  metaRow: { display: 'flex', gap: 16, flexWrap: 'wrap' as const },
   metaItem: {
     display: 'flex',
     alignItems: 'center',
@@ -349,16 +459,75 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.8125rem',
     color: couleurs.texteMuted,
   },
-  editBtn: {
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: couleurs.fondCard,
-    border: `1px solid ${couleurs.bordure}`,
-    color: couleurs.texteSecondaire,
-    cursor: 'pointer',
+  actionRow: {
+    display: 'flex',
+    gap: 10,
+    marginBottom: 24,
+  },
+  addFriendBtn: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    padding: '10px 20px',
+    borderRadius: 12,
+    background: `linear-gradient(135deg, ${couleurs.primaire}, ${couleurs.primaireDark})`,
+    color: couleurs.blanc,
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  friendBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '10px 20px',
+    borderRadius: 12,
+    backgroundColor: couleurs.primaireLight,
+    color: couleurs.primaire,
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    border: `1px solid ${couleurs.primaire}`,
+    cursor: 'pointer',
+  },
+  pendingBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '10px 20px',
+    borderRadius: 12,
+    backgroundColor: couleurs.fondCard,
+    color: couleurs.texteSecondaire,
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    border: `1px solid ${couleurs.bordure}`,
+    cursor: 'pointer',
+  },
+  acceptBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '10px 20px',
+    borderRadius: 12,
+    background: `linear-gradient(135deg, ${couleurs.succes}, #1ca34e)`,
+    color: couleurs.blanc,
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  messageBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '10px 20px',
+    borderRadius: 12,
+    backgroundColor: couleurs.fondCard,
+    color: couleurs.texte,
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    border: `1px solid ${couleurs.bordure}`,
+    cursor: 'pointer',
   },
   stats: {
     display: 'flex',
@@ -464,10 +633,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: couleurs.texte,
     textAlign: 'center' as const,
   },
-  amiStatut: {
-    fontSize: '0.6875rem',
-    color: couleurs.texteSecondaire,
-  },
   projetCard: {
     display: 'flex',
     alignItems: 'center',
@@ -492,10 +657,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     objectFit: 'cover' as const,
   },
-  projetInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
+  projetInfo: { flex: 1, minWidth: 0 },
   projetNom: {
     fontSize: '0.9375rem',
     fontWeight: '600',
@@ -511,10 +673,7 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as const,
     marginBottom: 6,
   },
-  projetMeta: {
-    display: 'flex',
-    gap: 12,
-  },
+  projetMeta: { display: 'flex', gap: 12 },
   projetMetaItem: {
     display: 'flex',
     alignItems: 'center',

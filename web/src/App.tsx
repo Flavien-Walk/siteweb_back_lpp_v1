@@ -13,6 +13,7 @@ import Messagerie from './pages/Messagerie';
 import Profil from './pages/Profil';
 import Lives from './pages/Lives';
 import Notifications from './pages/Notifications';
+import ProfilPublic from './pages/ProfilPublic';
 import { couleurs } from './styles/theme';
 
 function LoadingScreen() {
@@ -39,9 +40,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function HomeRoute({ children }: { children: React.ReactNode }) {
-  const { utilisateur, loading } = useAuth();
+  const { loading } = useAuth();
   if (loading) return <LoadingScreen />;
-  if (utilisateur) return <Navigate to="/feed" replace />;
   return <>{children}</>;
 }
 
@@ -107,6 +107,7 @@ export default function App() {
         <Route path="profil" element={<Profil />} />
         <Route path="lives" element={<Lives />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="utilisateur/:id" element={<ProfilPublic />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

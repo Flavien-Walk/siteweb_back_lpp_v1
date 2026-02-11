@@ -33,7 +33,7 @@ export default function Sidebar() {
 
   return (
     <aside style={styles.sidebar}>
-      <div style={styles.logoContainer}>
+      <div style={styles.logoContainer} onClick={() => navigate('/')} role="button">
         <motion.div
           style={styles.logoIcon}
           whileHover={{ scale: 1.05 }}
@@ -89,7 +89,11 @@ export default function Sidebar() {
 
       <div style={styles.bottomSection}>
         {utilisateur && (
-          <div style={styles.userInfo}>
+          <motion.div
+            style={styles.userInfo}
+            whileHover={{ backgroundColor: couleurs.primaireLight }}
+            onClick={() => navigate('/profil')}
+          >
             <div style={styles.avatar}>
               {utilisateur.avatar ? (
                 <img src={utilisateur.avatar} alt="" style={styles.avatarImg} />
@@ -107,7 +111,7 @@ export default function Sidebar() {
                 {utilisateur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Investisseur'}
               </span>
             </div>
-          </div>
+          </motion.div>
         )}
         <motion.button
           style={styles.logoutBtn}
@@ -145,6 +149,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
     padding: '0 12px',
     marginBottom: 32,
+    cursor: 'pointer',
   },
   logoIcon: {
     width: 40,
@@ -211,6 +216,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 12,
     padding: '8px 12px',
+    borderRadius: 12,
+    cursor: 'pointer',
+    transition: 'background-color 150ms ease',
   },
   avatar: {
     width: 36,

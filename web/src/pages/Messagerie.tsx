@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Search, Send, ArrowLeft } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Send, ArrowLeft, PenSquare, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import {
   getConversations, getMessages, envoyerMessage, marquerConversationLue,
+  getOuCreerConversationPrivee,
+  rechercherUtilisateurs as rechercherUtilisateursMsg,
 } from '../services/messagerie';
-import type { Conversation, Message } from '../services/messagerie';
+import type { Conversation, Message, UtilisateurMsg } from '../services/messagerie';
 import { couleurs } from '../styles/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -119,6 +121,10 @@ export default function Messagerie() {
   const [loading, setLoading] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showNewConv, setShowNewConv] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [userResults, setUserResults] = useState<UtilisateurMsg[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const chargerConversations = useCallback(async () => {
@@ -164,6 +170,34 @@ export default function Messagerie() {
     return () => { socket.off('new_message', handleNewMsg); };
   }, [socket, activeConvId, chargerConversations]);
 
+  // User search for new conversation
+  useEffect(() => {
+    if (!userSearch.trim()) {
+      setUserResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchingUsers(true);
+      const res = await rechercherUtilisateursMsg(userSearch.trim());
+      if (res.succes && res.data) {
+        setUserResults(res.data.utilisateurs);
+      }
+      setSearchingUsers(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
+
+  const handleStartConversation = async (userId: string) => {
+    const res = await getOuCreerConversationPrivee(userId);
+    if (res.succes && res.data) {
+      setShowNewConv(false);
+      setUserSearch('');
+      setUserResults([]);
+      await chargerConversations();
+      setActiveConvId(res.data.conversation._id);
+    }
+  };
+
   const handleSend = async () => {
     if (!newMsg.trim() || !activeConvId) return;
     const contenu = newMsg.trim();
@@ -194,6 +228,14 @@ export default function Messagerie() {
       <div style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
           <h2 style={styles.sidebarTitle}>Messages</h2>
+          <motion.button
+            style={styles.newConvBtn}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowNewConv(true)}
+          >
+            <PenSquare size={18} />
+          </motion.button>
         </div>
         <div style={styles.searchBar}>
           <Search size={16} color={couleurs.texteSecondaire} />
@@ -262,7 +304,7 @@ export default function Messagerie() {
                 value={newMsg}
                 onChange={(e) => setNewMsg(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Écris un message..."
+                placeholder="Ecris un message..."
                 style={styles.msgInput}
                 rows={1}
               />
@@ -281,13 +323,97 @@ export default function Messagerie() {
           </>
         ) : (
           <div style={styles.noChat}>
-            <div style={styles.noChatIcon}>💬</div>
-            <p style={styles.noChatText}>Sélectionne une conversation</p>
-            <p style={styles.noChatSubtext}>Choisis un contact pour démarrer</p>
+            <div style={styles.noChatIcon}>
+              <MessageBubbleIcon />
+            </div>
+            <p style={styles.noChatText}>Selectionne une conversation</p>
+            <p style={styles.noChatSubtext}>Choisis un contact pour demarrer</p>
+            <motion.button
+              style={styles.startConvBtn}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowNewConv(true)}
+            >
+              <PenSquare size={16} /> Nouvelle conversation
+            </motion.button>
           </div>
         )}
       </div>
+
+      {/* New conversation overlay */}
+      <AnimatePresence>
+        {showNewConv && (
+          <motion.div
+            style={styles.overlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowNewConv(false)}
+          >
+            <motion.div
+              style={styles.newConvModal}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={styles.modalHeader}>
+                <h3 style={styles.modalTitle}>Nouvelle conversation</h3>
+                <button style={styles.modalClose} onClick={() => setShowNewConv(false)}>
+                  <X size={18} color={couleurs.texteSecondaire} />
+                </button>
+              </div>
+              <div style={styles.modalSearchBar}>
+                <Search size={16} color={couleurs.texteSecondaire} />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Rechercher un utilisateur..."
+                  style={styles.modalSearchInput}
+                  autoFocus
+                />
+              </div>
+              <div style={styles.modalResults}>
+                {searchingUsers ? (
+                  <div className="skeleton" style={{ height: 48, borderRadius: 10, margin: 8 }} />
+                ) : userResults.length > 0 ? (
+                  userResults.map((u) => (
+                    <motion.button
+                      key={u._id}
+                      style={styles.userResultItem}
+                      whileHover={{ backgroundColor: couleurs.fondCard }}
+                      onClick={() => handleStartConversation(u._id)}
+                    >
+                      <div style={styles.userResultAvatar}>
+                        {u.avatar ? (
+                          <img src={u.avatar} alt="" style={styles.userResultAvatarImg} />
+                        ) : (
+                          <span style={styles.userResultInitial}>{u.prenom[0]}</span>
+                        )}
+                      </div>
+                      <span style={styles.userResultName}>{u.prenom} {u.nom}</span>
+                    </motion.button>
+                  ))
+                ) : userSearch.trim() ? (
+                  <p style={styles.noResults}>Aucun utilisateur trouve</p>
+                ) : (
+                  <p style={styles.noResults}>Tape un nom pour rechercher</p>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function MessageBubbleIcon() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={couleurs.texteMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
   );
 }
 
@@ -308,11 +434,25 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sidebarHeader: {
     padding: '20px 20px 12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sidebarTitle: {
     fontSize: '1.25rem',
     fontWeight: '700',
     color: couleurs.texte,
+  },
+  newConvBtn: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: couleurs.primaireLight,
+    border: 'none',
+    color: couleurs.primaire,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBar: {
     display: 'flex',
@@ -533,7 +673,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   noChatIcon: {
-    fontSize: '3rem',
     marginBottom: 8,
   },
   noChatText: {
@@ -544,5 +683,117 @@ const styles: Record<string, React.CSSProperties> = {
   noChatSubtext: {
     fontSize: '0.875rem',
     color: couleurs.texteSecondaire,
+  },
+  startConvBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '10px 20px',
+    borderRadius: 12,
+    background: `linear-gradient(135deg, ${couleurs.primaire}, ${couleurs.primaireDark})`,
+    color: couleurs.blanc,
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    border: 'none',
+    cursor: 'pointer',
+    marginTop: 8,
+  },
+  overlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  newConvModal: {
+    width: 420,
+    maxHeight: '70vh',
+    backgroundColor: couleurs.fondElevated,
+    borderRadius: 20,
+    border: `1px solid ${couleurs.bordure}`,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    overflow: 'hidden',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '16px 20px',
+    borderBottom: `1px solid ${couleurs.bordure}`,
+  },
+  modalTitle: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  modalClose: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 4,
+  },
+  modalSearchBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    margin: '12px 16px',
+    padding: '10px 14px',
+    borderRadius: 12,
+    backgroundColor: couleurs.fondInput,
+    border: `1px solid ${couleurs.bordure}`,
+  },
+  modalSearchInput: {
+    flex: 1,
+    background: 'none',
+    border: 'none',
+    color: couleurs.texte,
+    fontSize: '0.9375rem',
+  },
+  modalResults: {
+    flex: 1,
+    overflowY: 'auto' as const,
+    padding: '0 8px 12px',
+    maxHeight: 360,
+  },
+  userResultItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '10px 12px',
+    borderRadius: 12,
+    border: 'none',
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'left' as const,
+    backgroundColor: 'transparent',
+    transition: 'background-color 150ms ease',
+  },
+  userResultAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: '50%',
+    backgroundColor: couleurs.primaire,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  userResultAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' as const },
+  userResultInitial: { color: couleurs.blanc, fontWeight: '600', fontSize: '0.875rem' },
+  userResultName: {
+    fontSize: '0.9375rem',
+    fontWeight: '500',
+    color: couleurs.texte,
+  },
+  noResults: {
+    textAlign: 'center' as const,
+    padding: 24,
+    color: couleurs.texteSecondaire,
+    fontSize: '0.875rem',
   },
 };
