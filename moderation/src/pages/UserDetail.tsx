@@ -36,7 +36,6 @@ const roleLabels: Record<string, string> = {
   modo: 'Modérateur',
   admin_modo: 'Administrateur',
   super_admin: 'Fondateur',
-  admin: 'Administrateur', // Legacy
 }
 
 const timelineEventLabels: Record<string, string> = {

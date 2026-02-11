@@ -184,17 +184,15 @@ export const usersService = {
   /**
    * Update user role
    */
-  async updateRole(id: string, role: string): Promise<User> {
-    const response = await api.patch<ApiResponse<{ user: User }>>(
+  async updateRole(id: string, role: string): Promise<void> {
+    const response = await api.patch<ApiResponse<{ oldRole: string; newRole: string }>>(
       `/admin/users/${id}/role`,
-      { role }
+      { newRole: role }
     )
 
-    if (!response.data.succes || !response.data.data) {
+    if (!response.data.succes) {
       throw new Error(response.data.message || 'Erreur lors de la modification du rôle')
     }
-
-    return response.data.data.user
   },
 
   /**
