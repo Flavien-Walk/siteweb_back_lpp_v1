@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Users, Briefcase, Calendar, BookOpen,
-  Heart, UserPlus, UserCheck, UserX, MessageCircle,
+  Heart, UserPlus, UserCheck, MessageCircle,
   MapPin, FolderHeart, Clock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
