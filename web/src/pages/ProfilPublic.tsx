@@ -301,7 +301,7 @@ export default function ProfilPublic() {
         <div
           style={{ ...styles.statCard, cursor: 'pointer' }}
           onClick={() => {
-            if (profil.estAmi) {
+            if (profil.estAmi || profil.profilPublic !== false) {
               navigate(`/utilisateur/${id}/amis`);
             } else {
               alert('Devenez ami pour voir la liste d\'amis');
@@ -310,7 +310,7 @@ export default function ProfilPublic() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={styles.statValue}>{profil.nbAmis || 0}</span>
-            {!profil.estAmi && <Lock size={12} color={couleurs.texteSecondaire} />}
+            {!profil.estAmi && profil.profilPublic === false && <Lock size={12} color={couleurs.texteSecondaire} />}
           </div>
           <span style={styles.statLabel}>Amis</span>
         </div>
