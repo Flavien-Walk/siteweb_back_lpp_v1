@@ -734,19 +734,26 @@ export const getAmisUtilisateur = async (
     const userIdStr = userId.toString();
     const estSoiMeme = userIdStr === id;
 
-    // Si ce n'est pas son propre profil, vérifier l'amitié
+    // Si ce n'est pas son propre profil, vérifier l'accès
     if (!estSoiMeme) {
-      const utilisateurConnecte = await Utilisateur.findById(userIdStr).select('amis');
-      if (!utilisateurConnecte) {
-        res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
-        return;
-      }
-      const amisIds = (utilisateurConnecte.amis || []).map((a) => a.toString());
-      const estAmi = amisIds.includes(id);
+      // Vérifier si le profil cible est public
+      const cible = await Utilisateur.findById(id).select('profilPublic').lean();
+      const profilEstPublic = cible?.profilPublic !== false;
 
-      if (!estAmi) {
-        res.status(403).json({ succes: false, message: 'Vous devez être ami pour voir cette liste.' });
-        return;
+      if (!profilEstPublic) {
+        // Profil privé : vérifier l'amitié
+        const utilisateurConnecte = await Utilisateur.findById(userIdStr).select('amis');
+        if (!utilisateurConnecte) {
+          res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
+          return;
+        }
+        const amisIds = (utilisateurConnecte.amis || []).map((a) => a.toString());
+        const estAmi = amisIds.includes(id);
+
+        if (!estAmi) {
+          res.status(403).json({ succes: false, message: 'Ce profil est privé.' });
+          return;
+        }
       }
     }
 
