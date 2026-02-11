@@ -135,4 +135,8 @@ export const modifierMotDePasse = async (
   }, true);
 };
 
+export const supprimerCompte = async (motDePasse: string): Promise<ReponseAPI<void>> => {
+  return api.delete<void>('/profil', true, { motDePasse });
+};
+
 export { getToken };

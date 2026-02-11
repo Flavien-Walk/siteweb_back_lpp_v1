@@ -1,7 +1,7 @@
 import api from './api';
 import type { ReponseAPI } from './api';
 
-export type TypeNotification = 'demande_ami' | 'ami_accepte' | 'nouveau_message' | 'nouveau_commentaire' | 'nouveau_like' | 'like_commentaire' | 'projet_update' | 'systeme' | 'sanction_ban' | 'sanction_suspend' | 'sanction_warn' | 'broadcast';
+export type TypeNotification = 'demande_ami' | 'ami_accepte' | 'nouveau_message' | 'nouveau_commentaire' | 'nouveau_like' | 'like_commentaire' | 'projet-update' | 'project_follow' | 'annonce' | 'live-rappel' | 'interaction' | 'systeme' | 'sanction_ban' | 'sanction_suspend' | 'sanction_warn' | 'sanction_unban' | 'sanction_unsuspend' | 'sanction_unwarn' | 'moderation' | 'broadcast';
 
 export interface Notification {
   _id: string;

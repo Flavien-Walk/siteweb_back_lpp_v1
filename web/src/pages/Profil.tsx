@@ -121,6 +121,7 @@ export default function Profil() {
             style={styles.editBtn}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/reglages')}
           >
             <Settings size={18} />
           </motion.button>

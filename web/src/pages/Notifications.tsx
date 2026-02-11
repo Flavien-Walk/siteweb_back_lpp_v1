@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell, UserPlus, Heart, MessageCircle, CheckCheck,
-  Trash2, Megaphone, AlertTriangle,
+  Trash2, Megaphone, AlertTriangle, Check, X, Rocket,
+  CheckCircle,
 } from 'lucide-react';
+import { useSocket } from '../contexts/SocketContext';
 import {
   getNotifications, marquerToutesLues, marquerNotificationLue,
   supprimerNotification,
 } from '../services/notifications';
 import type { Notification } from '../services/notifications';
+import { accepterDemandeAmi, refuserDemandeAmi } from '../services/utilisateurs';
 import { couleurs } from '../styles/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -17,8 +20,9 @@ import { fr } from 'date-fns/locale';
 function getNotifIcon(type: string) {
   switch (type) {
     case 'demande_ami':
-    case 'ami_accepte':
       return <UserPlus size={18} color={couleurs.primaire} />;
+    case 'ami_accepte':
+      return <CheckCircle size={18} color={couleurs.succes} />;
     case 'nouveau_like':
     case 'like_commentaire':
       return <Heart size={18} color={couleurs.danger} />;
@@ -28,10 +32,17 @@ function getNotifIcon(type: string) {
       return <MessageCircle size={18} color={couleurs.accent} />;
     case 'broadcast':
       return <Megaphone size={18} color={couleurs.accent} />;
+    case 'project_follow':
+    case 'projet-update':
+      return <Rocket size={18} color={couleurs.primaire} />;
     case 'sanction_warn':
     case 'sanction_suspend':
     case 'sanction_ban':
       return <AlertTriangle size={18} color={couleurs.danger} />;
+    case 'sanction_unban':
+    case 'sanction_unsuspend':
+    case 'sanction_unwarn':
+      return <CheckCircle size={18} color={couleurs.succes} />;
     default:
       return <Bell size={18} color={couleurs.texteSecondaire} />;
   }
@@ -41,20 +52,31 @@ function NotificationCard({
   notif,
   onRead,
   onDelete,
+  onFriendAction,
 }: {
   notif: Notification;
   onRead: (id: string) => void;
   onDelete: (id: string) => void;
+  onFriendAction: (notifId: string, userId: string, accept: boolean) => void;
 }) {
   const navigate = useNavigate();
   const timeAgo = formatDistanceToNow(new Date(notif.dateCreation), { addSuffix: true, locale: fr });
 
   const handleClick = () => {
     if (!notif.lue) onRead(notif._id);
-    if (notif.data?.conversationId) navigate(`/messagerie`);
-    else if (notif.data?.projetId) navigate(`/projets/${notif.data.projetId}`);
-    else if (notif.data?.userId) navigate(`/utilisateur/${notif.data.userId}`);
+    // Navigate based on notification data
+    if (notif.data?.publicationId) {
+      navigate('/feed');
+    } else if (notif.data?.conversationId) {
+      navigate(`/messagerie?conv=${notif.data.conversationId}`);
+    } else if (notif.data?.projetId) {
+      navigate(`/projets/${notif.data.projetId}`);
+    } else if (notif.data?.userId) {
+      navigate(`/utilisateur/${notif.data.userId}`);
+    }
   };
+
+  const isFriendRequest = notif.type === 'demande_ami' && notif.data?.userId;
 
   return (
     <motion.div
@@ -69,13 +91,37 @@ function NotificationCard({
       whileHover={{ x: 4 }}
       onClick={handleClick}
     >
-      <div style={styles.notifIcon}>
-        {getNotifIcon(notif.type)}
-      </div>
+      {notif.data?.userAvatar ? (
+        <img src={notif.data.userAvatar} alt="" style={styles.notifAvatar} />
+      ) : (
+        <div style={styles.notifIcon}>
+          {getNotifIcon(notif.type)}
+        </div>
+      )}
       <div style={styles.notifContent}>
         <span style={styles.notifTitle}>{notif.titre}</span>
         <span style={styles.notifMsg}>{notif.message}</span>
         <span style={styles.notifTime}>{timeAgo}</span>
+        {isFriendRequest && (
+          <div style={styles.friendActions} onClick={(e) => e.stopPropagation()}>
+            <motion.button
+              style={styles.acceptBtn}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onFriendAction(notif._id, notif.data!.userId!, true)}
+            >
+              <Check size={14} /> Accepter
+            </motion.button>
+            <motion.button
+              style={styles.refuseBtn}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onFriendAction(notif._id, notif.data!.userId!, false)}
+            >
+              <X size={14} /> Refuser
+            </motion.button>
+          </div>
+        )}
       </div>
       <motion.button
         style={styles.deleteBtn}
@@ -93,6 +139,7 @@ function NotificationCard({
 }
 
 export default function Notifications() {
+  const { socket } = useSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonLues, setNonLues] = useState(0);
@@ -110,6 +157,20 @@ export default function Notifications() {
   useEffect(() => {
     charger();
   }, [charger]);
+
+  // Real-time notification listener
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotif = () => {
+      charger();
+    };
+    socket.on('new_notification', handleNewNotif);
+    socket.on('demande_ami', handleNewNotif);
+    return () => {
+      socket.off('new_notification', handleNewNotif);
+      socket.off('demande_ami', handleNewNotif);
+    };
+  }, [socket, charger]);
 
   const handleReadAll = async () => {
     await marquerToutesLues();
@@ -130,6 +191,17 @@ export default function Notifications() {
     const notif = notifications.find((n) => n._id === id);
     setNotifications((prev) => prev.filter((n) => n._id !== id));
     if (notif && !notif.lue) setNonLues((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleFriendAction = async (notifId: string, userId: string, accept: boolean) => {
+    if (accept) {
+      await accepterDemandeAmi(userId);
+    } else {
+      await refuserDemandeAmi(userId);
+    }
+    // Remove the notification after action
+    setNotifications((prev) => prev.filter((n) => n._id !== notifId));
+    setNonLues((prev) => Math.max(0, prev - 1));
   };
 
   return (
@@ -170,6 +242,7 @@ export default function Notifications() {
                 notif={notif}
                 onRead={handleRead}
                 onDelete={handleDelete}
+                onFriendAction={handleFriendAction}
               />
             ))}
           </AnimatePresence>
@@ -226,7 +299,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   notifCard: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 14,
     padding: '14px 16px',
     borderRadius: 14,
@@ -242,6 +315,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  notifAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    objectFit: 'cover' as const,
     flexShrink: 0,
   },
   notifContent: {
@@ -266,6 +346,37 @@ const styles: Record<string, React.CSSProperties> = {
   notifTime: {
     fontSize: '0.6875rem',
     color: couleurs.texteMuted,
+  },
+  friendActions: {
+    display: 'flex',
+    gap: 8,
+    marginTop: 8,
+  },
+  acceptBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '6px 14px',
+    borderRadius: 8,
+    backgroundColor: couleurs.succes,
+    color: couleurs.blanc,
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  refuseBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '6px 14px',
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    color: couleurs.danger,
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    border: `1px solid ${couleurs.danger}`,
+    cursor: 'pointer',
   },
   deleteBtn: {
     padding: 8,

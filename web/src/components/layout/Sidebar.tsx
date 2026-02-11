@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -9,27 +10,74 @@ import {
   Radio,
   LogOut,
   Sparkles,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSocket } from '../../contexts/SocketContext';
 import { couleurs } from '../../styles/theme';
-
-const NAV_ITEMS = [
-  { to: '/feed', icon: Home, label: 'Accueil' },
-  { to: '/decouvrir', icon: Compass, label: 'Decouvrir' },
-  { to: '/lives', icon: Radio, label: 'Lives' },
-  { to: '/messagerie', icon: MessageCircle, label: 'Messages' },
-  { to: '/notifications', icon: Bell, label: 'Notifications' },
-  { to: '/profil', icon: User, label: 'Profil' },
-];
 
 export default function Sidebar() {
   const { utilisateur, deconnexion } = useAuth();
+  const { socket } = useSocket();
   const navigate = useNavigate();
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  const fetchUnreadCounts = useCallback(() => {
+    if (socket?.connected) {
+      socket.emit('get_unread_counts');
+    }
+  }, [socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUnreadCounts = (data: { messages?: number; notifications?: number; demandesAmis?: number }) => {
+      setUnreadMessages(data.messages || 0);
+      setUnreadNotifications((data.notifications || 0) + (data.demandesAmis || 0));
+    };
+
+    const handleNewMessage = () => {
+      setUnreadMessages((prev) => prev + 1);
+    };
+
+    const handleNewNotification = () => {
+      setUnreadNotifications((prev) => prev + 1);
+    };
+
+    socket.on('unread_counts', handleUnreadCounts);
+    socket.on('new_message', handleNewMessage);
+    socket.on('new_notification', handleNewNotification);
+    socket.on('demande_ami', handleNewNotification);
+
+    fetchUnreadCounts();
+    const interval = setInterval(fetchUnreadCounts, 60000);
+
+    return () => {
+      socket.off('unread_counts', handleUnreadCounts);
+      socket.off('new_message', handleNewMessage);
+      socket.off('new_notification', handleNewNotification);
+      socket.off('demande_ami', handleNewNotification);
+      clearInterval(interval);
+    };
+  }, [socket, fetchUnreadCounts]);
 
   const handleDeconnexion = () => {
     deconnexion();
     navigate('/connexion');
   };
+
+  const navItems = [
+    { to: '/feed', icon: Home, label: 'Accueil', badge: 0 },
+    { to: '/decouvrir', icon: Compass, label: 'Decouvrir', badge: 0 },
+    { to: '/lives', icon: Radio, label: 'Lives', badge: 0 },
+    { to: '/messagerie', icon: MessageCircle, label: 'Messages', badge: unreadMessages },
+    { to: '/notifications', icon: Bell, label: 'Notifications', badge: unreadNotifications },
+    ...(utilisateur?.statut === 'entrepreneur'
+      ? [{ to: '/entrepreneur', icon: Briefcase, label: 'Mes Projets', badge: 0 }]
+      : []),
+    { to: '/profil', icon: User, label: 'Profil', badge: 0 },
+  ];
 
   return (
     <aside style={styles.sidebar}>
@@ -45,7 +93,7 @@ export default function Sidebar() {
       </div>
 
       <nav style={styles.nav}>
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -68,10 +116,17 @@ export default function Sidebar() {
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 )}
-                <item.icon
-                  size={20}
-                  color={isActive ? couleurs.primaire : couleurs.texteSecondaire}
-                />
+                <div style={{ position: 'relative' as const }}>
+                  <item.icon
+                    size={20}
+                    color={isActive ? couleurs.primaire : couleurs.texteSecondaire}
+                  />
+                  {item.badge > 0 && (
+                    <span style={styles.badge}>
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
+                </div>
                 <span
                   style={{
                     ...styles.navLabel,
@@ -110,7 +165,7 @@ export default function Sidebar() {
               <span style={styles.userStatus}>
                 {utilisateur.role === 'super_admin' ? 'Fondateur'
                   : utilisateur.role === 'admin' || utilisateur.role === 'admin_modo' ? 'Admin'
-                  : utilisateur.role === 'modo' ? 'Modérateur'
+                  : utilisateur.role === 'modo' ? 'Moderateur'
                   : utilisateur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
               </span>
             </div>
@@ -206,6 +261,22 @@ const styles: Record<string, React.CSSProperties> = {
   navLabel: {
     fontSize: '0.9375rem',
     transition: 'color 150ms ease',
+  },
+  badge: {
+    position: 'absolute' as const,
+    top: -6,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: couleurs.danger,
+    color: couleurs.blanc,
+    fontSize: '0.625rem',
+    fontWeight: '700',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 4px',
   },
   bottomSection: {
     borderTop: `1px solid ${couleurs.bordure}`,

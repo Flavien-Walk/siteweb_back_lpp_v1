@@ -139,3 +139,68 @@ export const getMesProjets = async (): Promise<ReponseAPI<{ projets: Projet[] }>
 export const getProjetsSuivisUtilisateur = async (userId: string): Promise<ReponseAPI<{ projets: Projet[] }>> => {
   return api.get(`/utilisateurs/${userId}/projets-suivis`, true);
 };
+
+// ─── Entrepreneur endpoints ───
+
+export type RoleEquipe = 'founder' | 'cofounder' | 'cto' | 'cmo' | 'cfo' | 'developer' | 'designer' | 'marketing' | 'sales' | 'other';
+
+export interface ProjetFormData {
+  nom?: string;
+  pitch?: string;
+  description?: string;
+  categorie?: CategorieProjet;
+  secteur?: string;
+  tags?: string[];
+  localisation?: { ville: string };
+  probleme?: string;
+  solution?: string;
+  avantageConcurrentiel?: string;
+  cible?: string;
+  maturite?: MaturiteProjet;
+  businessModel?: string;
+  objectifFinancement?: number;
+  metriques?: Metrique[];
+  liens?: LienProjet[];
+  image?: string;
+  pitchVideo?: string;
+}
+
+export const getMesProjetsEntrepreneur = async (): Promise<ReponseAPI<{ projets: Projet[] }>> => {
+  return api.get('/projets/entrepreneur/mes-projets', true);
+};
+
+export const creerProjet = async (data: ProjetFormData): Promise<ReponseAPI<{ projet: Projet }>> => {
+  return api.post('/projets/entrepreneur/creer', data, true);
+};
+
+export const modifierProjet = async (id: string, data: ProjetFormData): Promise<ReponseAPI<{ projet: Projet }>> => {
+  return api.put(`/projets/entrepreneur/${id}`, data, true);
+};
+
+export const publierProjet = async (id: string): Promise<ReponseAPI<{ projet: Projet }>> => {
+  return api.post(`/projets/entrepreneur/${id}/publier`, {}, true);
+};
+
+export const depublierProjet = async (id: string): Promise<ReponseAPI<{ projet: Projet }>> => {
+  return api.post(`/projets/entrepreneur/${id}/depublier`, {}, true);
+};
+
+export const supprimerProjet = async (id: string): Promise<ReponseAPI<{ message: string }>> => {
+  return api.delete(`/projets/entrepreneur/${id}`, true);
+};
+
+export const gererEquipeProjet = async (id: string, membres: { utilisateur?: string; nom: string; role: RoleEquipe; titre?: string }[]): Promise<ReponseAPI<{ projet: Projet }>> => {
+  return api.patch(`/projets/entrepreneur/${id}/equipe`, { membres }, true);
+};
+
+export const uploadMediaProjet = async (id: string, media: string, type: 'image' | 'video' = 'image', target: 'cover' | 'galerie' = 'galerie'): Promise<ReponseAPI<{ url: string }>> => {
+  return api.post(`/projets/entrepreneur/${id}/upload-media`, { media, type, target }, true);
+};
+
+export const uploadDocumentProjet = async (id: string, document: { nom: string; fichier: string; type: string; visibilite: VisibiliteDocument }): Promise<ReponseAPI<{ document: DocumentProjet }>> => {
+  return api.post(`/projets/entrepreneur/${id}/upload-document`, document, true);
+};
+
+export const getRepresentantsProjet = async (id: string): Promise<ReponseAPI<{ representants: Porteur[] }>> => {
+  return api.get(`/projets/${id}/representants`, false);
+};
