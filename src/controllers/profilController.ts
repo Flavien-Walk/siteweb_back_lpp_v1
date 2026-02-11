@@ -72,6 +72,7 @@ const schemaModifierProfil = z.object({
     .max(150, 'La bio ne peut pas dépasser 150 caractères')
     .trim()
     .optional(),
+  profilPublic: z.boolean().optional(),
 });
 
 // Schéma de validation pour le changement de mot de passe
@@ -142,6 +143,7 @@ export const modifierProfil = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
+          profilPublic: utilisateur.profilPublic ?? true,
         },
       },
     });

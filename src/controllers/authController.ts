@@ -70,6 +70,7 @@ export const inscription = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
+          profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
           // Données staff (cohérence avec /connexion et /moi)
           isStaff,
@@ -165,6 +166,7 @@ export const connexion = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
+          profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
           // Données staff (pour que le mobile ait les permissions immédiatement)
           isStaff,
@@ -235,6 +237,7 @@ export const moi = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
+          profilPublic: utilisateur.profilPublic ?? true,
           dateCreation: utilisateur.dateCreation,
           nbAmis: utilisateur.amis?.length || 0,
           // Données staff (pour mobile et moderation tool)
@@ -426,6 +429,7 @@ export const exchangeOAuthCode = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           provider: utilisateur.provider,
+          profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
           isStaff,
           permissions: effectivePermissions,

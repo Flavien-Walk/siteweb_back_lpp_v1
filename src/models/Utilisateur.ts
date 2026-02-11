@@ -109,6 +109,7 @@ export interface IUtilisateur extends Document {
   permissions: Permission[]; // Permissions supplémentaires (override du rôle)
   statut?: StatutUtilisateur;
   cguAcceptees: boolean;
+  profilPublic: boolean;
   // Système d'amis
   amis: mongoose.Types.ObjectId[];
   demandesAmisRecues: mongoose.Types.ObjectId[];
@@ -215,6 +216,10 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       type: Boolean,
       required: [true, 'Vous devez accepter les CGU'],
       default: false,
+    },
+    profilPublic: {
+      type: Boolean,
+      default: true,
     },
     // Système d'amis
     amis: [{

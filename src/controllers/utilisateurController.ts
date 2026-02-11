@@ -97,7 +97,7 @@ export const getUtilisateur = async (
     const userId = req.utilisateur?._id;
 
     const utilisateur = await Utilisateur.findById(id)
-      .select('prenom nom avatar bio role statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation');
+      .select('prenom nom avatar bio role statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation profilPublic');
 
     if (!utilisateur) {
       res.status(404).json({
@@ -111,12 +111,45 @@ export const getUtilisateur = async (
     let estAmi = false;
     let demandeEnvoyee = false;
     let demandeRecue = false;
+    const estSoiMeme = userId ? userId.toString() === id : false;
 
     if (userId) {
       const userIdStr = userId.toString();
       estAmi = utilisateur.amis?.some((a) => a.toString() === userIdStr) || false;
       demandeEnvoyee = utilisateur.demandesAmisRecues?.some((d) => d.toString() === userIdStr) || false;
       demandeRecue = utilisateur.demandesAmisEnvoyees?.some((d) => d.toString() === userIdStr) || false;
+    }
+
+    // Vérifier si le profil est privé et si le demandeur n'est pas ami/soi-même/staff
+    const profilEstPrive = utilisateur.profilPublic === false;
+    const estStaff = userId ? await (async () => {
+      const u = await Utilisateur.findById(userId).select('role');
+      return u ? u.isStaff() : false;
+    })() : false;
+
+    if (profilEstPrive && !estAmi && !estSoiMeme && !estStaff) {
+      res.json({
+        succes: true,
+        data: {
+          utilisateur: {
+            _id: utilisateur._id,
+            prenom: utilisateur.prenom,
+            nom: utilisateur.nom,
+            avatar: utilisateur.avatar,
+            bio: utilisateur.bio,
+            role: utilisateur.role,
+            statut: utilisateur.statut,
+            dateInscription: utilisateur.dateCreation,
+            profilPublic: false,
+            estPrive: true,
+            nbAmis: utilisateur.amis?.length || 0,
+            estAmi,
+            demandeEnvoyee,
+            demandeRecue,
+          },
+        },
+      });
+      return;
     }
 
     res.json({
@@ -131,6 +164,7 @@ export const getUtilisateur = async (
           role: utilisateur.role,
           statut: utilisateur.statut,
           dateInscription: utilisateur.dateCreation,
+          profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
           estAmi,
           demandeEnvoyee,
@@ -806,6 +840,28 @@ export const getProjetsSuivisUtilisateur = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+    const userId = req.utilisateur?._id;
+
+    // Vérifier si le profil cible est privé
+    const cible = await Utilisateur.findById(id).select('profilPublic amis');
+    if (!cible) {
+      res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
+      return;
+    }
+
+    if (cible.profilPublic === false) {
+      const estSoiMeme = userId ? userId.toString() === id : false;
+      const estAmi = userId ? cible.amis?.some((a) => a.toString() === userId.toString()) || false : false;
+      const estStaff = userId ? await (async () => {
+        const u = await Utilisateur.findById(userId).select('role');
+        return u ? u.isStaff() : false;
+      })() : false;
+
+      if (!estSoiMeme && !estAmi && !estStaff) {
+        res.status(403).json({ succes: false, message: 'Ce profil est privé.' });
+        return;
+      }
+    }
 
     // Import dynamique pour éviter les dépendances circulaires
     const ProjetModel = (await import('../models/Projet.js')).default as any;
