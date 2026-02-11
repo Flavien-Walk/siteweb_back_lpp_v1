@@ -96,6 +96,14 @@ export const toggleLikeCommentaire = async (publicationId: string, commentaireId
 
 export type RaisonSignalement = 'spam' | 'harcelement' | 'contenu_inapproprie' | 'fausse_info' | 'nudite' | 'violence' | 'haine' | 'autre';
 
+export const modifierPublication = async (id: string, contenu: string): Promise<ReponseAPI<{ publication: Publication }>> => {
+  return api.patch(`/publications/${id}`, { contenu }, true);
+};
+
+export const modifierCommentaire = async (publicationId: string, commentaireId: string, contenu: string): Promise<ReponseAPI<{ commentaire: Commentaire }>> => {
+  return api.patch(`/publications/${publicationId}/commentaires/${commentaireId}`, { contenu }, true);
+};
+
 export const signalerPublication = async (publicationId: string, raison: RaisonSignalement, details?: string): Promise<ReponseAPI<{ message: string }>> => {
   return api.post('/reports', { targetType: 'post', targetId: publicationId, reason: raison, details }, true);
 };

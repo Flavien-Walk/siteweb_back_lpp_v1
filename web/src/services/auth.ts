@@ -141,4 +141,36 @@ export const supprimerCompte = async (motDePasse: string): Promise<ReponseAPI<vo
   return api.delete<void>('/profil', true, { motDePasse });
 };
 
+export interface SanctionItem {
+  type: 'warn' | 'unwarn' | 'suspend' | 'unsuspend' | 'ban' | 'unban';
+  createdAt: string;
+  titre: string;
+  message: string;
+  reason?: string;
+  actorRole?: string;
+  suspendedUntil?: string;
+  postSnapshot?: { contenu?: string; media?: string };
+  postId?: string;
+}
+
+export interface ModerationStatus {
+  status: 'active' | 'suspended' | 'banned';
+  warnCountSinceLastAutoSuspension: number;
+  warningsBeforeNextSanction: number;
+  autoSuspensionsCount: number;
+  nextAutoAction: 'suspend' | 'ban';
+  suspendedUntil?: string;
+  suspendReason?: string;
+  bannedAt?: string;
+  banReason?: string;
+}
+
+export const getMySanctions = async (): Promise<ReponseAPI<{ sanctions: SanctionItem[] }>> => {
+  return api.get('/auth/my-sanctions', true);
+};
+
+export const getModerationStatus = async (): Promise<ReponseAPI<ModerationStatus>> => {
+  return api.get('/auth/moderation-status', true);
+};
+
 export { getToken };

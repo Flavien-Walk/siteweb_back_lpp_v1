@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Briefcase, Calendar, BookOpen,
   Heart, Settings, MapPin, FolderHeart, Star, Shield,
+  Pencil, X, AlertTriangle, History,
+  ShieldAlert, ShieldCheck, ShieldBan, ShieldOff,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getPublicationsUtilisateur } from '../services/publications';
@@ -12,6 +14,12 @@ import { getMesAmis } from '../services/utilisateurs';
 import type { ProfilUtilisateur } from '../services/utilisateurs';
 import { getMesProjets } from '../services/projets';
 import type { Projet } from '../services/projets';
+import {
+  modifierProfil,
+  getMySanctions,
+  getModerationStatus,
+} from '../services/auth';
+import type { SanctionItem, ModerationStatus } from '../services/auth';
 import { couleurs } from '../styles/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -36,14 +44,77 @@ function getUserBadge(role?: string, statut?: string) {
   return { label: 'Visiteur', icon: BookOpen, color: couleurs.secondaire, bgColor: couleurs.secondaireLight };
 }
 
+/* ─── Sanction helpers ─── */
+
+function sanctionColor(type: SanctionItem['type']) {
+  switch (type) {
+    case 'warn': return '#FFBD59';
+    case 'suspend': return '#FF8C42';
+    case 'ban': return '#FF4D6D';
+    case 'unwarn':
+    case 'unsuspend':
+    case 'unban': return '#00D68F';
+    default: return couleurs.texteSecondaire;
+  }
+}
+
+function sanctionIcon(type: SanctionItem['type']) {
+  switch (type) {
+    case 'warn': return AlertTriangle;
+    case 'suspend': return ShieldAlert;
+    case 'ban': return ShieldBan;
+    case 'unwarn': return ShieldCheck;
+    case 'unsuspend': return ShieldCheck;
+    case 'unban': return ShieldOff;
+    default: return Shield;
+  }
+}
+
+function sanctionLabel(type: SanctionItem['type']) {
+  switch (type) {
+    case 'warn': return 'Avertissement';
+    case 'unwarn': return 'Retrait avertissement';
+    case 'suspend': return 'Suspension';
+    case 'unsuspend': return 'Levée de suspension';
+    case 'ban': return 'Bannissement';
+    case 'unban': return 'Levée de bannissement';
+    default: return type;
+  }
+}
+
+function actorRoleLabel(role?: string) {
+  switch (role) {
+    case 'super_admin': return 'Fondateur';
+    case 'admin_modo':
+    case 'admin': return 'Admin';
+    case 'modo': return 'Modérateur';
+    case 'modo_test': return 'Modo Test';
+    case 'system': return 'Système';
+    default: return role || 'Système';
+  }
+}
+
+/* ─── Main component ─── */
+
 export default function Profil() {
-  const { utilisateur } = useAuth();
+  const { utilisateur, setUtilisateur } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('publications');
   const [publications, setPublications] = useState<Publication[]>([]);
   const [amis, setAmis] = useState<ProfilUtilisateur[]>([]);
   const [projetsSuivis, setProjetsSuivis] = useState<Projet[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Bio editing state
+  const [bioModalOpen, setBioModalOpen] = useState(false);
+  const [bioValue, setBioValue] = useState('');
+  const [bioSaving, setBioSaving] = useState(false);
+
+  // Sanctions state
+  const [moderationStatus, setModerationStatus] = useState<ModerationStatus | null>(null);
+  const [sanctionsModalOpen, setSanctionsModalOpen] = useState(false);
+  const [sanctions, setSanctions] = useState<SanctionItem[]>([]);
+  const [sanctionsLoading, setSanctionsLoading] = useState(false);
 
   useEffect(() => {
     if (!utilisateur) return;
@@ -72,11 +143,69 @@ export default function Profil() {
     })();
   }, [utilisateur]);
 
+  // Load moderation status on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getModerationStatus();
+        if (res.succes && res.data) {
+          setModerationStatus(res.data);
+        }
+      } catch {
+        // silently ignore
+      }
+    })();
+  }, []);
+
+  /* ─── Bio handlers ─── */
+
+  const openBioModal = () => {
+    setBioValue(utilisateur?.bio || '');
+    setBioModalOpen(true);
+  };
+
+  const closeBioModal = () => {
+    setBioModalOpen(false);
+    setBioSaving(false);
+  };
+
+  const saveBio = async () => {
+    setBioSaving(true);
+    try {
+      const result = await modifierProfil({ bio: bioValue });
+      if (result.succes && result.data) {
+        setUtilisateur(result.data.utilisateur);
+      }
+      closeBioModal();
+    } catch {
+      setBioSaving(false);
+    }
+  };
+
+  /* ─── Sanctions handlers ─── */
+
+  const openSanctionsModal = async () => {
+    setSanctionsModalOpen(true);
+    setSanctionsLoading(true);
+    try {
+      const res = await getMySanctions();
+      if (res.succes && res.data) {
+        setSanctions(res.data.sanctions);
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setSanctionsLoading(false);
+    }
+  };
+
   if (!utilisateur) return null;
 
   const dateInscription = utilisateur.dateInscription
     ? format(new Date(utilisateur.dateInscription), 'MMMM yyyy', { locale: fr })
     : '';
+
+  const warnCount = moderationStatus?.warnCountSinceLastAutoSuspension ?? 0;
 
   return (
     <div style={styles.page}>
@@ -105,7 +234,27 @@ export default function Profil() {
                 );
               })()}
             </div>
-            {utilisateur.bio && <p style={styles.bio}>{utilisateur.bio}</p>}
+
+            {/* Bio with pencil edit button */}
+            <div style={styles.bioRow}>
+              {utilisateur.bio ? (
+                <p style={styles.bio}>{utilisateur.bio}</p>
+              ) : (
+                <p style={{ ...styles.bio, fontStyle: 'italic', color: couleurs.texteMuted }}>
+                  Ajouter une bio
+                </p>
+              )}
+              <motion.button
+                style={styles.bioEditBtn}
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={openBioModal}
+                title="Modifier la bio"
+              >
+                <Pencil size={14} />
+              </motion.button>
+            </div>
+
             <div style={styles.metaRow}>
               {dateInscription && (
                 <span style={styles.metaItem}>
@@ -141,6 +290,43 @@ export default function Profil() {
           <span style={styles.statValue}>{projetsSuivis.length || utilisateur.projetsSuivis || 0}</span>
           <span style={styles.statLabel}>Projets suivis</span>
         </div>
+      </div>
+
+      {/* ─── Sanctions section ─── */}
+      <div style={styles.sanctionsSection}>
+        {warnCount > 0 && (
+          <motion.div
+            style={styles.warnCard}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div style={styles.warnCardInner}>
+              <AlertTriangle size={20} color="#FFBD59" style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <p style={styles.warnTitle}>
+                  Avertissements actifs : {warnCount} / 3
+                </p>
+                <p style={styles.warnSubtitle}>
+                  Prochain avertissement ={' '}
+                  {moderationStatus?.nextAutoAction === 'ban'
+                    ? 'bannissement'
+                    : 'suspension'}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        <motion.button
+          style={styles.sanctionsBtn}
+          whileHover={{ scale: 1.02, backgroundColor: couleurs.bordureHover }}
+          whileTap={{ scale: 0.98 }}
+          onClick={openSanctionsModal}
+        >
+          <History size={18} color={couleurs.texteSecondaire} />
+          <span style={styles.sanctionsBtnText}>Mes sanctions</span>
+        </motion.button>
       </div>
 
       <div style={styles.tabBar}>
@@ -261,6 +447,191 @@ export default function Profil() {
           </motion.div>
         )}
       </div>
+
+      {/* ─── Bio edit modal ─── */}
+      <AnimatePresence>
+        {bioModalOpen && (
+          <motion.div
+            style={styles.modalOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeBioModal}
+          >
+            <motion.div
+              style={styles.modalContent}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={styles.modalHeader}>
+                <h2 style={styles.modalTitle}>Modifier la bio</h2>
+                <motion.button
+                  style={styles.modalCloseBtn}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={closeBioModal}
+                >
+                  <X size={18} />
+                </motion.button>
+              </div>
+
+              <textarea
+                style={styles.bioTextarea}
+                value={bioValue}
+                onChange={(e) => {
+                  if (e.target.value.length <= 150) setBioValue(e.target.value);
+                }}
+                placeholder="Votre bio..."
+                maxLength={150}
+                rows={4}
+                autoFocus
+              />
+
+              <p style={{
+                ...styles.bioCounter,
+                color: bioValue.length >= 140
+                  ? (bioValue.length >= 150 ? couleurs.danger : couleurs.warning)
+                  : couleurs.texteSecondaire,
+              }}>
+                {bioValue.length}/150 caracteres
+              </p>
+
+              <div style={styles.modalActions}>
+                <motion.button
+                  style={styles.btnSecondary}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={closeBioModal}
+                >
+                  Annuler
+                </motion.button>
+                <motion.button
+                  style={{
+                    ...styles.btnPrimary,
+                    opacity: bioSaving ? 0.6 : 1,
+                    cursor: bioSaving ? 'not-allowed' : 'pointer',
+                  }}
+                  whileHover={bioSaving ? {} : { scale: 1.03 }}
+                  whileTap={bioSaving ? {} : { scale: 0.97 }}
+                  onClick={saveBio}
+                  disabled={bioSaving}
+                >
+                  {bioSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Sanctions history modal ─── */}
+      <AnimatePresence>
+        {sanctionsModalOpen && (
+          <motion.div
+            style={styles.modalOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSanctionsModalOpen(false)}
+          >
+            <motion.div
+              style={{ ...styles.modalContent, maxHeight: '80vh', display: 'flex', flexDirection: 'column' as const }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={styles.modalHeader}>
+                <h2 style={styles.modalTitle}>Mes sanctions</h2>
+                <motion.button
+                  style={styles.modalCloseBtn}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setSanctionsModalOpen(false)}
+                >
+                  <X size={18} />
+                </motion.button>
+              </div>
+
+              <div style={styles.sanctionsListContainer}>
+                {sanctionsLoading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 12 }}>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="skeleton" style={{ height: 80, borderRadius: 12 }} />
+                    ))}
+                  </div>
+                ) : sanctions.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+                    {sanctions.map((sanction, idx) => {
+                      const color = sanctionColor(sanction.type);
+                      const SIcon = sanctionIcon(sanction.type);
+                      return (
+                        <motion.div
+                          key={idx}
+                          style={{
+                            ...styles.sanctionItem,
+                            borderLeft: `3px solid ${color}`,
+                          }}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                        >
+                          <div style={styles.sanctionItemHeader}>
+                            <div style={{
+                              ...styles.sanctionIconBg,
+                              backgroundColor: `${color}20`,
+                            }}>
+                              <SIcon size={16} color={color} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={styles.sanctionTopRow}>
+                                <span style={{ ...styles.sanctionType, color }}>
+                                  {sanctionLabel(sanction.type)}
+                                </span>
+                                <span style={styles.sanctionDate}>
+                                  {format(new Date(sanction.createdAt), 'dd MMM yyyy, HH:mm', { locale: fr })}
+                                </span>
+                              </div>
+                              {sanction.titre && (
+                                <p style={styles.sanctionTitre}>{sanction.titre}</p>
+                              )}
+                            </div>
+                          </div>
+                          {sanction.reason && (
+                            <p style={styles.sanctionReason}>
+                              Raison : {sanction.reason}
+                            </p>
+                          )}
+                          {sanction.suspendedUntil && (
+                            <p style={styles.sanctionSuspendedUntil}>
+                              Suspendu jusqu'au {format(new Date(sanction.suspendedUntil), 'dd MMM yyyy, HH:mm', { locale: fr })}
+                            </p>
+                          )}
+                          {sanction.actorRole && (
+                            <p style={styles.sanctionActor}>
+                              Par : {actorRoleLabel(sanction.actorRole)}
+                            </p>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={styles.sanctionsEmpty}>
+                    <ShieldCheck size={40} color={couleurs.succes} />
+                    <p style={styles.sanctionsEmptyText}>Aucune sanction</p>
+                    <p style={styles.sanctionsEmptySubtext}>Votre historique est vierge.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -337,11 +708,31 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.75rem',
     fontWeight: '600',
   },
+  bioRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
   bio: {
     fontSize: '0.9375rem',
     color: couleurs.texteSecondaire,
     lineHeight: 1.5,
-    marginBottom: 8,
+    margin: 0,
+  },
+  bioEditBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    border: `1px solid ${couleurs.bordure}`,
+    color: couleurs.texteSecondaire,
+    cursor: 'pointer',
+    flexShrink: 0,
+    padding: 0,
   },
   metaRow: {
     display: 'flex',
@@ -391,6 +782,55 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.75rem',
     color: couleurs.texteSecondaire,
   },
+
+  /* ─── Sanctions section ─── */
+  sanctionsSection: {
+    marginBottom: 24,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+  },
+  warnCard: {
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 189, 89, 0.08)',
+    border: '1px solid rgba(255, 189, 89, 0.25)',
+  },
+  warnCardInner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
+  warnTitle: {
+    fontSize: '0.9375rem',
+    fontWeight: '600',
+    color: '#FFBD59',
+    margin: 0,
+    marginBottom: 2,
+  },
+  warnSubtitle: {
+    fontSize: '0.8125rem',
+    color: couleurs.texteSecondaire,
+    margin: 0,
+  },
+  sanctionsBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '12px 16px',
+    borderRadius: 12,
+    backgroundColor: couleurs.fondCard,
+    border: `1px solid ${couleurs.bordure}`,
+    cursor: 'pointer',
+    transition: 'all 150ms ease',
+  },
+  sanctionsBtnText: {
+    fontSize: '0.9375rem',
+    fontWeight: '500',
+    color: couleurs.texteSecondaire,
+  },
+
+  /* ─── Tab bar ─── */
   tabBar: {
     display: 'flex',
     borderBottom: `1px solid ${couleurs.bordure}`,
@@ -533,5 +973,184 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 40,
     color: couleurs.texteSecondaire,
     fontSize: '0.9375rem',
+  },
+
+  /* ─── Modal shared styles ─── */
+  modalOverlay: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: couleurs.fondCard,
+    borderRadius: 16,
+    border: `1px solid ${couleurs.bordure}`,
+    padding: 24,
+    boxShadow: '0 16px 48px rgba(0, 0, 0, 0.4)',
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: '1.125rem',
+    fontWeight: '700',
+    color: couleurs.texte,
+    margin: 0,
+  },
+  modalCloseBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    border: `1px solid ${couleurs.bordure}`,
+    color: couleurs.texteSecondaire,
+    cursor: 'pointer',
+    padding: 0,
+  },
+
+  /* ─── Bio modal specific ─── */
+  bioTextarea: {
+    width: '100%',
+    minHeight: 100,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: couleurs.fondInput,
+    border: `1px solid ${couleurs.bordure}`,
+    color: couleurs.texte,
+    fontSize: '0.9375rem',
+    lineHeight: 1.5,
+    resize: 'vertical' as const,
+    outline: 'none',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box' as const,
+  },
+  bioCounter: {
+    fontSize: '0.75rem',
+    textAlign: 'right' as const,
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  modalActions: {
+    display: 'flex',
+    gap: 10,
+    justifyContent: 'flex-end',
+  },
+  btnSecondary: {
+    padding: '10px 20px',
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+    border: `1px solid ${couleurs.bordure}`,
+    color: couleurs.texteSecondaire,
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  btnPrimary: {
+    padding: '10px 20px',
+    borderRadius: 10,
+    backgroundColor: couleurs.primaire,
+    border: 'none',
+    color: couleurs.blanc,
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+
+  /* ─── Sanctions modal specific ─── */
+  sanctionsListContainer: {
+    overflowY: 'auto' as const,
+    maxHeight: 'calc(80vh - 100px)',
+    paddingRight: 4,
+  },
+  sanctionItem: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: couleurs.fond,
+    border: `1px solid ${couleurs.bordure}`,
+  },
+  sanctionItemHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  sanctionIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  sanctionTopRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+  },
+  sanctionType: {
+    fontSize: '0.875rem',
+    fontWeight: '700',
+  },
+  sanctionDate: {
+    fontSize: '0.75rem',
+    color: couleurs.texteMuted,
+  },
+  sanctionTitre: {
+    fontSize: '0.8125rem',
+    color: couleurs.texte,
+    margin: '4px 0 0 0',
+    lineHeight: 1.4,
+  },
+  sanctionReason: {
+    fontSize: '0.8125rem',
+    color: couleurs.texteSecondaire,
+    margin: '8px 0 0 42px',
+    lineHeight: 1.4,
+  },
+  sanctionSuspendedUntil: {
+    fontSize: '0.75rem',
+    color: '#FF8C42',
+    margin: '4px 0 0 42px',
+  },
+  sanctionActor: {
+    fontSize: '0.75rem',
+    color: couleurs.texteMuted,
+    margin: '4px 0 0 42px',
+  },
+  sanctionsEmpty: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: 12,
+    padding: '40px 20px',
+  },
+  sanctionsEmptyText: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: couleurs.texte,
+    margin: 0,
+  },
+  sanctionsEmptySubtext: {
+    fontSize: '0.875rem',
+    color: couleurs.texteSecondaire,
+    margin: 0,
   },
 };
