@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Home,
@@ -20,8 +20,18 @@ export default function Sidebar() {
   const { utilisateur, deconnexion } = useAuth();
   const { socket } = useSocket();
   const navigate = useNavigate();
+  const location = useLocation();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const pathnameRef = useRef(location.pathname);
+
+  // Keep ref in sync and reset badge when on notifications page
+  useEffect(() => {
+    pathnameRef.current = location.pathname;
+    if (location.pathname === '/notifications') {
+      setUnreadNotifications(0);
+    }
+  }, [location.pathname]);
 
   const fetchUnreadCounts = useCallback(() => {
     if (socket?.connected) {
@@ -34,7 +44,9 @@ export default function Sidebar() {
 
     const handleUnreadCounts = (data: { messages?: number; notifications?: number; demandesAmis?: number }) => {
       setUnreadMessages(data.messages || 0);
-      setUnreadNotifications((data.notifications || 0) + (data.demandesAmis || 0));
+      if (pathnameRef.current !== '/notifications') {
+        setUnreadNotifications((data.notifications || 0) + (data.demandesAmis || 0));
+      }
     };
 
     const handleNewMessage = () => {
@@ -42,7 +54,9 @@ export default function Sidebar() {
     };
 
     const handleNewNotification = () => {
-      setUnreadNotifications((prev) => prev + 1);
+      if (pathnameRef.current !== '/notifications') {
+        setUnreadNotifications((prev) => prev + 1);
+      }
     };
 
     socket.on('unread_counts', handleUnreadCounts);
