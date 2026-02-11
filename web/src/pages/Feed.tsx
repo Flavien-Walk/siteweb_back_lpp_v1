@@ -602,7 +602,10 @@ export default function Feed() {
                     <div style={styles.searchResultInfo}>
                       <span style={styles.searchResultName}>{u.prenom} {u.nom}</span>
                       <span style={styles.searchResultStatut}>
-                        {u.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
+                        {u.role === 'super_admin' ? 'Fondateur'
+                          : u.role === 'admin' || u.role === 'admin_modo' ? 'Admin'
+                          : u.role === 'modo' ? 'Modérateur'
+                          : u.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
                       </span>
                     </div>
                   </button>

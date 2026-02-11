@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Users, Briefcase, Calendar, BookOpen,
   Heart, UserPlus, UserCheck, MessageCircle,
-  MapPin, FolderHeart, Clock,
+  MapPin, FolderHeart, Clock, Star, Shield,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -22,6 +22,24 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 type Tab = 'publications' | 'amis' | 'projets';
+
+function getUserBadge(role?: string, statut?: string) {
+  switch (role) {
+    case 'super_admin':
+      return { label: 'Fondateur', icon: Star, color: '#FFD700', bgColor: 'rgba(255, 215, 0, 0.15)' };
+    case 'admin_modo':
+    case 'admin':
+      return { label: 'Admin', icon: Shield, color: '#9B59B6', bgColor: 'rgba(155, 89, 182, 0.15)' };
+    case 'modo':
+      return { label: 'Modérateur', icon: Shield, color: '#27AE60', bgColor: 'rgba(39, 174, 96, 0.15)' };
+    case 'modo_test':
+      return { label: 'Modo Test', icon: Shield, color: '#3498DB', bgColor: 'rgba(52, 152, 219, 0.15)' };
+  }
+  if (statut === 'entrepreneur') {
+    return { label: 'Entrepreneur', icon: Briefcase, color: couleurs.accent, bgColor: couleurs.accentLight };
+  }
+  return { label: 'Visiteur', icon: BookOpen, color: couleurs.secondaire, bgColor: couleurs.secondaireLight };
+}
 
 export default function ProfilPublic() {
   const { id } = useParams<{ id: string }>();
@@ -111,8 +129,8 @@ export default function ProfilPublic() {
   const handleMessage = async () => {
     if (!id) return;
     const res = await getOuCreerConversationPrivee(id);
-    if (res.succes) {
-      navigate('/messagerie');
+    if (res.succes && res.data) {
+      navigate(`/messagerie?conv=${res.data.conversation._id}`);
     }
   };
 
@@ -155,15 +173,15 @@ export default function ProfilPublic() {
           <div style={styles.profileInfo}>
             <h1 style={styles.name}>{profil.prenom} {profil.nom}</h1>
             <div style={styles.badges}>
-              {profil.statut === 'entrepreneur' ? (
-                <span style={styles.badgeEntrepreneur}>
-                  <Briefcase size={12} /> Entrepreneur
-                </span>
-              ) : (
-                <span style={styles.badgeVisiteur}>
-                  <BookOpen size={12} /> Visiteur
-                </span>
-              )}
+              {(() => {
+                const badge = getUserBadge(profil.role, profil.statut);
+                const Icon = badge.icon;
+                return (
+                  <span style={{ ...styles.badgeDynamic, backgroundColor: badge.bgColor, color: badge.color }}>
+                    <Icon size={12} /> {badge.label}
+                  </span>
+                );
+              })()}
             </div>
             {profil.bio && <p style={styles.bio}>{profil.bio}</p>}
             <div style={styles.metaRow}>
@@ -173,7 +191,7 @@ export default function ProfilPublic() {
                 </span>
               )}
               <span style={styles.metaItem}>
-                <Users size={14} /> {profil.nbAmis || amis.length} amis
+                <Users size={14} /> {amis.length || profil.nbAmis || 0} amis
               </span>
             </div>
           </div>
@@ -257,7 +275,7 @@ export default function ProfilPublic() {
           <span style={styles.statLabel}>Amis</span>
         </div>
         <div style={styles.statCard}>
-          <span style={styles.statValue}>{profil.projetsSuivis || projets.length}</span>
+          <span style={styles.statValue}>{projets.length || profil.projetsSuivis || 0}</span>
           <span style={styles.statLabel}>Projets suivis</span>
         </div>
       </div>
@@ -425,25 +443,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 6,
   },
   badges: { display: 'flex', gap: 8, marginBottom: 8 },
-  badgeEntrepreneur: {
+  badgeDynamic: {
     display: 'flex',
     alignItems: 'center',
     gap: 4,
     padding: '4px 10px',
     borderRadius: 8,
-    backgroundColor: couleurs.accentLight,
-    color: couleurs.accent,
-    fontSize: '0.75rem',
-    fontWeight: '600',
-  },
-  badgeVisiteur: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '4px 10px',
-    borderRadius: 8,
-    backgroundColor: couleurs.secondaireLight,
-    color: couleurs.secondaire,
     fontSize: '0.75rem',
     fontWeight: '600',
   },

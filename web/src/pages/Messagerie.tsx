@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Send, ArrowLeft, PenSquare, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -114,6 +115,7 @@ function MessageBubble({ msg, isMine }: { msg: Message; isMine: boolean }) {
 export default function Messagerie() {
   const { utilisateur } = useAuth();
   const { socket } = useSocket();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -136,9 +138,22 @@ export default function Messagerie() {
     setLoading(false);
   }, []);
 
+  const convParamHandled = useRef(false);
+
   useEffect(() => {
     chargerConversations();
   }, [chargerConversations]);
+
+  // Auto-open conversation from URL param (e.g. /messagerie?conv=xxx)
+  useEffect(() => {
+    if (convParamHandled.current) return;
+    const convParam = searchParams.get('conv');
+    if (convParam) {
+      convParamHandled.current = true;
+      setActiveConvId(convParam);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!activeConvId) return;

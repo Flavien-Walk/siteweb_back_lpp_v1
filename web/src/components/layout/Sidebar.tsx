@@ -108,7 +108,10 @@ export default function Sidebar() {
                 {utilisateur.prenom} {utilisateur.nom}
               </span>
               <span style={styles.userStatus}>
-                {utilisateur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
+                {utilisateur.role === 'super_admin' ? 'Fondateur'
+                  : utilisateur.role === 'admin' || utilisateur.role === 'admin_modo' ? 'Admin'
+                  : utilisateur.role === 'modo' ? 'Modérateur'
+                  : utilisateur.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
               </span>
             </div>
           </motion.div>

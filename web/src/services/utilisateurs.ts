@@ -7,6 +7,7 @@ export interface ProfilUtilisateur {
   nom: string;
   avatar?: string;
   bio?: string;
+  role?: string;
   statut?: 'visiteur' | 'entrepreneur';
   dateInscription: string;
   estAmi?: boolean;
