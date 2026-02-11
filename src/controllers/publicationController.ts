@@ -6,6 +6,7 @@ import Commentaire from '../models/Commentaire.js';
 import Notification from '../models/Notification.js';
 import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
+import { emitNewNotification } from '../socket/index.js';
 import { isBase64MediaDataUrl, isHttpUrl, uploadPublicationMedia, uploadPublicationMedias, MediaUploadResult } from '../utils/cloudinary.js';
 import { IMedia } from '../models/Publication.js';
 
@@ -469,7 +470,7 @@ export const toggleLikePublication = async (
           });
 
           if (!existingNotif) {
-            await Notification.create({
+            const notif = await Notification.create({
               destinataire: auteurPublicationId,
               type: 'nouveau_like',
               titre: 'Nouveau like',
@@ -481,6 +482,14 @@ export const toggleLikePublication = async (
                 userAvatar: likeur.avatar || null,
                 publicationId: id,
               },
+            });
+            emitNewNotification(auteurPublicationId, {
+              _id: notif._id.toString(),
+              type: notif.type,
+              titre: notif.titre,
+              message: notif.message,
+              lu: false,
+              dateCreation: notif.dateCreation.toISOString(),
             });
           }
         }
@@ -635,7 +644,7 @@ export const ajouterCommentaire = async (
       try {
         const commentateur = await Utilisateur.findById(userId).select('prenom nom avatar');
         if (commentateur) {
-          await Notification.create({
+          const notif = await Notification.create({
             destinataire: auteurPublicationId,
             type: 'nouveau_commentaire',
             titre: 'Nouveau commentaire',
@@ -647,6 +656,14 @@ export const ajouterCommentaire = async (
               userAvatar: commentateur.avatar || null,
               publicationId: id,
             },
+          });
+          emitNewNotification(auteurPublicationId, {
+            _id: notif._id.toString(),
+            type: notif.type,
+            titre: notif.titre,
+            message: notif.message,
+            lu: false,
+            dateCreation: notif.dateCreation.toISOString(),
           });
         }
       } catch (notifError) {
@@ -870,6 +887,14 @@ export const toggleLikeCommentaire = async (
           console.log('[LIKE_COMMENT_NOTIF] Création notification:', JSON.stringify(notifData, null, 2));
           const notif = await Notification.create(notifData);
           console.log('[LIKE_COMMENT_NOTIF] Notification créée avec succès, ID:', notif._id.toString());
+          emitNewNotification(auteurCommentaireId, {
+            _id: notif._id.toString(),
+            type: notif.type,
+            titre: notif.titre,
+            message: notif.message,
+            lu: false,
+            dateCreation: notif.dateCreation.toISOString(),
+          });
         }
       } catch (notifError) {
         // Ne pas bloquer si la notification échoue
