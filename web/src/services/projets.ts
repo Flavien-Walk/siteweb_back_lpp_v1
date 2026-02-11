@@ -1,4 +1,5 @@
-import api, { ReponseAPI } from './api';
+import api from './api';
+import type { ReponseAPI } from './api';
 
 export type MaturiteProjet = 'idee' | 'prototype' | 'lancement' | 'croissance';
 export type CategorieProjet = 'tech' | 'food' | 'sante' | 'education' | 'energie' | 'culture' | 'environnement' | 'autre';

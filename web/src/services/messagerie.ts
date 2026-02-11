@@ -1,4 +1,5 @@
-import api, { ReponseAPI } from './api';
+import api from './api';
+import type { ReponseAPI } from './api';
 
 export interface UtilisateurMsg {
   _id: string;

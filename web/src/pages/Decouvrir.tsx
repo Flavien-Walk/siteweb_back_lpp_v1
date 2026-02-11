@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Users, TrendingUp, Filter, X, ChevronRight } from 'lucide-react';
-import { getProjets, Projet, CategorieProjet, MaturiteProjet } from '../services/projets';
+import { Search, MapPin, Users, TrendingUp, Filter, X } from 'lucide-react';
+import { getProjets } from '../services/projets';
+import type { Projet, CategorieProjet, MaturiteProjet } from '../services/projets';
 import { couleurs } from '../styles/theme';
 
 const CATEGORIES: { value: CategorieProjet; label: string; emoji: string }[] = [

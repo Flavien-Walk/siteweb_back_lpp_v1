@@ -1,4 +1,5 @@
-import api, { setToken, removeToken, getToken, setUtilisateurLocal, ReponseAPI } from './api';
+import api, { setToken, removeToken, getToken, setUtilisateurLocal } from './api';
+import type { ReponseAPI } from './api';
 
 export type Role = 'user' | 'modo_test' | 'modo' | 'admin_modo' | 'admin' | 'super_admin';
 export type StatutUtilisateur = 'visiteur' | 'entrepreneur';

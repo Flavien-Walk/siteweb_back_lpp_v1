@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Edit3, MapPin, Users, Briefcase, Calendar, BookOpen,
-  Heart, Settings, Camera,
+  Users, Briefcase, Calendar, BookOpen,
+  Heart, Settings,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getPublicationsUtilisateur, Publication } from '../services/publications';
-import { getMesAmis, ProfilUtilisateur } from '../services/utilisateurs';
+import { getPublicationsUtilisateur } from '../services/publications';
+import type { Publication } from '../services/publications';
+import { getMesAmis } from '../services/utilisateurs';
+import type { ProfilUtilisateur } from '../services/utilisateurs';
 import { couleurs } from '../styles/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -15,7 +17,7 @@ import { fr } from 'date-fns/locale';
 type Tab = 'publications' | 'amis' | 'projets';
 
 export default function Profil() {
-  const { utilisateur, deconnexion } = useAuth();
+  const { utilisateur } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('publications');
   const [publications, setPublications] = useState<Publication[]>([]);

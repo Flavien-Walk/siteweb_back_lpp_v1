@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft, MapPin, Users, Heart, ExternalLink, Play,
-  FileText, Image as ImageIcon, BarChart3, Target, Lightbulb,
-  Shield, Globe, Share2,
+  ArrowLeft, MapPin, Users, Heart, ExternalLink,
+  FileText, BarChart3, Target, Lightbulb,
+  Globe,
 } from 'lucide-react';
-import { getProjet, toggleSuivreProjet, Projet } from '../services/projets';
+import { getProjet, toggleSuivreProjet } from '../services/projets';
+import type { Projet } from '../services/projets';
 import { couleurs } from '../styles/theme';
 
 type Tab = 'vision' | 'market' | 'equipe' | 'docs';

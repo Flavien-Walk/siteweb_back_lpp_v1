@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Eye, Clock, RefreshCw, Users } from 'lucide-react';
-import { getActiveLives, Live, formatLiveDuration, LIVE_THUMBNAILS } from '../services/live';
+import { Radio, Eye, Clock, RefreshCw } from 'lucide-react';
+import { getActiveLives, formatLiveDuration, LIVE_THUMBNAILS } from '../services/live';
+import type { Live } from '../services/live';
 import { couleurs } from '../styles/theme';
 
 function LiveCard({ live, index }: { live: Live; index: number }) {

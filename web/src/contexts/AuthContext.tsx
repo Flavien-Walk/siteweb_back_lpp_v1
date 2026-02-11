@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Utilisateur, getMoi, deconnexion as deconnexionService, connexion as connexionService, inscription as inscriptionService } from '../services/auth';
-import { getToken, ReponseAPI } from '../services/api';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { getMoi, deconnexion as deconnexionService, connexion as connexionService, inscription as inscriptionService } from '../services/auth';
+import type { Utilisateur } from '../services/auth';
+import { getToken } from '../services/api';
+import type { ReponseAPI } from '../services/api';
 
 interface AuthContextType {
   utilisateur: Utilisateur | null;

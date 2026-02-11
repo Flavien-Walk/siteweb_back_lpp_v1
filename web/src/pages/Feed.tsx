@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, MessageCircle, Send, Image, MoreHorizontal, Trash2, Flag } from 'lucide-react';
+import { Heart, MessageCircle, Send, Image, MoreHorizontal, Flag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getPublications, creerPublication, toggleLikePublication, Publication } from '../services/publications';
-import { getStoriesActives, StoriesGroupees } from '../services/stories';
+import { getPublications, creerPublication, toggleLikePublication } from '../services/publications';
+import type { Publication } from '../services/publications';
+import { getStoriesActives } from '../services/stories';
+import type { StoriesGroupees } from '../services/stories';
 import { couleurs } from '../styles/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';

@@ -7,8 +7,9 @@ import {
 } from 'lucide-react';
 import {
   getNotifications, marquerToutesLues, marquerNotificationLue,
-  supprimerNotification, Notification,
+  supprimerNotification,
 } from '../services/notifications';
+import type { Notification } from '../services/notifications';
 import { couleurs } from '../styles/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';

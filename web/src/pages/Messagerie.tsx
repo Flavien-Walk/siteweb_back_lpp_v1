@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Send, ArrowLeft, MoreVertical, Check, CheckCheck, Smile } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, Send, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import {
   getConversations, getMessages, envoyerMessage, marquerConversationLue,
-  Conversation, Message,
 } from '../services/messagerie';
+import type { Conversation, Message } from '../services/messagerie';
 import { couleurs } from '../styles/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -154,7 +154,7 @@ export default function Messagerie() {
   useEffect(() => {
     if (!socket) return;
     const handleNewMsg = (data: any) => {
-      if (data.conversationId === activeConvId) {
+      if (data.conversationId === activeConvId && activeConvId) {
         setMessages((prev) => [...prev, data.message]);
         marquerConversationLue(activeConvId);
       }
