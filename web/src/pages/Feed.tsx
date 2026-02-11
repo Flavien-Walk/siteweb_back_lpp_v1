@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Trash2,
   CornerDownRight,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -26,6 +27,8 @@ import {
 import type { Publication, Commentaire } from '../services/publications';
 import { getStoriesActives } from '../services/stories';
 import type { StoriesGroupees } from '../services/stories';
+import { rechercherUtilisateurs } from '../services/utilisateurs';
+import type { ProfilUtilisateur } from '../services/utilisateurs';
 import { couleurs } from '../styles/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -448,6 +451,33 @@ export default function Feed() {
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ProfilUtilisateur[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      const res = await rechercherUtilisateurs(searchQuery.trim());
+      if (res.succes && res.data) {
+        setSearchResults(res.data.utilisateurs);
+      }
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSelectUser = (userId: string) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    naviguerVersProfil(userId);
+  };
 
   const chargerDonnees = useCallback(async () => {
     setLoading(true);
@@ -518,6 +548,72 @@ export default function Feed() {
       >
         Fil d'actualité
       </motion.h1>
+
+      {/* Search bar */}
+      <div style={styles.searchSection}>
+        <div style={styles.searchBar}>
+          <Search size={16} color={couleurs.texteSecondaire} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              if (!searchOpen && e.target.value) setSearchOpen(true);
+            }}
+            onFocus={() => { if (searchQuery) setSearchOpen(true); }}
+            placeholder="Rechercher un utilisateur..."
+            style={styles.searchInput}
+          />
+          {searchQuery && (
+            <button
+              style={styles.searchClear}
+              onClick={() => { setSearchQuery(''); setSearchOpen(false); setSearchResults([]); }}
+            >
+              <X size={14} color={couleurs.texteSecondaire} />
+            </button>
+          )}
+        </div>
+        <AnimatePresence>
+          {searchOpen && searchQuery.trim() && (
+            <motion.div
+              style={styles.searchResultsDropdown}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+            >
+              {searching ? (
+                <div className="skeleton" style={{ height: 40, borderRadius: 8, margin: 8 }} />
+              ) : searchResults.length > 0 ? (
+                searchResults.slice(0, 8).map((u) => (
+                  <button
+                    key={u._id}
+                    style={styles.searchResultItem}
+                    onClick={() => handleSelectUser(u._id)}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = couleurs.fondCard; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+                  >
+                    <div style={styles.searchResultAvatar}>
+                      {u.avatar ? (
+                        <img src={u.avatar} alt="" style={styles.searchResultAvatarImg} />
+                      ) : (
+                        <span style={styles.searchResultInitial}>{u.prenom[0]}</span>
+                      )}
+                    </div>
+                    <div style={styles.searchResultInfo}>
+                      <span style={styles.searchResultName}>{u.prenom} {u.nom}</span>
+                      <span style={styles.searchResultStatut}>
+                        {u.statut === 'entrepreneur' ? 'Entrepreneur' : 'Visiteur'}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <p style={styles.searchNoResults}>Aucun resultat</p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {stories.length > 0 && (
         <div style={styles.storiesRow}>
@@ -606,6 +702,100 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: '700',
     color: couleurs.texte,
     marginBottom: 24,
+  },
+  /* Search */
+  searchSection: {
+    position: 'relative' as const,
+    marginBottom: 20,
+  },
+  searchBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 14px',
+    borderRadius: 12,
+    backgroundColor: couleurs.fondCard,
+    border: `1px solid ${couleurs.bordure}`,
+  },
+  searchInput: {
+    flex: 1,
+    background: 'none',
+    border: 'none',
+    color: couleurs.texte,
+    fontSize: '0.875rem',
+    minWidth: 0,
+  },
+  searchClear: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 2,
+    display: 'flex',
+  },
+  searchResultsDropdown: {
+    position: 'absolute' as const,
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    backgroundColor: couleurs.fondElevated,
+    border: `1px solid ${couleurs.bordure}`,
+    borderRadius: 12,
+    padding: 4,
+    maxHeight: 360,
+    overflowY: 'auto' as const,
+    zIndex: 50,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+  },
+  searchResultItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '8px 10px',
+    borderRadius: 8,
+    border: 'none',
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'left' as const,
+    backgroundColor: 'transparent',
+    transition: 'background-color 150ms ease',
+  },
+  searchResultAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: '50%',
+    backgroundColor: couleurs.primaire,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  searchResultAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' as const },
+  searchResultInitial: { color: couleurs.blanc, fontWeight: '600', fontSize: '0.8125rem' },
+  searchResultInfo: {
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  searchResultName: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: couleurs.texte,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  searchResultStatut: {
+    fontSize: '0.75rem',
+    color: couleurs.texteSecondaire,
+  },
+  searchNoResults: {
+    textAlign: 'center' as const,
+    padding: 16,
+    color: couleurs.texteSecondaire,
+    fontSize: '0.8125rem',
   },
   /* Stories */
   storiesRow: {

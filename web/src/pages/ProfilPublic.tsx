@@ -54,7 +54,9 @@ export default function ProfilPublic() {
         setProfil(profilRes.data.utilisateur);
       }
       if (pubRes.succes && pubRes.data) {
-        setPublications(pubRes.data.publications);
+        setPublications(
+          pubRes.data.publications.filter((p) => p.auteur._id === id)
+        );
       }
       if (amisRes.succes && amisRes.data) {
         setAmis(amisRes.data.amis);
