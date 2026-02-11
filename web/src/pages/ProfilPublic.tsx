@@ -260,6 +260,39 @@ export default function ProfilPublic() {
         )}
       </div>
 
+      {profil.estPrive ? (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column' as const,
+            alignItems: 'center',
+            padding: '48px 24px',
+            textAlign: 'center' as const,
+          }}
+        >
+          <div style={{
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            backgroundColor: couleurs.fondCard,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 16,
+          }}>
+            <Lock size={28} color={couleurs.texteSecondaire} />
+          </div>
+          <h3 style={{ color: couleurs.texte, fontSize: '1.125rem', fontWeight: '600', margin: '0 0 8px 0' }}>
+            Profil prive
+          </h3>
+          <p style={{ color: couleurs.texteSecondaire, fontSize: '0.875rem', margin: 0, maxWidth: 320 }}>
+            Envoyez une demande d&apos;ami pour voir les publications et projets de {profil.prenom}.
+          </p>
+        </motion.div>
+      ) : (
+      <>
       <div style={styles.stats}>
         <div style={styles.statCard}>
           <span style={styles.statValue}>{publications.length}</span>
@@ -368,6 +401,8 @@ export default function ProfilPublic() {
           </motion.div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

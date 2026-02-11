@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, User, Image, Lock, ShieldAlert,
   Save, Upload, Trash2, Eye, EyeOff, AlertTriangle,
+  Globe, LockKeyhole,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -59,6 +60,8 @@ export default function Reglages() {
   const [securiteMessage, setSecuriteMessage] = useState<{ type: 'succes' | 'erreur'; text: string } | null>(null);
 
   // --- Confidentialite state ---
+  const [profilPublic, setProfilPublic] = useState(true);
+  const [privacyLoading, setPrivacyLoading] = useState(false);
   const [confirmationSuppression, setConfirmationSuppression] = useState('');
   const [motDePasseSuppression, setMotDePasseSuppression] = useState('');
   const [suppressionLoading, setSuppressionLoading] = useState(false);
@@ -70,6 +73,7 @@ export default function Reglages() {
       setPrenom(utilisateur.prenom || '');
       setNom(utilisateur.nom || '');
       setBio(utilisateur.bio || '');
+      setProfilPublic(utilisateur.profilPublic ?? true);
     }
   }, [utilisateur]);
 
@@ -221,6 +225,24 @@ export default function Reglages() {
       setSuppressionMessage({ type: 'erreur', text: 'Erreur lors de la suppression du compte.' });
     } finally {
       setSuppressionLoading(false);
+    }
+  };
+
+  const handleToggleProfilPublic = async () => {
+    const newValue = !profilPublic;
+    setProfilPublic(newValue);
+    setPrivacyLoading(true);
+    try {
+      const res = await modifierProfil({ profilPublic: newValue });
+      if (res.succes) {
+        await rafraichirUtilisateur();
+      } else {
+        setProfilPublic(!newValue);
+      }
+    } catch {
+      setProfilPublic(!newValue);
+    } finally {
+      setPrivacyLoading(false);
     }
   };
 
@@ -484,6 +506,53 @@ export default function Reglages() {
     return (
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key="confidentialite">
         <h2 style={styles.sectionTitle}>Confidentialite & RGPD</h2>
+
+        {/* Toggle profil public/prive */}
+        <div style={styles.rgpdCard}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            {profilPublic ? <Globe size={20} color={couleurs.primaire} /> : <LockKeyhole size={20} color={couleurs.primaire} />}
+            <h3 style={styles.rgpdTitle}>Visibilite du profil</h3>
+          </div>
+          <p style={{ ...styles.rgpdText, marginBottom: 16 }}>
+            {profilPublic
+              ? 'Votre profil est public. Tout le monde peut voir vos publications, amis et projets suivis.'
+              : 'Votre profil est prive. Seuls vos amis peuvent voir vos publications, amis et projets suivis.'}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: couleurs.texte, fontSize: '0.875rem', fontWeight: '500' }}>
+              Profil public
+            </span>
+            <motion.button
+              onClick={handleToggleProfilPublic}
+              disabled={privacyLoading}
+              style={{
+                width: 48,
+                height: 26,
+                borderRadius: 13,
+                backgroundColor: profilPublic ? couleurs.primaire : couleurs.bordure,
+                border: 'none',
+                cursor: privacyLoading ? 'wait' : 'pointer',
+                position: 'relative' as const,
+                transition: 'background-color 200ms ease',
+                padding: 0,
+              }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div
+                animate={{ x: profilPublic ? 24 : 2 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  backgroundColor: couleurs.blanc,
+                  position: 'absolute' as const,
+                  top: 2,
+                }}
+              />
+            </motion.button>
+          </div>
+        </div>
 
         <div style={styles.rgpdCard}>
           <h3 style={styles.rgpdTitle}>Vos droits</h3>

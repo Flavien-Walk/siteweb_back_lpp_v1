@@ -10,6 +10,8 @@ export interface ProfilUtilisateur {
   role?: string;
   statut?: 'visiteur' | 'entrepreneur';
   dateInscription: string;
+  profilPublic?: boolean;
+  estPrive?: boolean;
   estAmi?: boolean;
   demandeEnvoyee?: boolean;
   demandeRecue?: boolean;
