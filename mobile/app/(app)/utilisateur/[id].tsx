@@ -622,7 +622,25 @@ export default function ProfilUtilisateurPage() {
           </View>
         )}
 
-        {/* Section activité */}
+        {/* Profil privé - message de restriction */}
+        {profil.estPrive && !estMonProfil && (
+          <View style={styles.activitySection}>
+            <View style={styles.emptyActivity}>
+              <View style={styles.emptyIconCircle}>
+                <View style={styles.emptyIconInner}>
+                  <Ionicons name="lock-closed" size={40} color={couleurs.texteSecondaire} />
+                </View>
+              </View>
+              <Text style={styles.emptyTitle}>Profil prive</Text>
+              <Text style={styles.emptyText}>
+                Envoyez une demande d'ami pour voir les publications et projets de {profil.prenom}.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Section activité (masquée si profil privé) */}
+        {(!profil.estPrive || estMonProfil) && (
         <View style={styles.activitySection}>
           {/* Header de section avec onglets style Instagram */}
           <View style={styles.activityHeader}>
@@ -819,6 +837,7 @@ export default function ProfilUtilisateurPage() {
             </>
           )}
         </View>
+        )}
       </ScrollView>
 
       {/* Modal Viewer Stories */}

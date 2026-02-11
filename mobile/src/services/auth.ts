@@ -39,6 +39,7 @@ export interface Utilisateur {
   role: Role;
   statut?: StatutUtilisateur;
   provider: 'local' | 'google' | 'facebook' | 'apple';
+  profilPublic?: boolean;
   emailVerifie: boolean;
   dateInscription?: string;
   nbAmis?: number;
@@ -82,6 +83,7 @@ const normaliserUtilisateur = (data: any): Utilisateur => {
     role: data.role || 'user',
     statut: data.statut || undefined,
     provider: data.provider || 'local',
+    profilPublic: data.profilPublic ?? true,
     emailVerifie: data.emailVerifie ?? false,
     dateInscription: data.dateInscription || data.createdAt || undefined,
     nbAmis: data.nbAmis ?? 0,
@@ -224,7 +226,7 @@ export const estConnecte = async (): Promise<boolean> => {
  * Modifier le profil de l'utilisateur
  */
 export const modifierProfil = async (
-  donnees: { prenom?: string; nom?: string; email?: string; bio?: string }
+  donnees: { prenom?: string; nom?: string; email?: string; bio?: string; profilPublic?: boolean }
 ): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
   const reponse = await api.patch<{ utilisateur: any }>('/profil', donnees, true);
 

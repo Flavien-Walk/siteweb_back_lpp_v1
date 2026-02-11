@@ -15,6 +15,8 @@ export interface ProfilUtilisateur {
   role?: 'utilisateur' | 'admin';
   statut?: 'visiteur' | 'entrepreneur';
   dateInscription: string;
+  profilPublic?: boolean;
+  estPrive?: boolean;
   estAmi?: boolean;
   demandeEnvoyee?: boolean;
   demandeRecue?: boolean;

@@ -90,6 +90,9 @@ export default function Profil() {
   const [motDePasseSuppression, setMotDePasseSuppression] = useState('');
   const [confirmationSuppression, setConfirmationSuppression] = useState('');
 
+  // Confidentialite
+  const [profilPublic, setProfilPublic] = useState(true);
+
   // Avatar
   const [modalAvatar, setModalAvatar] = useState(false);
   const [avatarsDefaut, setAvatarsDefaut] = useState<string[]>([]);
@@ -147,6 +150,7 @@ export default function Profil() {
       setNom(utilisateur.nom);
       setEmail(utilisateur.email);
       setBio(utilisateur.bio || '');
+      setProfilPublic(utilisateur.profilPublic ?? true);
     }
   }, [utilisateur]);
 
@@ -1246,9 +1250,48 @@ export default function Profil() {
     </View>
   );
 
+  const handleToggleProfilPublic = async (value: boolean) => {
+    setProfilPublic(value);
+    try {
+      const reponse = await modifierProfil({ profilPublic: value });
+      if (reponse.succes && reponse.data) {
+        updateUser(reponse.data.utilisateur);
+        setMessage({ type: 'succes', texte: value ? 'Profil rendu public' : 'Profil rendu prive' });
+      } else {
+        setProfilPublic(!value);
+        setMessage({ type: 'erreur', texte: reponse.message || 'Erreur lors de la modification' });
+      }
+    } catch {
+      setProfilPublic(!value);
+      setMessage({ type: 'erreur', texte: 'Erreur reseau' });
+    }
+  };
+
   const renderConfidentialiteSection = () => (
     <View style={styles.parametresContent}>
       <Text style={styles.parametresTitle}>Confidentialite et RGPD</Text>
+
+      <View style={styles.rgpdCard}>
+        <View style={styles.rgpdHeader}>
+          <Ionicons name={profilPublic ? 'globe-outline' : 'lock-closed-outline'} size={24} color={couleurs.primaire} />
+          <Text style={styles.rgpdTitle}>Visibilite du profil</Text>
+        </View>
+        <Text style={[styles.parametresDescription, { marginBottom: espacements.md }]}>
+          {profilPublic
+            ? 'Votre profil est public. Tout le monde peut voir vos publications, amis et projets suivis.'
+            : 'Votre profil est prive. Seuls vos amis peuvent voir vos publications, amis et projets suivis.'}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={[styles.inputLabel, { flex: 1 }]}>Profil public</Text>
+          <Switch
+            value={profilPublic}
+            onValueChange={handleToggleProfilPublic}
+            trackColor={{ false: couleurs.bordure, true: couleurs.primaire + '80' }}
+            thumbColor={profilPublic ? couleurs.primaire : couleurs.texteSecondaire}
+          />
+        </View>
+      </View>
+
       <Text style={styles.parametresDescription}>
         Conformement au RGPD, vous avez le droit d'acceder a vos donnees, de les modifier ou de les supprimer.
       </Text>
