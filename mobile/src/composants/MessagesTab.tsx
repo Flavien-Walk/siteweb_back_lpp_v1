@@ -162,10 +162,11 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
     return () => clearInterval(interval);
   }, [chargerConversations, isActive]);
 
-  // Rafraîchir quand l'onglet devient actif
+  // Rafraîchir quand l'onglet devient actif (conversations + amis)
   useEffect(() => {
     if (isActive) {
       chargerConversations(false, true);
+      chargerAmisInitial();
     }
   }, [isActive, chargerConversations]);
 

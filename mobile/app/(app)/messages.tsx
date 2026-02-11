@@ -161,10 +161,11 @@ export default function Messages() {
     return () => clearInterval(interval);
   }, [chargerConversations]);
 
-  // Rafraîchir quand l'écran reprend le focus
+  // Rafraîchir quand l'écran reprend le focus (conversations + amis)
   useFocusEffect(
     useCallback(() => {
       chargerConversations(false, true);
+      chargerAmisInitial();
     }, [chargerConversations])
   );
 
