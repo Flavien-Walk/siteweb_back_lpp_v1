@@ -4,12 +4,12 @@ import { motion } from 'framer-motion';
 import {
   Users, Briefcase, Calendar, BookOpen,
   Heart, UserPlus, UserCheck, MessageCircle,
-  MapPin, FolderHeart, Clock, Star, Shield,
+  MapPin, FolderHeart, Clock, Star, Shield, Lock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getProfilUtilisateur, envoyerDemandeAmi, annulerDemandeAmi,
-  accepterDemandeAmi, supprimerAmi, getAmisUtilisateur,
+  accepterDemandeAmi, supprimerAmi,
 } from '../services/utilisateurs';
 import type { ProfilUtilisateur } from '../services/utilisateurs';
 import { getPublicationsUtilisateur } from '../services/publications';
@@ -21,7 +21,7 @@ import { couleurs } from '../styles/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-type Tab = 'publications' | 'amis' | 'projets';
+type Tab = 'publications' | 'projets';
 
 function getUserBadge(role?: string, statut?: string) {
   switch (role) {
@@ -47,7 +47,6 @@ export default function ProfilPublic() {
   const navigate = useNavigate();
   const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
-  const [amis, setAmis] = useState<ProfilUtilisateur[]>([]);
   const [projets, setProjets] = useState<Projet[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('publications');
   const [loading, setLoading] = useState(true);
@@ -62,10 +61,9 @@ export default function ProfilPublic() {
     }
     (async () => {
       setLoading(true);
-      const [profilRes, pubRes, amisRes, projetsRes] = await Promise.all([
+      const [profilRes, pubRes, projetsRes] = await Promise.all([
         getProfilUtilisateur(id),
         getPublicationsUtilisateur(id),
-        getAmisUtilisateur(id),
         getProjetsSuivisUtilisateur(id),
       ]);
       if (profilRes.succes && profilRes.data) {
@@ -75,9 +73,6 @@ export default function ProfilPublic() {
         setPublications(
           pubRes.data.publications.filter((p) => p.auteur._id === id)
         );
-      }
-      if (amisRes.succes && amisRes.data) {
-        setAmis(amisRes.data.amis);
       }
       if (projetsRes.succes && projetsRes.data) {
         setProjets(projetsRes.data.projets);
@@ -191,7 +186,7 @@ export default function ProfilPublic() {
                 </span>
               )}
               <span style={styles.metaItem}>
-                <Users size={14} /> {amis.length || profil.nbAmis || 0} amis
+                <Users size={14} /> {profil.nbAmis || 0} amis
               </span>
             </div>
           </div>
@@ -270,8 +265,20 @@ export default function ProfilPublic() {
           <span style={styles.statValue}>{publications.length}</span>
           <span style={styles.statLabel}>Publications</span>
         </div>
-        <div style={styles.statCard}>
-          <span style={styles.statValue}>{amis.length}</span>
+        <div
+          style={{ ...styles.statCard, cursor: 'pointer' }}
+          onClick={() => {
+            if (profil.estAmi) {
+              navigate(`/utilisateur/${id}/amis`);
+            } else {
+              alert('Devenez ami pour voir la liste d\'amis');
+            }
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={styles.statValue}>{profil.nbAmis || 0}</span>
+            {!profil.estAmi && <Lock size={12} color={couleurs.texteSecondaire} />}
+          </div>
           <span style={styles.statLabel}>Amis</span>
         </div>
         <div style={styles.statCard}>
@@ -283,7 +290,6 @@ export default function ProfilPublic() {
       <div style={styles.tabBar}>
         {([
           { key: 'publications' as Tab, label: 'Publications' },
-          { key: 'amis' as Tab, label: 'Amis' },
           { key: 'projets' as Tab, label: 'Projets suivis' },
         ]).map((tab) => (
           <button
@@ -319,29 +325,6 @@ export default function ProfilPublic() {
             ) : (
               <p style={styles.emptyText}>Aucune publication</p>
             )}
-          </motion.div>
-        )}
-
-        {activeTab === 'amis' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={styles.amisGrid}>
-            {amis.map((ami) => (
-              <motion.div
-                key={ami._id}
-                style={styles.amiCard}
-                whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
-                onClick={() => navigate(`/utilisateur/${ami._id}`)}
-              >
-                <div style={styles.amiAvatar}>
-                  {ami.avatar ? (
-                    <img src={ami.avatar} alt="" style={styles.amiAvatarImg} />
-                  ) : (
-                    <span style={styles.amiInitial}>{ami.prenom[0]}</span>
-                  )}
-                </div>
-                <span style={styles.amiName}>{ami.prenom} {ami.nom}</span>
-              </motion.div>
-            ))}
-            {amis.length === 0 && <p style={styles.emptyText}>Aucun ami</p>}
           </motion.div>
         )}
 
@@ -604,41 +587,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 16,
     fontSize: '0.8125rem',
     color: couleurs.texteSecondaire,
-  },
-  amisGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-    gap: 12,
-  },
-  amiCard: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: 8,
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: couleurs.fondCard,
-    border: `1px solid ${couleurs.bordure}`,
-    cursor: 'pointer',
-    transition: 'all 200ms ease',
-  },
-  amiAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: '50%',
-    backgroundColor: couleurs.primaire,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  amiAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' as const },
-  amiInitial: { color: couleurs.blanc, fontWeight: '600' },
-  amiName: {
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: couleurs.texte,
-    textAlign: 'center' as const,
   },
   projetCard: {
     display: 'flex',

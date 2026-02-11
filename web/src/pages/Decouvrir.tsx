@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Users, TrendingUp, Filter, X } from 'lucide-react';
-import { getProjets, getProjetsTendance } from '../services/projets';
+import { Search, MapPin, Users, TrendingUp, Filter, X, Heart, MessageCircle, Eye } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { getProjets, getProjetsTendance, toggleSuivreProjet } from '../services/projets';
 import type { Projet, CategorieProjet, MaturiteProjet } from '../services/projets';
 import { couleurs } from '../styles/theme';
 
@@ -24,9 +25,24 @@ const MATURITES: { value: MaturiteProjet; label: string }[] = [
   { value: 'croissance', label: 'Croissance' },
 ];
 
-function ProjetCard({ projet, index }: { projet: Projet; index: number }) {
+function ProjetCard({ projet, index, onFollowChange }: { projet: Projet; index: number; onFollowChange: (id: string, estSuivi: boolean, nbFollowers: number) => void }) {
   const navigate = useNavigate();
+  const { utilisateur } = useAuth();
   const cat = CATEGORIES.find((c) => c.value === projet.categorie);
+  const isOwnProject = utilisateur?.id === projet.porteur?._id;
+
+  const handleToggleSuivre = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const prev = projet.estSuivi;
+    const prevNb = projet.nbFollowers;
+    onFollowChange(projet._id, !prev, prev ? prevNb - 1 : prevNb + 1);
+    const res = await toggleSuivreProjet(projet._id);
+    if (res.succes && res.data) {
+      onFollowChange(projet._id, res.data.estSuivi, res.data.nbFollowers);
+    } else {
+      onFollowChange(projet._id, prev, prevNb);
+    }
+  };
 
   return (
     <motion.div
@@ -35,9 +51,8 @@ function ProjetCard({ projet, index }: { projet: Projet; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.05 }}
       whileHover={{ y: -4, boxShadow: '0 12px 32px rgba(0,0,0,0.3)' }}
-      onClick={() => navigate(`/projets/${projet._id}`)}
     >
-      <div style={styles.projetImgContainer}>
+      <div style={styles.projetImgContainer} onClick={() => navigate(`/projets/${projet._id}`)}>
         <img
           src={projet.image || projet.logo || 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=600&h=300&fit=crop&q=80'}
           alt={projet.nom}
@@ -53,16 +68,32 @@ function ProjetCard({ projet, index }: { projet: Projet; index: number }) {
         )}
       </div>
       <div style={styles.projetBody}>
-        <h3 style={styles.projetNom}>{projet.nom}</h3>
-        <p style={styles.projetPitch}>{projet.pitch}</p>
+        <div style={styles.projetHeader} onClick={() => navigate(`/projets/${projet._id}`)}>
+          <div style={{ flex: 1 }}>
+            <h3 style={styles.projetNom}>{projet.nom}</h3>
+            {projet.localisation?.ville && (
+              <span style={styles.projetLocation}>
+                <MapPin size={12} /> {projet.localisation.ville}
+              </span>
+            )}
+          </div>
+          {projet.logo && <img src={projet.logo} alt="" style={styles.projetLogo} />}
+        </div>
+        <p style={styles.projetPitch} onClick={() => navigate(`/projets/${projet._id}`)}>{projet.pitch}</p>
+        {projet.tags && projet.tags.length > 0 && (
+          <div style={styles.projetTags}>
+            {projet.tags.slice(0, 3).map((tag, i) => (
+              <span key={i} style={styles.projetTag}>{tag}</span>
+            ))}
+            <span style={styles.projetTagCat}>{cat?.label || projet.categorie}</span>
+          </div>
+        )}
         <div style={styles.projetMeta}>
-          {projet.localisation?.ville && (
-            <span style={styles.metaItem}>
-              <MapPin size={14} /> {projet.localisation.ville}
-            </span>
-          )}
           <span style={styles.metaItem}>
-            <Users size={14} /> {projet.nbFollowers || projet.followers?.length || 0}
+            <Users size={14} /> {projet.nbFollowers || 0} abonnés
+          </span>
+          <span style={styles.metaItem}>
+            <TrendingUp size={14} /> {MATURITES.find((m) => m.value === projet.maturite)?.label || projet.maturite}
           </span>
         </div>
         {projet.objectifFinancement && projet.objectifFinancement > 0 && (
@@ -78,6 +109,42 @@ function ProjetCard({ projet, index }: { projet: Projet; index: number }) {
             <span style={styles.progressText}>{projet.progression || 0}%</span>
           </div>
         )}
+        <div style={styles.projetActions}>
+          {isOwnProject ? (
+            <motion.button
+              style={styles.projetBtnOwn}
+              whileTap={{ scale: 0.97 }}
+              onClick={(e) => { e.stopPropagation(); navigate(`/projets/${projet._id}`); }}
+            >
+              Mon projet
+            </motion.button>
+          ) : (
+            <>
+              <motion.button
+                style={projet.estSuivi ? styles.projetBtnFollowed : styles.projetBtnFollow}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleToggleSuivre}
+              >
+                <Heart size={14} fill={projet.estSuivi ? couleurs.primaire : 'none'} color={projet.estSuivi ? couleurs.primaire : couleurs.blanc} />
+                {projet.estSuivi ? 'Suivi' : 'Suivre'}
+              </motion.button>
+              <motion.button
+                style={styles.projetBtnSecondary}
+                whileTap={{ scale: 0.97 }}
+                onClick={(e) => { e.stopPropagation(); navigate(`/projets/${projet._id}?action=contact`); }}
+              >
+                <MessageCircle size={14} />
+              </motion.button>
+              <motion.button
+                style={styles.projetBtnSecondary}
+                whileTap={{ scale: 0.97 }}
+                onClick={(e) => { e.stopPropagation(); navigate(`/projets/${projet._id}`); }}
+              >
+                <Eye size={14} />
+              </motion.button>
+            </>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -127,6 +194,10 @@ export default function Decouvrir() {
   };
 
   const hasFilters = categorie || maturite || search;
+
+  const handleFollowChange = (id: string, estSuivi: boolean, nbFollowers: number) => {
+    setProjets((prev) => prev.map((p) => p._id === id ? { ...p, estSuivi, nbFollowers } : p));
+  };
 
   return (
     <div style={styles.page}>
@@ -269,7 +340,7 @@ export default function Decouvrir() {
         <>
           <div style={styles.grid}>
             {projets.map((projet, i) => (
-              <ProjetCard key={projet._id} projet={projet} index={i} />
+              <ProjetCard key={projet._id} projet={projet} index={i} onFollowChange={handleFollowChange} />
             ))}
           </div>
           {projets.length === 0 && (
@@ -423,11 +494,33 @@ const styles: Record<string, React.CSSProperties> = {
   projetBody: {
     padding: 16,
   },
+  projetHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 6,
+    cursor: 'pointer',
+  },
+  projetLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    objectFit: 'cover' as const,
+    border: `1px solid ${couleurs.bordure}`,
+    flexShrink: 0,
+  },
   projetNom: {
     fontSize: '1.0625rem',
     fontWeight: '600',
     color: couleurs.texte,
-    marginBottom: 6,
+    marginBottom: 2,
+  },
+  projetLocation: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: '0.75rem',
+    color: couleurs.texteSecondaire,
   },
   projetPitch: {
     fontSize: '0.8125rem',
@@ -437,12 +530,97 @@ const styles: Record<string, React.CSSProperties> = {
     WebkitLineClamp: 2,
     WebkitBoxOrient: 'vertical' as const,
     overflow: 'hidden',
-    marginBottom: 12,
+    marginBottom: 10,
+    cursor: 'pointer',
+  },
+  projetTags: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 6,
+    marginBottom: 10,
+  },
+  projetTag: {
+    padding: '3px 10px',
+    borderRadius: 12,
+    backgroundColor: couleurs.fondCard,
+    border: `1px solid ${couleurs.bordure}`,
+    color: couleurs.texteSecondaire,
+    fontSize: '0.6875rem',
+    fontWeight: '500',
+  },
+  projetTagCat: {
+    padding: '3px 10px',
+    borderRadius: 12,
+    backgroundColor: `${couleurs.primaire}20`,
+    color: couleurs.primaire,
+    fontSize: '0.6875rem',
+    fontWeight: '500',
   },
   projetMeta: {
     display: 'flex',
     gap: 16,
     marginBottom: 12,
+  },
+  projetActions: {
+    display: 'flex',
+    gap: 8,
+    marginTop: 4,
+  },
+  projetBtnFollow: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '8px 16px',
+    borderRadius: 10,
+    background: `linear-gradient(135deg, ${couleurs.primaire}, ${couleurs.primaireDark})`,
+    color: couleurs.blanc,
+    fontSize: '0.8125rem',
+    fontWeight: '600',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  projetBtnFollowed: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '8px 16px',
+    borderRadius: 10,
+    backgroundColor: couleurs.primaireLight,
+    color: couleurs.primaire,
+    fontSize: '0.8125rem',
+    fontWeight: '600',
+    border: `1px solid ${couleurs.primaire}`,
+    cursor: 'pointer',
+  },
+  projetBtnOwn: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '8px 16px',
+    borderRadius: 10,
+    backgroundColor: couleurs.primaireLight,
+    color: couleurs.primaire,
+    fontSize: '0.8125rem',
+    fontWeight: '600',
+    border: `1px solid ${couleurs.primaire}`,
+    cursor: 'pointer',
+  },
+  projetBtnSecondary: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '8px 12px',
+    borderRadius: 10,
+    backgroundColor: couleurs.fondCard,
+    color: couleurs.texte,
+    border: `1px solid ${couleurs.bordure}`,
+    cursor: 'pointer',
   },
   metaItem: {
     display: 'flex',
