@@ -334,15 +334,16 @@ export default function ProfilUtilisateurPage() {
   // Gérer le clic sur le compteur d'amis
   const handleAmisPress = () => {
     const estMonProfilLocal = moi?.id === profil?._id;
-    // Si c'est mon profil ou si je suis ami → naviguer vers la liste d'amis
-    if (estMonProfilLocal || profil?.estAmi) {
+    const profilEstPublic = profil?.profilPublic !== false;
+    // Si c'est mon profil, ami, ou profil public → naviguer vers la liste d'amis
+    if (estMonProfilLocal || profil?.estAmi || profilEstPublic) {
       router.push({
         pathname: '/(app)/amis/[id]',
         params: { id: profil?._id || id },
       });
       return;
     }
-    // Si non ami → accès refusé
+    // Profil prive et non ami → accès refusé
     showToast('Devenez ami pour voir la liste d\'amis');
   };
 
@@ -489,8 +490,8 @@ export default function ProfilUtilisateurPage() {
             >
               <View style={styles.statValueRow}>
                 <Text style={styles.statValue}>{profil.nbAmis || 0}</Text>
-                {/* Cadenas si non ami et pas mon profil */}
-                {!estMonProfil && !profil.estAmi && (
+                {/* Cadenas si profil prive, non ami et pas mon profil */}
+                {!estMonProfil && !profil.estAmi && profil.profilPublic === false && (
                   <Ionicons
                     name="lock-closed"
                     size={12}
