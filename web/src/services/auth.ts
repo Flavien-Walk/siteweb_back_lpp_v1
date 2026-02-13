@@ -86,6 +86,11 @@ export const getMoi = async (): Promise<ReponseAPI<{ utilisateur: Utilisateur }>
 };
 
 export const deconnexion = (): void => {
+  // Appeler le backend pour blacklister le JWT avant de supprimer le token local
+  const token = getToken();
+  if (token) {
+    api.post('/auth/deconnexion', {}, true).catch(() => {});
+  }
   removeToken();
 };
 

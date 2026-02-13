@@ -57,6 +57,8 @@ function AuthCallback() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    // Nettoyer immediatement le token de l'URL (securite: eviter exposition dans l'historique navigateur)
+    window.history.replaceState({}, '', window.location.pathname);
     if (token) {
       setToken(token);
       rafraichirUtilisateur().then(() => {
