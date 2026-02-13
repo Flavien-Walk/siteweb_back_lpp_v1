@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import SecurityEvent, { SecurityEventType, SeverityLevel } from '../models/SecurityEvent.js';
+import BlockedIP from '../models/BlockedIP.js';
 
 // ============================================
 // PATTERNS DE DETECTION
@@ -29,6 +30,140 @@ const PATH_TRAVERSAL_PATTERNS = [
   /\.env\b/,
 ];
 
+// Patterns SQL injection (meme si NoSQL, certains bots tentent quand meme)
+const SQL_PATTERNS = [
+  /(?:UNION\s+SELECT|SELECT\s+.*FROM|INSERT\s+INTO|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE)/i,
+  /(?:OR|AND)\s+['"]?\d+['"]?\s*=\s*['"]?\d+/i,
+  /;\s*(?:DROP|DELETE|INSERT|UPDATE|ALTER)\b/i,
+];
+
+// Patterns command injection
+const CMD_INJECTION_PATTERNS = [
+  /;\s*(?:ls|cat|rm|wget|curl|bash|sh|nc|netcat|python|perl|ruby)\b/i,
+  /\|\s*(?:ls|cat|rm|wget|curl|bash|sh|nc|netcat)\b/i,
+  /`[^`]*(?:ls|cat|rm|wget|curl|bash|sh)\b[^`]*`/i,
+  /\$\([^)]*(?:ls|cat|rm|wget|curl|bash|sh)\b/i,
+];
+
+// ============================================
+// PARSING USER-AGENT (leger, sans dependance)
+// ============================================
+interface ParsedUA {
+  navigateur: string;
+  os: string;
+  appareil: string;
+}
+
+const parseUserAgent = (ua: string): ParsedUA => {
+  if (!ua) return { navigateur: 'Inconnu', os: 'Inconnu', appareil: 'Inconnu' };
+
+  // --- Navigateur ---
+  let navigateur = 'Inconnu';
+  if (/Edg(?:e|A|iOS)?\/(\d+)/i.test(ua)) {
+    navigateur = `Edge ${RegExp.$1}`;
+  } else if (/OPR\/(\d+)/i.test(ua) || /Opera\/(\d+)/i.test(ua)) {
+    navigateur = `Opera ${RegExp.$1}`;
+  } else if (/Brave/i.test(ua)) {
+    navigateur = 'Brave';
+  } else if (/Vivaldi\/(\d+)/i.test(ua)) {
+    navigateur = `Vivaldi ${RegExp.$1}`;
+  } else if (/SamsungBrowser\/(\d+)/i.test(ua)) {
+    navigateur = `Samsung Browser ${RegExp.$1}`;
+  } else if (/Chrome\/(\d+)/i.test(ua) && !/Chromium/i.test(ua)) {
+    navigateur = `Chrome ${RegExp.$1}`;
+  } else if (/Firefox\/(\d+)/i.test(ua)) {
+    navigateur = `Firefox ${RegExp.$1}`;
+  } else if (/Safari\/(\d+)/i.test(ua) && /Version\/(\d+)/i.test(ua)) {
+    navigateur = `Safari ${RegExp.$1}`;
+  } else if (/MSIE\s(\d+)/i.test(ua) || /Trident.*rv:(\d+)/i.test(ua)) {
+    navigateur = `Internet Explorer ${RegExp.$1}`;
+  } else if (/curl/i.test(ua)) {
+    navigateur = 'curl (outil CLI)';
+  } else if (/wget/i.test(ua)) {
+    navigateur = 'wget (outil CLI)';
+  } else if (/python/i.test(ua)) {
+    navigateur = 'Python (script)';
+  } else if (/postman/i.test(ua)) {
+    navigateur = 'Postman (test API)';
+  } else if (/httpie/i.test(ua)) {
+    navigateur = 'HTTPie (outil CLI)';
+  } else if (/insomnia/i.test(ua)) {
+    navigateur = 'Insomnia (test API)';
+  } else if (/bot|crawl|spider|scrape/i.test(ua)) {
+    navigateur = 'Bot/Crawler';
+  }
+
+  // --- OS ---
+  let os = 'Inconnu';
+  if (/Windows NT 10\.0/i.test(ua)) {
+    os = 'Windows 10/11';
+  } else if (/Windows NT 6\.3/i.test(ua)) {
+    os = 'Windows 8.1';
+  } else if (/Windows NT 6\.2/i.test(ua)) {
+    os = 'Windows 8';
+  } else if (/Windows NT 6\.1/i.test(ua)) {
+    os = 'Windows 7';
+  } else if (/Windows/i.test(ua)) {
+    os = 'Windows';
+  } else if (/Mac OS X (\d+[._]\d+)/i.test(ua)) {
+    os = `macOS ${RegExp.$1.replace(/_/g, '.')}`;
+  } else if (/Android (\d+(\.\d+)?)/i.test(ua)) {
+    os = `Android ${RegExp.$1}`;
+  } else if (/iPhone OS (\d+[._]\d+)/i.test(ua) || /iPad.*OS (\d+[._]\d+)/i.test(ua)) {
+    os = `iOS ${RegExp.$1.replace(/_/g, '.')}`;
+  } else if (/Linux/i.test(ua)) {
+    os = 'Linux';
+  } else if (/CrOS/i.test(ua)) {
+    os = 'Chrome OS';
+  } else if (/FreeBSD/i.test(ua)) {
+    os = 'FreeBSD';
+  }
+
+  // --- Appareil ---
+  let appareil = 'Ordinateur';
+  if (/Mobile|Android.*Mobile|iPhone|iPod/i.test(ua)) {
+    appareil = 'Smartphone';
+  } else if (/iPad|Android(?!.*Mobile)|Tablet/i.test(ua)) {
+    appareil = 'Tablette';
+  } else if (/Smart-?TV|TV|BRAVIA|LG Browser|NetCast|webOS|Tizen/i.test(ua)) {
+    appareil = 'Smart TV';
+  } else if (/bot|crawl|spider|scrape|curl|wget|python|postman|httpie|insomnia/i.test(ua)) {
+    appareil = 'Outil/Bot';
+  }
+
+  return { navigateur, os, appareil };
+};
+
+// ============================================
+// CACHE BLOCAGE IP (evite des queries a chaque requete)
+// ============================================
+const blockedIPCache = new Map<string, { blocked: boolean; checkedAt: number }>();
+const BLOCKED_CACHE_TTL = 30 * 1000; // 30 secondes
+
+const isIPBlocked = async (ip: string): Promise<boolean> => {
+  const cached = blockedIPCache.get(ip);
+  if (cached && Date.now() - cached.checkedAt < BLOCKED_CACHE_TTL) {
+    return cached.blocked;
+  }
+  try {
+    const found = await BlockedIP.findOne({ ip, actif: true }).lean();
+    const blocked = !!found;
+    blockedIPCache.set(ip, { blocked, checkedAt: Date.now() });
+    return blocked;
+  } catch {
+    return false;
+  }
+};
+
+// Expose pour forcer la mise a jour du cache (apres block/unblock)
+export const invalidateBlockedIPCache = (ip?: string): void => {
+  if (ip) {
+    blockedIPCache.delete(ip);
+  } else {
+    blockedIPCache.clear();
+  }
+};
+
 // Compteur in-memory pour detection temps reel (evite trop de queries)
 const ipRequestCounts = new Map<string, { count: number; window: number; errors: number }>();
 const ANOMALY_THRESHOLD = 50; // requetes par minute
@@ -41,6 +176,12 @@ setInterval(() => {
   for (const [ip, data] of ipRequestCounts.entries()) {
     if (now - data.window > CLEANUP_INTERVAL) {
       ipRequestCounts.delete(ip);
+    }
+  }
+  // Nettoyage cache blocked IPs aussi
+  for (const [ip, data] of blockedIPCache.entries()) {
+    if (now - data.checkedAt > BLOCKED_CACHE_TTL * 2) {
+      blockedIPCache.delete(ip);
     }
   }
 }, CLEANUP_INTERVAL);
@@ -57,12 +198,18 @@ const logSecurityEvent = (
   metadata: Record<string, unknown> = {},
   blocked = false
 ): void => {
+  const ua = req.headers['user-agent'] || '';
+  const parsed = parseUserAgent(ua);
+
   // Fire-and-forget pour ne pas ralentir la requete
   SecurityEvent.create({
     type,
     severity,
     ip: req.ip || req.socket.remoteAddress || 'unknown',
-    userAgent: (req.headers['user-agent'] || '').slice(0, 500),
+    userAgent: ua.slice(0, 500),
+    navigateur: parsed.navigateur,
+    os: parsed.os,
+    appareil: parsed.appareil,
     method: req.method,
     path: req.originalUrl.slice(0, 500),
     statusCode,
@@ -81,17 +228,27 @@ const logSecurityEvent = (
 const checkPayload = (value: string): { type: SecurityEventType; detail: string } | null => {
   for (const pattern of NOSQL_PATTERNS) {
     if (pattern.test(value)) {
-      return { type: 'injection_attempt', detail: `NoSQL injection detectee: ${pattern.source}` };
+      return { type: 'injection_attempt', detail: `Injection NoSQL detectee: ${pattern.source}` };
     }
   }
   for (const pattern of XSS_PATTERNS) {
     if (pattern.test(value)) {
-      return { type: 'injection_attempt', detail: `XSS detecte: ${pattern.source}` };
+      return { type: 'injection_attempt', detail: `Attaque XSS detectee: ${pattern.source}` };
     }
   }
   for (const pattern of PATH_TRAVERSAL_PATTERNS) {
     if (pattern.test(value)) {
-      return { type: 'injection_attempt', detail: `Path traversal detecte: ${pattern.source}` };
+      return { type: 'injection_attempt', detail: `Traversee de chemin detectee: ${pattern.source}` };
+    }
+  }
+  for (const pattern of SQL_PATTERNS) {
+    if (pattern.test(value)) {
+      return { type: 'injection_attempt', detail: `Injection SQL detectee: ${pattern.source}` };
+    }
+  }
+  for (const pattern of CMD_INJECTION_PATTERNS) {
+    if (pattern.test(value)) {
+      return { type: 'injection_attempt', detail: `Injection de commande detectee: ${pattern.source}` };
     }
   }
   return null;
@@ -113,6 +270,28 @@ const deepScanValue = (obj: unknown, depth = 0): { type: SecurityEventType; deta
     }
   }
   return null;
+};
+
+// ============================================
+// MIDDLEWARE VERIFICATION IP BLOQUEE
+// ============================================
+export const checkBlockedIP = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+
+  if (await isIPBlocked(ip)) {
+    // Logger le blocage
+    logSecurityEvent('ip_blocked', 'high', req, 403, `Requete bloquee - IP bannie: ${ip}`, {
+      originalPath: req.originalUrl,
+    }, true);
+
+    res.status(403).json({
+      succes: false,
+      message: 'Acces refuse. Votre adresse IP a ete bloquee.',
+    });
+    return;
+  }
+
+  next();
 };
 
 // ============================================

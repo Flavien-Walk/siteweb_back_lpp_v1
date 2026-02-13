@@ -23,7 +23,7 @@ import moderationRoutes from './routes/moderationRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
-import { securityMonitor } from './middlewares/securityMonitor.js';
+import { securityMonitor, checkBlockedIP } from './middlewares/securityMonitor.js';
 
 /**
  * Créer et configurer l'application Express
@@ -214,6 +214,9 @@ export const creerApp = (): Application => {
     standardHeaders: true,
     legacyHeaders: false,
   });
+
+  // Middleware de verification IP bloquee (tout en premier)
+  app.use('/api/', checkBlockedIP);
 
   // Middleware de detection d'intrusion (avant les routes, apres le parsing)
   app.use('/api/', securityMonitor);

@@ -18,7 +18,15 @@ import {
   getAuditStats,
   exportAuditLogs,
 } from '../controllers/auditController.js';
-import { getSecurityDashboard } from '../controllers/securityController.js';
+import {
+  getSecurityDashboard,
+  getSecurityEventDetail,
+  investigateIP,
+  blockIP,
+  unblockIP,
+  getBlockedIPs,
+  getSecurityEvents,
+} from '../controllers/securityController.js';
 import {
   getStaffMessages,
   sendStaffMessage,
@@ -315,6 +323,24 @@ router.get('/evenements', verifierJwt, requirePermission('content:hide'), listEv
 
 // GET /api/admin/security/dashboard - Tableau de bord securite
 router.get('/security/dashboard', verifierJwt, requirePermission('audit:view'), getSecurityDashboard);
+
+// GET /api/admin/security/events - Liste des evenements avec filtres
+router.get('/security/events', verifierJwt, requirePermission('audit:view'), getSecurityEvents);
+
+// GET /api/admin/security/events/:id - Detail d'un evenement
+router.get('/security/events/:id', verifierJwt, requirePermission('audit:view'), getSecurityEventDetail);
+
+// GET /api/admin/security/investigate/:ip - Enquete approfondie sur une IP
+router.get('/security/investigate/:ip', verifierJwt, requirePermission('audit:view'), investigateIP);
+
+// GET /api/admin/security/blocked-ips - Liste des IPs bloquees
+router.get('/security/blocked-ips', verifierJwt, requirePermission('audit:view'), getBlockedIPs);
+
+// POST /api/admin/security/block-ip - Bloquer une IP
+router.post('/security/block-ip', verifierJwt, requireMinRole('admin_modo'), blockIP);
+
+// DELETE /api/admin/security/unblock-ip/:id - Debloquer une IP
+router.delete('/security/unblock-ip/:id', verifierJwt, requireMinRole('admin_modo'), unblockIP);
 
 // ============ NOTIFICATIONS BROADCAST ============
 
