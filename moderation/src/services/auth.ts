@@ -52,9 +52,14 @@ export const authService = {
   },
 
   /**
-   * Logout
+   * Logout - blackliste le JWT cote serveur puis supprime le token local
    */
-  logout() {
+  async logout() {
+    try {
+      await api.post('/auth/deconnexion', {})
+    } catch {
+      // Ignorer les erreurs reseau - suppression locale dans tous les cas
+    }
     setAuthToken(null)
   },
 
