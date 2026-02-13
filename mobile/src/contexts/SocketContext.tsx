@@ -21,7 +21,7 @@ import React, {
 import { AppState, AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_URL } from '../constantes/config';
-import { getTokenSync } from '../services/api';
+import { getTokenSync, triggerAccountRestriction } from '../services/api';
 
 // Types pour les events socket
 export interface MessageSocketEvent {
@@ -242,6 +242,17 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
           console.error('[SOCKET] Erreur callback typing:', e);
         }
       });
+    });
+
+    // Force disconnect (ban/suspension en temps reel depuis le backend)
+    socketRef.current.on('force_disconnect', (data: { reason: string }) => {
+      if (__DEV__) console.log('[SOCKET] Force disconnect:', data.reason);
+      const isBan = data.reason?.toLowerCase().includes('banni');
+      triggerAccountRestriction({
+        type: isBan ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
+        message: data.reason || 'Votre compte a été restreint.',
+      });
+      disconnect();
     });
 
   }, [userId]);

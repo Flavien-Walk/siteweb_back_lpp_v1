@@ -155,6 +155,15 @@ export const setAccountRestrictionCallback = (
   onAccountRestricted = callback;
 };
 
+/**
+ * Déclencher la restriction de compte depuis l'extérieur (ex: socket force_disconnect)
+ */
+export const triggerAccountRestriction = (info: AccountRestrictionInfo): void => {
+  if (onAccountRestricted) {
+    onAccountRestricted(info);
+  }
+};
+
 // Options pour les requêtes
 interface OptionsRequete {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
