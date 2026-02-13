@@ -1,12 +1,34 @@
 import api from './api'
 import type { ApiResponse } from '@/types'
 
-// Types pour les events de securite
+// ============================================
+// TYPES EVENEMENTS DE SECURITE
+// ============================================
+
+export type SecurityEventType =
+  | 'brute_force'
+  | 'rate_limit_hit'
+  | 'unauthorized_access'
+  | 'forbidden_access'
+  | 'injection_attempt'
+  | 'suspicious_signup'
+  | 'token_forgery'
+  | 'cors_violation'
+  | 'ip_blocked'
+  | 'anomaly'
+
+export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical'
+export type ThreatLevel = 'normal' | 'elevated' | 'high' | 'critical'
+
 export interface SecurityEvent {
   _id: string
-  type: string
-  severity: 'low' | 'medium' | 'high' | 'critical'
+  type: SecurityEventType
+  severity: SeverityLevel
   ip: string
+  userAgent: string
+  navigateur: string
+  os: string
+  appareil: string
   method: string
   path: string
   statusCode: number
@@ -14,6 +36,7 @@ export interface SecurityEvent {
   blocked: boolean
   dateCreation: string
   metadata?: Record<string, unknown>
+  userId?: string
 }
 
 export interface SuspiciousIP {
@@ -22,6 +45,9 @@ export interface SuspiciousIP {
   types: string[]
   lastSeen: string
   maxSeverity: string
+  navigateurs: string[]
+  appareils: string[]
+  os: string[]
 }
 
 export interface OffenderIP {
@@ -31,6 +57,9 @@ export interface OffenderIP {
   types: string[]
   firstSeen: string
   lastSeen: string
+  navigateurs: string[]
+  os: string[]
+  appareils: string[]
 }
 
 export interface AttackedPath {
@@ -56,30 +85,38 @@ export interface DailyPoint {
   low: number
 }
 
+export interface DeviceStats {
+  navigateurs: { nom: string; count: number }[]
+  os: { nom: string; count: number }[]
+  appareils: { nom: string; count: number }[]
+}
+
+export interface BlockedIP {
+  _id: string
+  ip: string
+  raison: string
+  bloquePar: { _id: string; prenom: string; nom: string } | null
+  dateCreation: string
+  expireAt?: string | null
+  actif: boolean
+}
+
 export interface SecurityDashboardData {
-  threatLevel: 'normal' | 'elevated' | 'high' | 'critical'
+  threatLevel: ThreatLevel
   lastUpdated: string
 
   summary: {
+    totalEvents1h: number
     totalEvents24h: number
     totalEvents7j: number
     criticalEvents24h: number
     highEvents24h: number
     blockedEvents24h: number
+    blockedIPsActifs: number
     eventsPerHour: number
   }
 
-  attackTypes: {
-    brute_force: number
-    injection_attempt: number
-    rate_limit_hit: number
-    unauthorized_access: number
-    forbidden_access: number
-    token_forgery: number
-    suspicious_signup: number
-    cors_violation: number
-    anomaly: number
-  }
+  attackTypes: Record<string, number>
 
   severityBreakdown: {
     critical: number
@@ -88,6 +125,8 @@ export interface SecurityDashboardData {
     low: number
   }
 
+  deviceStats: DeviceStats
+
   topSuspiciousIPs: SuspiciousIP[]
   recentEvents: SecurityEvent[]
   hourlyTrend: HourlyPoint[]
@@ -95,20 +134,127 @@ export interface SecurityDashboardData {
   topAttackedPaths: AttackedPath[]
   criticalEvents: SecurityEvent[]
   topOffenderIPs: OffenderIP[]
+  blockedIPs: BlockedIP[]
 }
+
+// ============================================
+// TYPES INVESTIGATION IP
+// ============================================
+
+export interface IPInvestigation {
+  ip: string
+  dangerScore: number
+  dangerLevel: 'faible' | 'moyen' | 'eleve' | 'critique'
+  estBloquee: boolean
+  blocageInfo: BlockedIP | null
+  resume: {
+    totalEvents: number
+    events24h: number
+    events7j: number
+    premiereApparition: string | null
+    derniereApparition: string | null
+  }
+  repartitionTypes: { type: string; count: number }[]
+  repartitionSeverite: { severite: string; count: number }[]
+  empreinteNumerique: {
+    navigateurs: { nom: string; count: number; dernierVu: string }[]
+    os: { nom: string; count: number }[]
+    appareils: { nom: string; count: number }[]
+  }
+  pathsCibles: { chemin: string; count: number; types: string[]; methodes: string[] }[]
+  timelineHoraire: { _id: { date: string; hour: number }; count: number }[]
+  derniersEvenements: SecurityEvent[]
+}
+
+// ============================================
+// TYPES DETAIL EVENT
+// ============================================
+
+export interface SecurityEventDetail {
+  event: SecurityEvent
+  relatedEvents: SecurityEvent[]
+  ipHistory: { _id: string; count: number; lastSeen: string }[]
+  ipBlocked: boolean
+  ipBlockedInfo: BlockedIP | null
+}
+
+// ============================================
+// SERVICE
+// ============================================
 
 export const securityService = {
   async getDashboard(): Promise<SecurityDashboardData> {
     const response = await api.get<ApiResponse<SecurityDashboardData>>(
       '/admin/security/dashboard'
     )
-
     if (!response.data.succes || !response.data.data) {
-      throw new Error(
-        response.data.message || 'Erreur de recuperation des donnees de securite'
-      )
+      throw new Error(response.data.message || 'Erreur de recuperation des donnees')
     }
+    return response.data.data
+  },
 
+  async getEvents(params: {
+    page?: number
+    limit?: number
+    type?: string
+    severity?: string
+    ip?: string
+    blocked?: boolean
+    dateDebut?: string
+    dateFin?: string
+  } = {}): Promise<{ data: SecurityEvent[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
+    const response = await api.get('/admin/security/events', { params })
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur')
+    }
+    return { data: response.data.data, pagination: response.data.pagination }
+  },
+
+  async getEventDetail(id: string): Promise<SecurityEventDetail> {
+    const response = await api.get<ApiResponse<SecurityEventDetail>>(
+      `/admin/security/events/${id}`
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur')
+    }
+    return response.data.data
+  },
+
+  async investigateIP(ip: string): Promise<IPInvestigation> {
+    const response = await api.get<ApiResponse<IPInvestigation>>(
+      `/admin/security/investigate/${encodeURIComponent(ip)}`
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur')
+    }
+    return response.data.data
+  },
+
+  async blockIP(ip: string, raison: string, duree?: number): Promise<BlockedIP> {
+    const response = await api.post<ApiResponse<BlockedIP>>(
+      '/admin/security/block-ip',
+      { ip, raison, duree }
+    )
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur de blocage')
+    }
+    return response.data.data!
+  },
+
+  async unblockIP(id: string): Promise<void> {
+    const response = await api.delete(`/admin/security/unblock-ip/${id}`)
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur de deblocage')
+    }
+  },
+
+  async getBlockedIPs(actif?: boolean): Promise<BlockedIP[]> {
+    const params: Record<string, string> = {}
+    if (actif !== undefined) params.actif = String(actif)
+    const response = await api.get('/admin/security/blocked-ips', { params })
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur')
+    }
     return response.data.data
   },
 }
