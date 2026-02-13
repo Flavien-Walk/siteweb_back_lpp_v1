@@ -24,6 +24,9 @@ import {
   markMessagesAsRead,
   getUnreadCount,
   deleteStaffMessage,
+  getDMConversations,
+  getDMMessages,
+  sendDMMessage,
 } from '../controllers/staffChatController.js';
 import {
   getDashboard,
@@ -222,6 +225,16 @@ router.get('/staff-chat/unread-count', verifierJwt, requirePermission('staff:cha
 // POST /api/admin/staff-chat/read - Marquer comme lus
 router.post('/staff-chat/read', verifierJwt, requirePermission('staff:chat'), markMessagesAsRead);
 
+// --- Messages privés (DM) ---
+// GET /api/admin/staff-chat/dm - Liste des conversations privées
+router.get('/staff-chat/dm', verifierJwt, requirePermission('staff:chat'), getDMConversations);
+
+// GET /api/admin/staff-chat/dm/:userId - Messages d'une conversation privée
+router.get('/staff-chat/dm/:userId', verifierJwt, requirePermission('staff:chat'), getDMMessages);
+
+// POST /api/admin/staff-chat/dm/:userId - Envoyer un message privé
+router.post('/staff-chat/dm/:userId', verifierJwt, requirePermission('staff:chat'), sendDMMessage);
+
 // DELETE /api/admin/staff-chat/:id - Supprimer un message
 router.delete('/staff-chat/:id', verifierJwt, requirePermission('staff:chat'), deleteStaffMessage);
 
@@ -237,6 +250,11 @@ router.get('/chat/unread', verifierJwt, requirePermission('staff:chat'), getUnre
 
 // POST /api/admin/chat/read - Marquer comme lus (alias)
 router.post('/chat/read', verifierJwt, requirePermission('staff:chat'), markMessagesAsRead);
+
+// --- Messages privés (DM) alias ---
+router.get('/chat/dm', verifierJwt, requirePermission('staff:chat'), getDMConversations);
+router.get('/chat/dm/:userId', verifierJwt, requirePermission('staff:chat'), getDMMessages);
+router.post('/chat/dm/:userId', verifierJwt, requirePermission('staff:chat'), sendDMMessage);
 
 // DELETE /api/admin/chat/:id - Supprimer un message (alias)
 router.delete('/chat/:id', verifierJwt, requirePermission('staff:chat'), deleteStaffMessage);

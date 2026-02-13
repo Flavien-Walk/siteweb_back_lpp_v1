@@ -11,6 +11,8 @@ export type StaffMessageType = 'text' | 'system' | 'report_link';
 export interface IStaffMessage extends Document {
   _id: mongoose.Types.ObjectId;
   sender: mongoose.Types.ObjectId;
+  // Si défini, c'est un message privé (DM) ; sinon c'est un message de groupe
+  recipient?: mongoose.Types.ObjectId;
   type: StaffMessageType;
   content: string;
   // Lien optionnel vers un signalement
@@ -29,6 +31,12 @@ const staffMessageSchema = new Schema<IStaffMessage>(
       type: Schema.Types.ObjectId,
       ref: 'Utilisateur',
       required: [true, "L'expéditeur est requis"],
+      index: true,
+    },
+    recipient: {
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+      default: null,
       index: true,
     },
     type: {
@@ -67,6 +75,9 @@ staffMessageSchema.index({ dateCreation: -1 });
 
 // Index pour les messages liés à un report
 staffMessageSchema.index({ linkedReport: 1 });
+
+// Index composé pour les conversations DM
+staffMessageSchema.index({ sender: 1, recipient: 1, dateCreation: -1 });
 
 const StaffMessage = mongoose.model<IStaffMessage>('StaffMessage', staffMessageSchema);
 
