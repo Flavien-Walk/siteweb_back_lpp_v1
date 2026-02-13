@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Eye, EyeOff, Trash2, RefreshCw, AlertTriangle, Briefcase, Users, Clock, FileText } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
+import { getActionLabel, formatReason } from '@/lib/labels'
 import { InlineEditor } from '@/components/InlineEditor'
 
 const categorieLabels: Record<string, string> = {
@@ -398,14 +399,14 @@ export function ProjetDetailPage() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <p className="font-medium">{log.action}</p>
+                          <p className="font-medium">{getActionLabel(log.action)}</p>
                           <span className="text-sm text-muted-foreground">
                             {formatRelativeTime(log.createdAt)}
                           </span>
                         </div>
                         {log.reason && (
                           <p className="text-sm text-muted-foreground mt-1">
-                            Raison : {log.reason}
+                            Raison : {formatReason(log.reason)}
                           </p>
                         )}
                         {log.actor && (

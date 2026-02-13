@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { usersService } from '@/services/users'
 import { PageTransition } from '@/components/PageTransition'
 import { activityService } from '@/services/activity'
+import { getActionLabel, getSanctionLabel, getReportStatusLabel, getReasonLabel, formatReason } from '@/lib/labels'
 import { useAuth } from '@/auth/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -579,13 +580,13 @@ export function UserDetailPage() {
                       {auditHistory.auditLogs.map((log: AuditLog) => (
                         <div key={log._id} className="rounded-md border p-3">
                           <div className="flex items-center justify-between mb-1">
-                            <Badge variant="outline">{log.action}</Badge>
+                            <Badge variant="outline">{getActionLabel(log.action)}</Badge>
                             <span className="text-xs text-muted-foreground">
                               {formatRelativeTime(log.dateCreation)}
                             </span>
                           </div>
                           {log.reason && (
-                            <p className="text-sm text-muted-foreground">{log.reason}</p>
+                            <p className="text-sm text-muted-foreground">{formatReason(log.reason)}</p>
                           )}
                           {log.moderator && (
                             <p className="text-xs text-muted-foreground mt-1">
@@ -736,7 +737,7 @@ export function UserDetailPage() {
                                           </div>
                                         </div>
                                         <p className="text-sm text-muted-foreground">
-                                          {String(activity.data.reason)} ({String(activity.data.status)})
+                                          {getReasonLabel(String(activity.data.reason))} — <span className="font-medium">{getReportStatusLabel(String(activity.data.status))}</span>
                                         </p>
                                       </div>
                                     </Link>
@@ -762,17 +763,17 @@ export function UserDetailPage() {
                                       )}
                                       {activity.type === 'report_sent' && (
                                         <p className="text-sm text-muted-foreground">
-                                          {String(activity.data.reason)} ({String(activity.data.status)})
+                                          {getReasonLabel(String(activity.data.reason))} — <span className="font-medium">{getReportStatusLabel(String(activity.data.status))}</span>
                                         </p>
                                       )}
                                       {activity.type === 'sanction' && (
                                         <>
                                           <p className="text-sm font-medium text-red-600">
-                                            {String(activity.data.action)}
+                                            {getSanctionLabel(String(activity.data.action))}
                                           </p>
                                           {activity.data.reason && (
                                             <p className="text-sm text-muted-foreground">
-                                              {String(activity.data.reason)}
+                                              {formatReason(String(activity.data.reason))}
                                             </p>
                                           )}
                                           {activity.data.moderator && (

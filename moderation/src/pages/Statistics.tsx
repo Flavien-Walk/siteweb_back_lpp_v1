@@ -15,64 +15,18 @@ import {
   AlertTriangle,
   Activity,
 } from 'lucide-react'
-
-// ---------------------------------------------------------------------------
-// Labels & mappings
-// ---------------------------------------------------------------------------
-
-const actionLabels: Record<string, string> = {
-  user_warn: 'Avertissement',
-  user_suspend: 'Suspension',
-  user_ban: 'Bannissement',
-  user_unban: 'Debannissement',
-  user_role_change: 'Changement de role',
-  report_approve: 'Signalement approuve',
-  report_reject: 'Signalement rejete',
-  report_escalate: 'Signalement esclade',
-  content_delete: 'Contenu supprime',
-  content_restore: 'Contenu restaure',
-  content_hide: 'Contenu masque',
-  content_edit: 'Contenu modifie',
-}
-
-const reasonLabels: Record<string, string> = {
-  spam: 'Spam',
-  harcelement: 'Harcelement',
-  contenu_inapproprie: 'Contenu inapproprie',
-  fausse_info: 'Fausse information',
-  nudite: 'Nudite',
-  violence: 'Violence',
-  haine: 'Discours haineux',
-  autre: 'Autre',
-}
-
-const priorityLabels: Record<string, string> = {
-  low: 'Basse',
-  medium: 'Moyenne',
-  high: 'Haute',
-  critical: 'Critique',
-}
+import {
+  reportReasonLabels as reasonLabels,
+  priorityLabels,
+  getActionLabel,
+  getActionBarColor,
+} from '@/lib/labels'
 
 const priorityVariants: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {
   low: 'low',
   medium: 'medium',
   high: 'high',
   critical: 'critical',
-}
-
-const barColors: Record<string, string> = {
-  user_warn: 'bg-amber-500',
-  user_suspend: 'bg-orange-500',
-  user_ban: 'bg-red-600',
-  user_unban: 'bg-emerald-500',
-  user_role_change: 'bg-blue-500',
-  report_approve: 'bg-green-500',
-  report_reject: 'bg-zinc-500',
-  report_escalate: 'bg-red-500',
-  content_delete: 'bg-red-400',
-  content_restore: 'bg-teal-500',
-  content_hide: 'bg-yellow-500',
-  content_edit: 'bg-indigo-500',
 }
 
 const reasonColors: Record<string, string> = {
@@ -289,7 +243,7 @@ export function StatisticsPage() {
                 <div className="text-3xl font-bold tracking-tight">{resolutionRate}%</div>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
-                {actionTaken} action(s) / {totalResolved} resolu(s)
+                {actionTaken} traité(s) / {totalResolved} résolu(s)
               </p>
             </CardContent>
           </Card>
@@ -381,13 +335,13 @@ export function StatisticsPage() {
                       <div key={action}>
                         <div className="mb-1 flex items-center justify-between text-sm">
                           <span className="text-zinc-300">
-                            {actionLabels[action] || action}
+                            {getActionLabel(action)}
                           </span>
                           <span className="font-medium text-zinc-100">{count}</span>
                         </div>
                         <div className="h-2.5 w-full rounded-full bg-zinc-800">
                           <div
-                            className={`h-2.5 rounded-full transition-all duration-500 ${barColors[action] || 'bg-primary'}`}
+                            className={`h-2.5 rounded-full transition-all duration-500 ${getActionBarColor(action)}`}
                             style={{ width: `${pct}%` }}
                           />
                         </div>

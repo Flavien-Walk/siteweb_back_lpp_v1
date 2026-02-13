@@ -40,6 +40,7 @@ import {
   Pencil,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
+import { formatMetadata, formatReason } from '@/lib/labels'
 
 const actionLabels: Record<string, string> = {
   user_warn: 'Avertissement',
@@ -408,13 +409,22 @@ export function AuditPage() {
                   <TableCell className="max-w-[300px]">
                     {log.reason && (
                       <p className="truncate text-sm text-muted-foreground" title={log.reason}>
-                        {log.reason}
+                        {formatReason(log.reason)}
                       </p>
                     )}
                     {log.metadata && Object.keys(log.metadata).length > 0 && (
-                      <p className="truncate text-xs text-muted-foreground">
-                        {JSON.stringify(log.metadata)}
-                      </p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {formatMetadata(log.metadata).map((item) => (
+                          <span
+                            key={item.label}
+                            className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                            title={`${item.label}: ${item.value}`}
+                          >
+                            <span className="font-medium text-foreground/70">{item.label}</span>
+                            {item.value}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>

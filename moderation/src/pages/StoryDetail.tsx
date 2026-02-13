@@ -25,6 +25,7 @@ import {
   History,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
+import { getActionLabel, formatReason } from '@/lib/labels'
 
 export function StoryDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -403,14 +404,14 @@ export function StoryDetailPage() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <p className="font-medium">{log.action}</p>
+                        <p className="font-medium">{getActionLabel(log.action)}</p>
                         <span className="text-sm text-muted-foreground">
                           {formatRelativeTime(log.createdAt)}
                         </span>
                       </div>
                       {log.reason && (
                         <p className="text-sm text-muted-foreground mt-1">
-                          Raison: {log.reason}
+                          Raison : {formatReason(log.reason)}
                         </p>
                       )}
                       {log.actor && (
