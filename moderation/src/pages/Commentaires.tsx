@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import {
   MessageCircle,
   Filter,
@@ -26,6 +27,7 @@ import {
   AlertTriangle,
   Heart,
   Pencil,
+  CheckSquare,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 
@@ -42,6 +44,8 @@ export function CommentairesPage() {
     contenu: string
     reason: string
   } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState<{ type: 'bulk-delete'; reason: string } | null>(null)
 
   const params: CommentaireListParams = {
     page: parseInt(searchParams.get('page') || '1'),
@@ -83,6 +87,39 @@ export function CommentairesPage() {
       toast.error('Erreur lors de la modification', { description: error.message })
     },
   })
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      for (const id of ids) {
+        await commentairesService.deleteCommentaire(id, reason)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commentaires'] })
+      setBulkAction(null)
+      setSelectedIds(new Set())
+      toast.success(`${selectedIds.size} commentaire(s) supprimé(s)`)
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ['commentaires'] })
+      toast.error('Erreur lors de la suppression en lot', { description: error.message })
+    },
+  })
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (!data?.items) return
+    if (selectedIds.size === data.items.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(data.items.map(c => c._id)))
+  }
 
   const updateParams = (updates: Partial<CommentaireListParams>) => {
     const newParams = new URLSearchParams(searchParams)
@@ -201,6 +238,14 @@ export function CommentairesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={data?.items?.length ? selectedIds.size === data.items.length : false}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Auteur</TableHead>
                   <TableHead>Contenu</TableHead>
                   <TableHead>Publication</TableHead>
@@ -211,7 +256,15 @@ export function CommentairesPage() {
               </TableHeader>
               <TableBody>
                 {data?.items.map((com) => (
-                  <TableRow key={com._id}>
+                  <TableRow key={com._id} className={selectedIds.has(com._id) ? 'bg-primary/5' : ''}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(com._id)}
+                        onChange={() => toggleSelect(com._id)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </TableCell>
                     <TableCell>
                       <Link
                         to={`/users/${com.auteur._id}`}
@@ -303,40 +356,53 @@ export function CommentairesPage() {
         </div>
       )}
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Supprimer le commentaire</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Cette action est irréversible. Le commentaire sera définitivement supprimé.
-                </p>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Raison *</label>
-                  <Input
-                    placeholder="Entrez une raison..."
-                    value={confirmDelete.reason}
-                    onChange={(e) => setConfirmDelete({ ...confirmDelete, reason: e.target.value })}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setConfirmDelete(null)}>Annuler</Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => deleteMutation.mutate({ id: confirmDelete.commentaireId, reason: confirmDelete.reason })}
-                    disabled={confirmDelete.reason.length < 5 || deleteMutation.isPending}
-                  >
-                    Supprimer
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Floating bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border bg-card px-5 py-3 shadow-2xl">
+          <CheckSquare className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{selectedIds.size} sélectionné(s)</span>
+          <div className="h-4 w-px bg-border" />
+          <Button size="sm" variant="destructive" onClick={() => setBulkAction({ type: 'bulk-delete', reason: '' })}>
+            <Trash2 className="mr-1 h-3.5 w-3.5" /> Supprimer
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
         </div>
       )}
+
+      {/* Single delete confirm */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Supprimer le commentaire"
+        description="Cette action est irréversible. Le commentaire sera définitivement supprimé."
+        variant="destructive"
+        confirmLabel="Supprimer"
+        requireReason
+        reasonPlaceholder="Entrez une raison..."
+        isLoading={deleteMutation.isPending}
+        onConfirm={(reason) => {
+          if (!confirmDelete) return
+          deleteMutation.mutate({ id: confirmDelete.commentaireId, reason })
+        }}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
+      {/* Bulk delete confirm */}
+      <ConfirmDialog
+        open={bulkAction !== null}
+        title={`Supprimer ${selectedIds.size} commentaire(s)`}
+        description="Cette action est irréversible pour tous les commentaires sélectionnés."
+        variant="destructive"
+        confirmLabel="Supprimer tout"
+        requireReason
+        reasonPlaceholder="Raison commune pour tous les commentaires..."
+        isLoading={bulkDeleteMutation.isPending}
+        onConfirm={(reason) => {
+          bulkDeleteMutation.mutate({ ids: Array.from(selectedIds), reason })
+        }}
+        onCancel={() => setBulkAction(null)}
+      />
 
       {editingComment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

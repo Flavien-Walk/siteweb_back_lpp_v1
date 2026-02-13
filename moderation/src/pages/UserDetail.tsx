@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { usersService } from '@/services/users'
@@ -28,9 +28,11 @@ import {
   Share2,
   Eye,
   EyeOff,
+  ExternalLink,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { RiskBadge } from '@/components/RiskBadge'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import type { User as UserType, TimelineEvent, AuditLog, UserReport } from '@/types'
 
 const roleLabels: Record<string, string> = {
@@ -103,6 +105,7 @@ export function UserDetailPage() {
   const [historyTab, setHistoryTab] = useState<HistoryTab>('timeline')
   const [activityFilter, setActivityFilter] = useState<'all' | 'share'>('all')
   const [surveillanceReason, setSurveillanceReason] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState<{ type: 'warn' | 'suspend' | 'ban' | 'unban'; data?: any } | null>(null)
 
   // Fetch user
   const {
@@ -300,8 +303,8 @@ export function UserDetailPage() {
             <h1 className="text-2xl font-bold flex items-center gap-3">
               {user.prenom} {user.nom}
               <UserStatusBadge user={user} />
-              {user.moderation?.riskScore > 0 && (
-                <RiskBadge score={user.moderation.riskScore} />
+              {(user.moderation?.riskScore ?? 0) > 0 && (
+                <RiskBadge score={user.moderation?.riskScore ?? 0} />
               )}
             </h1>
             <p className="text-muted-foreground flex items-center gap-2">
@@ -668,54 +671,120 @@ export function UserDetailPage() {
                                   <div className="absolute left-2 top-1 p-1 bg-background rounded-full border">
                                     {activityTypeIcons[activity.type] || <Activity className="h-4 w-4" />}
                                   </div>
-                                  <div className="rounded-md border p-3">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <Badge variant="secondary">
-                                        {activityTypeLabels[activity.type] || activity.type}
-                                      </Badge>
-                                      <span className="text-xs text-muted-foreground">
-                                        {formatRelativeTime(activity.date)}
-                                      </span>
-                                    </div>
-                                    {activity.type === 'publication' && 'contenu' in activity.data && (
-                                      <p className="text-sm text-muted-foreground line-clamp-2">
-                                        {String(activity.data.contenu)}
-                                        {Boolean(activity.data.hasMedia) && (
-                                          <span className="ml-1 text-blue-500">
-                                            {' '}📎 {String(activity.data.mediaCount)} média(s)
-                                          </span>
+                                  {activity.type === 'publication' && activity.data?._id ? (
+                                    <Link to={`/publications/${String(activity.data._id)}`} className="block">
+                                      <div className="rounded-md border p-3 hover:bg-muted/80 cursor-pointer transition-colors">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <Badge variant="secondary">
+                                            {activityTypeLabels[activity.type] || activity.type}
+                                          </Badge>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs text-muted-foreground">
+                                              {formatRelativeTime(activity.date)}
+                                            </span>
+                                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                                          </div>
+                                        </div>
+                                        {'contenu' in activity.data && (
+                                          <p className="text-sm text-muted-foreground line-clamp-2">
+                                            {String(activity.data.contenu)}
+                                            {Boolean(activity.data.hasMedia) && (
+                                              <span className="ml-1 text-blue-500">
+                                                {' '}📎 {String(activity.data.mediaCount)} média(s)
+                                              </span>
+                                            )}
+                                          </p>
                                         )}
-                                      </p>
-                                    )}
-                                    {activity.type === 'commentaire' && 'contenu' in activity.data && (
-                                      <p className="text-sm text-muted-foreground line-clamp-2">
-                                        {String(activity.data.contenu)}
-                                      </p>
-                                    )}
-                                    {activity.type === 'report_sent' && (
-                                      <p className="text-sm text-muted-foreground">
-                                        {String(activity.data.reason)} ({String(activity.data.status)})
-                                      </p>
-                                    )}
-                                    {activity.type === 'sanction' && (
-                                      <>
-                                        <p className="text-sm font-medium text-red-600">
-                                          {String(activity.data.action)}
+                                        <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                                          <ExternalLink className="h-3 w-3" /> Voir
                                         </p>
-                                        {activity.data.reason && (
-                                          <p className="text-sm text-muted-foreground">
-                                            {String(activity.data.reason)}
+                                      </div>
+                                    </Link>
+                                  ) : activity.type === 'commentaire' ? (
+                                    <div className={`rounded-md border p-3 ${activity.data?.publicationId ? 'hover:bg-muted/80 cursor-pointer transition-colors' : ''}`}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <Badge variant="secondary">
+                                          {activityTypeLabels[activity.type] || activity.type}
+                                        </Badge>
+                                        <span className="text-xs text-muted-foreground">
+                                          {formatRelativeTime(activity.date)}
+                                        </span>
+                                      </div>
+                                      {'contenu' in activity.data && (
+                                        <p className="text-sm text-muted-foreground line-clamp-2">
+                                          {String(activity.data.contenu)}
+                                        </p>
+                                      )}
+                                      {activity.data && 'publicationId' in activity.data && Boolean(activity.data.publicationId) && (
+                                        <Link to={`/publications/${String(activity.data.publicationId)}`} className="text-xs text-primary mt-1 flex items-center gap-1 hover:underline">
+                                          <ExternalLink className="h-3 w-3" /> Voir la publication
+                                        </Link>
+                                      )}
+                                    </div>
+                                  ) : activity.type === 'report_sent' && activity.data?._id ? (
+                                    <Link to={`/reports/${String(activity.data._id)}`} className="block">
+                                      <div className="rounded-md border p-3 hover:bg-muted/80 cursor-pointer transition-colors">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <Badge variant="secondary">
+                                            {activityTypeLabels[activity.type] || activity.type}
+                                          </Badge>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs text-muted-foreground">
+                                              {formatRelativeTime(activity.date)}
+                                            </span>
+                                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                                          </div>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                          {String(activity.data.reason)} ({String(activity.data.status)})
+                                        </p>
+                                      </div>
+                                    </Link>
+                                  ) : (
+                                    <div className="rounded-md border p-3">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <Badge variant="secondary">
+                                          {activityTypeLabels[activity.type] || activity.type}
+                                        </Badge>
+                                        <span className="text-xs text-muted-foreground">
+                                          {formatRelativeTime(activity.date)}
+                                        </span>
+                                      </div>
+                                      {activity.type === 'publication' && 'contenu' in activity.data && (
+                                        <p className="text-sm text-muted-foreground line-clamp-2">
+                                          {String(activity.data.contenu)}
+                                          {Boolean(activity.data.hasMedia) && (
+                                            <span className="ml-1 text-blue-500">
+                                              {' '}📎 {String(activity.data.mediaCount)} média(s)
+                                            </span>
+                                          )}
+                                        </p>
+                                      )}
+                                      {activity.type === 'report_sent' && (
+                                        <p className="text-sm text-muted-foreground">
+                                          {String(activity.data.reason)} ({String(activity.data.status)})
+                                        </p>
+                                      )}
+                                      {activity.type === 'sanction' && (
+                                        <>
+                                          <p className="text-sm font-medium text-red-600">
+                                            {String(activity.data.action)}
                                           </p>
-                                        )}
-                                        {activity.data.moderator && (
-                                          <p className="text-xs text-muted-foreground mt-1">
-                                            Par {(activity.data.moderator as { prenom: string; nom: string }).prenom}{' '}
-                                            {(activity.data.moderator as { prenom: string; nom: string }).nom}
-                                          </p>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
+                                          {activity.data.reason && (
+                                            <p className="text-sm text-muted-foreground">
+                                              {String(activity.data.reason)}
+                                            </p>
+                                          )}
+                                          {activity.data.moderator && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                              Par {(activity.data.moderator as { prenom: string; nom: string }).prenom}{' '}
+                                              {(activity.data.moderator as { prenom: string; nom: string }).nom}
+                                            </p>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -779,9 +848,11 @@ export function UserDetailPage() {
                                     </span>
                                   </div>
                                   <p className="text-sm text-muted-foreground">
-                                    {activity.targetType === 'publication' && (
-                                      <>Publication ID: <code className="text-xs bg-muted px-1 rounded">{activity.targetId}</code></>
-                                    )}
+                                    {activity.targetType === 'publication' && activity.targetId ? (
+                                      <>Publication ID: <Link to={`/publications/${activity.targetId}`} className="text-xs bg-muted px-1 rounded font-mono text-primary hover:underline">{activity.targetId}</Link></>
+                                    ) : activity.targetType === 'publication' ? (
+                                      <>Publication ID: <code className="text-xs bg-muted px-1 rounded">inconnu</code></>
+                                    ) : null}
                                   </p>
                                   <p className="text-xs text-muted-foreground mt-1">
                                     Rôle: {activity.actorRole}
@@ -831,12 +902,7 @@ export function UserDetailPage() {
                     <Button
                       className="w-full"
                       variant="outline"
-                      onClick={() => {
-                        // P1-3: Confirmation avant action
-                        if (window.confirm(`Confirmer l'avertissement ?\n\nRaison : ${warnReason}\nUtilisateur : ${user.prenom} ${user.nom}`)) {
-                          warnMutation.mutate(warnReason)
-                        }
-                      }}
+                      onClick={() => setConfirmDialog({ type: 'warn' })}
                       disabled={!warnReason.trim() || warnMutation.isPending}
                     >
                       <AlertTriangle className="mr-2 h-4 w-4" />
@@ -868,17 +934,7 @@ export function UserDetailPage() {
                     <Button
                       className="w-full"
                       variant="warning"
-                      onClick={() => {
-                        // P1-3: Confirmation avant suspension
-                        const duration = parseInt(suspendDuration)
-                        const durationText = duration >= 24 ? `${duration / 24} jour(s)` : `${duration} heure(s)`
-                        if (window.confirm(`Confirmer la suspension ?\n\nUtilisateur : ${user.prenom} ${user.nom}\nDurée : ${durationText}\nRaison : ${suspendReason}`)) {
-                          suspendMutation.mutate({
-                            reason: suspendReason,
-                            durationHours: duration,
-                          })
-                        }
-                      }}
+                      onClick={() => setConfirmDialog({ type: 'suspend' })}
                       disabled={!suspendReason.trim() || suspendMutation.isPending}
                     >
                       <Clock className="mr-2 h-4 w-4" />
@@ -894,12 +950,7 @@ export function UserDetailPage() {
                       <Button
                         className="w-full"
                         variant="default"
-                        onClick={() => {
-                          // P1-3: Confirmation avant débannissement
-                          if (window.confirm(`Confirmer le débannissement ?\n\nUtilisateur : ${user.prenom} ${user.nom}\n\nCette action rétablira l'accès au compte.`)) {
-                            unbanMutation.mutate()
-                          }
-                        }}
+                        onClick={() => setConfirmDialog({ type: 'unban' })}
                         disabled={unbanMutation.isPending}
                       >
                         <CheckCircle className="mr-2 h-4 w-4" />
@@ -916,12 +967,7 @@ export function UserDetailPage() {
                         <Button
                           className="w-full"
                           variant="destructive"
-                          onClick={() => {
-                            // P1-3: Confirmation OBLIGATOIRE avant bannissement (action irréversible)
-                            if (window.confirm(`⚠️ BANNISSEMENT DÉFINITIF ⚠️\n\nUtilisateur : ${user.prenom} ${user.nom}\nRaison : ${banReason}\n\nCette action est DÉFINITIVE. L'utilisateur ne pourra plus accéder à son compte.\n\nÊtes-vous sûr de vouloir continuer ?`)) {
-                              banMutation.mutate(banReason)
-                            }
-                          }}
+                          onClick={() => setConfirmDialog({ type: 'ban' })}
                           disabled={!banReason.trim() || banMutation.isPending}
                         >
                           <Ban className="mr-2 h-4 w-4" />
@@ -1045,6 +1091,44 @@ export function UserDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Auto-escalation info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Auto-escalation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Avertissements avant suspension</span>
+                <span className="font-mono font-bold">
+                  {user.moderation?.warnCountSinceLastAutoSuspension ?? 0} / 3
+                </span>
+              </div>
+              <div className="w-full bg-zinc-800 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full transition-all bg-amber-500"
+                  style={{ width: `${Math.min(100, ((user.moderation?.warnCountSinceLastAutoSuspension ?? 0) / 3) * 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Suspensions auto passées</span>
+                <span className="font-mono font-bold">{user.moderation?.autoSuspensionsCount ?? 0}</span>
+              </div>
+              {(user.moderation?.autoSuspensionsCount ?? 0) >= 1 && (
+                <div className="p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-400">
+                  Prochain seuil : bannissement auto (3e avertissement)
+                </div>
+              )}
+              {(user.moderation?.autoSuspensionsCount ?? 0) === 0 && (user.moderation?.warnCountSinceLastAutoSuspension ?? 0) >= 2 && (
+                <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-400">
+                  Attention : prochain avertissement déclenchera une suspension automatique de 7 jours
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Staff notice */}
           {isStaffMember && (
             <Card className="border-primary">
@@ -1060,6 +1144,37 @@ export function UserDetailPage() {
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      open={!!confirmDialog}
+      title={
+        confirmDialog?.type === 'warn' ? 'Confirmer l\'avertissement' :
+        confirmDialog?.type === 'suspend' ? 'Confirmer la suspension' :
+        confirmDialog?.type === 'ban' ? 'Bannissement définitif' :
+        'Confirmer le débannissement'
+      }
+      description={
+        confirmDialog?.type === 'ban' ? 'Cette action est DÉFINITIVE. L\'utilisateur ne pourra plus accéder à son compte.' :
+        confirmDialog?.type === 'unban' ? 'Cette action rétablira l\'accès au compte de l\'utilisateur.' :
+        undefined
+      }
+      variant={confirmDialog?.type === 'ban' ? 'destructive' : confirmDialog?.type === 'suspend' ? 'warning' : 'default'}
+      confirmLabel={
+        confirmDialog?.type === 'warn' ? 'Envoyer l\'avertissement' :
+        confirmDialog?.type === 'suspend' ? 'Suspendre' :
+        confirmDialog?.type === 'ban' ? 'Bannir définitivement' :
+        'Débannir'
+      }
+      isLoading={warnMutation.isPending || suspendMutation.isPending || banMutation.isPending || unbanMutation.isPending}
+      onConfirm={() => {
+        if (confirmDialog?.type === 'warn') warnMutation.mutate(warnReason)
+        else if (confirmDialog?.type === 'suspend') suspendMutation.mutate({ reason: suspendReason, durationHours: parseInt(suspendDuration) })
+        else if (confirmDialog?.type === 'ban') banMutation.mutate(banReason)
+        else if (confirmDialog?.type === 'unban') unbanMutation.mutate()
+        setConfirmDialog(null)
+      }}
+      onCancel={() => setConfirmDialog(null)}
+    />
     </PageTransition>
   )
 }

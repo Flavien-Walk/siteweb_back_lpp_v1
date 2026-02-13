@@ -78,6 +78,14 @@ export interface User {
   surveillance?: Surveillance
   reportsReceivedCount?: number
   riskScore?: number
+  moderation?: {
+    status: 'active' | 'suspended' | 'banned'
+    warnCountSinceLastAutoSuspension: number
+    autoSuspensionsCount: number
+    lastAutoActionAt?: string
+    updatedAt?: string
+    riskScore?: number
+  }
 }
 
 // ============ REPORTS ============

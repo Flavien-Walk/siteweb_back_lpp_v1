@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/auth/AuthContext'
+import { dashboardService } from '@/services/dashboard'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +28,8 @@ import {
   ChevronDown,
   Bell,
   Eye,
+  BarChart3,
+  MapPin,
 } from 'lucide-react'
 
 interface NavItem {
@@ -71,6 +75,8 @@ const navSections: NavSection[] = [
   {
     title: 'Système',
     items: [
+      { label: 'Statistiques', href: '/statistics', icon: <BarChart3 className="h-4 w-4" />, permission: 'audit:view' },
+      { label: 'Cartographie', href: '/cartography', icon: <MapPin className="h-4 w-4" />, permission: 'content:hide' },
       { label: 'Notifications', href: '/notifications', icon: <Bell className="h-4 w-4" /> },
       { label: 'Audit Logs', href: '/audit', icon: <ScrollText className="h-4 w-4" />, permission: 'audit:view' },
       { label: 'Staff Chat', href: '/chat', icon: <MessageSquare className="h-4 w-4" />, permission: 'staff:chat' },
@@ -103,6 +109,13 @@ function SidebarContent({
   const { user, logout, hasPermission } = useAuth()
   const location = useLocation()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+
+  const { data: dashStats } = useQuery({
+    queryKey: ['dashboard-stats-sidebar'],
+    queryFn: () => dashboardService.getStats(),
+    refetchInterval: 30000,
+    staleTime: 15000,
+  })
 
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => ({ ...prev, [title]: !prev[title] }))
@@ -183,6 +196,11 @@ function SidebarContent({
                             >
                               {item.icon}
                               <span>{item.label}</span>
+                              {item.href === '/reports' && (dashStats?.reports?.pending ?? 0) > 0 && (
+                                <Badge variant="destructive" className="ml-auto text-[10px] px-1.5 py-0 h-5 min-w-5 flex items-center justify-center">
+                                  {dashStats?.reports?.pending}
+                                </Badge>
+                              )}
                             </Link>
                           </li>
                         )

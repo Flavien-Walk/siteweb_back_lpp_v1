@@ -82,7 +82,7 @@ export function ReportDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user: currentUser } = useAuth()
 
   const [noteContent, setNoteContent] = useState('')
   const [actionReason, setActionReason] = useState('')
@@ -124,6 +124,18 @@ export function ReportDetailPage() {
     },
     onError: (error: Error) => {
       toast.error('Erreur lors de l\'ajout de la note', { description: error.message })
+    },
+  })
+
+  // Assign mutation
+  const assignMutation = useMutation({
+    mutationFn: (moderatorId: string) => reportsService.assignReport(id!, moderatorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report', id] })
+      toast.success('Signalement assigné')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de l\'assignation', { description: error.message })
     },
   })
 
@@ -227,6 +239,27 @@ export function ReportDetailPage() {
                   <div className="mt-1 rounded-md border p-3">
                     <p className="whitespace-pre-wrap">{report.targetContent}</p>
                   </div>
+                </div>
+              )}
+              {/* Link to reported content */}
+              {report.targetId && (
+                <div className="flex items-center gap-2 pt-2">
+                  <Link
+                    to={
+                      report.targetType === 'post'
+                        ? `/publications/${report.targetId}`
+                        : report.targetType === 'commentaire'
+                        ? `/commentaires?search=${report.targetContent?.substring(0, 20) || ''}`
+                        : report.targetType === 'utilisateur'
+                        ? `/users/${report.targetId}`
+                        : '#'
+                    }
+                  >
+                    <Button variant="outline" size="sm">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Voir {targetTypeLabels[report.targetType] || 'le contenu'}
+                    </Button>
+                  </Link>
                 </div>
               )}
             </CardContent>
@@ -459,6 +492,23 @@ export function ReportDetailPage() {
                   <span>
                     {report.assignedTo.prenom} {report.assignedTo.nom}
                   </span>
+                </div>
+              )}
+              {!report.assignedTo && canProcess && (
+                <div className="border-t pt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      if (currentUser?._id) {
+                        assignMutation.mutate(currentUser._id)
+                      }
+                    }}
+                    disabled={assignMutation?.isPending}
+                  >
+                    S'assigner ce signalement
+                  </Button>
                 </div>
               )}
               {report.processedBy && (

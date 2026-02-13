@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Eye, EyeOff, Trash2, RefreshCw, AlertTriangle, Briefcase, Users, Clock, Pencil, FileText } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Trash2, RefreshCw, AlertTriangle, Briefcase, Users, Clock, FileText } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { InlineEditor } from '@/components/InlineEditor'
 

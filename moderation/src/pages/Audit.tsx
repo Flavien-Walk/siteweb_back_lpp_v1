@@ -35,6 +35,9 @@ import {
   Monitor,
   Globe,
   Server,
+  Eye,
+  EyeOff,
+  Pencil,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 
@@ -44,12 +47,17 @@ const actionLabels: Record<string, string> = {
   user_ban: 'Bannissement',
   user_unban: 'Débannissement',
   user_role_change: 'Changement de rôle',
+  user_surveillance_on: 'Surveillance activée',
+  user_surveillance_off: 'Surveillance retirée',
   report_approve: 'Signalement approuvé',
   report_reject: 'Signalement rejeté',
   report_escalate: 'Signalement escaladé',
   report_assign: 'Signalement assigné',
   content_delete: 'Contenu supprimé',
   content_restore: 'Contenu restauré',
+  content_hide: 'Contenu masqué',
+  content_unhide: 'Contenu réaffiché',
+  content_edit: 'Contenu modifié',
   staff_chat: 'Message staff',
 }
 
@@ -59,12 +67,17 @@ const actionIcons: Record<string, React.ReactNode> = {
   user_ban: <Ban className="h-4 w-4 text-destructive" />,
   user_unban: <Shield className="h-4 w-4 text-success" />,
   user_role_change: <User className="h-4 w-4 text-primary" />,
+  user_surveillance_on: <Eye className="h-4 w-4 text-amber-400" />,
+  user_surveillance_off: <EyeOff className="h-4 w-4 text-muted-foreground" />,
   report_approve: <Flag className="h-4 w-4 text-success" />,
   report_reject: <Flag className="h-4 w-4 text-muted-foreground" />,
   report_escalate: <Flag className="h-4 w-4 text-destructive" />,
   report_assign: <Flag className="h-4 w-4 text-primary" />,
   content_delete: <X className="h-4 w-4 text-destructive" />,
   content_restore: <RefreshCw className="h-4 w-4 text-success" />,
+  content_hide: <EyeOff className="h-4 w-4 text-orange-400" />,
+  content_unhide: <Eye className="h-4 w-4 text-green-400" />,
+  content_edit: <Pencil className="h-4 w-4 text-blue-400" />,
   staff_chat: <MessageSquare className="h-4 w-4 text-primary" />,
 }
 
@@ -99,12 +112,17 @@ function ActionBadge({ action }: { action: string }) {
     user_ban: 'destructive',
     user_unban: 'success',
     user_role_change: 'default',
+    user_surveillance_on: 'warning',
+    user_surveillance_off: 'secondary',
     report_approve: 'success',
     report_reject: 'secondary',
     report_escalate: 'escalated',
     report_assign: 'default',
     content_delete: 'destructive',
     content_restore: 'success',
+    content_hide: 'warning',
+    content_unhide: 'success',
+    content_edit: 'default',
     staff_chat: 'outline',
   }
   return (

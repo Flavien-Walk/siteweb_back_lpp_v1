@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import {
   FileText,
   Filter,
@@ -32,6 +33,7 @@ import {
   Video,
   MessageCircle,
   Heart,
+  CheckSquare,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 
@@ -52,6 +54,23 @@ export function PublicationsPage() {
     pubId: string
     reason: string
   } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState<{ type: 'bulk-hide' | 'bulk-delete'; reason: string } | null>(null)
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (!data?.items) return
+    if (selectedIds.size === data.items.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(data.items.map(p => p._id)))
+  }
 
   const params: PublicationListParams = {
     page: parseInt(searchParams.get('page') || '1'),
@@ -108,6 +127,42 @@ export function PublicationsPage() {
     },
   })
 
+  const bulkHideMutation = useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      for (const id of ids) {
+        await publicationsService.hidePublication(id, reason)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] })
+      setBulkAction(null)
+      setSelectedIds(new Set())
+      toast.success(`${selectedIds.size} publication(s) masquée(s)`)
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] })
+      toast.error('Erreur lors du masquage en lot', { description: error.message })
+    },
+  })
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      for (const id of ids) {
+        await publicationsService.deletePublication(id, reason)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] })
+      setBulkAction(null)
+      setSelectedIds(new Set())
+      toast.success(`${selectedIds.size} publication(s) supprimée(s)`)
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] })
+      toast.error('Erreur lors de la suppression en lot', { description: error.message })
+    },
+  })
+
   const updateParams = (updates: Partial<PublicationListParams>) => {
     const newParams = new URLSearchParams(searchParams)
     Object.entries(updates).forEach(([key, value]) => {
@@ -124,17 +179,6 @@ export function PublicationsPage() {
   const clearFilters = () => setSearchParams({ page: '1', limit: '20' })
 
   const hasActiveFilters = params.type || params.status || params.search || params.auteurId || params.dateFrom || params.dateTo
-
-  const handleAction = () => {
-    if (!confirmAction) return
-    if (confirmAction.type === 'hide') {
-      hideMutation.mutate({ id: confirmAction.pubId, reason: confirmAction.reason })
-    } else if (confirmAction.type === 'unhide') {
-      unhideMutation.mutate({ id: confirmAction.pubId, reason: confirmAction.reason })
-    } else if (confirmAction.type === 'delete') {
-      deleteMutation.mutate({ id: confirmAction.pubId, reason: confirmAction.reason })
-    }
-  }
 
   return (
     <PageTransition>
@@ -246,6 +290,14 @@ export function PublicationsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={data?.items?.length ? selectedIds.size === data.items.length : false}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Auteur</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Contenu</TableHead>
@@ -258,7 +310,15 @@ export function PublicationsPage() {
               </TableHeader>
               <TableBody>
                 {data?.items.map((pub) => (
-                  <TableRow key={pub._id}>
+                  <TableRow key={pub._id} className={selectedIds.has(pub._id) ? 'bg-primary/5' : ''}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(pub._id)}
+                        onChange={() => toggleSelect(pub._id)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </TableCell>
                     <TableCell>
                       <Link
                         to={`/users/${pub.auteur._id}`}
@@ -383,52 +443,69 @@ export function PublicationsPage() {
         </div>
       )}
 
-      {/* Confirmation Modal */}
-      {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>
-                {confirmAction.type === 'hide' && 'Masquer la publication'}
-                {confirmAction.type === 'unhide' && 'Réafficher la publication'}
-                {confirmAction.type === 'delete' && 'Supprimer la publication'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  {confirmAction.type === 'delete' && "Cette action est irréversible."}
-                </p>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Raison {confirmAction.type !== 'unhide' && '*'}
-                  </label>
-                  <Input
-                    placeholder="Entrez une raison..."
-                    value={confirmAction.reason}
-                    onChange={(e) => setConfirmAction({ ...confirmAction, reason: e.target.value })}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setConfirmAction(null)}>Annuler</Button>
-                  <Button
-                    variant={confirmAction.type === 'delete' ? 'destructive' : 'default'}
-                    onClick={handleAction}
-                    disabled={
-                      (confirmAction.type !== 'unhide' && confirmAction.reason.length < 5) ||
-                      hideMutation.isPending || unhideMutation.isPending || deleteMutation.isPending
-                    }
-                  >
-                    {confirmAction.type === 'hide' && 'Masquer'}
-                    {confirmAction.type === 'unhide' && 'Réafficher'}
-                    {confirmAction.type === 'delete' && 'Supprimer'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Floating bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border bg-card px-5 py-3 shadow-2xl">
+          <CheckSquare className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{selectedIds.size} sélectionnée(s)</span>
+          <div className="h-4 w-px bg-border" />
+          <Button size="sm" variant="outline" onClick={() => setBulkAction({ type: 'bulk-hide', reason: '' })}>
+            <EyeOff className="mr-1 h-3.5 w-3.5" /> Masquer
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => setBulkAction({ type: 'bulk-delete', reason: '' })}>
+            <Trash2 className="mr-1 h-3.5 w-3.5" /> Supprimer
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
         </div>
       )}
+
+      {/* Single action confirm */}
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={
+          confirmAction?.type === 'hide' ? 'Masquer la publication' :
+          confirmAction?.type === 'unhide' ? 'Réafficher la publication' :
+          'Supprimer la publication'
+        }
+        description={confirmAction?.type === 'delete' ? 'Cette action est irréversible.' : undefined}
+        variant={confirmAction?.type === 'delete' ? 'destructive' : 'default'}
+        confirmLabel={
+          confirmAction?.type === 'hide' ? 'Masquer' :
+          confirmAction?.type === 'unhide' ? 'Réafficher' :
+          'Supprimer'
+        }
+        requireReason={confirmAction?.type !== 'unhide'}
+        reasonPlaceholder="Entrez une raison..."
+        isLoading={hideMutation.isPending || unhideMutation.isPending || deleteMutation.isPending}
+        onConfirm={(reason) => {
+          if (!confirmAction) return
+          if (confirmAction.type === 'hide') hideMutation.mutate({ id: confirmAction.pubId, reason })
+          else if (confirmAction.type === 'unhide') unhideMutation.mutate({ id: confirmAction.pubId, reason })
+          else if (confirmAction.type === 'delete') deleteMutation.mutate({ id: confirmAction.pubId, reason })
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
+
+      {/* Bulk action confirm */}
+      <ConfirmDialog
+        open={bulkAction !== null}
+        title={bulkAction?.type === 'bulk-hide' ? `Masquer ${selectedIds.size} publication(s)` : `Supprimer ${selectedIds.size} publication(s)`}
+        description={bulkAction?.type === 'bulk-delete' ? 'Cette action est irréversible pour toutes les publications sélectionnées.' : `${selectedIds.size} publication(s) seront masquées.`}
+        variant={bulkAction?.type === 'bulk-delete' ? 'destructive' : 'warning'}
+        confirmLabel={bulkAction?.type === 'bulk-hide' ? 'Masquer tout' : 'Supprimer tout'}
+        requireReason
+        reasonPlaceholder="Raison commune pour toutes les publications..."
+        isLoading={bulkHideMutation.isPending || bulkDeleteMutation.isPending}
+        onConfirm={(reason) => {
+          if (!bulkAction) return
+          const ids = Array.from(selectedIds)
+          if (bulkAction.type === 'bulk-hide') bulkHideMutation.mutate({ ids, reason })
+          else bulkDeleteMutation.mutate({ ids, reason })
+        }}
+        onCancel={() => setBulkAction(null)}
+      />
     </div>
     </PageTransition>
   )

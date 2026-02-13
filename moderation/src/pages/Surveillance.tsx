@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  Users,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import { useState } from 'react'
