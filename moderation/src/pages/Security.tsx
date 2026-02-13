@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { securityService } from '@/services/security'
 import type {
@@ -17,54 +17,20 @@ import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import {
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  RefreshCw,
-  AlertTriangle,
-  Activity,
-  Zap,
-  Globe,
-  Lock,
-  ShieldX,
-  Eye,
-  Bug,
-  XCircle,
-  Ban,
-  Search,
-  Monitor,
-  ChevronDown,
-  ChevronUp,
-  Info,
-  Target,
-  Fingerprint,
-  Clock,
-  TrendingUp,
-  BarChart3,
-  ShieldOff,
-  Unlock,
-  ExternalLink,
-  Loader2,
-  AlertOctagon,
+  Shield, ShieldAlert, ShieldCheck, RefreshCw, AlertTriangle, Activity,
+  Zap, Globe, Lock, ShieldX, Eye, Bug, XCircle, Ban, Search, Monitor,
+  ChevronDown, ChevronUp, Info, Target, Fingerprint, Clock, TrendingUp,
+  BarChart3, ShieldOff, Unlock, ExternalLink, Loader2, AlertOctagon,
+  Lightbulb, Server, Database, Cpu, HardDrive, CheckCircle2, XOctagon,
+  Wrench, FileWarning, Chrome, Smartphone, Laptop, Tablet,
 } from 'lucide-react'
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
+  AreaChart, Area, PieChart, Pie, Cell, Legend, CartesianGrid,
 } from 'recharts'
 
 // ============================================
-// CONSTANTES & LABELS (100% FRANCAIS)
+// CONSTANTES & LABELS
 // ============================================
 
 const NIVEAUX_MENACE = {
@@ -92,7 +58,7 @@ const NIVEAUX_MENACE = {
   critical: {
     titre: 'Niveau de menace : Critique',
     description: 'Attaques actives detectees. Des mesures immediates sont necessaires.',
-    conseil: 'Bloquez immediatement les IPs malveillantes et analysez les evenements critiques.',
+    conseil: 'Bloquez immediatement les IPs malveillantes et analysez les alertes critiques.',
     bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30', fill: '#ef4444',
     badge: 'ALERTE CRITIQUE',
   },
@@ -143,86 +109,210 @@ const timeAgo = (d: string) => {
   return `Il y a ${days}j`
 }
 
-// ============================================
-// COMPOSANT : BANNIERE NIVEAU DE MENACE
-// ============================================
+/**
+ * Vulgarise les details techniques d'une alerte en description comprehensible
+ */
+function vulgariserAlerte(details: string, type: string, path?: string): { simple: string; technique: string } {
+  const technique = details
 
-function BanniereMenace({
-  level,
-  onVoirCritiques,
-}: {
-  level: SecurityDashboardData['threatLevel']
-  onVoirCritiques: () => void
-}) {
-  const config = NIVEAUX_MENACE[level]
-  const Icon = level === 'normal' ? ShieldCheck : level === 'critical' ? ShieldAlert : AlertTriangle
-  const [detailOuvert, setDetailOuvert] = useState(false)
+  // Path traversal
+  if (details.includes('Traversee de chemin') || details.includes('Path traversal')) {
+    if (details.includes('.env') || (path && path.includes('.env'))) {
+      return { simple: 'Quelqu\'un a tente d\'acceder au fichier de configuration secret (.env) de votre serveur. Ce fichier contient vos mots de passe et cles API.', technique }
+    }
+    if (details.includes('..') || (path && path.includes('..'))) {
+      return { simple: 'Quelqu\'un a tente de remonter dans les dossiers du serveur pour acceder a des fichiers proteges auxquels il n\'a pas acces.', technique }
+    }
+    if (details.includes('etc/passwd') || details.includes('proc/self')) {
+      return { simple: 'Quelqu\'un a tente d\'acceder aux fichiers systeme du serveur (mots de passe, processus). C\'est une attaque grave.', technique }
+    }
+    return { simple: 'Quelqu\'un a tente d\'acceder a des fichiers proteges en exploitant une faille de navigation dans les dossiers.', technique }
+  }
 
-  return (
-    <div className={`rounded-xl border-2 ${config.border} ${config.bg} p-5`}>
-      <div className="flex items-center gap-4">
-        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${config.bg}`}>
-          <Icon className={`h-7 w-7 ${config.text}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className={`text-lg font-bold ${config.text}`}>{config.titre}</h2>
-          <p className="text-sm text-zinc-400">{config.description}</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {level !== 'normal' && (
-            <div className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider ${config.bg} ${config.text} border ${config.border}`}>
-              {config.badge}
-            </div>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => setDetailOuvert(!detailOuvert)}>
-            <Info className="h-4 w-4 mr-1" />
-            Detail
-          </Button>
-        </div>
-      </div>
+  // NoSQL injection
+  if (details.includes('Injection NoSQL') || details.includes('injection NoSQL')) {
+    return { simple: 'Quelqu\'un a tente d\'envoyer des commandes malveillantes a la base de donnees pour voler ou modifier des informations.', technique }
+  }
 
-      {detailOuvert && (
-        <div className="mt-4 pt-4 border-t border-zinc-700/50">
-          <div className="flex items-start gap-3">
-            <AlertOctagon className="h-5 w-5 text-zinc-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-zinc-300">Que faire ?</p>
-              <p className="text-sm text-zinc-400 mt-1">{config.conseil}</p>
-              {level !== 'normal' && (
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" variant="outline" onClick={onVoirCritiques}>
-                    <Eye className="h-3.5 w-3.5 mr-1" />
-                    Voir les evenements critiques
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+  // XSS
+  if (details.includes('XSS') || details.includes('Attaque XSS')) {
+    return { simple: 'Quelqu\'un a tente d\'injecter du code JavaScript malveillant qui pourrait voler les sessions des utilisateurs.', technique }
+  }
+
+  // SQL injection
+  if (details.includes('Injection SQL') || details.includes('injection SQL')) {
+    return { simple: 'Quelqu\'un a tente de manipuler la base de donnees avec des commandes SQL pour extraire ou supprimer des donnees.', technique }
+  }
+
+  // Command injection
+  if (details.includes('Injection de commande') || details.includes('injection de commande')) {
+    return { simple: 'Quelqu\'un a tente d\'executer des commandes systeme sur le serveur. C\'est l\'une des attaques les plus dangereuses.', technique }
+  }
+
+  // Brute force
+  if (type === 'brute_force' || details.includes('Echec login')) {
+    return { simple: 'Quelqu\'un essaie de deviner un mot de passe en testant plusieurs combinaisons rapidement.', technique }
+  }
+
+  // Token forgery
+  if (type === 'token_forgery' || details.includes('Token invalide')) {
+    return { simple: 'Quelqu\'un a utilise un faux jeton d\'authentification pour tenter de se faire passer pour un utilisateur connecte.', technique }
+  }
+
+  // Rate limit
+  if (type === 'rate_limit_hit' || details.includes('Rate limit')) {
+    return { simple: 'Quelqu\'un envoie enormement de requetes en peu de temps, ce qui pourrait surcharger le serveur (possible attaque DDoS).', technique }
+  }
+
+  // Suspicious signup
+  if (type === 'suspicious_signup' || details.includes('Inscription suspecte')) {
+    return { simple: 'Un compte a ete cree avec un comportement de robot (pas de navigateur web normal, script automatise).', technique }
+  }
+
+  // Anomaly
+  if (type === 'anomaly' || details.includes('Trafic anormal')) {
+    return { simple: 'Un volume de requetes anormalement eleve a ete detecte depuis une adresse IP. Cela peut indiquer une attaque automatisee.', technique }
+  }
+
+  // IP blocked
+  if (type === 'ip_blocked') {
+    return { simple: 'Une adresse IP qui a ete bannie a tente de nouveau d\'acceder au serveur. La requete a ete bloquee.', technique }
+  }
+
+  // CORS
+  if (type === 'cors_violation') {
+    return { simple: 'Un site web non autorise a tente d\'envoyer des requetes a votre API. Cela peut etre une tentative de vol de donnees.', technique }
+  }
+
+  // Forbidden
+  if (type === 'forbidden_access') {
+    return { simple: 'Quelqu\'un a tente d\'acceder a une fonctionnalite pour laquelle il n\'a pas les permissions necessaires.', technique }
+  }
+
+  // Unauthorized
+  if (type === 'unauthorized_access') {
+    return { simple: 'Quelqu\'un a tente d\'acceder a une ressource protegee sans etre authentifie.', technique }
+  }
+
+  return { simple: details, technique }
+}
+
+/**
+ * Genere des recommandations basees sur les donnees de securite
+ */
+function genererRecommandations(data: SecurityDashboardData): { priorite: 'critique' | 'haute' | 'moyenne' | 'info'; titre: string; description: string; action: string }[] {
+  const recs: { priorite: 'critique' | 'haute' | 'moyenne' | 'info'; titre: string; description: string; action: string }[] = []
+
+  // Injections detectees
+  if ((data.attackTypes.injection_attempt || 0) > 0) {
+    const count = data.attackTypes.injection_attempt
+    recs.push({
+      priorite: count > 10 ? 'critique' : 'haute',
+      titre: `${count} tentative(s) d'injection detectee(s)`,
+      description: 'Des attaquants tentent d\'injecter du code malveillant dans votre application. Verifiez que toutes les entrees utilisateur sont correctement validees.',
+      action: 'Verifier les routes ciblees, mettre a jour les dependances, renforcer la validation Zod',
+    })
+  }
+
+  // Brute force
+  if ((data.attackTypes.brute_force || 0) > 5) {
+    recs.push({
+      priorite: 'haute',
+      titre: `${data.attackTypes.brute_force} tentatives de force brute`,
+      description: 'Plusieurs tentatives de connexion echouees detectees. Un attaquant essaie de deviner des mots de passe.',
+      action: 'Verifier les comptes cibles, envisager le blocage des IPs recidivistes, activer le 2FA',
+    })
+  }
+
+  // Inscriptions suspectes
+  if ((data.attackTypes.suspicious_signup || 0) > 0) {
+    recs.push({
+      priorite: 'moyenne',
+      titre: `${data.attackTypes.suspicious_signup} inscription(s) suspecte(s)`,
+      description: 'Des comptes ont ete crees avec un comportement automatise (bots). Verifiez ces comptes manuellement.',
+      action: 'Ajouter un CAPTCHA a l\'inscription, verifier les comptes recemment crees',
+    })
+  }
+
+  // Token forgery
+  if ((data.attackTypes.token_forgery || 0) > 0) {
+    recs.push({
+      priorite: 'haute',
+      titre: `${data.attackTypes.token_forgery} token(s) falsifie(s)`,
+      description: 'Des jetons d\'authentification invalides ont ete utilises. Cela peut indiquer une tentative de vol de session.',
+      action: 'Verifier la rotation des cles JWT, controler les tokens blacklistes',
+    })
+  }
+
+  // Rate limits
+  if ((data.attackTypes.rate_limit_hit || 0) > 20) {
+    recs.push({
+      priorite: 'moyenne',
+      titre: `${data.attackTypes.rate_limit_hit} depassements de limite`,
+      description: 'Le systeme de rate limiting a bloque de nombreuses requetes. Si c\'est normal, ajustez les limites.',
+      action: 'Verifier si les limites sont adequates, bloquer les IPs les plus agressives',
+    })
+  }
+
+  // IPs non bloquees qui attaquent
+  const criticalIPs = data.topOffenderIPs.filter(ip => ip.criticalCount > 0)
+  if (criticalIPs.length > 0) {
+    recs.push({
+      priorite: 'critique',
+      titre: `${criticalIPs.length} IP(s) dangereuse(s) non bloquee(s)`,
+      description: `Les IPs suivantes ont genere des evenements critiques : ${criticalIPs.slice(0, 3).map(ip => ip.ip).join(', ')}`,
+      action: 'Bloquer ces IPs immediatement via l\'outil de blocage',
+    })
+  }
+
+  // Anomalies
+  if ((data.attackTypes.anomaly || 0) > 0) {
+    recs.push({
+      priorite: 'moyenne',
+      titre: `${data.attackTypes.anomaly} anomalie(s) de trafic`,
+      description: 'Un volume de requetes anormal a ete detecte. Cela peut indiquer une attaque DDoS ou un scraping.',
+      action: 'Analyser les patterns de trafic, envisager un WAF ou CDN avec protection DDoS',
+    })
+  }
+
+  // Tout va bien
+  if (recs.length === 0) {
+    recs.push({
+      priorite: 'info',
+      titre: 'Aucune menace active detectee',
+      description: 'Votre serveur fonctionne normalement. Continuez a surveiller les logs regulierement.',
+      action: 'Maintenir la surveillance, verifier les mises a jour de securite',
+    })
+  }
+
+  return recs.sort((a, b) => {
+    const order = { critique: 0, haute: 1, moyenne: 2, info: 3 }
+    return order[a.priorite] - order[b.priorite]
+  })
 }
 
 // ============================================
-// COMPOSANT : CARTE STATISTIQUE
+// COMPOSANTS DE BASE
 // ============================================
 
-function CarteStats({
-  label,
-  value,
-  icon: Icon,
-  color,
-  detail,
-}: {
-  label: string
-  value: number
-  icon: typeof Shield
-  color: string
-  detail?: string
+function BadgeSeverite({ severity }: { severity: string }) {
+  const config = SEVERITE_LABELS[severity]
+  if (!config) return <Badge variant="outline">{severity}</Badge>
+  return (
+    <Tooltip content={config.description}>
+      <span>
+        <Badge className="text-[10px] font-bold border-0" style={{ backgroundColor: config.color + '20', color: config.color }}>
+          {config.label}
+        </Badge>
+      </span>
+    </Tooltip>
+  )
+}
+
+function CarteStats({ label, value, icon: Icon, color, detail }: {
+  label: string; value: number; icon: typeof Shield; color: string; detail?: string
 }) {
   const [showDetail, setShowDetail] = useState(false)
-
   return (
     <Card className="bg-zinc-900/50 border-zinc-800 hover:border-zinc-700 transition-colors">
       <CardContent className="p-4">
@@ -250,15 +340,64 @@ function CarteStats({
   )
 }
 
+function BanniereMenace({ level, onVoirCritiques }: {
+  level: SecurityDashboardData['threatLevel']; onVoirCritiques: () => void
+}) {
+  const config = NIVEAUX_MENACE[level]
+  const Icon = level === 'normal' ? ShieldCheck : level === 'critical' ? ShieldAlert : AlertTriangle
+  const [detailOuvert, setDetailOuvert] = useState(false)
+
+  return (
+    <div className={`rounded-xl border-2 ${config.border} ${config.bg} p-5`}>
+      <div className="flex items-center gap-4">
+        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${config.bg}`}>
+          <Icon className={`h-7 w-7 ${config.text}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className={`text-lg font-bold ${config.text}`}>{config.titre}</h2>
+          <p className="text-sm text-zinc-400">{config.description}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {level !== 'normal' && (
+            <div className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider ${config.bg} ${config.text} border ${config.border}`}>
+              {config.badge}
+            </div>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => setDetailOuvert(!detailOuvert)}>
+            <Info className="h-4 w-4 mr-1" /> Detail
+          </Button>
+        </div>
+      </div>
+      {detailOuvert && (
+        <div className="mt-4 pt-4 border-t border-zinc-700/50">
+          <div className="flex items-start gap-3">
+            <AlertOctagon className="h-5 w-5 text-zinc-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-zinc-300">Que faire ?</p>
+              <p className="text-sm text-zinc-400 mt-1">{config.conseil}</p>
+              {level !== 'normal' && (
+                <div className="flex gap-2 mt-3">
+                  <Button size="sm" variant="outline" onClick={onVoirCritiques}>
+                    <Eye className="h-3.5 w-3.5 mr-1" /> Voir les alertes critiques
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ============================================
-// COMPOSANT : TYPES D'ATTAQUES
+// GRAPHIQUES
 // ============================================
 
 function RepartitionAttaques({ attackTypes }: { attackTypes: Record<string, number> }) {
   const entries = Object.entries(attackTypes)
     .map(([key, value]) => ({ type: key, count: value, ...(TYPES_ATTAQUE[key] || { label: key, description: '', icon: Shield, color: '#999' }) }))
     .sort((a, b) => b.count - a.count)
-
   const total = entries.reduce((s, e) => s + e.count, 0)
   const [expandedType, setExpandedType] = useState<string | null>(null)
 
@@ -266,8 +405,7 @@ function RepartitionAttaques({ attackTypes }: { attackTypes: Record<string, numb
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <Target className="h-4 w-4" />
-          Types d'attaques (24h)
+          <Target className="h-4 w-4" /> Types d'attaques (24h)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
@@ -275,13 +413,9 @@ function RepartitionAttaques({ attackTypes }: { attackTypes: Record<string, numb
           const pct = total > 0 ? (entry.count / total) * 100 : 0
           const Icon = entry.icon
           const expanded = expandedType === entry.type
-
           return (
             <div key={entry.type}>
-              <button
-                onClick={() => setExpandedType(expanded ? null : entry.type)}
-                className="w-full text-left hover:bg-zinc-800/50 rounded-lg p-2 transition-colors"
-              >
+              <button onClick={() => setExpandedType(expanded ? null : entry.type)} className="w-full text-left hover:bg-zinc-800/50 rounded-lg p-2 transition-colors">
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4 shrink-0" style={{ color: entry.color }} />
                   <span className="text-xs text-zinc-300 flex-1 truncate">{entry.label}</span>
@@ -294,9 +428,7 @@ function RepartitionAttaques({ attackTypes }: { attackTypes: Record<string, numb
                 </div>
               </button>
               {expanded && (
-                <div className="mx-2 mb-2 p-2 rounded-lg bg-zinc-800/50 text-xs text-zinc-400">
-                  {entry.description}
-                </div>
+                <div className="mx-2 mb-2 p-2 rounded-lg bg-zinc-800/50 text-xs text-zinc-400">{entry.description}</div>
               )}
             </div>
           )
@@ -307,15 +439,10 @@ function RepartitionAttaques({ attackTypes }: { attackTypes: Record<string, numb
   )
 }
 
-// ============================================
-// COMPOSANT : GRAPHIQUE SEVERITE (CAMEMBERT)
-// ============================================
-
 function GraphiqueSeverite({ data }: { data: SecurityDashboardData['severityBreakdown'] }) {
   const chartData = Object.entries(data)
     .map(([key, value]) => ({ name: SEVERITE_LABELS[key]?.label || key, value, color: SEVERITE_LABELS[key]?.color || '#666' }))
     .filter((d) => d.value > 0)
-
   const total = chartData.reduce((s, d) => s + d.value, 0)
 
   if (total === 0) {
@@ -331,24 +458,19 @@ function GraphiqueSeverite({ data }: { data: SecurityDashboardData['severityBrea
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Repartition par severite (7 jours)
+          <BarChart3 className="h-4 w-4" /> Repartition par severite (7 jours)
         </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
             <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
-              {chartData.map((entry, i) => (
-                <Cell key={i} fill={entry.color} />
-              ))}
+              {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
             </Pie>
-            <Legend
-              formatter={(value: string) => <span className="text-xs text-zinc-400">{value}</span>}
-            />
+            <Legend formatter={(value: string) => <span className="text-xs text-zinc-400">{value}</span>} />
             <RechartsTooltip
               contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
-              formatter={(value: any, name: any) => [`${value} evenements`, name]}
+              formatter={(value: any, name: any) => [`${value} evenements (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`, name]}
             />
           </PieChart>
         </ResponsiveContainer>
@@ -366,26 +488,20 @@ function GraphiqueSeverite({ data }: { data: SecurityDashboardData['severityBrea
   )
 }
 
-// ============================================
-// COMPOSANT : GRAPHIQUE TENDANCE HORAIRE
-// ============================================
-
 function GraphiqueHoraire({ data }: { data: SecurityDashboardData['hourlyTrend'] }) {
   const chartData = data.map((p) => ({
     heure: `${String(p._id.hour).padStart(2, '0')}h`,
-    total: p.total,
-    critique: p.critical,
-    haute: p.high,
-    bloques: p.blocked,
+    Total: p.total,
+    Critiques: p.critical,
+    Bloques: p.blocked,
   }))
 
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <TrendingUp className="h-4 w-4" />
-          Activite par heure (24h)
-          <Tooltip content="Nombre d'evenements de securite detectes chaque heure"><span><Info className="h-3 w-3 text-zinc-600 cursor-help" /></span></Tooltip>
+          <TrendingUp className="h-4 w-4" /> Activite par heure (24h)
+          <Tooltip content="Nombre d'alertes de securite detectees chaque heure"><span><Info className="h-3 w-3 text-zinc-600 cursor-help" /></span></Tooltip>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -396,15 +512,12 @@ function GraphiqueHoraire({ data }: { data: SecurityDashboardData['hourlyTrend']
             <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
             <RechartsTooltip
               contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
-              labelFormatter={(l) => `${l}`}
-              formatter={(value: any, name: any) => {
-                const labels: Record<string, string> = { total: 'Total', critique: 'Critique', haute: 'Haute', bloques: 'Bloques' }
-                return [value, labels[name] || name]
-              }}
+              formatter={(value: any, name: any) => [value, name]}
             />
-            <Area type="monotone" dataKey="total" stroke="#6366f1" fill="#6366f1" fillOpacity={0.1} strokeWidth={2} />
-            <Area type="monotone" dataKey="critique" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={1.5} />
-            <Area type="monotone" dataKey="bloques" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.05} strokeWidth={1} />
+            <Legend wrapperStyle={{ fontSize: '11px' }} />
+            <Area type="monotone" dataKey="Total" stroke="#6366f1" fill="#6366f1" fillOpacity={0.1} strokeWidth={2} />
+            <Area type="monotone" dataKey="Critiques" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={1.5} />
+            <Area type="monotone" dataKey="Bloques" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.05} strokeWidth={1} />
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>
@@ -412,29 +525,17 @@ function GraphiqueHoraire({ data }: { data: SecurityDashboardData['hourlyTrend']
   )
 }
 
-// ============================================
-// COMPOSANT : GRAPHIQUE TENDANCE QUOTIDIENNE
-// ============================================
-
 function GraphiqueQuotidien({ data }: { data: SecurityDashboardData['dailyTrend'] }) {
   const chartData = data.map((p) => {
     const date = new Date(p._id)
-    return {
-      jour: date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
-      total: p.total,
-      critique: p.critical,
-      haute: p.high,
-      moyenne: p.medium,
-      basse: p.low,
-    }
+    return { jour: date.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' }), Critiques: p.critical, Hautes: p.high, Moyennes: p.medium, Basses: p.low }
   })
 
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Tendance quotidienne (7 jours)
+          <BarChart3 className="h-4 w-4" /> Tendance quotidienne (7 jours)
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -445,15 +546,13 @@ function GraphiqueQuotidien({ data }: { data: SecurityDashboardData['dailyTrend'
             <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
             <RechartsTooltip
               contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
-              formatter={(value: any, name: any) => {
-                const labels: Record<string, string> = { critique: 'Critique', haute: 'Haute', moyenne: 'Moyenne', basse: 'Basse' }
-                return [value, labels[name] || name]
-              }}
+              formatter={(value: any, name: any) => [value, name]}
             />
-            <Bar dataKey="critique" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="haute" stackId="a" fill="#f97316" />
-            <Bar dataKey="moyenne" stackId="a" fill="#f59e0b" />
-            <Bar dataKey="basse" stackId="a" fill="#6b7280" radius={[2, 2, 0, 0]} />
+            <Legend wrapperStyle={{ fontSize: '11px' }} />
+            <Bar dataKey="Critiques" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="Hautes" stackId="a" fill="#f97316" />
+            <Bar dataKey="Moyennes" stackId="a" fill="#f59e0b" />
+            <Bar dataKey="Basses" stackId="a" fill="#6b7280" radius={[2, 2, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
@@ -462,121 +561,216 @@ function GraphiqueQuotidien({ data }: { data: SecurityDashboardData['dailyTrend'
 }
 
 // ============================================
-// COMPOSANT : STATS APPAREILS/NAVIGATEURS/OS
+// EMPREINTE NUMERIQUE AMELIOREE
 // ============================================
 
-function StatsEmpreinteNumerique({ deviceStats }: { deviceStats: SecurityDashboardData['deviceStats'] }) {
-  const [onglet, setOnglet] = useState<'navigateurs' | 'os' | 'appareils'>('navigateurs')
-  const data = deviceStats[onglet]
-  const total = data.reduce((s, d) => s + d.count, 0)
+function StatsEmpreinteNumerique({ deviceStats, recentEvents }: { deviceStats: SecurityDashboardData['deviceStats']; recentEvents: SecurityEvent[] }) {
+  const [onglet, setOnglet] = useState<'navigateurs' | 'os' | 'appareils' | 'combinaisons'>('navigateurs')
   const colors = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe', '#f5f3ff', '#818cf8', '#4f46e5', '#4338ca']
+
+  // Calculer les combinaisons uniques (fingerprint-like)
+  const combinaisons = useMemo(() => {
+    const comboMap = new Map<string, { navigateur: string; os: string; appareil: string; count: number; ips: Set<string> }>()
+    recentEvents.forEach((e) => {
+      if (e.navigateur === 'Inconnu' && e.os === 'Inconnu') return
+      const key = `${e.navigateur}|${e.os}|${e.appareil}`
+      const existing = comboMap.get(key)
+      if (existing) {
+        existing.count++
+        existing.ips.add(e.ip)
+      } else {
+        comboMap.set(key, { navigateur: e.navigateur, os: e.os, appareil: e.appareil, count: 1, ips: new Set([e.ip]) })
+      }
+    })
+    return Array.from(comboMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+      .map(c => ({ ...c, ipsCount: c.ips.size }))
+  }, [recentEvents])
+
+  const getIcon = (appareil: string) => {
+    if (appareil.includes('Smartphone')) return Smartphone
+    if (appareil.includes('Tablette')) return Tablet
+    if (appareil.includes('Outil') || appareil.includes('Bot')) return Bug
+    return Laptop
+  }
+
+  const renderList = () => {
+    if (onglet === 'combinaisons') {
+      return combinaisons.length === 0 ? (
+        <p className="text-xs text-zinc-600 text-center py-4">Aucune empreinte</p>
+      ) : (
+        <div className="space-y-2">
+          {combinaisons.map((c, i) => {
+            const DevIcon = getIcon(c.appareil)
+            return (
+              <div key={i} className="p-2 rounded-lg bg-zinc-800/30 hover:bg-zinc-800/60 transition-colors">
+                <div className="flex items-center gap-2">
+                  <DevIcon className="h-4 w-4 text-zinc-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-zinc-300 truncate font-medium">{c.navigateur !== 'Inconnu' ? c.navigateur : 'Navigateur inconnu'}</p>
+                    <p className="text-[10px] text-zinc-500 truncate">{c.os !== 'Inconnu' ? c.os : 'OS inconnu'} - {c.appareil !== 'Inconnu' ? c.appareil : '?'}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[11px] font-bold text-zinc-300">{c.count} req.</p>
+                    <p className="text-[10px] text-zinc-600">{c.ipsCount} IP{c.ipsCount > 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+
+    const data = deviceStats[onglet as 'navigateurs' | 'os' | 'appareils']
+    const total = data.reduce((s, d) => s + d.count, 0)
+
+    return data.length === 0 ? (
+      <p className="text-xs text-zinc-600 text-center py-4">Aucune donnee</p>
+    ) : (
+      <>
+        <ResponsiveContainer width="100%" height={140}>
+          <PieChart>
+            <Pie data={data.map((d) => ({ name: d.nom, value: d.count }))} cx="50%" cy="50%" outerRadius={55} dataKey="value">
+              {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+            </Pie>
+            <RechartsTooltip
+              contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
+              formatter={(value: any, name: any) => [`${value} (${total > 0 ? ((Number(value) / total) * 100).toFixed(0) : 0}%)`, name]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="space-y-1 mt-2">
+          {data.slice(0, 6).map((d, i) => (
+            <div key={d.nom} className="flex items-center gap-2 text-xs">
+              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+              <span className="text-zinc-400 truncate flex-1">{d.nom}</span>
+              <span className="font-mono text-zinc-300">{d.count}</span>
+              <span className="text-zinc-600 w-8 text-right">{total > 0 ? ((d.count / total) * 100).toFixed(0) : 0}%</span>
+            </div>
+          ))}
+        </div>
+      </>
+    )
+  }
 
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <Fingerprint className="h-4 w-4" />
-          Empreinte numerique des attaquants
-          <Tooltip content="Informations sur les appareils et navigateurs utilises lors des attaques">
+          <Fingerprint className="h-4 w-4" /> Empreinte numerique
+          <Tooltip content="Analyse des appareils, navigateurs et systemes utilises lors des attaques. L'onglet 'Empreintes' montre les combinaisons uniques (profils d'attaquants).">
             <span><Info className="h-3 w-3 text-zinc-600 cursor-help" /></span>
           </Tooltip>
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex gap-1 mb-3">
-          {(['navigateurs', 'os', 'appareils'] as const).map((tab) => (
+          {(['navigateurs', 'os', 'appareils', 'combinaisons'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setOnglet(tab)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${onglet === tab ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${onglet === tab ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}
             >
-              {tab === 'navigateurs' ? 'Navigateurs' : tab === 'os' ? 'Systemes' : 'Appareils'}
+              {tab === 'navigateurs' ? 'Navigateurs' : tab === 'os' ? 'Systemes' : tab === 'appareils' ? 'Appareils' : 'Empreintes'}
             </button>
           ))}
         </div>
-
-        {data.length === 0 ? (
-          <p className="text-xs text-zinc-600 text-center py-4">Aucune donnee</p>
-        ) : (
-          <>
-            <ResponsiveContainer width="100%" height={160}>
-              <PieChart>
-                <Pie data={data.map((d) => ({ name: d.nom, value: d.count }))} cx="50%" cy="50%" outerRadius={60} dataKey="value">
-                  {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
-                </Pie>
-                <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
-                  formatter={(value: any, name: any) => [`${value} (${total > 0 ? ((Number(value) / total) * 100).toFixed(0) : 0}%)`, name]}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-1 mt-2">
-              {data.slice(0, 5).map((d, i) => (
-                <div key={d.nom} className="flex items-center gap-2 text-xs">
-                  <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
-                  <span className="text-zinc-400 truncate flex-1">{d.nom}</span>
-                  <span className="font-mono text-zinc-300">{d.count}</span>
-                  <span className="text-zinc-600 w-8 text-right">{total > 0 ? ((d.count / total) * 100).toFixed(0) : 0}%</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+        {renderList()}
       </CardContent>
     </Card>
   )
 }
 
 // ============================================
-// COMPOSANT : BADGE SEVERITE
+// ALERTES CRITIQUES VULGARISEES
 // ============================================
 
-function BadgeSeverite({ severity }: { severity: string }) {
-  const config = SEVERITE_LABELS[severity]
-  if (!config) return <Badge variant="outline">{severity}</Badge>
+function AlertesCritiques({ events, onInvestigateIP }: {
+  events: SecurityEvent[]; onInvestigateIP: (ip: string) => void
+}) {
+  const [detailTechniqueOuvert, setDetailTechniqueOuvert] = useState<string | null>(null)
+
+  if (events.length === 0) return null
 
   return (
-    <Tooltip content={config.description}>
-      <span>
-        <Badge
-          className="text-[10px] font-bold border-0"
-          style={{ backgroundColor: config.color + '20', color: config.color }}
-        >
-          {config.label}
-        </Badge>
-      </span>
-    </Tooltip>
+    <div className="max-h-[400px] overflow-y-auto space-y-2">
+      {events.map((e) => {
+        const typeInfo = TYPES_ATTAQUE[e.type]
+        const { simple, technique } = vulgariserAlerte(e.details, e.type, e.path)
+        const showTechnique = detailTechniqueOuvert === e._id
+
+        return (
+          <div key={e._id} className="p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-xs font-bold text-red-300">{typeInfo?.label || e.type}</span>
+                  {e.blocked && <Badge className="text-[9px] bg-emerald-500/20 text-emerald-400 border-0">Bloque</Badge>}
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">{simple}</p>
+                <div className="flex items-center gap-2 mt-2 text-[10px] text-zinc-600">
+                  <button onClick={() => onInvestigateIP(e.ip)} className="font-mono hover:text-indigo-400 transition-colors flex items-center gap-0.5">
+                    <Search className="h-2.5 w-2.5" /> {e.ip}
+                  </button>
+                  <span>{e.method} {e.path.slice(0, 40)}</span>
+                  <span className="ml-auto">{formatDateShort(e.dateCreation)}</span>
+                </div>
+                <button
+                  onClick={() => setDetailTechniqueOuvert(showTechnique ? null : e._id)}
+                  className="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors"
+                >
+                  <Wrench className="h-3 w-3" />
+                  {showTechnique ? 'Masquer les details techniques' : 'Voir les details techniques'}
+                </button>
+                {showTechnique && (
+                  <div className="mt-2 p-2 rounded bg-zinc-800/60 border border-zinc-700/50">
+                    <p className="text-[10px] text-zinc-500 font-mono break-all">{technique}</p>
+                    {e.metadata && Object.keys(e.metadata).length > 0 && (
+                      <div className="mt-1.5 pt-1.5 border-t border-zinc-700/50">
+                        <p className="text-[10px] text-zinc-600 font-mono">{JSON.stringify(e.metadata, null, 1)}</p>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-zinc-600 mt-1">User-Agent: {e.userAgent || 'N/A'}</p>
+                    <p className="text-[10px] text-zinc-600">Navigateur: {e.navigateur} | OS: {e.os} | Appareil: {e.appareil}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
 // ============================================
-// COMPOSANT : FLUX EN TEMPS REEL
+// FLUX TEMPS REEL
 // ============================================
 
-function FluxTempsReel({
-  events,
-  onSelectEvent,
-  onInvestigateIP,
-}: {
-  events: SecurityEvent[]
-  onSelectEvent: (id: string) => void
-  onInvestigateIP: (ip: string) => void
+function FluxTempsReel({ events, onInvestigateIP }: {
+  events: SecurityEvent[]; onInvestigateIP: (ip: string) => void
 }) {
   const [filtreSeverite, setFiltreSeverite] = useState<string>('')
   const [filtreType, setFiltreType] = useState<string>('')
   const [recherche, setRecherche] = useState('')
+  const [filtreBloque, setFiltreBloque] = useState<string>('')
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
       if (filtreSeverite && e.severity !== filtreSeverite) return false
       if (filtreType && e.type !== filtreType) return false
+      if (filtreBloque === 'oui' && !e.blocked) return false
+      if (filtreBloque === 'non' && e.blocked) return false
       if (recherche) {
         const q = recherche.toLowerCase()
-        return e.ip.includes(q) || e.details.toLowerCase().includes(q) || e.path.toLowerCase().includes(q)
+        return e.ip.includes(q) || e.details.toLowerCase().includes(q) || e.path.toLowerCase().includes(q) || e.navigateur.toLowerCase().includes(q)
       }
       return true
     })
-  }, [events, filtreSeverite, filtreType, recherche])
+  }, [events, filtreSeverite, filtreType, recherche, filtreBloque])
 
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
@@ -585,17 +779,12 @@ function FluxTempsReel({
           <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
             <Activity className="h-4 w-4 text-emerald-400 animate-pulse" />
             Flux en temps reel
-            <Badge variant="outline" className="text-[10px]">{filtered.length} evenements</Badge>
+            <Badge variant="outline" className="text-[10px]">{filtered.length}/{events.length}</Badge>
           </CardTitle>
         </div>
-        <div className="flex gap-2 mt-2">
-          <div className="flex-1">
-            <Input
-              placeholder="Rechercher (IP, chemin, detail)..."
-              value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
-              className="h-7 text-xs"
-            />
+        <div className="flex flex-wrap gap-2 mt-2">
+          <div className="flex-1 min-w-[200px]">
+            <Input placeholder="Rechercher (IP, chemin, navigateur)..." value={recherche} onChange={(e) => setRecherche(e.target.value)} className="h-7 text-xs" />
           </div>
           <Select value={filtreSeverite} onChange={(e) => setFiltreSeverite(e.target.value)} className="h-7 text-xs w-28">
             <option value="">Severite</option>
@@ -610,22 +799,24 @@ function FluxTempsReel({
               <option key={key} value={key}>{val.label}</option>
             ))}
           </Select>
+          <Select value={filtreBloque} onChange={(e) => setFiltreBloque(e.target.value)} className="h-7 text-xs w-24">
+            <option value="">Statut</option>
+            <option value="oui">Bloque</option>
+            <option value="non">Non bloque</option>
+          </Select>
         </div>
       </CardHeader>
       <CardContent className="max-h-[500px] overflow-y-auto space-y-1">
         {filtered.length === 0 ? (
-          <p className="text-xs text-zinc-600 text-center py-8">Aucun evenement</p>
+          <p className="text-xs text-zinc-600 text-center py-8">Aucun resultat</p>
         ) : (
           filtered.slice(0, 50).map((event) => {
             const typeInfo = TYPES_ATTAQUE[event.type]
             const Icon = typeInfo?.icon || Shield
+            const { simple } = vulgariserAlerte(event.details, event.type, event.path)
 
             return (
-              <div
-                key={event._id}
-                className="flex items-start gap-2 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors group cursor-pointer"
-                onClick={() => onSelectEvent(event._id)}
-              >
+              <div key={event._id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors group">
                 <div className="mt-0.5">
                   <Icon className="h-3.5 w-3.5" style={{ color: typeInfo?.color || '#999' }} />
                 </div>
@@ -633,20 +824,16 @@ function FluxTempsReel({
                   <div className="flex items-center gap-1.5">
                     <BadgeSeverite severity={event.severity} />
                     <span className="text-xs font-medium text-zinc-300 truncate">{typeInfo?.label || event.type}</span>
-                    {event.blocked && <Badge className="text-[9px] bg-red-500/20 text-red-400 border-0">Bloque</Badge>}
+                    {event.blocked && <Badge className="text-[9px] bg-emerald-500/20 text-emerald-400 border-0">Bloque</Badge>}
                   </div>
-                  <p className="text-[11px] text-zinc-500 truncate mt-0.5">{event.details}</p>
+                  <p className="text-[11px] text-zinc-500 truncate mt-0.5">{simple}</p>
                   <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-600">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onInvestigateIP(event.ip); }}
-                      className="font-mono hover:text-indigo-400 transition-colors flex items-center gap-0.5"
-                    >
-                      <Search className="h-2.5 w-2.5" />
-                      {event.ip}
+                    <button onClick={() => onInvestigateIP(event.ip)} className="font-mono hover:text-indigo-400 transition-colors flex items-center gap-0.5">
+                      <Search className="h-2.5 w-2.5" /> {event.ip}
                     </button>
                     <span>{event.method} {event.path.slice(0, 40)}</span>
                     {event.navigateur && event.navigateur !== 'Inconnu' && (
-                      <span className="text-zinc-700">{event.navigateur}</span>
+                      <span className="text-zinc-700"><Chrome className="h-2.5 w-2.5 inline mr-0.5" />{event.navigateur}</span>
                     )}
                   </div>
                 </div>
@@ -661,27 +848,17 @@ function FluxTempsReel({
 }
 
 // ============================================
-// COMPOSANT : TABLEAU IPS SUSPECTES
+// IP COMPONENTS
 // ============================================
 
-function TableauIPsSuspectes({
-  ips,
-  onInvestigate,
-  onBlock,
-}: {
-  ips: SuspiciousIP[]
-  onInvestigate: (ip: string) => void
-  onBlock: (ip: string) => void
+function TableauIPsSuspectes({ ips, onInvestigate, onBlock }: {
+  ips: SuspiciousIP[]; onInvestigate: (ip: string) => void; onBlock: (ip: string) => void
 }) {
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <Globe className="h-4 w-4" />
-          IPs les plus suspectes (24h)
-          <Tooltip content="Adresses IP ayant genere le plus d'evenements de securite">
-            <span><Info className="h-3 w-3 text-zinc-600 cursor-help" /></span>
-          </Tooltip>
+          <Globe className="h-4 w-4" /> IPs suspectes (24h)
         </CardTitle>
       </CardHeader>
       <CardContent className="max-h-[400px] overflow-y-auto">
@@ -696,45 +873,31 @@ function TableauIPsSuspectes({
                     <span className="font-mono text-xs text-zinc-200 font-bold">{ip.ip}</span>
                     <BadgeSeverite severity={ip.maxSeverity} />
                     <span className="text-xs font-bold" style={{ color: ip.count > 20 ? '#ef4444' : ip.count > 10 ? '#f97316' : '#f59e0b' }}>
-                      {ip.count} evt.
+                      {ip.count} alertes
                     </span>
                   </div>
                   <div className="flex gap-1">
-                    <Tooltip content="Enqueter sur cette IP">
-                      <span>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onInvestigate(ip.ip)}>
-                          <Search className="h-3.5 w-3.5" />
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Tooltip content="Bloquer cette IP">
-                      <span>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-red-400" onClick={() => onBlock(ip.ip)}>
-                          <Ban className="h-3.5 w-3.5" />
-                        </Button>
-                      </span>
-                    </Tooltip>
+                    <Tooltip content="Enqueter sur cette IP"><span>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onInvestigate(ip.ip)}><Search className="h-3.5 w-3.5" /></Button>
+                    </span></Tooltip>
+                    <Tooltip content="Bloquer cette IP"><span>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-red-400" onClick={() => onBlock(ip.ip)}><Ban className="h-3.5 w-3.5" /></Button>
+                    </span></Tooltip>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {ip.types.map((t) => (
-                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-400">
-                      {TYPES_ATTAQUE[t]?.label || t}
-                    </span>
+                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-400">{TYPES_ATTAQUE[t]?.label || t}</span>
                   ))}
                 </div>
-                {ip.navigateurs.length > 0 && (
+                {ip.navigateurs.filter(n => n !== 'Inconnu').length > 0 && (
                   <div className="flex gap-2 mt-1 text-[10px] text-zinc-600">
                     <Monitor className="h-3 w-3 shrink-0" />
                     {ip.navigateurs.filter(n => n !== 'Inconnu').slice(0, 3).join(', ')}
-                    {ip.appareils.filter(a => a !== 'Inconnu').length > 0 && (
-                      <span> | {ip.appareils.filter(a => a !== 'Inconnu').join(', ')}</span>
-                    )}
+                    {ip.os.filter(o => o !== 'Inconnu').length > 0 && <span>| {ip.os.filter(o => o !== 'Inconnu').join(', ')}</span>}
                   </div>
                 )}
-                <div className="text-[10px] text-zinc-600 mt-0.5">
-                  Dernier vu : {formatDateShort(ip.lastSeen)}
-                </div>
+                <div className="text-[10px] text-zinc-600 mt-0.5">Dernier vu : {formatDateShort(ip.lastSeen)}</div>
               </div>
             ))}
           </div>
@@ -744,46 +907,40 @@ function TableauIPsSuspectes({
   )
 }
 
-// ============================================
-// COMPOSANT : CHEMINS ATTAQUES
-// ============================================
-
-function CheminsAttaques({ paths }: { paths: SecurityDashboardData['topAttackedPaths'] }) {
-  const maxCount = paths.length > 0 ? paths[0].count : 1
-
+function TopRecidivistes({ offenders, onInvestigate, onBlock }: {
+  offenders: OffenderIP[]; onInvestigate: (ip: string) => void; onBlock: (ip: string) => void
+}) {
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <ExternalLink className="h-4 w-4" />
-          Points d'entree cibles (30 jours)
-          <Tooltip content="Les URL de votre API les plus souvent visees par des attaques">
-            <span><Info className="h-3 w-3 text-zinc-600 cursor-help" /></span>
-          </Tooltip>
+          <AlertTriangle className="h-4 w-4 text-red-400" /> Recidivistes (30 jours)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {paths.length === 0 ? (
-          <p className="text-xs text-zinc-600 text-center py-4">Aucun chemin attaque</p>
+        {offenders.length === 0 ? (
+          <p className="text-xs text-zinc-600 text-center py-4">Aucun recidiviste</p>
         ) : (
-          paths.map((p) => (
-            <div key={p.path} className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono text-zinc-300 truncate flex-1">{p.path}</span>
-                <span className="text-xs font-bold text-zinc-400 ml-2">{p.count}</span>
+          offenders.map((o, i) => (
+            <div key={o.ip} className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors">
+              <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${i < 3 ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-500'}`}>
+                {i + 1}
               </div>
-              <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-500 transition-all"
-                  style={{ width: `${(p.count / maxCount) * 100}%` }}
-                />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-zinc-200">{o.ip}</span>
+                  <span className="text-[10px] text-red-400 font-bold">{o.totalEvents} alertes</span>
+                  {o.criticalCount > 0 && <span className="text-[10px] text-red-500">{o.criticalCount} crit.</span>}
+                </div>
+                <div className="flex gap-1 mt-0.5">
+                  {o.types.slice(0, 3).map((t) => (
+                    <span key={t} className="text-[9px] text-zinc-600">{TYPES_ATTAQUE[t]?.label || t}</span>
+                  ))}
+                </div>
               </div>
               <div className="flex gap-1">
-                {p.types.map((t) => (
-                  <span key={t} className="text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-zinc-500">
-                    {TYPES_ATTAQUE[t]?.label || t}
-                  </span>
-                ))}
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onInvestigate(o.ip)}><Search className="h-3 w-3" /></Button>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:text-red-400" onClick={() => onBlock(o.ip)}><Ban className="h-3 w-3" /></Button>
               </div>
             </div>
           ))
@@ -793,25 +950,46 @@ function CheminsAttaques({ paths }: { paths: SecurityDashboardData['topAttackedP
   )
 }
 
-// ============================================
-// COMPOSANT : IPs BLOQUEES
-// ============================================
-
-function IPsBloquees({
-  blockedIPs,
-  onUnblock,
-}: {
-  blockedIPs: BlockedIP[]
-  onUnblock: (id: string) => void
-}) {
-  const actives = blockedIPs.filter((ip) => ip.actif)
-
+function CheminsAttaques({ paths }: { paths: SecurityDashboardData['topAttackedPaths'] }) {
+  const maxCount = paths.length > 0 ? paths[0].count : 1
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <ShieldOff className="h-4 w-4 text-red-400" />
-          IPs bloquees ({actives.length})
+          <ExternalLink className="h-4 w-4" /> Points d'entree cibles
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {paths.length === 0 ? (
+          <p className="text-xs text-zinc-600 text-center py-4">Aucun chemin attaque</p>
+        ) : paths.map((p) => (
+          <div key={p.path} className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-zinc-300 truncate flex-1">{p.path}</span>
+              <span className="text-xs font-bold text-zinc-400 ml-2">{p.count}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-500 transition-all" style={{ width: `${(p.count / maxCount) * 100}%` }} />
+            </div>
+            <div className="flex gap-1">
+              {p.types.map((t) => (
+                <span key={t} className="text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-zinc-500">{TYPES_ATTAQUE[t]?.label || t}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function IPsBloquees({ blockedIPs, onUnblock }: { blockedIPs: BlockedIP[]; onUnblock: (id: string) => void }) {
+  const actives = blockedIPs.filter((ip) => ip.actif)
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <ShieldOff className="h-4 w-4 text-red-400" /> IPs bloquees ({actives.length})
         </CardTitle>
       </CardHeader>
       <CardContent className="max-h-[300px] overflow-y-auto">
@@ -829,13 +1007,9 @@ function IPsBloquees({
                     {ip.expireAt && <span className="text-amber-500"> | Expire le {formatDateShort(ip.expireAt)}</span>}
                   </div>
                 </div>
-                <Tooltip content="Debloquer cette IP">
-                  <span>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-emerald-400" onClick={() => onUnblock(ip._id)}>
-                      <Unlock className="h-3.5 w-3.5" />
-                    </Button>
-                  </span>
-                </Tooltip>
+                <Tooltip content="Debloquer cette IP"><span>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-emerald-400" onClick={() => onUnblock(ip._id)}><Unlock className="h-3.5 w-3.5" /></Button>
+                </span></Tooltip>
               </div>
             ))}
           </div>
@@ -846,33 +1020,20 @@ function IPsBloquees({
 }
 
 // ============================================
-// COMPOSANT : MODAL BLOQUER IP
+// MODALS
 // ============================================
 
-function ModalBlocageIP({
-  open,
-  onClose,
-  ip,
-  onConfirm,
-  isLoading,
-}: {
-  open: boolean
-  onClose: () => void
-  ip: string
-  onConfirm: (ip: string, raison: string, duree?: number) => void
-  isLoading: boolean
+function ModalBlocageIP({ open, onClose, ip, onConfirm, isLoading }: {
+  open: boolean; onClose: () => void; ip: string
+  onConfirm: (ip: string, raison: string, duree?: number) => void; isLoading: boolean
 }) {
   const [raison, setRaison] = useState('')
   const [duree, setDuree] = useState<string>('')
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Ban className="h-5 w-5 text-red-400" />
-            Bloquer une adresse IP
-          </DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Ban className="h-5 w-5 text-red-400" /> Bloquer une adresse IP</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-2">
           <div>
@@ -881,12 +1042,7 @@ function ModalBlocageIP({
           </div>
           <div>
             <label className="text-sm text-zinc-400">Raison du blocage *</label>
-            <Input
-              value={raison}
-              onChange={(e) => setRaison(e.target.value)}
-              placeholder="Ex: Tentatives d'injection repetees..."
-              className="mt-1"
-            />
+            <Input value={raison} onChange={(e) => setRaison(e.target.value)} placeholder="Ex: Tentatives d'injection repetees..." className="mt-1" />
           </div>
           <div>
             <label className="text-sm text-zinc-400">Duree du blocage</label>
@@ -899,20 +1055,12 @@ function ModalBlocageIP({
               <option value="168">7 jours</option>
               <option value="720">30 jours</option>
             </Select>
-            <p className="text-[10px] text-zinc-600 mt-1">
-              Un blocage permanent doit etre retire manuellement. Un blocage temporaire expire automatiquement.
-            </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Annuler</Button>
-          <Button
-            variant="destructive"
-            onClick={() => onConfirm(ip, raison, duree ? parseInt(duree) : undefined)}
-            disabled={!raison.trim() || isLoading}
-          >
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Ban className="h-4 w-4 mr-1" />}
-            Bloquer
+          <Button variant="destructive" onClick={() => onConfirm(ip, raison, duree ? parseInt(duree) : undefined)} disabled={!raison.trim() || isLoading}>
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Ban className="h-4 w-4 mr-1" />} Bloquer
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -920,27 +1068,14 @@ function ModalBlocageIP({
   )
 }
 
-// ============================================
-// COMPOSANT : MODAL INVESTIGATION IP
-// ============================================
-
-function ModalInvestigationIP({
-  open,
-  onClose,
-  ip,
-  onBlock,
-}: {
-  open: boolean
-  onClose: () => void
-  ip: string
-  onBlock: (ip: string) => void
+function ModalInvestigationIP({ open, onClose, ip, onBlock }: {
+  open: boolean; onClose: () => void; ip: string; onBlock: (ip: string) => void
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['security-investigate', ip],
     queryFn: () => securityService.investigateIP(ip),
     enabled: open && !!ip,
   })
-
   const dangerColors = {
     faible: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30' },
     moyen: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
@@ -952,12 +1087,8 @@ function ModalInvestigationIP({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5 text-indigo-400" />
-            Enquete sur {ip}
-          </DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-indigo-400" /> Enquete sur {ip}</DialogTitle>
         </DialogHeader>
-
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
@@ -965,32 +1096,25 @@ function ModalInvestigationIP({
           </div>
         ) : data ? (
           <div className="space-y-4 mt-2 max-h-[60vh] overflow-y-auto pr-2">
-            {/* Score de danger */}
             <div className={`rounded-lg p-4 border ${dangerColors[data.dangerLevel].border} ${dangerColors[data.dangerLevel].bg}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-zinc-500 uppercase">Score de danger</p>
                   <p className={`text-3xl font-black ${dangerColors[data.dangerLevel].text}`}>{data.dangerScore}/100</p>
-                  <p className={`text-sm font-medium ${dangerColors[data.dangerLevel].text} capitalize`}>
-                    Niveau : {data.dangerLevel}
-                  </p>
+                  <p className={`text-sm font-medium ${dangerColors[data.dangerLevel].text} capitalize`}>Niveau : {data.dangerLevel}</p>
                 </div>
                 <div className="text-right">
                   {data.estBloquee ? (
                     <Badge className="bg-red-500/20 text-red-400 border-0">IP deja bloquee</Badge>
                   ) : data.dangerScore >= 50 ? (
-                    <Button size="sm" variant="destructive" onClick={() => onBlock(ip)}>
-                      <Ban className="h-3.5 w-3.5 mr-1" /> Bloquer cette IP
-                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => onBlock(ip)}><Ban className="h-3.5 w-3.5 mr-1" /> Bloquer</Button>
                   ) : null}
                 </div>
               </div>
             </div>
-
-            {/* Resume */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-zinc-800/50 rounded-lg p-3">
-                <p className="text-[10px] text-zinc-500 uppercase">Total evenements</p>
+                <p className="text-[10px] text-zinc-500 uppercase">Total alertes</p>
                 <p className="text-xl font-bold text-zinc-200">{data.resume.totalEvents}</p>
               </div>
               <div className="bg-zinc-800/50 rounded-lg p-3">
@@ -1006,59 +1130,40 @@ function ModalInvestigationIP({
                 <p className="text-sm text-zinc-300">{data.resume.derniereApparition ? formatDate(data.resume.derniereApparition) : 'N/A'}</p>
               </div>
             </div>
-
-            {/* Types d'attaques */}
             <div>
-              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1">
-                <Target className="h-3 w-3" /> Types d'attaques
-              </p>
+              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><Target className="h-3 w-3" /> Types d'attaques</p>
               <div className="flex flex-wrap gap-1.5">
                 {data.repartitionTypes.map((t) => {
                   const info = TYPES_ATTAQUE[t.type]
-                  return (
-                    <span key={t.type} className="text-xs px-2 py-1 rounded-md bg-zinc-800 text-zinc-300" style={{ borderLeft: `3px solid ${info?.color || '#666'}` }}>
-                      {info?.label || t.type}: {t.count}
-                    </span>
-                  )
+                  return <span key={t.type} className="text-xs px-2 py-1 rounded-md bg-zinc-800 text-zinc-300" style={{ borderLeft: `3px solid ${info?.color || '#666'}` }}>{info?.label || t.type}: {t.count}</span>
                 })}
               </div>
             </div>
-
-            {/* Empreinte numerique */}
             <div>
-              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1">
-                <Fingerprint className="h-3 w-3" /> Empreinte numerique
-              </p>
+              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><Fingerprint className="h-3 w-3" /> Empreinte numerique</p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-zinc-800/50 rounded-lg p-2">
                   <p className="text-[10px] text-zinc-500 mb-1">Navigateurs</p>
-                  {data.empreinteNumerique.navigateurs.slice(0, 3).map((n) => (
-                    <p key={n.nom} className="text-[11px] text-zinc-300 truncate">{n.nom} ({n.count})</p>
-                  ))}
-                  {data.empreinteNumerique.navigateurs.length === 0 && <p className="text-[10px] text-zinc-600">Inconnu</p>}
+                  {data.empreinteNumerique.navigateurs.length > 0
+                    ? data.empreinteNumerique.navigateurs.slice(0, 3).map((n) => <p key={n.nom} className="text-[11px] text-zinc-300 truncate">{n.nom} ({n.count})</p>)
+                    : <p className="text-[10px] text-zinc-600">Inconnu</p>}
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-2">
                   <p className="text-[10px] text-zinc-500 mb-1">Systemes</p>
-                  {data.empreinteNumerique.os.slice(0, 3).map((o) => (
-                    <p key={o.nom} className="text-[11px] text-zinc-300 truncate">{o.nom} ({o.count})</p>
-                  ))}
-                  {data.empreinteNumerique.os.length === 0 && <p className="text-[10px] text-zinc-600">Inconnu</p>}
+                  {data.empreinteNumerique.os.length > 0
+                    ? data.empreinteNumerique.os.slice(0, 3).map((o) => <p key={o.nom} className="text-[11px] text-zinc-300 truncate">{o.nom} ({o.count})</p>)
+                    : <p className="text-[10px] text-zinc-600">Inconnu</p>}
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-2">
                   <p className="text-[10px] text-zinc-500 mb-1">Appareils</p>
-                  {data.empreinteNumerique.appareils.slice(0, 3).map((a) => (
-                    <p key={a.nom} className="text-[11px] text-zinc-300 truncate">{a.nom} ({a.count})</p>
-                  ))}
-                  {data.empreinteNumerique.appareils.length === 0 && <p className="text-[10px] text-zinc-600">Inconnu</p>}
+                  {data.empreinteNumerique.appareils.length > 0
+                    ? data.empreinteNumerique.appareils.slice(0, 3).map((a) => <p key={a.nom} className="text-[11px] text-zinc-300 truncate">{a.nom} ({a.count})</p>)
+                    : <p className="text-[10px] text-zinc-600">Inconnu</p>}
                 </div>
               </div>
             </div>
-
-            {/* Chemins cibles */}
             <div>
-              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1">
-                <ExternalLink className="h-3 w-3" /> Chemins cibles
-              </p>
+              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Chemins cibles</p>
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {data.pathsCibles.slice(0, 10).map((p) => (
                   <div key={p.chemin} className="flex items-center justify-between text-[11px]">
@@ -1069,20 +1174,19 @@ function ModalInvestigationIP({
                 ))}
               </div>
             </div>
-
-            {/* Derniers evenements */}
             <div>
-              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1">
-                <Clock className="h-3 w-3" /> Derniers evenements
-              </p>
+              <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><Clock className="h-3 w-3" /> Derniers evenements</p>
               <div className="space-y-1 max-h-40 overflow-y-auto">
-                {data.derniersEvenements.slice(0, 15).map((e) => (
-                  <div key={e._id} className="flex items-center gap-2 text-[11px] p-1.5 rounded bg-zinc-800/30">
-                    <BadgeSeverite severity={e.severity} />
-                    <span className="text-zinc-400 truncate flex-1">{e.details.slice(0, 60)}</span>
-                    <span className="text-zinc-600 shrink-0">{timeAgo(e.dateCreation)}</span>
-                  </div>
-                ))}
+                {data.derniersEvenements.slice(0, 10).map((e) => {
+                  const { simple } = vulgariserAlerte(e.details, e.type, e.path)
+                  return (
+                    <div key={e._id} className="flex items-center gap-2 text-[11px] p-1.5 rounded bg-zinc-800/30">
+                      <BadgeSeverite severity={e.severity} />
+                      <span className="text-zinc-400 truncate flex-1">{simple.slice(0, 80)}</span>
+                      <span className="text-zinc-600 shrink-0">{timeAgo(e.dateCreation)}</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -1093,113 +1197,43 @@ function ModalInvestigationIP({
 }
 
 // ============================================
-// COMPOSANT : TOP OFFENDERS
+// RECOMMANDATIONS
 // ============================================
 
-function TopRecidivistes({
-  offenders,
-  onInvestigate,
-  onBlock,
-}: {
-  offenders: OffenderIP[]
-  onInvestigate: (ip: string) => void
-  onBlock: (ip: string) => void
-}) {
+function RecommandationsCorrections({ data }: { data: SecurityDashboardData }) {
+  const recommandations = useMemo(() => genererRecommandations(data), [data])
+  const prioriteConfig = {
+    critique: { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', icon: XOctagon },
+    haute: { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', icon: AlertTriangle },
+    moyenne: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-400', icon: FileWarning },
+    info: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', icon: CheckCircle2 },
+  }
+
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-red-400" />
-          Recidivistes (30 jours)
-          <Tooltip content="IPs ayant genere le plus d'evenements graves sur les 30 derniers jours">
-            <span><Info className="h-3 w-3 text-zinc-600 cursor-help" /></span>
-          </Tooltip>
+          <Lightbulb className="h-4 w-4 text-amber-400" /> Recommandations de securite
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {offenders.length === 0 ? (
-          <p className="text-xs text-zinc-600 text-center py-4">Aucun recidiviste</p>
-        ) : (
-          offenders.map((o, i) => (
-            <div key={o.ip} className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors">
-              <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${i < 3 ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-500'}`}>
-                {i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-zinc-200">{o.ip}</span>
-                  <span className="text-[10px] text-red-400 font-bold">{o.totalEvents} evt.</span>
-                  {o.criticalCount > 0 && (
-                    <span className="text-[10px] text-red-500">{o.criticalCount} crit.</span>
-                  )}
-                </div>
-                <div className="flex gap-1 mt-0.5">
-                  {o.types.slice(0, 3).map((t) => (
-                    <span key={t} className="text-[9px] text-zinc-600">{TYPES_ATTAQUE[t]?.label || t}</span>
-                  ))}
-                </div>
-                {o.navigateurs.filter(n => n !== 'Inconnu').length > 0 && (
-                  <p className="text-[9px] text-zinc-700 mt-0.5">{o.navigateurs.filter(n => n !== 'Inconnu').join(', ')}</p>
-                )}
-              </div>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onInvestigate(o.ip)}>
-                  <Search className="h-3 w-3" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:text-red-400" onClick={() => onBlock(o.ip)}>
-                  <Ban className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-// ============================================
-// COMPOSANT : ALERTES CRITIQUES
-// ============================================
-
-function AlertesCritiques({
-  events,
-  onInvestigateIP,
-}: {
-  events: SecurityEvent[]
-  onInvestigateIP: (ip: string) => void
-}) {
-  if (events.length === 0) return null
-
-  return (
-    <Card className="bg-zinc-900/50 border-zinc-800 border-red-500/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium text-red-400 flex items-center gap-2">
-          <AlertOctagon className="h-4 w-4" />
-          Alertes critiques (7 jours)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="max-h-[300px] overflow-y-auto space-y-1.5">
-        {events.map((e) => {
-          const typeInfo = TYPES_ATTAQUE[e.type]
+        {recommandations.map((rec, i) => {
+          const config = prioriteConfig[rec.priorite]
+          const Icon = config.icon
           return (
-            <div key={e._id} className="flex items-start gap-2 p-2 rounded-lg bg-red-500/5">
-              <AlertTriangle className="h-3.5 w-3.5 text-red-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-red-300">{typeInfo?.label || e.type}</span>
-                  {e.blocked && <Badge className="text-[9px] bg-red-500/20 text-red-400 border-0">Bloque</Badge>}
-                </div>
-                <p className="text-[11px] text-zinc-500 truncate">{e.details}</p>
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-600">
-                  <button
-                    onClick={() => onInvestigateIP(e.ip)}
-                    className="font-mono hover:text-indigo-400 transition-colors"
-                  >
-                    {e.ip}
-                  </button>
-                  <span>{e.method} {e.path.slice(0, 30)}</span>
-                  <span className="ml-auto">{formatDateShort(e.dateCreation)}</span>
+            <div key={i} className={`p-3 rounded-lg ${config.bg} border ${config.border}`}>
+              <div className="flex items-start gap-2">
+                <Icon className={`h-4 w-4 ${config.text} mt-0.5 shrink-0`} />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className={`text-xs font-bold ${config.text}`}>{rec.titre}</p>
+                    <Badge className={`text-[9px] ${config.bg} ${config.text} border-0 uppercase`}>{rec.priorite}</Badge>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-1">{rec.description}</p>
+                  <div className="flex items-center gap-1 mt-2">
+                    <Wrench className="h-3 w-3 text-zinc-500" />
+                    <p className="text-[11px] text-zinc-500 italic">{rec.action}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1211,25 +1245,242 @@ function AlertesCritiques({
 }
 
 // ============================================
+// ANALYSEUR BACKEND TEMPS REEL
+// ============================================
+
+function AnalyseurBackend() {
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ['backend-health'],
+    queryFn: securityService.getBackendHealth,
+    refetchInterval: 30000,
+  })
+
+  const scoreColor = (score: number) => {
+    if (score >= 80) return '#10b981'
+    if (score >= 50) return '#f59e0b'
+    return '#ef4444'
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="bg-zinc-900/50 border-zinc-800">
+        <CardContent className="p-8 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+          <span className="ml-2 text-sm text-zinc-400">Analyse du backend...</span>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!data) return null
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+            <Server className="h-4 w-4 text-indigo-400" /> Sante du backend
+            <Badge variant="outline" className="text-[10px]">Temps reel</Badge>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-600">Analyse en {data.dureeAnalyseMs}ms</span>
+            <Button variant="ghost" size="sm" className="h-7" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`h-3 w-3 mr-1 ${isFetching ? 'animate-spin' : ''}`} /> Analyser
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Score global */}
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="35" fill="none" stroke="#27272a" strokeWidth="6" />
+              <circle
+                cx="40" cy="40" r="35" fill="none"
+                stroke={scoreColor(data.score)} strokeWidth="6"
+                strokeDasharray={`${(data.score / 100) * 220} 220`}
+                strokeLinecap="round" transform="rotate(-90 40 40)"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-lg font-black" style={{ color: scoreColor(data.score) }}>{data.score}</span>
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-zinc-200">
+              {data.statut === 'sain' ? 'Serveur en bonne sante' : data.statut === 'degrade' ? 'Performance degradee' : 'Etat critique'}
+            </p>
+            {data.problemes.length > 0 && (
+              <div className="mt-1 space-y-0.5">
+                {data.problemes.slice(0, 3).map((p, i) => (
+                  <p key={i} className="text-[11px] text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3 shrink-0" /> {p}
+                  </p>
+                ))}
+                {data.problemes.length > 3 && (
+                  <p className="text-[10px] text-zinc-500">+ {data.problemes.length - 3} autre(s) probleme(s)</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Base de donnees */}
+        <div className="p-3 rounded-lg bg-zinc-800/30">
+          <div className="flex items-center gap-2 mb-2">
+            <Database className="h-4 w-4 text-emerald-400" />
+            <span className="text-xs font-medium text-zinc-300">Base de donnees</span>
+            <Badge className={`text-[9px] border-0 ${data.baseDeDonnees.etat === 'connecte' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+              {data.baseDeDonnees.etat}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div>
+              <p className="text-[10px] text-zinc-500">Ping</p>
+              <p className={`text-xs font-bold ${data.baseDeDonnees.pingMs < 100 ? 'text-emerald-400' : data.baseDeDonnees.pingMs < 500 ? 'text-amber-400' : 'text-red-400'}`}>
+                {data.baseDeDonnees.pingMs}ms
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500">Taille</p>
+              <p className="text-xs font-bold text-zinc-300">{data.baseDeDonnees.taille}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500">Collections</p>
+              <p className="text-xs font-bold text-zinc-300">{data.baseDeDonnees.collections}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500">Objets</p>
+              <p className="text-xs font-bold text-zinc-300">{data.baseDeDonnees.objets?.toLocaleString('fr-FR')}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Collections */}
+        <div className="p-3 rounded-lg bg-zinc-800/30">
+          <p className="text-xs font-medium text-zinc-300 mb-2 flex items-center gap-2">
+            <HardDrive className="h-3.5 w-3.5 text-zinc-400" /> Collections ({data.collectionsDetails.length})
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+            {data.collectionsDetails.map((col) => (
+              <div key={col.nom} className="flex items-center justify-between text-[11px] p-1.5 rounded hover:bg-zinc-700/30">
+                <div className="flex items-center gap-1.5">
+                  {col.statut === 'ok'
+                    ? <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                    : <XCircle className="h-3 w-3 text-red-400" />}
+                  <span className="text-zinc-300">{col.nom}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500">{col.documents.toLocaleString('fr-FR')} docs</span>
+                  <span className={`${col.latenceMs < 50 ? 'text-emerald-400' : col.latenceMs < 200 ? 'text-amber-400' : 'text-red-400'}`}>
+                    {col.latenceMs}ms
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Systeme */}
+        <div className="p-3 rounded-lg bg-zinc-800/30">
+          <p className="text-xs font-medium text-zinc-300 mb-2 flex items-center gap-2">
+            <Cpu className="h-3.5 w-3.5 text-zinc-400" /> Systeme
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div>
+              <p className="text-[10px] text-zinc-500">Memoire heap</p>
+              <p className="text-xs font-bold text-zinc-300">{data.systeme.memoire.heapUsed} / {data.systeme.memoire.heapTotal}</p>
+              <div className="mt-1 h-1.5 rounded-full bg-zinc-700 overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{
+                  width: `${data.systeme.memoire.heapUsagePct}%`,
+                  backgroundColor: data.systeme.memoire.heapUsagePct < 70 ? '#10b981' : data.systeme.memoire.heapUsagePct < 85 ? '#f59e0b' : '#ef4444',
+                }} />
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-0.5">{data.systeme.memoire.heapUsagePct}% utilise</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500">RAM systeme</p>
+              <p className="text-xs font-bold text-zinc-300">{data.systeme.memoireSysteme.usagePct}% utilise</p>
+              <p className="text-[10px] text-zinc-600">{data.systeme.memoireSysteme.libre} libre</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500">Uptime</p>
+              <p className="text-xs font-bold text-zinc-300">{data.systeme.uptime.formatProcessus}</p>
+              <p className="text-[10px] text-zinc-600">Node {data.systeme.nodeVersion}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500">CPUs</p>
+              <p className="text-xs font-bold text-zinc-300">{data.systeme.cpus} coeurs</p>
+              <p className="text-[10px] text-zinc-600">{data.systeme.plateforme} {data.systeme.architecture}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Variables d'environnement */}
+        <div className="p-3 rounded-lg bg-zinc-800/30">
+          <p className="text-xs font-medium text-zinc-300 mb-2 flex items-center gap-2">
+            <Lock className="h-3.5 w-3.5 text-zinc-400" /> Variables d'environnement
+          </p>
+          {data.environnement.manquantes.length > 0 && (
+            <div className="mb-2 p-2 rounded bg-red-500/10 border border-red-500/20">
+              <p className="text-[11px] text-red-400 font-medium">Variables manquantes :</p>
+              <p className="text-[11px] text-red-300 font-mono">{data.environnement.manquantes.join(', ')}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+            {data.environnement.requises.map((v) => (
+              <div key={v.nom} className="flex items-center gap-1 text-[11px]">
+                {v.present ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> : <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                <span className={v.present ? 'text-zinc-400' : 'text-red-300'}>{v.nom}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Integrite */}
+        <div className="p-3 rounded-lg bg-zinc-800/30">
+          <p className="text-xs font-medium text-zinc-300 mb-2 flex items-center gap-2">
+            <ShieldCheck className="h-3.5 w-3.5 text-zinc-400" /> Verification d'integrite
+          </p>
+          <div className="space-y-1">
+            {data.integrite.map((check) => (
+              <div key={check.nom} className="flex items-start gap-2 text-[11px] p-1">
+                {check.statut === 'ok' ? <CheckCircle2 className="h-3 w-3 text-emerald-400 mt-0.5 shrink-0" />
+                  : check.statut === 'alerte' ? <AlertTriangle className="h-3 w-3 text-amber-400 mt-0.5 shrink-0" />
+                  : <Info className="h-3 w-3 text-zinc-500 mt-0.5 shrink-0" />}
+                <div>
+                  <span className="text-zinc-300">{check.nom}</span>
+                  <p className="text-[10px] text-zinc-500">{check.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================
 // PAGE PRINCIPALE
 // ============================================
 
 export default function SecurityPage() {
   const queryClient = useQueryClient()
+  const critiquesRef = useRef<HTMLDivElement>(null)
 
-  // State
   const [investigatingIP, setInvestigatingIP] = useState<string | null>(null)
   const [blockingIP, setBlockingIP] = useState<string | null>(null)
-  const [sectionOuverte, setSectionOuverte] = useState<string | null>(null)
+  const [critiquesOuvert, setCritiquesOuvert] = useState(false)
+  const [ongletPrincipal, setOngletPrincipal] = useState<'securite' | 'backend'>('securite')
 
-  // Query dashboard
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['security-dashboard'],
     queryFn: securityService.getDashboard,
     refetchInterval: 15000,
   })
 
-  // Mutation blocage IP
   const blockMutation = useMutation({
     mutationFn: ({ ip, raison, duree }: { ip: string; raison: string; duree?: number }) =>
       securityService.blockIP(ip, raison, duree),
@@ -1239,13 +1490,17 @@ export default function SecurityPage() {
     },
   })
 
-  // Mutation deblocage IP
   const unblockMutation = useMutation({
     mutationFn: (id: string) => securityService.unblockIP(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['security-dashboard'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['security-dashboard'] }),
   })
+
+  const scrollToCritiques = useCallback(() => {
+    setCritiquesOuvert(true)
+    setTimeout(() => {
+      critiquesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }, [])
 
   if (isLoading) {
     return (
@@ -1253,9 +1508,7 @@ export default function SecurityPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
           <div className="relative">
             <Shield className="h-12 w-12 text-indigo-500 animate-pulse" />
-            <div className="absolute inset-0 animate-ping">
-              <Shield className="h-12 w-12 text-indigo-500 opacity-20" />
-            </div>
+            <div className="absolute inset-0 animate-ping"><Shield className="h-12 w-12 text-indigo-500 opacity-20" /></div>
           </div>
           <p className="text-sm text-zinc-400 mt-4">Chargement du centre de securite...</p>
         </div>
@@ -1269,16 +1522,10 @@ export default function SecurityPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
           <ShieldAlert className="h-12 w-12 text-red-400" />
           <p className="text-sm text-zinc-400 mt-4">Impossible de charger les donnees de securite</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Reessayer
-          </Button>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-1" /> Reessayer</Button>
         </div>
       </PageTransition>
     )
-  }
-
-  const toggleSection = (id: string) => {
-    setSectionOuverte(sectionOuverte === id ? null : id)
   }
 
   return (
@@ -1288,113 +1535,107 @@ export default function SecurityPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-3">
-              <Shield className="h-7 w-7 text-indigo-400" />
-              Centre de securite
+              <Shield className="h-7 w-7 text-indigo-400" /> Centre de securite
             </h1>
-            <p className="text-sm text-zinc-500 mt-1">
-              Surveillance en temps reel et detection d'intrusion
-            </p>
+            <p className="text-sm text-zinc-500 mt-1">Surveillance temps reel, detection d'intrusion et analyse backend</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="text-[10px] text-zinc-600">
-              Maj: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString('fr-FR') : '--'}
+            <div className="text-[10px] text-zinc-600">Maj: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString('fr-FR') : '--'}</div>
+            <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Actualiser</Button>
+          </div>
+        </div>
+
+        {/* Onglets principaux */}
+        <div className="flex gap-1 bg-zinc-800/50 rounded-lg p-1">
+          <button
+            onClick={() => setOngletPrincipal('securite')}
+            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${ongletPrincipal === 'securite' ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            <Shield className="h-4 w-4" /> Securite & Detection
+          </button>
+          <button
+            onClick={() => setOngletPrincipal('backend')}
+            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${ongletPrincipal === 'backend' ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            <Server className="h-4 w-4" /> Analyse backend
+          </button>
+        </div>
+
+        {ongletPrincipal === 'securite' ? (
+          <>
+            {/* Banniere menace */}
+            <BanniereMenace level={data.threatLevel} onVoirCritiques={scrollToCritiques} />
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <CarteStats label="Alertes (1h)" value={data.summary.totalEvents1h} icon={Clock} color="#6366f1" detail="Alertes de securite detectees cette derniere heure" />
+              <CarteStats label="Alertes (24h)" value={data.summary.totalEvents24h} icon={Activity} color="#8b5cf6" detail="Total sur les 24 dernieres heures" />
+              <CarteStats label="Critiques (24h)" value={data.summary.criticalEvents24h} icon={AlertTriangle} color="#ef4444" detail="Alertes critiques necessitant une action immediate" />
+              <CarteStats label="Haute sev. (24h)" value={data.summary.highEvents24h} icon={ShieldAlert} color="#f97316" detail="Alertes de haute severite a verifier" />
+              <CarteStats label="Bloques (24h)" value={data.summary.blockedEvents24h} icon={ShieldX} color="#f59e0b" detail="Requetes bloquees par les defenses" />
+              <CarteStats label="IPs bloquees" value={data.summary.blockedIPsActifs} icon={Ban} color="#dc2626" detail="Adresses IP actuellement bannies" />
             </div>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              Actualiser
-            </Button>
-          </div>
-        </div>
 
-        {/* Banniere menace */}
-        <BanniereMenace
-          level={data.threatLevel}
-          onVoirCritiques={() => toggleSection('critiques')}
-        />
+            {/* Graphiques */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <GraphiqueHoraire data={data.hourlyTrend} />
+              <GraphiqueQuotidien data={data.dailyTrend} />
+            </div>
 
-        {/* Statistiques principales */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          <CarteStats label="Evenements (1h)" value={data.summary.totalEvents1h} icon={Clock} color="#6366f1" detail="Nombre d'evenements de securite detectes dans la derniere heure" />
-          <CarteStats label="Evenements (24h)" value={data.summary.totalEvents24h} icon={Activity} color="#8b5cf6" detail="Total sur les dernieres 24 heures" />
-          <CarteStats label="Critiques (24h)" value={data.summary.criticalEvents24h} icon={AlertTriangle} color="#ef4444" detail="Evenements de severite critique necessitant une attention immediate" />
-          <CarteStats label="Haute sev. (24h)" value={data.summary.highEvents24h} icon={ShieldAlert} color="#f97316" detail="Evenements de haute severite a verifier" />
-          <CarteStats label="Bloques (24h)" value={data.summary.blockedEvents24h} icon={ShieldX} color="#f59e0b" detail="Requetes qui ont ete bloquees par le systeme de defense" />
-          <CarteStats label="IPs bloquees" value={data.summary.blockedIPsActifs} icon={Ban} color="#dc2626" detail="Nombre d'adresses IP actuellement bannies" />
-        </div>
+            {/* Types + Severite + Empreinte */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <RepartitionAttaques attackTypes={data.attackTypes} />
+              <GraphiqueSeverite data={data.severityBreakdown} />
+              <StatsEmpreinteNumerique deviceStats={data.deviceStats} recentEvents={data.recentEvents} />
+            </div>
 
-        {/* Graphiques */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <GraphiqueHoraire data={data.hourlyTrend} />
-          <GraphiqueQuotidien data={data.dailyTrend} />
-        </div>
+            {/* Recommandations */}
+            <RecommandationsCorrections data={data} />
 
-        {/* Types d'attaques + Severite + Appareils */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <RepartitionAttaques attackTypes={data.attackTypes} />
-          <GraphiqueSeverite data={data.severityBreakdown} />
-          <StatsEmpreinteNumerique deviceStats={data.deviceStats} />
-        </div>
-
-        {/* Alertes critiques (repliable) */}
-        {data.criticalEvents.length > 0 && (
-          <div>
-            <button
-              onClick={() => toggleSection('critiques')}
-              className="flex items-center gap-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors mb-2"
-            >
-              {sectionOuverte === 'critiques' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              <AlertOctagon className="h-4 w-4" />
-              Alertes critiques ({data.criticalEvents.length})
-            </button>
-            {sectionOuverte === 'critiques' && (
-              <AlertesCritiques events={data.criticalEvents} onInvestigateIP={setInvestigatingIP} />
+            {/* Alertes critiques */}
+            {data.criticalEvents.length > 0 && (
+              <div ref={critiquesRef}>
+                <button
+                  onClick={() => setCritiquesOuvert(!critiquesOuvert)}
+                  className="flex items-center gap-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors mb-2"
+                >
+                  {critiquesOuvert ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  <AlertOctagon className="h-4 w-4" />
+                  Alertes critiques - {data.criticalEvents.length} alerte(s) sur 7 jours
+                </button>
+                {critiquesOuvert && (
+                  <AlertesCritiques events={data.criticalEvents} onInvestigateIP={setInvestigatingIP} />
+                )}
+              </div>
             )}
-          </div>
+
+            {/* IPs + Recidivistes + Bloquees */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <TableauIPsSuspectes ips={data.topSuspiciousIPs} onInvestigate={setInvestigatingIP} onBlock={setBlockingIP} />
+              <TopRecidivistes offenders={data.topOffenderIPs} onInvestigate={setInvestigatingIP} onBlock={setBlockingIP} />
+              <div className="space-y-4">
+                <IPsBloquees blockedIPs={data.blockedIPs} onUnblock={(id) => unblockMutation.mutate(id)} />
+                <CheminsAttaques paths={data.topAttackedPaths} />
+              </div>
+            </div>
+
+            {/* Flux temps reel */}
+            <FluxTempsReel events={data.recentEvents} onInvestigateIP={setInvestigatingIP} />
+          </>
+        ) : (
+          <AnalyseurBackend />
         )}
-
-        {/* IPs suspectes + Recidivistes + IPs bloquees */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <TableauIPsSuspectes
-            ips={data.topSuspiciousIPs}
-            onInvestigate={setInvestigatingIP}
-            onBlock={setBlockingIP}
-          />
-          <TopRecidivistes
-            offenders={data.topOffenderIPs}
-            onInvestigate={setInvestigatingIP}
-            onBlock={setBlockingIP}
-          />
-          <div className="space-y-4">
-            <IPsBloquees
-              blockedIPs={data.blockedIPs}
-              onUnblock={(id) => unblockMutation.mutate(id)}
-            />
-            <CheminsAttaques paths={data.topAttackedPaths} />
-          </div>
-        </div>
-
-        {/* Flux temps reel */}
-        <FluxTempsReel
-          events={data.recentEvents}
-          onSelectEvent={(id) => { const ip = data.recentEvents.find(e => e._id === id)?.ip; if (ip) setInvestigatingIP(ip); }}
-          onInvestigateIP={setInvestigatingIP}
-        />
 
         {/* Modals */}
         {investigatingIP && (
           <ModalInvestigationIP
-            open={!!investigatingIP}
-            onClose={() => setInvestigatingIP(null)}
-            ip={investigatingIP}
+            open={!!investigatingIP} onClose={() => setInvestigatingIP(null)} ip={investigatingIP}
             onBlock={(ip) => { setInvestigatingIP(null); setBlockingIP(ip); }}
           />
         )}
-
         {blockingIP && (
           <ModalBlocageIP
-            open={!!blockingIP}
-            onClose={() => setBlockingIP(null)}
-            ip={blockingIP}
+            open={!!blockingIP} onClose={() => setBlockingIP(null)} ip={blockingIP}
             onConfirm={(ip, raison, duree) => blockMutation.mutate({ ip, raison, duree })}
             isLoading={blockMutation.isPending}
           />

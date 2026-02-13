@@ -179,6 +179,95 @@ export interface SecurityEventDetail {
 }
 
 // ============================================
+// TYPES SANTE BACKEND (HEALTH CHECK)
+// ============================================
+
+export interface CollectionHealth {
+  nom: string
+  statut: 'ok' | 'erreur'
+  documents: number
+  latenceMs: number
+  indexes: number
+  indexManquants?: string[]
+  erreur?: string
+}
+
+export interface IntegriteCheck {
+  nom: string
+  statut: 'ok' | 'alerte' | 'info'
+  valeur: number
+  description: string
+}
+
+export interface BackendHealth {
+  score: number
+  statut: 'sain' | 'degrade' | 'critique'
+  timestamp: string
+  dureeAnalyseMs: number
+  problemes: string[]
+
+  baseDeDonnees: {
+    etat: string
+    pingMs: number
+    nom: string
+    taille: string
+    tailleIndex: string
+    collections: number
+    objets: number
+  }
+
+  collectionsDetails: CollectionHealth[]
+
+  environnement: {
+    requises: { nom: string; present: boolean; longueur: number }[]
+    optionnelles: { nom: string; present: boolean }[]
+    manquantes: string[]
+  }
+
+  systeme: {
+    plateforme: string
+    architecture: string
+    nodeVersion: string
+    uptime: {
+      processus: number
+      systeme: number
+      formatProcessus: string
+      formatSysteme: string
+    }
+    memoire: {
+      rss: string
+      heapTotal: string
+      heapUsed: string
+      external: string
+      heapUsagePct: number
+      rssRaw: number
+      heapUsedRaw: number
+      heapTotalRaw: number
+    }
+    cpus: number
+    memoireSysteme: {
+      total: string
+      libre: string
+      usagePct: number
+    }
+    pid: number
+  }
+
+  securiteEnCours: {
+    evenementsHeure: number
+    evenementsCritiquesHeure: number
+    ipsBloquees: number
+    attaquesNonBloquees: number
+    injections24h: number
+    bruteForce24h: number
+    inscriptionsSuspectes24h: number
+    derniersEvenements: SecurityEvent[]
+  }
+
+  integrite: IntegriteCheck[]
+}
+
+// ============================================
 // SERVICE
 // ============================================
 
@@ -254,6 +343,16 @@ export const securityService = {
     const response = await api.get('/admin/security/blocked-ips', { params })
     if (!response.data.succes) {
       throw new Error(response.data.message || 'Erreur')
+    }
+    return response.data.data
+  },
+
+  async getBackendHealth(): Promise<BackendHealth> {
+    const response = await api.get<ApiResponse<BackendHealth>>(
+      '/admin/security/health'
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur de recuperation de la sante serveur')
     }
     return response.data.data
   },
