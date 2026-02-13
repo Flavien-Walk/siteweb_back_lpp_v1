@@ -29,6 +29,12 @@ import {
   hideProjet,
   unhideProjet,
   deleteProjet,
+  // Edition contenu
+  editCommentaire,
+  editProjet,
+  changeProjetStatus,
+  // Surveillance
+  toggleSurveillance,
 } from '../controllers/moderationController.js';
 
 const router = Router();
@@ -125,6 +131,13 @@ router.post('/content/publication/:id/unhide', requirePermission('content:hide')
 router.delete('/content/publication/:id', requirePermission('content:delete'), deletePublication);
 
 /**
+ * PATCH /api/moderation/content/commentaire/:id
+ * Editer un commentaire
+ * Permission: content:edit
+ */
+router.patch('/content/commentaire/:id', requirePermission('content:edit'), editCommentaire);
+
+/**
  * DELETE /api/moderation/content/commentaire/:id
  * Supprimer un commentaire
  * Permission: content:delete
@@ -171,6 +184,20 @@ router.delete('/stories/:id', requirePermission('content:delete'), deleteStoryMo
 // ============ ROUTES PROJETS ============
 
 /**
+ * PATCH /api/moderation/content/projet/:id
+ * Editer un projet
+ * Permission: content:edit
+ */
+router.patch('/content/projet/:id', requirePermission('content:edit'), editProjet);
+
+/**
+ * PATCH /api/moderation/content/projet/:id/status
+ * Changer le statut d'un projet
+ * Permission: content:edit
+ */
+router.patch('/content/projet/:id/status', requirePermission('content:edit'), changeProjetStatus);
+
+/**
  * POST /api/moderation/content/projet/:id/hide
  * Masquer un projet
  * Permission: content:hide
@@ -190,5 +217,14 @@ router.post('/content/projet/:id/unhide', requirePermission('content:hide'), unh
  * Permission: content:delete
  */
 router.delete('/content/projet/:id', requirePermission('content:delete'), deleteProjet);
+
+// ============ SURVEILLANCE ============
+
+/**
+ * POST /api/moderation/users/:id/surveillance
+ * Toggle surveillance
+ * Permission: users:warn
+ */
+router.post('/users/:id/surveillance', requirePermission('users:warn'), toggleSurveillance);
 
 export default router;

@@ -8,6 +8,9 @@ export interface ICommentaire extends Document {
   likes: mongoose.Types.ObjectId[];
   reponseA?: mongoose.Types.ObjectId; // Commentaire parent (pour les réponses)
   modifie: boolean; // Indique si le commentaire a été modifié
+  editedBy?: mongoose.Types.ObjectId; // Modérateur qui a édité
+  editReason?: string; // Raison de l'édition par modération
+  editedAt?: Date; // Date de l'édition par modération
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -43,6 +46,20 @@ const commentaireSchema = new Schema<ICommentaire>(
     modifie: {
       type: Boolean,
       default: false,
+    },
+    editedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'Utilisateur',
+      default: null,
+    },
+    editReason: {
+      type: String,
+      maxlength: [500, 'La raison ne peut pas dépasser 500 caractères'],
+      default: null,
+    },
+    editedAt: {
+      type: Date,
+      default: null,
     },
   },
   {

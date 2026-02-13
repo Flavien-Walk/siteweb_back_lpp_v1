@@ -19,6 +19,10 @@ export type AuditAction =
   | 'content:unhide'
   | 'content:delete'
   | 'content:restore'
+  | 'content:edit'
+  // Actions de surveillance
+  | 'user:surveillance_on'
+  | 'user:surveillance_off'
   // Actions sur les signalements
   | 'report:process'
   | 'report:escalate'
@@ -137,7 +141,8 @@ const auditLogSchema = new Schema<IAuditLog>(
         'user:warn', 'user:warn_remove', 'user:suspend', 'user:unsuspend',
         'user:ban', 'user:unban', 'user:role_change',
         'user:permission_add', 'user:permission_remove',
-        'content:hide', 'content:unhide', 'content:delete', 'content:restore',
+        'content:hide', 'content:unhide', 'content:delete', 'content:restore', 'content:edit',
+        'user:surveillance_on', 'user:surveillance_off',
         'report:process', 'report:escalate', 'report:dismiss', 'report:assign',
         'config:update',
         'staff:login', 'staff:logout',

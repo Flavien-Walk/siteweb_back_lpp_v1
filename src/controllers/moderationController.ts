@@ -1113,8 +1113,9 @@ export const getUserModerationDetails = async (
     }
 
     const user = await Utilisateur.findById(userId)
-      .select('prenom nom email avatar role permissions bannedAt banReason suspendedUntil suspendReason warnings moderation dateCreation')
-      .populate('warnings.issuedBy', '_id prenom nom');
+      .select('prenom nom email avatar role permissions bannedAt banReason suspendedUntil suspendReason warnings moderation surveillance dateCreation')
+      .populate('warnings.issuedBy', '_id prenom nom')
+      .populate('surveillance.addedBy', '_id prenom nom');
 
     if (!user) {
       throw new ErreurAPI('Utilisateur non trouvé', 404);
@@ -1129,6 +1130,12 @@ export const getUserModerationDetails = async (
     // Calculer warnings avant prochaine sanction
     const warnCount = user.moderation?.warnCountSinceLastAutoSuspension || 0;
     const warningsBeforeNextSanction = Math.max(0, WARNINGS_BEFORE_AUTO_SUSPENSION - warnCount);
+
+    // Compter les reports reçus
+    const reportsReceivedCount = await Report.countDocuments({
+      targetId: new mongoose.Types.ObjectId(userId),
+      targetType: 'utilisateur',
+    });
 
     res.status(200).json({
       succes: true,
@@ -1160,6 +1167,8 @@ export const getUserModerationDetails = async (
           autoSuspensionsCount: user.moderation?.autoSuspensionsCount || 0,
           lastAutoActionAt: user.moderation?.lastAutoActionAt || null,
         },
+        surveillance: user.surveillance || { active: false, notes: [] },
+        reportsReceivedCount,
       },
     });
   } catch (error) {
@@ -3068,6 +3077,424 @@ export const listEvenements = async (
       data: {
         evenements,
         pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============ EDITION CONTENU (MODERATION) ============
+
+/**
+ * Editer le contenu d'un commentaire
+ * PATCH /api/moderation/content/commentaire/:id
+ */
+export const editCommentaire = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const commentaireId = req.params.id;
+    const moderator = req.utilisateur!;
+    const { contenu, reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(commentaireId)) {
+      throw new ErreurAPI('ID commentaire invalide', 400);
+    }
+
+    if (!contenu || typeof contenu !== 'string' || contenu.trim().length === 0) {
+      throw new ErreurAPI('Le contenu est requis', 400);
+    }
+
+    if (contenu.length > 1000) {
+      throw new ErreurAPI('Le commentaire ne peut pas dépasser 1000 caractères', 400);
+    }
+
+    const commentaire = await Commentaire.findById(commentaireId);
+    if (!commentaire) {
+      throw new ErreurAPI('Commentaire non trouvé', 404);
+    }
+
+    const oldContenu = commentaire.contenu;
+
+    commentaire.contenu = contenu.trim();
+    commentaire.modifie = true;
+    commentaire.editedBy = moderator._id;
+    commentaire.editReason = reason || 'Modifié par la modération';
+    commentaire.editedAt = new Date();
+    await commentaire.save();
+
+    await auditLogger.log(req, {
+      action: 'content:edit',
+      targetType: 'commentaire',
+      targetId: commentaire._id,
+      reason: reason || 'Commentaire modifié par la modération',
+      snapshot: {
+        before: { contenu: oldContenu },
+        after: { contenu: contenu.trim() },
+      },
+    });
+
+    res.status(200).json({
+      succes: true,
+      message: 'Commentaire modifié.',
+      data: { commentaire },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Editer les champs d'un projet
+ * PATCH /api/moderation/content/projet/:id
+ */
+export const editProjet = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const projetId = req.params.id;
+    const moderator = req.utilisateur!;
+    const { nom, description, pitch, categorie, maturite, secteur, reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(projetId)) {
+      throw new ErreurAPI('ID projet invalide', 400);
+    }
+
+    const projet = await Projet.findById(projetId);
+    if (!projet) {
+      throw new ErreurAPI('Projet non trouvé', 404);
+    }
+
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+
+    if (nom !== undefined) { before.nom = (projet as any).nom; (projet as any).nom = nom; after.nom = nom; }
+    if (description !== undefined) { before.description = (projet as any).description; (projet as any).description = description; after.description = description; }
+    if (pitch !== undefined) { before.pitch = (projet as any).pitch; (projet as any).pitch = pitch; after.pitch = pitch; }
+    if (categorie !== undefined) { before.categorie = (projet as any).categorie; (projet as any).categorie = categorie; after.categorie = categorie; }
+    if (maturite !== undefined) { before.maturite = (projet as any).maturite; (projet as any).maturite = maturite; after.maturite = maturite; }
+    if (secteur !== undefined) { before.secteur = (projet as any).secteur; (projet as any).secteur = secteur; after.secteur = secteur; }
+
+    if (Object.keys(after).length === 0) {
+      throw new ErreurAPI('Aucun champ à modifier', 400);
+    }
+
+    await projet.save();
+
+    await auditLogger.log(req, {
+      action: 'content:edit',
+      targetType: 'projet',
+      targetId: projet._id,
+      reason: reason || 'Projet modifié par la modération',
+      snapshot: { before, after },
+    });
+
+    res.status(200).json({
+      succes: true,
+      message: 'Projet modifié.',
+      data: { projet },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Changer le statut d'un projet (draft/published)
+ * PATCH /api/moderation/content/projet/:id/status
+ */
+export const changeProjetStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const projetId = req.params.id;
+    const { statut, reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(projetId)) {
+      throw new ErreurAPI('ID projet invalide', 400);
+    }
+
+    if (!statut || !['draft', 'published'].includes(statut)) {
+      throw new ErreurAPI('Statut invalide (draft ou published)', 400);
+    }
+
+    const projet = await Projet.findById(projetId);
+    if (!projet) {
+      throw new ErreurAPI('Projet non trouvé', 404);
+    }
+
+    const oldStatut = (projet as any).statut;
+    if (oldStatut === statut) {
+      throw new ErreurAPI(`Le projet est déjà en statut "${statut}"`, 400);
+    }
+
+    (projet as any).statut = statut;
+    await projet.save();
+
+    await auditLogger.log(req, {
+      action: 'content:edit',
+      targetType: 'projet',
+      targetId: projet._id,
+      reason: reason || `Statut changé de ${oldStatut} à ${statut}`,
+      snapshot: {
+        before: { statut: oldStatut },
+        after: { statut },
+      },
+    });
+
+    res.status(200).json({
+      succes: true,
+      message: `Projet passé en "${statut}".`,
+      data: { projet },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Toggle surveillance sur un utilisateur
+ * POST /api/moderation/users/:id/surveillance
+ */
+export const toggleSurveillance = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.params.id;
+    const moderator = req.utilisateur!;
+    const { active, reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ErreurAPI('ID utilisateur invalide', 400);
+    }
+
+    if (typeof active !== 'boolean') {
+      throw new ErreurAPI('Le champ "active" (boolean) est requis', 400);
+    }
+
+    const user = await Utilisateur.findById(userId);
+    if (!user) {
+      throw new ErreurAPI('Utilisateur non trouvé', 404);
+    }
+
+    if (!canModerate(moderator, user)) {
+      throw new ErreurAPI("Vous ne pouvez pas modifier la surveillance de cet utilisateur", 403);
+    }
+
+    if (active) {
+      user.surveillance = {
+        active: true,
+        reason: reason || 'Mis sous surveillance',
+        addedBy: moderator._id,
+        addedAt: new Date(),
+        notes: user.surveillance?.notes || [],
+      };
+    } else {
+      user.surveillance = {
+        active: false,
+        reason: undefined,
+        addedBy: undefined,
+        addedAt: undefined,
+        notes: user.surveillance?.notes || [],
+      };
+    }
+
+    await user.save();
+
+    await auditLogger.log(req, {
+      action: active ? 'user:surveillance_on' : 'user:surveillance_off',
+      targetType: 'utilisateur',
+      targetId: user._id,
+      reason: reason || (active ? 'Mis sous surveillance' : 'Retiré de la surveillance'),
+    });
+
+    res.status(200).json({
+      succes: true,
+      message: active ? 'Utilisateur mis sous surveillance.' : 'Surveillance retirée.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Lister les utilisateurs sous surveillance
+ * GET /api/admin/users/surveillance
+ */
+export const listSurveillanceUsers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, unknown> = { 'surveillance.active': true };
+
+    const [users, total] = await Promise.all([
+      Utilisateur.find(filter)
+        .select('_id prenom nom avatar email role warnings surveillance moderation bannedAt suspendedUntil dateCreation')
+        .populate('surveillance.addedBy', '_id prenom nom')
+        .sort({ 'surveillance.addedAt': -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Utilisateur.countDocuments(filter),
+    ]);
+
+    // Compter les reports reçus pour chaque utilisateur
+    const userIds = users.map((u: any) => u._id);
+    const reportCounts = await Report.aggregate([
+      { $match: { targetId: { $in: userIds }, targetType: 'utilisateur' } },
+      { $group: { _id: '$targetId', count: { $sum: 1 } } },
+    ]);
+    const reportMap = new Map(reportCounts.map((r: any) => [r._id.toString(), r.count]));
+
+    const enriched = users.map((u: any) => ({
+      ...u,
+      reportsReceivedCount: reportMap.get(u._id.toString()) || 0,
+    }));
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        users: enriched,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Top utilisateurs à risque (triés par warnings + reports reçus)
+ * GET /api/admin/users/at-risk
+ */
+export const getAtRiskUsers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+
+    // Récupérer les utilisateurs avec au moins 1 warning OU sous surveillance
+    const users = await Utilisateur.find({
+      $or: [
+        { 'warnings.0': { $exists: true } },
+        { 'surveillance.active': true },
+        { suspendedUntil: { $gt: new Date() } },
+      ],
+      bannedAt: null,
+    })
+      .select('_id prenom nom avatar email role warnings surveillance moderation bannedAt suspendedUntil dateCreation')
+      .lean();
+
+    // Récupérer les reports par utilisateur
+    const userIds = users.map((u: any) => u._id);
+    const reportCounts = await Report.aggregate([
+      { $match: { targetId: { $in: userIds }, targetType: 'utilisateur' } },
+      { $group: { _id: '$targetId', count: { $sum: 1 } } },
+    ]);
+    const reportMap = new Map(reportCounts.map((r: any) => [r._id.toString(), r.count]));
+
+    // Calculer un score de risque simplifié côté backend pour le tri
+    const scored = users.map((u: any) => {
+      const warningCount = u.warnings?.length || 0;
+      const reportsCount = reportMap.get(u._id.toString()) || 0;
+      const isSuspended = u.suspendedUntil && new Date(u.suspendedUntil) > new Date();
+      const isSurveilled = u.surveillance?.active;
+
+      let score = warningCount * 8 + reportsCount * 5;
+      if (isSuspended) score += 10;
+      if (isSurveilled) score += 5;
+
+      // Ancienneté du compte
+      const ageMs = Date.now() - new Date(u.dateCreation).getTime();
+      const ageDays = ageMs / (1000 * 60 * 60 * 24);
+      if (ageDays < 7) score += 10;
+      else if (ageDays < 30) score += 5;
+
+      // Suspensions passées
+      const autoSuspensions = u.moderation?.autoSuspensionsCount || 0;
+      score += autoSuspensions * 15;
+
+      return {
+        ...u,
+        reportsReceivedCount: reportsCount,
+        riskScore: Math.min(100, score),
+      };
+    });
+
+    // Trier par score décroissant et limiter
+    scored.sort((a: any, b: any) => b.riskScore - a.riskScore);
+    const top = scored.slice(0, limit);
+
+    res.status(200).json({
+      succes: true,
+      data: { users: top },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Récupérer un commentaire + ses réponses + publication parente
+ * GET /api/admin/commentaires/:id/thread
+ */
+export const getCommentaireThread = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const commentaireId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(commentaireId)) {
+      throw new ErreurAPI('ID commentaire invalide', 400);
+    }
+
+    const commentaire = await Commentaire.findById(commentaireId)
+      .populate('auteur', '_id prenom nom avatar')
+      .populate('editedBy', '_id prenom nom')
+      .lean();
+
+    if (!commentaire) {
+      throw new ErreurAPI('Commentaire non trouvé', 404);
+    }
+
+    // Récupérer les réponses
+    const reponses = await Commentaire.find({ reponseA: commentaireId })
+      .populate('auteur', '_id prenom nom avatar')
+      .populate('editedBy', '_id prenom nom')
+      .sort({ dateCreation: 1 })
+      .lean();
+
+    // Récupérer la publication parente
+    const publication = await Publication.findById(commentaire.publication)
+      .select('_id contenu auteur dateCreation')
+      .populate('auteur', '_id prenom nom avatar')
+      .lean();
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        commentaire,
+        reponses,
+        publication,
       },
     });
   } catch (error) {

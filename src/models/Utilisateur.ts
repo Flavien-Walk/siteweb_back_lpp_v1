@@ -36,6 +36,7 @@ export type Permission =
   | 'content:delete'
   | 'audit:view'
   | 'audit:export'
+  | 'content:edit'
   | 'config:view'
   | 'config:edit'
   | 'staff:chat';
@@ -49,19 +50,19 @@ export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
   admin_modo: [
     'reports:view', 'reports:process', 'reports:escalate',
     'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
-    'content:hide', 'content:delete',
+    'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
   ],
   admin: [ // Legacy: mêmes permissions que admin_modo
     'reports:view', 'reports:process', 'reports:escalate',
     'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
-    'content:hide', 'content:delete',
+    'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
   ],
   super_admin: [
     'reports:view', 'reports:process', 'reports:escalate',
     'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban', 'users:edit_roles',
-    'content:hide', 'content:delete',
+    'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'audit:export',
     'config:view', 'config:edit',
     'staff:chat',
@@ -122,6 +123,14 @@ export interface IUtilisateur extends Document {
   warnings: IWarning[];
   // Tracking pour le systeme de sanctions automatiques
   moderation: IModerationTracking;
+  // Surveillance
+  surveillance: {
+    active: boolean;
+    reason?: string;
+    addedBy?: mongoose.Types.ObjectId;
+    addedAt?: Date;
+    notes: { content: string; author: mongoose.Types.ObjectId; date: Date }[];
+  };
   // Timestamps
   dateCreation: Date;
   dateMiseAJour: Date;
@@ -201,7 +210,7 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       enum: [
         'reports:view', 'reports:process', 'reports:escalate',
         'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban', 'users:edit_roles',
-        'content:hide', 'content:delete',
+        'content:hide', 'content:delete', 'content:edit',
         'audit:view', 'audit:export',
         'config:view', 'config:edit',
         'staff:chat',
@@ -308,6 +317,44 @@ const utilisateurSchema = new Schema<IUtilisateur>(
         type: Date,
         default: Date.now,
       },
+    },
+    // Surveillance
+    surveillance: {
+      active: {
+        type: Boolean,
+        default: false,
+        index: true,
+      },
+      reason: {
+        type: String,
+        maxlength: [500, 'La raison ne peut pas dépasser 500 caractères'],
+        default: null,
+      },
+      addedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'Utilisateur',
+        default: null,
+      },
+      addedAt: {
+        type: Date,
+        default: null,
+      },
+      notes: [{
+        content: {
+          type: String,
+          required: true,
+          maxlength: [500, 'La note ne peut pas dépasser 500 caractères'],
+        },
+        author: {
+          type: Schema.Types.ObjectId,
+          ref: 'Utilisateur',
+          required: true,
+        },
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+      }],
     },
   },
   {

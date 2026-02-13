@@ -55,6 +55,14 @@ import {
   getConversationMessages,
   listLives,
   listEvenements,
+  // Nouvelles fonctions
+  editCommentaire,
+  editProjet,
+  changeProjetStatus,
+  toggleSurveillance,
+  listSurveillanceUsers,
+  getAtRiskUsers,
+  getCommentaireThread,
 } from '../controllers/moderationController.js';
 
 const router = Router();
@@ -89,6 +97,12 @@ router.get('/dashboard/stats', verifierJwt, requireStaff, getDashboard);
 
 // GET /api/admin/users/stats - Statistiques globales des utilisateurs
 router.get('/users/stats', verifierJwt, requirePermission('users:view'), getUsersStats);
+
+// GET /api/admin/users/surveillance - Utilisateurs sous surveillance
+router.get('/users/surveillance', verifierJwt, requirePermission('users:view'), listSurveillanceUsers);
+
+// GET /api/admin/users/at-risk - Utilisateurs à risque
+router.get('/users/at-risk', verifierJwt, requirePermission('users:view'), getAtRiskUsers);
 
 // GET /api/admin/users - Lister les utilisateurs avec filtres
 router.get('/users', verifierJwt, requirePermission('users:view'), listUsers);
@@ -125,6 +139,9 @@ router.post('/users/:id/unban', verifierJwt, requirePermission('users:unban'), u
 
 // PATCH /api/admin/users/:id/role - Changer le rôle d'un utilisateur (alias)
 router.patch('/users/:id/role', verifierJwt, requirePermission('users:edit_roles'), changeUserRole);
+
+// POST /api/admin/users/:id/surveillance - Toggle surveillance (alias)
+router.post('/users/:id/surveillance', verifierJwt, requirePermission('users:warn'), toggleSurveillance);
 
 // ============ SIGNALEMENTS ============
 
@@ -175,7 +192,8 @@ router.get('/audit/actions', verifierJwt, requirePermission('audit:view'), (_req
         'user:warn', 'user:warn_remove', 'user:suspend', 'user:unsuspend',
         'user:ban', 'user:unban', 'user:role_change',
         'user:permission_add', 'user:permission_remove',
-        'content:hide', 'content:unhide', 'content:delete', 'content:restore',
+        'user:surveillance_on', 'user:surveillance_off',
+        'content:hide', 'content:unhide', 'content:delete', 'content:restore', 'content:edit',
         'report:process', 'report:escalate', 'report:dismiss', 'report:assign',
         'config:update', 'staff:login', 'staff:logout',
       ],
@@ -236,6 +254,12 @@ router.get('/publications/:id', verifierJwt, requirePermission('content:hide'), 
 // GET /api/admin/commentaires - Lister les commentaires
 router.get('/commentaires', verifierJwt, requirePermission('content:hide'), listCommentaires);
 
+// GET /api/admin/commentaires/:id/thread - Thread d'un commentaire
+router.get('/commentaires/:id/thread', verifierJwt, requirePermission('content:hide'), getCommentaireThread);
+
+// PATCH /api/admin/commentaires/:id - Editer un commentaire (alias)
+router.patch('/commentaires/:id', verifierJwt, requirePermission('content:edit'), editCommentaire);
+
 // ============ PROJETS ============
 
 // GET /api/admin/projets - Lister les projets
@@ -243,6 +267,12 @@ router.get('/projets', verifierJwt, requirePermission('content:hide'), listProje
 
 // GET /api/admin/projets/:id - Détail d'un projet
 router.get('/projets/:id', verifierJwt, requirePermission('content:hide'), getProjetDetail);
+
+// PATCH /api/admin/projets/:id - Editer un projet (alias)
+router.patch('/projets/:id', verifierJwt, requirePermission('content:edit'), editProjet);
+
+// PATCH /api/admin/projets/:id/status - Changer statut projet (alias)
+router.patch('/projets/:id/status', verifierJwt, requirePermission('content:edit'), changeProjetStatus);
 
 // ============ CONVERSATIONS ============
 
