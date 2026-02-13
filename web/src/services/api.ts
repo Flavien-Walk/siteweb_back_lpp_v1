@@ -2,7 +2,9 @@
 // Based on mobile service but adapted for web (localStorage)
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://siteweb-back-lpp-v1.onrender.com/api';
-export const SOCKET_URL = 'https://siteweb-back-lpp-v1.onrender.com';
+// Dériver l'URL Socket du VITE_API_URL (retirer /api) ou fallback
+export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
+  || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, '') : 'https://siteweb-back-lpp-v1.onrender.com');
 
 export interface ReponseAPI<T = unknown> {
   succes: boolean;
@@ -92,6 +94,26 @@ export const requeteAPI = async <T>(
         succes: false,
         message: 'Session expirée. Veuillez vous reconnecter.',
         erreurs: { code: 'AUTH_TOKEN_EXPIRED' },
+      };
+    }
+
+    // Gérer les comptes bannis/suspendus (403 avec code spécifique)
+    if (response.status === 403 && data.code === 'ACCOUNT_BANNED') {
+      removeToken();
+      window.location.href = '/connexion';
+      return {
+        succes: false,
+        message: data.message || 'Votre compte a été suspendu définitivement.',
+        erreurs: { code: 'ACCOUNT_BANNED' },
+      };
+    }
+    if (response.status === 403 && data.code === 'ACCOUNT_SUSPENDED') {
+      removeToken();
+      window.location.href = '/connexion';
+      return {
+        succes: false,
+        message: data.message || 'Votre compte est temporairement suspendu.',
+        erreurs: { code: 'ACCOUNT_SUSPENDED' },
       };
     }
 

@@ -41,6 +41,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       console.log('[Socket] Disconnected:', reason);
     });
 
+    // Gérer la déconnexion forcée (ban/suspension en temps réel)
+    newSocket.on('force_disconnect', (data: { reason: string }) => {
+      console.warn('[Socket] Force disconnect:', data.reason);
+      localStorage.removeItem('lpp_token');
+      localStorage.removeItem('lpp_utilisateur');
+      window.location.href = '/connexion';
+    });
+
     setSocket(newSocket);
 
     return () => {

@@ -107,3 +107,11 @@ export const modifierCommentaire = async (publicationId: string, commentaireId: 
 export const signalerPublication = async (publicationId: string, raison: RaisonSignalement, details?: string): Promise<ReponseAPI<{ message: string }>> => {
   return api.post('/reports', { targetType: 'post', targetId: publicationId, reason: raison, details }, true);
 };
+
+export const signalerCommentaire = async (commentaireId: string, raison: RaisonSignalement, details?: string): Promise<ReponseAPI<{ message: string }>> => {
+  return api.post('/reports', { targetType: 'commentaire', targetId: commentaireId, reason: raison, details }, true);
+};
+
+export const signalerUtilisateur = async (utilisateurId: string, raison: RaisonSignalement, details?: string): Promise<ReponseAPI<{ message: string }>> => {
+  return api.post('/reports', { targetType: 'utilisateur', targetId: utilisateurId, reason: raison, details }, true);
+};
