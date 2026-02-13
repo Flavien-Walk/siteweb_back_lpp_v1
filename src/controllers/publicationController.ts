@@ -111,7 +111,7 @@ export const getPublications = async (
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar role statut')
+        .populate('auteur', 'prenom nom avatar')
         .populate('projet', 'nom image'),
       Publication.countDocuments(filtre),
     ]);
@@ -162,7 +162,7 @@ export const getPublication = async (
     }
 
     const publication = await Publication.findById(id)
-      .populate('auteur', 'prenom nom avatar role statut')
+      .populate('auteur', 'prenom nom avatar')
       .populate('projet', 'nom image');
 
     if (!publication) {
@@ -285,7 +285,7 @@ export const creerPublication = async (
 
     // Récupérer avec les infos de l'auteur
     const publicationComplete = await Publication.findById(publication._id)
-      .populate('auteur', 'prenom nom avatar role statut');
+      .populate('auteur', 'prenom nom avatar');
 
     res.status(201).json({
       succes: true,
@@ -396,7 +396,7 @@ export const modifierPublication = async (
 
     // Récupérer avec les infos de l'auteur
     const publicationComplete = await Publication.findById(id)
-      .populate('auteur', 'prenom nom avatar role statut');
+      .populate('auteur', 'prenom nom avatar');
 
     res.json({
       succes: true,
@@ -536,7 +536,7 @@ export const getCommentaires = async (
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar role statut'),
+        .populate('auteur', 'prenom nom avatar'),
       Commentaire.countDocuments({ publication: id, reponseA: null }),
     ]);
 
@@ -545,7 +545,7 @@ export const getCommentaires = async (
       commentaires.map(async (commentaire) => {
         const reponses = await Commentaire.find({ reponseA: commentaire._id })
           .sort({ dateCreation: 1 })
-          .populate('auteur', 'prenom nom avatar role statut');
+          .populate('auteur', 'prenom nom avatar');
 
         const commentaireObj = commentaire.toObject();
         return {
@@ -636,7 +636,7 @@ export const ajouterCommentaire = async (
 
     // Récupérer avec les infos de l'auteur
     const commentaireComplet = await Commentaire.findById(commentaire._id)
-      .populate('auteur', 'prenom nom avatar role statut');
+      .populate('auteur', 'prenom nom avatar');
 
     // Créer une notification pour l'auteur de la publication (si ce n'est pas lui-même qui commente)
     const auteurPublicationId = publication.auteur.toString();
@@ -752,7 +752,7 @@ export const modifierCommentaire = async (
 
     // Récupérer avec les infos de l'auteur
     const commentaireComplet = await Commentaire.findById(comId)
-      .populate('auteur', 'prenom nom avatar role statut');
+      .populate('auteur', 'prenom nom avatar');
 
     res.json({
       succes: true,

@@ -23,6 +23,7 @@ import moderationRoutes from './routes/moderationRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
+import { securityMonitor } from './middlewares/securityMonitor.js';
 
 /**
  * Créer et configurer l'application Express
@@ -139,6 +140,18 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   });
 
+  // VULN-03: Rate limiter strict pour inscription (3 comptes par heure par IP)
+  const limiterInscription = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 heure
+    max: 3, // max 3 inscriptions par heure par IP
+    message: {
+      succes: false,
+      message: 'Trop de tentatives d\'inscription. Veuillez réessayer plus tard.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Rate limiter spécifique pour les actions admin/modération
   // Plus restrictif pour éviter les abus
   const limiterAdmin = rateLimit({
@@ -202,9 +215,12 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   });
 
+  // Middleware de detection d'intrusion (avant les routes, apres le parsing)
+  app.use('/api/', securityMonitor);
+
   app.use('/api/', limiter);
   app.use('/api/auth/connexion', limiterAuth);
-  app.use('/api/auth/inscription', limiterAuth);
+  app.use('/api/auth/inscription', limiterInscription);
   app.use('/api/auth/moi', limiterHeartbeat); // P0-4: Rate limit sur heartbeat
   app.use('/api/admin/', limiterAdmin);
   app.use('/api/moderation/', limiterAdmin);
