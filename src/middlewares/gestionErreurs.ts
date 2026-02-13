@@ -18,8 +18,12 @@ export const gestionErreurs = (
   res: Response,
   _next: NextFunction
 ): void => {
-  // Log de l'erreur (toujours, pour diagnostiquer en production)
-  console.error('❌ Erreur:', err.name, err.message, err.code || '', err.stack?.split('\n')[1] || '');
+  // Log de l'erreur sans PII (RGPD-friendly)
+  // Ne jamais logger: email, token, mot de passe, donnees personnelles
+  const safeMessage = err.message
+    ?.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL]')
+    ?.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [TOKEN]');
+  console.error('[ERROR]', err.name, safeMessage, err.code || '', err.stack?.split('\n')[1] || '');
 
   // Erreur de validation Zod
   if (err instanceof ZodError) {

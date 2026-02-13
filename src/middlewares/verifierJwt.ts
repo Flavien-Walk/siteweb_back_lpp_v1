@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifierToken, extraireTokenDuHeader, PayloadJWT } from '../utils/tokens.js';
 import Utilisateur, { IUtilisateur } from '../models/Utilisateur.js';
+import { isTokenBlacklisted } from '../models/TokenBlacklist.js';
 
 // Extension de l'interface Request pour inclure l'utilisateur
 declare global {
@@ -41,6 +42,15 @@ export const verifierJwt = async (
       res.status(401).json({
         succes: false,
         message: 'Token invalide ou expiré.',
+      });
+      return;
+    }
+
+    // Verifier si le token est blackliste (deconnexion serveur)
+    if (await isTokenBlacklisted(token)) {
+      res.status(401).json({
+        succes: false,
+        message: 'Session terminée. Veuillez vous reconnecter.',
       });
       return;
     }

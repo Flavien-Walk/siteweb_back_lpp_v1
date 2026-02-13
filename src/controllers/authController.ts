@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import Utilisateur from '../models/Utilisateur.js';
-import { genererToken } from '../utils/tokens.js';
+import { genererToken, extraireTokenDuHeader } from '../utils/tokens.js';
+import { blacklistToken } from '../models/TokenBlacklist.js';
+import jwt from 'jsonwebtoken';
 import { schemaInscription, schemaConnexion } from '../utils/validation.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import {
@@ -796,6 +798,45 @@ export const getModerationStatus = async (
           banReason: utilisateur.banReason,
         }),
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Deconnexion - Invalider le token JWT actuel
+ * POST /api/auth/deconnexion
+ *
+ * Securite:
+ * - Blackliste le token actuel dans MongoDB (TTL auto-suppression)
+ * - Le token ne pourra plus etre utilise meme s'il n'est pas expire
+ */
+export const deconnexion = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const token = extraireTokenDuHeader(req.headers.authorization);
+
+    if (token) {
+      try {
+        // Decoder le token pour recuperer la date d'expiration
+        const decoded = jwt.decode(token) as { exp?: number; id?: string } | null;
+        if (decoded?.exp) {
+          const expiresAt = new Date(decoded.exp * 1000);
+          const userId = req.utilisateur?._id?.toString() || decoded.id || '';
+          await blacklistToken(token, userId, expiresAt);
+        }
+      } catch {
+        // Si le token est invalide, pas grave - l'utilisateur est quand meme deconnecte
+      }
+    }
+
+    res.json({
+      succes: true,
+      message: 'Deconnexion reussie.',
     });
   } catch (error) {
     next(error);

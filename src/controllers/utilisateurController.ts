@@ -332,25 +332,15 @@ export const annulerDemandeAmi = async (
       return;
     }
 
-    const [utilisateur, cible] = await Promise.all([
-      Utilisateur.findById(userId),
-      Utilisateur.findById(cibleId),
+    // Atomic $pull pour eviter les race conditions
+    await Promise.all([
+      Utilisateur.findByIdAndUpdate(userId, {
+        $pull: { demandesAmisEnvoyees: new mongoose.Types.ObjectId(cibleId) },
+      }),
+      Utilisateur.findByIdAndUpdate(cibleId, {
+        $pull: { demandesAmisRecues: userId },
+      }),
     ]);
-
-    if (!utilisateur || !cible) {
-      res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
-      return;
-    }
-
-    // Retirer la demande
-    utilisateur.demandesAmisEnvoyees = utilisateur.demandesAmisEnvoyees?.filter(
-      (d) => d.toString() !== cibleId
-    );
-    cible.demandesAmisRecues = cible.demandesAmisRecues?.filter(
-      (d) => d.toString() !== userId.toString()
-    );
-
-    await Promise.all([utilisateur.save(), cible.save()]);
 
     // Supprimer la notification de demande d'ami chez la cible
     await Notification.deleteMany({
@@ -524,35 +514,26 @@ export const supprimerAmi = async (
       return;
     }
 
-    const [utilisateur, ami] = await Promise.all([
-      Utilisateur.findById(userId),
-      Utilisateur.findById(amiId),
+    const amiObjectId = new mongoose.Types.ObjectId(amiId);
+
+    // Atomic $pull pour eviter les race conditions
+    // Retire amis + demandes residuelles en une seule operation par document
+    await Promise.all([
+      Utilisateur.findByIdAndUpdate(userId, {
+        $pull: {
+          amis: amiObjectId,
+          demandesAmisRecues: amiObjectId,
+          demandesAmisEnvoyees: amiObjectId,
+        },
+      }),
+      Utilisateur.findByIdAndUpdate(amiId, {
+        $pull: {
+          amis: userId,
+          demandesAmisRecues: userId,
+          demandesAmisEnvoyees: userId,
+        },
+      }),
     ]);
-
-    if (!utilisateur || !ami) {
-      res.status(404).json({ succes: false, message: 'Utilisateur non trouvé.' });
-      return;
-    }
-
-    // Retirer des amis
-    utilisateur.amis = utilisateur.amis?.filter((a) => a.toString() !== amiId);
-    ami.amis = ami.amis?.filter((a) => a.toString() !== userId.toString());
-
-    // Nettoyer aussi les demandes d'amis résiduelles (éviter les incohérences)
-    utilisateur.demandesAmisRecues = utilisateur.demandesAmisRecues?.filter(
-      (d) => d.toString() !== amiId
-    );
-    utilisateur.demandesAmisEnvoyees = utilisateur.demandesAmisEnvoyees?.filter(
-      (d) => d.toString() !== amiId
-    );
-    ami.demandesAmisRecues = ami.demandesAmisRecues?.filter(
-      (d) => d.toString() !== userId.toString()
-    );
-    ami.demandesAmisEnvoyees = ami.demandesAmisEnvoyees?.filter(
-      (d) => d.toString() !== userId.toString()
-    );
-
-    await Promise.all([utilisateur.save(), ami.save()]);
 
     // Nettoyer toutes les notifications d'amitié entre les deux utilisateurs
     // (demande_ami et ami_accepte dans les deux sens)

@@ -170,6 +170,16 @@ notificationSchema.index(
   }
 );
 
+// TTL: suppression automatique des notifications lues apres 90 jours (RGPD retention)
+// Note: les notifications non-lues ne sont PAS concernees (partialFilterExpression)
+notificationSchema.index(
+  { dateCreation: 1 },
+  {
+    expireAfterSeconds: 90 * 24 * 60 * 60, // 90 jours
+    partialFilterExpression: { lue: true },
+  }
+);
+
 const Notification = mongoose.model<INotification>('Notification', notificationSchema);
 
 export default Notification;

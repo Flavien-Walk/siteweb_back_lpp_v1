@@ -5,6 +5,8 @@ import Notification from '../models/Notification.js';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
 import { Message, Conversation } from '../models/Message.js';
+import Projet from '../models/Projet.js';
+import Report from '../models/Report.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { uploadAvatar, isBase64DataUrl, isHttpUrl } from '../utils/cloudinary.js';
 
@@ -465,4 +467,138 @@ export const genererAvatarDefaut = (userId: string): string => {
   // Utilise le hash de l'ID pour choisir un avatar de façon déterministe
   const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return AVATARS_DEFAUT[hash % AVATARS_DEFAUT.length];
+};
+
+/**
+ * GET /api/profil/export
+ * Export des donnees personnelles (RGPD - Droit d'acces / DSAR)
+ *
+ * Retourne toutes les donnees personnelles de l'utilisateur au format JSON :
+ * - Informations de profil
+ * - Publications et commentaires
+ * - Messages (contenu chiffre exclu)
+ * - Notifications
+ * - Projets crees
+ * - Signalements envoyes
+ * - Relations d'amitie
+ */
+export const exporterDonnees = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.utilisateur!._id;
+
+    // Recuperer les donnees en parallele
+    const [
+      utilisateur,
+      publications,
+      commentaires,
+      notifications,
+      projets,
+      reports,
+      conversations,
+    ] = await Promise.all([
+      Utilisateur.findById(userId)
+        .select('-motDePasse -__v')
+        .lean(),
+      Publication.find({ auteur: userId, auteurType: 'Utilisateur' })
+        .select('contenu medias datePublication likes')
+        .lean(),
+      Commentaire.find({ auteur: userId })
+        .select('contenu dateCreation publication')
+        .lean(),
+      Notification.find({ destinataire: userId })
+        .select('type titre message dateCreation lue')
+        .sort({ dateCreation: -1 })
+        .limit(500)
+        .lean(),
+      Projet.find({ porteur: userId })
+        .select('nom description pitch categorie maturite dateCreation statut')
+        .lean(),
+      Report.find({ reporter: userId })
+        .select('targetType reason details status dateCreation')
+        .lean(),
+      Conversation.find({ participants: userId })
+        .select('estGroupe nom participants dateCreation')
+        .lean(),
+    ]);
+
+    if (!utilisateur) {
+      throw new ErreurAPI('Utilisateur non trouve.', 404);
+    }
+
+    // Construire l'export sans donnees sensibles internes
+    const exportData = {
+      _meta: {
+        exportDate: new Date().toISOString(),
+        format: 'JSON',
+        description: 'Export de vos donnees personnelles (RGPD - Droit d\'acces)',
+      },
+      profil: {
+        id: utilisateur._id,
+        prenom: utilisateur.prenom,
+        nom: utilisateur.nom,
+        email: utilisateur.email,
+        bio: utilisateur.bio,
+        avatar: utilisateur.avatar,
+        statut: utilisateur.statut,
+        role: utilisateur.role,
+        provider: utilisateur.provider,
+        profilPublic: utilisateur.profilPublic,
+        dateCreation: utilisateur.dateCreation,
+        nbAmis: utilisateur.amis?.length || 0,
+      },
+      publications: publications.map((p: any) => ({
+        id: p._id,
+        contenu: p.contenu,
+        medias: p.medias?.length || 0,
+        datePublication: p.datePublication,
+        nbLikes: p.likes?.length || 0,
+      })),
+      commentaires: commentaires.map((c: any) => ({
+        id: c._id,
+        contenu: c.contenu,
+        dateCreation: c.dateCreation,
+        publication: c.publication,
+      })),
+      notifications: {
+        total: notifications.length,
+        recentes: notifications.slice(0, 50).map((n: any) => ({
+          type: n.type,
+          titre: n.titre,
+          date: n.dateCreation,
+          lue: n.lue,
+        })),
+      },
+      projets: projets.map((p: any) => ({
+        id: p._id,
+        nom: p.nom,
+        description: p.description,
+        categorie: p.categorie,
+        statut: p.statut,
+        dateCreation: p.dateCreation,
+      })),
+      signalements: reports.map((r: any) => ({
+        id: r._id,
+        type: r.targetType,
+        raison: r.reason,
+        statut: r.status,
+        dateCreation: r.dateCreation,
+      })),
+      conversations: {
+        total: conversations.length,
+        groupes: conversations.filter((c: any) => c.estGroupe).length,
+        privees: conversations.filter((c: any) => !c.estGroupe).length,
+      },
+    };
+
+    res.json({
+      succes: true,
+      data: exportData,
+    });
+  } catch (error) {
+    next(error);
+  }
 };

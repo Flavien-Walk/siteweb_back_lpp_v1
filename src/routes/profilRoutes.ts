@@ -6,6 +6,7 @@ import {
   getAvatarsDefaut,
   modifierAvatar,
   modifierStatut,
+  exporterDonnees,
 } from '../controllers/profilController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -45,6 +46,12 @@ router.patch('/avatar', modifierAvatar);
  * Modifier le statut (visiteur ou entrepreneur)
  */
 router.patch('/statut', modifierStatut);
+
+/**
+ * GET /api/profil/export
+ * Export des donnees personnelles (RGPD - Droit d'acces)
+ */
+router.get('/export', exporterDonnees);
 
 /**
  * DELETE /api/profil

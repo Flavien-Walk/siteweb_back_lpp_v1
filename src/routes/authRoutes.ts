@@ -3,6 +3,7 @@ import passport from 'passport';
 import {
   inscription,
   connexion,
+  deconnexion,
   moi,
   callbackOAuth,
   getOAuthToken,
@@ -48,6 +49,12 @@ router.post('/inscription', inscription);
  * Connexion d'un utilisateur existant
  */
 router.post('/connexion', connexion);
+
+/**
+ * POST /api/auth/deconnexion
+ * Deconnexion - invalide le token JWT actuel (blacklist)
+ */
+router.post('/deconnexion', verifierJwt, deconnexion);
 
 /**
  * GET /api/auth/moi
