@@ -78,6 +78,7 @@ const navSections: NavSection[] = [
       { label: 'Statistiques', href: '/statistics', icon: <BarChart3 className="h-4 w-4" />, permission: 'audit:view' },
       { label: 'Cartographie', href: '/cartography', icon: <MapPin className="h-4 w-4" />, permission: 'content:hide' },
       { label: 'Notifications', href: '/notifications', icon: <Bell className="h-4 w-4" /> },
+      { label: 'Sécurité', href: '/security', icon: <Shield className="h-4 w-4" />, permission: 'audit:view' },
       { label: 'Audit Logs', href: '/audit', icon: <ScrollText className="h-4 w-4" />, permission: 'audit:view' },
       { label: 'Staff Chat', href: '/chat', icon: <MessageSquare className="h-4 w-4" />, permission: 'staff:chat' },
     ],
