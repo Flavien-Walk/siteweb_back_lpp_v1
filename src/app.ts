@@ -123,8 +123,9 @@ export const creerApp = (): Application => {
     },
     standardHeaders: true,
     legacyHeaders: false,
-    // RED-19: Validation stricte de l'IP pour trust proxy
-    validate: { trustProxy: false },
+    // SEC-AUTH-04: Activer la validation trust proxy pour que l'IP soit correcte
+    // trustProxy: false desactivait la validation, permettant le spoofing via X-Forwarded-For
+    validate: { trustProxy: true },
   });
 
   const limiterAuth = rateLimit({

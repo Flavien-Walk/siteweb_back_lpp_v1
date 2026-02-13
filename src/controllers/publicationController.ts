@@ -644,27 +644,39 @@ export const ajouterCommentaire = async (
       try {
         const commentateur = await Utilisateur.findById(userId).select('prenom nom avatar');
         if (commentateur) {
-          const notif = await Notification.create({
+          // SEC-NOTIF-01: Dedup — un seul commentaire-notif par user par publication par 5 min
+          const cinqMinAvant = new Date(Date.now() - 5 * 60 * 1000);
+          const existingNotif = await Notification.findOne({
             destinataire: auteurPublicationId,
             type: 'nouveau_commentaire',
-            titre: 'Nouveau commentaire',
-            message: `${commentateur.prenom} ${commentateur.nom} a commenté votre publication.`,
-            data: {
-              userId: userId.toString(),
-              userNom: commentateur.nom,
-              userPrenom: commentateur.prenom,
-              userAvatar: commentateur.avatar || null,
-              publicationId: id,
-            },
+            'data.userId': userId.toString(),
+            'data.publicationId': id,
+            dateCreation: { $gte: cinqMinAvant },
           });
-          emitNewNotification(auteurPublicationId, {
-            _id: notif._id.toString(),
-            type: notif.type,
-            titre: notif.titre,
-            message: notif.message,
-            lu: false,
-            dateCreation: notif.dateCreation.toISOString(),
-          });
+
+          if (!existingNotif) {
+            const notif = await Notification.create({
+              destinataire: auteurPublicationId,
+              type: 'nouveau_commentaire',
+              titre: 'Nouveau commentaire',
+              message: `${commentateur.prenom} ${commentateur.nom} a commenté votre publication.`,
+              data: {
+                userId: userId.toString(),
+                userNom: commentateur.nom,
+                userPrenom: commentateur.prenom,
+                userAvatar: commentateur.avatar || null,
+                publicationId: id,
+              },
+            });
+            emitNewNotification(auteurPublicationId, {
+              _id: notif._id.toString(),
+              type: notif.type,
+              titre: notif.titre,
+              message: notif.message,
+              lu: false,
+              dateCreation: notif.dateCreation.toISOString(),
+            });
+          }
         }
       } catch (notifError) {
         // Ne pas bloquer si la notification échoue

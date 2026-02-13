@@ -7,6 +7,38 @@ import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64MediaDataUrl, isHttpUrl } from '../utils/cloudinary.js';
 import { uploadStoryMedia } from '../utils/cloudinary.js';
 
+// SEC-STORY-01: Rate limit creation stories (10 par heure par utilisateur)
+const storyRateLimit = new Map<string, { count: number; resetAt: number }>();
+const STORY_RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 heure
+const STORY_RATE_LIMIT_MAX = 10;
+
+const checkStoryRateLimit = (userId: string): boolean => {
+  const now = Date.now();
+  const entry = storyRateLimit.get(userId);
+
+  if (!entry || now > entry.resetAt) {
+    storyRateLimit.set(userId, { count: 1, resetAt: now + STORY_RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (entry.count >= STORY_RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+};
+
+// Nettoyage periodique (eviter fuite memoire)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of storyRateLimit.entries()) {
+    if (now > value.resetAt) {
+      storyRateLimit.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // Schema de validation pour créer une story (V2)
 const schemaCreerStory = z.object({
   media: z
@@ -73,6 +105,11 @@ export const creerStory = async (
   try {
     const donnees = schemaCreerStory.parse(req.body);
     const userId = req.utilisateur!._id;
+
+    // SEC-STORY-01: Verifier rate limit creation stories
+    if (!checkStoryRateLimit(userId.toString())) {
+      throw new ErreurAPI('Vous avez atteint la limite de creation de stories. Reessayez plus tard.', 429);
+    }
 
     // Générer un ID temporaire pour le nom du fichier Cloudinary
     const tempId = new mongoose.Types.ObjectId().toString();

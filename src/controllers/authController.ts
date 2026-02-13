@@ -14,6 +14,54 @@ import { getLatestSanctionNotification } from '../utils/sanctionNotification.js'
 import Notification from '../models/Notification.js';
 import AuditLog from '../models/AuditLog.js';
 
+// SEC-AUTH-03: Lockout brute force - 5 echecs = blocage 30 min
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 30 * 60 * 1000; // 30 minutes
+
+const checkLoginLockout = (email: string): { locked: boolean; remainingMs?: number } => {
+  const entry = loginAttempts.get(email);
+  if (!entry) return { locked: false };
+
+  const now = Date.now();
+  if (entry.lockedUntil > 0 && now < entry.lockedUntil) {
+    return { locked: true, remainingMs: entry.lockedUntil - now };
+  }
+
+  // Lockout expire, reset
+  if (entry.lockedUntil > 0 && now >= entry.lockedUntil) {
+    loginAttempts.delete(email);
+    return { locked: false };
+  }
+
+  return { locked: false };
+};
+
+const recordFailedLogin = (email: string): void => {
+  const entry = loginAttempts.get(email) || { count: 0, lockedUntil: 0 };
+  entry.count++;
+
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    entry.lockedUntil = Date.now() + LOCKOUT_DURATION;
+  }
+
+  loginAttempts.set(email, entry);
+};
+
+const clearLoginAttempts = (email: string): void => {
+  loginAttempts.delete(email);
+};
+
+// Nettoyage periodique des lockouts expires (eviter fuite memoire)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of loginAttempts.entries()) {
+    if (value.lockedUntil > 0 && now >= value.lockedUntil) {
+      loginAttempts.delete(key);
+    }
+  }
+}, 5 * 60 * 1000); // Nettoyer toutes les 5 min
+
 /**
  * Inscription d'un nouvel utilisateur
  * POST /api/auth/inscription
@@ -30,13 +78,8 @@ export const inscription = async (
     // Verifier si l'email existe deja
     const utilisateurExistant = await Utilisateur.findOne({ email: donnees.email });
 
+    // SEC-AUTH-02: Message generique pour ne pas reveler le provider
     if (utilisateurExistant) {
-      if (utilisateurExistant.provider !== 'local') {
-        throw new ErreurAPI(
-          `Un compte existe deja avec cet email via ${utilisateurExistant.provider}. Veuillez vous connecter avec ${utilisateurExistant.provider} ou utiliser un autre email.`,
-          409
-        );
-      }
       throw new ErreurAPI('Cette adresse email est deja utilisee.', 409);
     }
 
@@ -99,6 +142,16 @@ export const connexion = async (
     // Valider les donnees d'entree
     const donnees = schemaConnexion.parse(req.body);
 
+    // SEC-AUTH-03: Verifier lockout avant toute tentative
+    const lockoutStatus = checkLoginLockout(donnees.email);
+    if (lockoutStatus.locked) {
+      const minutesRestantes = Math.ceil((lockoutStatus.remainingMs || 0) / 60000);
+      throw new ErreurAPI(
+        `Trop de tentatives echouees. Reessayez dans ${minutesRestantes} minute(s).`,
+        429
+      );
+    }
+
     // Rechercher l'utilisateur avec le mot de passe
     const utilisateur = await Utilisateur.findOne({ email: donnees.email }).select(
       '+motDePasse'
@@ -106,22 +159,25 @@ export const connexion = async (
 
     // Verifier si l'utilisateur existe
     if (!utilisateur) {
+      recordFailedLogin(donnees.email);
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
-    // Verifier si l'utilisateur a un mot de passe (compte local ou lie)
+    // SEC-AUTH-02: Message generique pour ne pas reveler le provider OAuth
     if (!utilisateur.motDePasse) {
-      throw new ErreurAPI(
-        `Ce compte utilise la connexion ${utilisateur.provider}. Veuillez utiliser ce mode de connexion.`,
-        400
-      );
+      recordFailedLogin(donnees.email);
+      throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
     // Verifier le mot de passe
     const motDePasseValide = await utilisateur.comparerMotDePasse(donnees.motDePasse);
     if (!motDePasseValide) {
+      recordFailedLogin(donnees.email);
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
+
+    // Connexion reussie: effacer le compteur d'echecs
+    clearLoginAttempts(donnees.email);
 
     // Vérifier si le compte est banni
     if (utilisateur.isBanned()) {

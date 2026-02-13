@@ -159,21 +159,11 @@ export const creerReport = async (
       return;
     }
 
-    // Compter les signalements existants sur cette cible
-    const existingReportCount = await Report.countDocuments({
-      targetType: donnees.targetType,
-      targetId: donnees.targetId,
-    });
-
     // Calculer la priorité basée sur la raison
     const basePriority = REASON_PRIORITY_MAP[donnees.reason as ReportReason] || 'medium';
 
-    // Déterminer si auto-escalade nécessaire
-    const aggregateCount = existingReportCount + 1;
-    const escalationThreshold = AUTO_ESCALATION_THRESHOLDS[basePriority];
-    const shouldAutoEscalate = aggregateCount >= escalationThreshold;
-
-    // Créer le signalement
+    // SEC-MOD-01: Creer le report puis utiliser $inc atomique pour le compteur
+    // Evite la race condition count+create ou le compteur peut etre faux
     const report = await Report.create({
       reporter: reporterId,
       targetType: donnees.targetType,
@@ -181,29 +171,39 @@ export const creerReport = async (
       reason: donnees.reason,
       details: donnees.details,
       priority: basePriority,
-      aggregateCount,
-      // Auto-escalade si seuil atteint
-      ...(shouldAutoEscalate && {
-        escalatedAt: new Date(),
-        escalationReason: `Auto-escalade: ${aggregateCount} signalements sur cette cible`,
-      }),
+      aggregateCount: 1,
     });
 
-    // Mettre à jour le compteur sur les autres signalements de la même cible
-    if (existingReportCount > 0) {
+    // Incrementer atomiquement le compteur sur TOUS les reports de cette cible
+    await Report.updateMany(
+      {
+        targetType: donnees.targetType,
+        targetId: donnees.targetId,
+      },
+      {
+        $inc: { aggregateCount: 1 },
+      }
+    );
+
+    // Le nouveau report a deja aggregateCount=1, les autres ont ete incrementes de 1
+    // Recalculer le vrai total pour l'auto-escalade
+    const realCount = await Report.countDocuments({
+      targetType: donnees.targetType,
+      targetId: donnees.targetId,
+    });
+
+    // Verifier auto-escalade
+    const escalationThreshold = AUTO_ESCALATION_THRESHOLDS[basePriority];
+    if (realCount >= escalationThreshold) {
       await Report.updateMany(
         {
           targetType: donnees.targetType,
           targetId: donnees.targetId,
-          _id: { $ne: report._id },
+          escalatedAt: { $eq: null },
         },
         {
-          aggregateCount,
-          // Propager l'escalade si nécessaire
-          ...(shouldAutoEscalate && !existingReport && {
-            escalatedAt: new Date(),
-            escalationReason: `Auto-escalade: ${aggregateCount} signalements sur cette cible`,
-          }),
+          escalatedAt: new Date(),
+          escalationReason: `Auto-escalade: ${realCount} signalements sur cette cible`,
         }
       );
     }

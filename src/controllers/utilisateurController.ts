@@ -61,7 +61,8 @@ export const rechercherUtilisateurs = async (
         },
       ],
     })
-      .select('prenom nom avatar role statut')
+      // SEC-SOC-03: Ne pas exposer le role dans la recherche (revele le staff)
+      .select('prenom nom avatar statut')
       .limit(limitNum);
 
     res.json({
@@ -72,7 +73,6 @@ export const rechercherUtilisateurs = async (
           prenom: u.prenom,
           nom: u.nom,
           avatar: u.avatar,
-          role: u.role,
           statut: u.statut,
         })),
       },
@@ -127,6 +127,8 @@ export const getUtilisateur = async (
       return u ? u.isStaff() : false;
     })() : false;
 
+    // SEC-SOC-02: Profil prive = minimum de donnees exposees
+    // Ne pas reveler bio, role, nb amis pour les profils prives
     if (profilEstPrive && !estAmi && !estSoiMeme && !estStaff) {
       res.json({
         succes: true,
@@ -136,13 +138,8 @@ export const getUtilisateur = async (
             prenom: utilisateur.prenom,
             nom: utilisateur.nom,
             avatar: utilisateur.avatar,
-            bio: utilisateur.bio,
-            role: utilisateur.role,
-            statut: utilisateur.statut,
-            dateInscription: utilisateur.dateCreation,
             profilPublic: false,
             estPrive: true,
-            nbAmis: utilisateur.amis?.length || 0,
             estAmi,
             demandeEnvoyee,
             demandeRecue,

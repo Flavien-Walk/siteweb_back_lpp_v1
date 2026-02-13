@@ -7,6 +7,8 @@ import Commentaire from '../models/Commentaire.js';
 import { Message, Conversation } from '../models/Message.js';
 import Projet from '../models/Projet.js';
 import Report from '../models/Report.js';
+import Story from '../models/Story.js';
+import AuditLog from '../models/AuditLog.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { uploadAvatar, isBase64DataUrl, isHttpUrl } from '../utils/cloudinary.js';
 
@@ -233,7 +235,7 @@ export const supprimerCompte = async (
       }
     }
 
-    // Supprimer toutes les données liées à l'utilisateur
+    // SEC-RGPD-03: Supprimer TOUTES les données liées à l'utilisateur (cascade complete)
     await Promise.all([
       // Notifications (reçues)
       Notification.deleteMany({ destinataire: userId }),
@@ -259,6 +261,33 @@ export const supprimerCompte = async (
       Message.updateMany(
         { lecteurs: userId },
         { $pull: { lecteurs: userId } }
+      ),
+      // RGPD-03: Stories de l'utilisateur
+      Story.deleteMany({ utilisateur: userId }),
+      // RGPD-03: Retirer des viewers de stories
+      Story.updateMany(
+        { vues: userId },
+        { $pull: { vues: userId } }
+      ),
+      // RGPD-03: Retirer des followers de projets
+      Projet.updateMany(
+        { followers: userId },
+        { $pull: { followers: userId } }
+      ),
+      // RGPD-05: Anonymiser les audit logs (remplacer le userId par "[supprime]")
+      AuditLog.updateMany(
+        { performedBy: userId },
+        { $set: { performedBy: null, 'metadata.anonymized': true, 'metadata.anonymizedAt': new Date() } }
+      ),
+      // RGPD-05: Anonymiser les targets d'audit logs
+      AuditLog.updateMany(
+        { targetId: userId, targetType: 'user' },
+        { $set: { 'metadata.targetAnonymized': true } }
+      ),
+      // RGPD-03: Anonymiser les reports crees par l'utilisateur (garder pour stats mais anonymiser)
+      Report.updateMany(
+        { reporter: userId },
+        { $set: { reporter: null as any, 'details': '[utilisateur supprime]' } }
       ),
     ]);
 
@@ -490,7 +519,7 @@ export const exporterDonnees = async (
   try {
     const userId = req.utilisateur!._id;
 
-    // Recuperer les donnees en parallele
+    // SEC-RGPD-02: Recuperer TOUTES les donnees en parallele (DSAR complet)
     const [
       utilisateur,
       publications,
@@ -499,6 +528,9 @@ export const exporterDonnees = async (
       projets,
       reports,
       conversations,
+      stories,
+      likedPublications,
+      projetsSuivis,
     ] = await Promise.all([
       Utilisateur.findById(userId)
         .select('-motDePasse -__v')
@@ -522,6 +554,19 @@ export const exporterDonnees = async (
         .lean(),
       Conversation.find({ participants: userId })
         .select('estGroupe nom participants dateCreation')
+        .lean(),
+      // RGPD-02: Stories
+      Story.find({ utilisateur: userId })
+        .select('type mediaUrl dateCreation dateExpiration vues')
+        .lean(),
+      // RGPD-02: Publications likees
+      Publication.find({ likes: userId })
+        .select('_id contenu auteur datePublication')
+        .populate('auteur', 'prenom nom')
+        .lean(),
+      // RGPD-02: Projets suivis
+      Projet.find({ followers: userId })
+        .select('_id nom porteur')
         .lean(),
     ]);
 
@@ -592,6 +637,25 @@ export const exporterDonnees = async (
         groupes: conversations.filter((c: any) => c.estGroupe).length,
         privees: conversations.filter((c: any) => !c.estGroupe).length,
       },
+      // RGPD-02: Stories
+      stories: stories.map((s: any) => ({
+        id: s._id,
+        type: s.type,
+        dateCreation: s.dateCreation,
+        dateExpiration: s.dateExpiration,
+        nbVues: s.vues?.length || 0,
+      })),
+      // RGPD-02: Publications likees (historique likes)
+      likesEffectues: likedPublications.map((p: any) => ({
+        publicationId: p._id,
+        contenuExtrait: p.contenu?.substring(0, 100),
+        auteur: p.auteur ? `${p.auteur.prenom} ${p.auteur.nom}` : 'inconnu',
+      })),
+      // RGPD-02: Projets suivis
+      projetsSuivis: projetsSuivis.map((p: any) => ({
+        projetId: p._id,
+        nom: p.nom,
+      })),
     };
 
     res.json({

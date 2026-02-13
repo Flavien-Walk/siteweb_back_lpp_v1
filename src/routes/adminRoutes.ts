@@ -18,6 +18,7 @@ import {
   getAuditStats,
   exportAuditLogs,
 } from '../controllers/auditController.js';
+import { getSecurityDashboard } from '../controllers/securityController.js';
 import {
   getStaffMessages,
   sendStaffMessage,
@@ -309,6 +310,11 @@ router.get('/lives', verifierJwt, requirePermission('content:hide'), listLives);
 
 // GET /api/admin/evenements - Lister les événements
 router.get('/evenements', verifierJwt, requirePermission('content:hide'), listEvenements);
+
+// ============ SECURITE ============
+
+// GET /api/admin/security/dashboard - Tableau de bord securite
+router.get('/security/dashboard', verifierJwt, requirePermission('audit:view'), getSecurityDashboard);
 
 // ============ NOTIFICATIONS BROADCAST ============
 

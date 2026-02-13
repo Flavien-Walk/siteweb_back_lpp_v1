@@ -36,20 +36,10 @@ export const configurerPassport = (): void => {
             const emailVerified = (profile.emails?.[0] as any)?.verified === true
               || (profile.emails?.[0] as any)?.verified === 'true';
 
-            if (email && emailVerified) {
-              utilisateur = await Utilisateur.findOne({ email });
-              if (utilisateur) {
-                // Lier le compte Google (email vérifié par Google)
-                if (!utilisateur.providerId) {
-                  utilisateur.providerId = profile.id;
-                }
-                if (profile.photos?.[0]?.value && !utilisateur.avatar) {
-                  utilisateur.avatar = profile.photos[0].value;
-                }
-                await utilisateur.save();
-                return done(null, utilisateur);
-              }
-            }
+            // SEC-AUTH-01: Ne PAS lier automatiquement un compte local par email match
+            // Risque: un attaquant avec un compte Google verifie pourrait prendre le controle
+            // d'un compte local existant. On cree un nouveau compte a la place.
+            // L'utilisateur devra lier manuellement ses comptes via les parametres.
 
             // Créer un nouvel utilisateur
             const nouvelUtilisateur = await Utilisateur.create({
@@ -168,20 +158,8 @@ export const configurerPassport = (): void => {
                   return done(null, utilisateur);
                 }
 
-                // Ne lier que si l'email est vérifié par Apple
-                const emailVerified = idToken?.email_verified === true
-                  || idToken?.email_verified === 'true';
-
-                if (email && emailVerified) {
-                  utilisateur = await Utilisateur.findOne({ email });
-                  if (utilisateur) {
-                    if (!utilisateur.providerId) {
-                      utilisateur.providerId = appleId;
-                      await utilisateur.save();
-                    }
-                    return done(null, utilisateur);
-                  }
-                }
+                // SEC-AUTH-01: Ne PAS lier automatiquement un compte local par email match
+                // Meme avec email verifie, on ne lie pas pour eviter le account takeover
 
                 const nouvelUtilisateur = await Utilisateur.create({
                   prenom,
