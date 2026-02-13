@@ -1,5 +1,5 @@
 import api from './api'
-import type { StaffMessage, ApiResponse, PaginatedResponse } from '@/types'
+import type { StaffMessage, DMConversation, ApiResponse, PaginatedResponse } from '@/types'
 
 export interface ChatListParams {
   page?: number
@@ -41,6 +41,7 @@ function normalizeMessage(msg: BackendMessage): StaffMessage {
   return {
     _id: msg._id,
     author: msg.author ?? msg.sender,
+    recipient: (msg as any).recipient ?? undefined,
     content: msg.content,
     linkedReport: msg.linkedReport,
     dateCreation: msg.dateCreation,
@@ -170,6 +171,72 @@ export const chatService = {
         console.warn('[Chat] markAsRead failed:', err)
       }
     }
+  },
+
+  // ============ MESSAGES PRIVES (DM) ============
+
+  /**
+   * Get DM conversations list
+   * GET /api/admin/chat/dm
+   */
+  async getDMConversations(): Promise<DMConversation[]> {
+    const response = await api.get<ApiResponse<{ conversations: DMConversation[] }>>('/admin/chat/dm')
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement des conversations')
+    }
+
+    return response.data.data.conversations
+  },
+
+  /**
+   * Get DM messages with a specific user
+   * GET /api/admin/chat/dm/:userId
+   */
+  async getDMMessages(userId: string, params: ChatListParams = {}): Promise<{
+    messages: StaffMessage[]
+    otherUser: { _id: string; prenom: string; nom: string; avatar?: string; role?: string } | null
+    hasMore: boolean
+  }> {
+    const searchParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        searchParams.append(key, String(value))
+      }
+    })
+
+    const response = await api.get<ApiResponse<{
+      messages: BackendMessage[]
+      otherUser: any
+      hasMore: boolean
+    }>>(`/admin/chat/dm/${userId}?${searchParams.toString()}`)
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement des messages')
+    }
+
+    return {
+      messages: response.data.data.messages.map(normalizeMessage),
+      otherUser: response.data.data.otherUser,
+      hasMore: response.data.data.hasMore,
+    }
+  },
+
+  /**
+   * Send a DM to a specific user
+   * POST /api/admin/chat/dm/:userId
+   */
+  async sendDM(userId: string, content: string): Promise<StaffMessage> {
+    const response = await api.post<ApiResponse<{ message: BackendMessage }>>(
+      `/admin/chat/dm/${userId}`,
+      { content }
+    )
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors de l\'envoi du message')
+    }
+
+    return normalizeMessage(response.data.data.message)
   },
 }
 

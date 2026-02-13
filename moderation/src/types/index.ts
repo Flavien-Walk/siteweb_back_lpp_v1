@@ -281,6 +281,13 @@ export interface StaffMessage {
     avatar?: string
     role?: string
   }
+  recipient?: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    role?: string
+  }
   content: string
   linkedReport?: {
     _id: string
@@ -289,6 +296,25 @@ export interface StaffMessage {
     status?: string
   }
   dateCreation: string
+}
+
+export interface DMConversation {
+  _id: string
+  user: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    role?: string
+  }
+  lastMessage: {
+    _id: string
+    content: string
+    sender: string
+    dateCreation: string
+  }
+  totalMessages: number
+  unreadCount: number
 }
 
 // ============ DASHBOARD ============
