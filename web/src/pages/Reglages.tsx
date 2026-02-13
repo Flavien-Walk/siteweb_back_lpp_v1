@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, User, Image, Lock, ShieldAlert,
   Save, Upload, Trash2, Eye, EyeOff, AlertTriangle,
-  Globe, LockKeyhole,
+  Globe, LockKeyhole, Shield, History,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -13,10 +13,15 @@ import {
   modifierMotDePasse,
   getAvatarsDefaut,
   supprimerCompte,
+  getMySanctions,
+  getModerationStatus,
 } from '../services/auth';
+import type { SanctionItem, ModerationStatus } from '../services/auth';
 import { couleurs } from '../styles/theme';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
-type Section = 'profil' | 'avatar' | 'securite' | 'confidentialite';
+type Section = 'profil' | 'avatar' | 'securite' | 'sanctions' | 'confidentialite';
 
 interface SidebarItem {
   key: Section;
@@ -28,6 +33,7 @@ const sidebarItems: SidebarItem[] = [
   { key: 'profil', label: 'Profil', icon: User },
   { key: 'avatar', label: 'Avatar', icon: Image },
   { key: 'securite', label: 'Securite', icon: Lock },
+  { key: 'sanctions', label: 'Sanctions', icon: Shield },
   { key: 'confidentialite', label: 'Confidentialite', icon: ShieldAlert },
 ];
 
@@ -58,6 +64,12 @@ export default function Reglages() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [securiteLoading, setSecuriteLoading] = useState(false);
   const [securiteMessage, setSecuriteMessage] = useState<{ type: 'succes' | 'erreur'; text: string } | null>(null);
+
+  // --- Sanctions state ---
+  const [sanctions, setSanctions] = useState<SanctionItem[]>([]);
+  const [sanctionsLoading, setSanctionsLoading] = useState(false);
+  const [sanctionsLoaded, setSanctionsLoaded] = useState(false);
+  const [moderationStatus, setModerationStatus] = useState<ModerationStatus | null>(null);
 
   // --- Confidentialite state ---
   const [profilPublic, setProfilPublic] = useState(true);
@@ -227,6 +239,31 @@ export default function Reglages() {
       setSuppressionLoading(false);
     }
   };
+
+  // Load sanctions when section becomes active
+  useEffect(() => {
+    if (activeSection !== 'sanctions' || sanctionsLoaded) return;
+    (async () => {
+      setSanctionsLoading(true);
+      try {
+        const [sanctionsRes, statusRes] = await Promise.all([
+          getMySanctions(),
+          getModerationStatus(),
+        ]);
+        if (sanctionsRes.succes && sanctionsRes.data) {
+          setSanctions(sanctionsRes.data.sanctions);
+        }
+        if (statusRes.succes && statusRes.data) {
+          setModerationStatus(statusRes.data);
+        }
+        setSanctionsLoaded(true);
+      } catch {
+        // silently ignore
+      } finally {
+        setSanctionsLoading(false);
+      }
+    })();
+  }, [activeSection, sanctionsLoaded]);
 
   const handleToggleProfilPublic = async () => {
     const newValue = !profilPublic;
@@ -638,6 +675,142 @@ export default function Reglages() {
     );
   };
 
+  const sanctionColor = (type: SanctionItem['type']) => {
+    switch (type) {
+      case 'warn': return '#FFBD59';
+      case 'suspend': return '#FF8C42';
+      case 'ban': return '#FF4D6D';
+      case 'unwarn': case 'unsuspend': case 'unban': return '#00D68F';
+      default: return couleurs.texteSecondaire;
+    }
+  };
+
+  const sanctionLabel = (type: SanctionItem['type']) => {
+    switch (type) {
+      case 'warn': return 'Avertissement';
+      case 'unwarn': return 'Retrait avertissement';
+      case 'suspend': return 'Suspension';
+      case 'unsuspend': return 'Levee de suspension';
+      case 'ban': return 'Bannissement';
+      case 'unban': return 'Levee de bannissement';
+      default: return type;
+    }
+  };
+
+  const actorRoleLabel = (role?: string) => {
+    switch (role) {
+      case 'super_admin': return 'Fondateur';
+      case 'admin_modo': case 'admin': return 'Admin';
+      case 'modo': return 'Moderateur';
+      case 'modo_test': return 'Modo Test';
+      case 'system': return 'Systeme';
+      default: return role || 'Systeme';
+    }
+  };
+
+  const warnCount = moderationStatus?.warnCountSinceLastAutoSuspension ?? 0;
+
+  const renderSanctions = () => (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key="sanctions">
+      <h2 style={styles.sectionTitle}>Mes sanctions</h2>
+      <p style={styles.sectionDesc}>Consultez votre historique de moderation.</p>
+
+      {warnCount > 0 && (
+        <div style={{
+          padding: 14,
+          borderRadius: 14,
+          backgroundColor: 'rgba(255, 189, 89, 0.08)',
+          border: '1px solid rgba(255, 189, 89, 0.25)',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <AlertTriangle size={20} color="#FFBD59" style={{ flexShrink: 0 }} />
+          <div>
+            <p style={{ fontSize: '0.9375rem', fontWeight: '600', color: '#FFBD59', margin: 0, marginBottom: 2 }}>
+              Avertissements actifs : {warnCount} / 3
+            </p>
+            <p style={{ fontSize: '0.8125rem', color: couleurs.texteSecondaire, margin: 0 }}>
+              Prochain avertissement = {moderationStatus?.nextAutoAction === 'ban' ? 'bannissement' : 'suspension'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {sanctionsLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 12 }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 80, borderRadius: 12 }} />
+          ))}
+        </div>
+      ) : sanctions.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+          {sanctions.map((sanction, idx) => {
+            const color = sanctionColor(sanction.type);
+            return (
+              <motion.div
+                key={idx}
+                style={{
+                  padding: 14,
+                  borderRadius: 12,
+                  backgroundColor: couleurs.fond,
+                  border: `1px solid ${couleurs.bordure}`,
+                  borderLeft: `3px solid ${color}`,
+                }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.05 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, backgroundColor: `${color}20`,
+                  }}>
+                    <History size={16} color={color} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const }}>
+                      <span style={{ fontSize: '0.875rem', fontWeight: '700', color }}>{sanctionLabel(sanction.type)}</span>
+                      <span style={{ fontSize: '0.75rem', color: couleurs.texteMuted }}>
+                        {format(new Date(sanction.createdAt), 'dd MMM yyyy, HH:mm', { locale: fr })}
+                      </span>
+                    </div>
+                    {sanction.titre && (
+                      <p style={{ fontSize: '0.8125rem', color: couleurs.texte, margin: '4px 0 0', lineHeight: 1.4 }}>{sanction.titre}</p>
+                    )}
+                  </div>
+                </div>
+                {sanction.reason && (
+                  <p style={{ fontSize: '0.8125rem', color: couleurs.texteSecondaire, margin: '8px 0 0 42px', lineHeight: 1.4 }}>
+                    Raison : {sanction.reason}
+                  </p>
+                )}
+                {sanction.suspendedUntil && (
+                  <p style={{ fontSize: '0.75rem', color: '#FF8C42', margin: '4px 0 0 42px' }}>
+                    Suspendu jusqu'au {format(new Date(sanction.suspendedUntil), 'dd MMM yyyy, HH:mm', { locale: fr })}
+                  </p>
+                )}
+                {sanction.actorRole && (
+                  <p style={{ fontSize: '0.75rem', color: couleurs.texteMuted, margin: '4px 0 0 42px' }}>
+                    Par : {actorRoleLabel(sanction.actorRole)}
+                  </p>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 12, padding: '40px 20px' }}>
+          <Shield size={40} color={couleurs.succes} />
+          <p style={{ fontSize: '1rem', fontWeight: '600', color: couleurs.texte, margin: 0 }}>Aucune sanction</p>
+          <p style={{ fontSize: '0.875rem', color: couleurs.texteSecondaire, margin: 0 }}>Votre historique est vierge.</p>
+        </div>
+      )}
+    </motion.div>
+  );
+
   const renderContent = () => {
     switch (activeSection) {
       case 'profil':
@@ -646,6 +819,8 @@ export default function Reglages() {
         return renderAvatar();
       case 'securite':
         return renderSecurite();
+      case 'sanctions':
+        return renderSanctions();
       case 'confidentialite':
         return renderConfidentialite();
     }

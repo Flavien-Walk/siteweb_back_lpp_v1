@@ -18,6 +18,7 @@ import ChoixStatut from './pages/ChoixStatut';
 import Entrepreneur from './pages/Entrepreneur';
 import Reglages from './pages/Reglages';
 import AmisUtilisateur from './pages/AmisUtilisateur';
+import PublicationDetail from './pages/PublicationDetail';
 import { couleurs } from './styles/theme';
 
 function LoadingScreen() {
@@ -121,6 +122,7 @@ export default function App() {
         <Route path="notifications" element={<Notifications />} />
         <Route path="utilisateur/:id" element={<ProfilPublic />} />
         <Route path="utilisateur/:id/amis" element={<AmisUtilisateur />} />
+        <Route path="publication/:id" element={<PublicationDetail />} />
         <Route path="entrepreneur" element={<Entrepreneur />} />
         <Route path="reglages" element={<Reglages />} />
       </Route>

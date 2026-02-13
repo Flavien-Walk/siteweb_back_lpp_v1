@@ -38,8 +38,18 @@ export const getStoriesUtilisateur = async (userId: string): Promise<ReponseAPI<
   return api.get(`/stories/utilisateur/${userId}`, true);
 };
 
-export const creerStory = async (media: string, type: 'photo' | 'video'): Promise<ReponseAPI<{ story: Story }>> => {
-  return api.post('/stories', { media, type, durationSec: 7, filterPreset: 'normal', expirationMinutes: 1440 }, true);
+export const creerStory = async (
+  media: string,
+  type: 'photo' | 'video',
+  options?: { durationSec?: number; filterPreset?: string; expirationMinutes?: number }
+): Promise<ReponseAPI<{ story: Story }>> => {
+  return api.post('/stories', {
+    media,
+    type,
+    durationSec: options?.durationSec ?? 7,
+    filterPreset: options?.filterPreset ?? 'normal',
+    expirationMinutes: options?.expirationMinutes ?? 1440,
+  }, true);
 };
 
 export const supprimerStory = async (id: string): Promise<ReponseAPI<{ message: string }>> => {

@@ -102,3 +102,31 @@ export const supprimerConversation = async (conversationId: string): Promise<Rep
 export const reagirMessage = async (messageId: string, reactionType: TypeReaction | null): Promise<ReponseAPI<{ messageId: string; reactions: Reaction[] }>> => {
   return api.post(`/messagerie/messages/${messageId}/react`, { reactionType }, true);
 };
+
+export const modifierMessage = async (conversationId: string, messageId: string, contenu: string): Promise<ReponseAPI<{ message: Message }>> => {
+  return api.patch(`/messagerie/conversations/${conversationId}/messages/${messageId}`, { contenu }, true);
+};
+
+export const supprimerMessage = async (conversationId: string, messageId: string): Promise<ReponseAPI<void>> => {
+  return api.delete(`/messagerie/conversations/${conversationId}/messages/${messageId}`, true);
+};
+
+export const creerGroupe = async (nom: string, participantIds: string[]): Promise<ReponseAPI<{ conversation: Conversation }>> => {
+  return api.post('/messagerie/groupes', { nom, participantIds }, true);
+};
+
+export const modifierGroupe = async (groupeId: string, data: { nom?: string; image?: string }): Promise<ReponseAPI<{ conversation: Conversation }>> => {
+  return api.patch(`/messagerie/groupes/${groupeId}`, data, true);
+};
+
+export const ajouterParticipant = async (groupeId: string, participantId: string): Promise<ReponseAPI<void>> => {
+  return api.post(`/messagerie/groupes/${groupeId}/participants`, { participantId }, true);
+};
+
+export const retirerParticipant = async (groupeId: string, participantId: string): Promise<ReponseAPI<void>> => {
+  return api.delete(`/messagerie/groupes/${groupeId}/participants/${participantId}`, true);
+};
+
+export const toggleMuetConversation = async (conversationId: string): Promise<ReponseAPI<{ estMuet: boolean }>> => {
+  return api.patch(`/messagerie/conversations/${conversationId}/muet`, {}, true);
+};

@@ -10,6 +10,8 @@ import {
   Flag,
   X,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Trash2,
   CornerDownRight,
   Search,
@@ -19,6 +21,9 @@ import {
   Clock,
   Ban,
   Shield,
+  Play,
+  Plus,
+  Film,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -38,8 +43,10 @@ import type { Publication, Commentaire, RaisonSignalement } from '../services/pu
 import { getStoriesActives, markStorySeen } from '../services/stories';
 import type { StoriesGroupees, Story } from '../services/stories';
 import { hidePublication, deletePublicationModo, warnUser, suspendUser, banUser } from '../services/moderation';
+import StoryCreator from '../components/StoryCreator';
 import { rechercherUtilisateurs } from '../services/utilisateurs';
 import type { ProfilUtilisateur } from '../services/utilisateurs';
+import { useToast } from '../components/Toast';
 import { couleurs } from '../styles/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -425,7 +432,7 @@ function CommentRow({
   const replies = comment.reponses || [];
 
   return (
-    <div style={{ marginLeft: isReply ? 40 : 0, marginBottom: 16 }}>
+    <div style={{ marginLeft: isReply ? 52 : 0, marginBottom: 20 }}>
       <div style={styles.commentRow}>
         <button style={styles.commentAvatarBtn} onClick={() => onNavigate(auteur._id)}>
           {auteur.avatar ? (
@@ -592,7 +599,7 @@ function CommentsPanel({
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; nom: string } | null>(null);
   const [totalCount, setTotalCount] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const charger = useCallback(async () => {
     setLoading(true);
@@ -643,9 +650,17 @@ function CommentsPanel({
     }
   };
 
+  const autoResize = () => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
+  };
+
   const handleReply = (id: string, nom: string) => {
     setReplyingTo({ id, nom });
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   };
 
   return (
@@ -672,15 +687,25 @@ function CommentsPanel({
         {/* Comments list */}
         <div style={styles.commentsList}>
           {loading ? (
-            <div style={{ padding: 32, textAlign: 'center' }}>
-              <span style={{ color: couleurs.texteSecondaire, fontSize: '0.875rem' }}>
-                Chargement...
-              </span>
+            <div style={{ padding: '16px 0', display: 'flex', flexDirection: 'column' as const, gap: 20 }}>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: couleurs.fondInput, flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ width: 100, height: 12, borderRadius: 6, backgroundColor: couleurs.fondInput, marginBottom: 8, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                    <div style={{ width: '80%', height: 36, borderRadius: 12, backgroundColor: couleurs.fondInput, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : commentaires.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center' }}>
-              <span style={{ color: couleurs.texteSecondaire, fontSize: '0.875rem' }}>
-                Aucun commentaire. Sois le premier !
+            <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 12 }}>
+              <MessageCircle size={48} color={couleurs.texteMuted} strokeWidth={1} />
+              <span style={{ color: couleurs.texteSecondaire, fontSize: '1rem', fontWeight: '500' }}>
+                Aucun commentaire
+              </span>
+              <span style={{ color: couleurs.texteMuted, fontSize: '0.875rem' }}>
+                Sois le premier a reagir !
               </span>
             </div>
           ) : (
@@ -711,15 +736,15 @@ function CommentsPanel({
 
         {/* Input */}
         <div style={styles.commentInput}>
-          <input
-            ref={inputRef}
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
+            onChange={(e) => { setNewComment(e.target.value); autoResize(); }}
             onKeyDown={handleKeyDown}
             placeholder="Ajouter un commentaire..."
             style={styles.commentInputField}
             maxLength={500}
+            rows={1}
           />
           <motion.button
             style={{
@@ -730,7 +755,7 @@ function CommentsPanel({
             onClick={handleSend}
             disabled={!newComment.trim() || sending}
           >
-            <Send size={16} color={couleurs.blanc} />
+            <Send size={18} color={couleurs.blanc} />
           </motion.button>
         </div>
       </motion.div>
@@ -1182,6 +1207,241 @@ const menuStyles: Record<string, React.CSSProperties> = {
   },
 };
 
+/* ─── Media Carousel ─── */
+function MediaCarousel({ medias }: { medias: { type: 'image' | 'video'; url: string }[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  if (medias.length === 0) return null;
+
+  const goTo = (idx: number) => setCurrentIndex(Math.max(0, Math.min(idx, medias.length - 1)));
+  const current = medias[currentIndex];
+
+  return (
+    <>
+      <div style={carouselStyles.container}>
+        <div style={carouselStyles.viewport}>
+          {current.type === 'video' ? (
+            <video
+              src={current.url}
+              controls
+              style={carouselStyles.media}
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            <img
+              src={current.url}
+              alt=""
+              style={carouselStyles.media}
+              onClick={() => setLightboxOpen(true)}
+            />
+          )}
+        </div>
+
+        {medias.length > 1 && (
+          <>
+            {currentIndex > 0 && (
+              <button
+                style={{ ...carouselStyles.navBtn, left: 8 }}
+                onClick={() => goTo(currentIndex - 1)}
+              >
+                <ChevronLeft size={20} color="#fff" />
+              </button>
+            )}
+            {currentIndex < medias.length - 1 && (
+              <button
+                style={{ ...carouselStyles.navBtn, right: 8 }}
+                onClick={() => goTo(currentIndex + 1)}
+              >
+                <ChevronRight size={20} color="#fff" />
+              </button>
+            )}
+            <div style={carouselStyles.dots}>
+              {medias.map((_, i) => (
+                <button
+                  key={i}
+                  style={{
+                    ...carouselStyles.dot,
+                    backgroundColor: i === currentIndex ? '#fff' : 'rgba(255,255,255,0.4)',
+                    width: i === currentIndex ? 8 : 6,
+                    height: i === currentIndex ? 8 : 6,
+                  }}
+                  onClick={() => goTo(i)}
+                />
+              ))}
+            </div>
+            <div style={carouselStyles.counter}>
+              {currentIndex + 1}/{medias.length}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      <AnimatePresence>
+        {lightboxOpen && current.type === 'image' && (
+          <motion.div
+            style={carouselStyles.lightbox}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxOpen(false)}
+          >
+            <button
+              style={carouselStyles.lightboxClose}
+              onClick={() => setLightboxOpen(false)}
+            >
+              <X size={24} color="#fff" />
+            </button>
+            <img
+              src={current.url}
+              alt=""
+              style={carouselStyles.lightboxImg}
+              onClick={(e) => e.stopPropagation()}
+            />
+            {medias.length > 1 && (
+              <>
+                {currentIndex > 0 && (
+                  <button
+                    style={{ ...carouselStyles.lightboxNav, left: 20 }}
+                    onClick={(e) => { e.stopPropagation(); goTo(currentIndex - 1); }}
+                  >
+                    <ChevronLeft size={28} color="#fff" />
+                  </button>
+                )}
+                {currentIndex < medias.length - 1 && (
+                  <button
+                    style={{ ...carouselStyles.lightboxNav, right: 20 }}
+                    onClick={(e) => { e.stopPropagation(); goTo(currentIndex + 1); }}
+                  >
+                    <ChevronRight size={28} color="#fff" />
+                  </button>
+                )}
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+const carouselStyles: Record<string, React.CSSProperties> = {
+  container: {
+    position: 'relative',
+    margin: '0 16px 12px',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  viewport: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+    maxHeight: 460,
+  },
+  media: {
+    width: '100%',
+    maxHeight: 460,
+    objectFit: 'contain' as const,
+    cursor: 'pointer',
+    display: 'block',
+  },
+  navBtn: {
+    position: 'absolute' as const,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 36,
+    height: 36,
+    borderRadius: '50%',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    backdropFilter: 'blur(4px)',
+  },
+  dots: {
+    position: 'absolute' as const,
+    bottom: 12,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'flex',
+    gap: 6,
+    zIndex: 2,
+  },
+  dot: {
+    borderRadius: '50%',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 0,
+    transition: 'all 0.2s',
+  },
+  counter: {
+    position: 'absolute' as const,
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: '#fff',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    padding: '4px 10px',
+    borderRadius: 12,
+    zIndex: 2,
+  },
+  lightbox: {
+    position: 'fixed' as const,
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2000,
+    cursor: 'pointer',
+  },
+  lightboxClose: {
+    position: 'absolute' as const,
+    top: 20,
+    right: 20,
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    cursor: 'pointer',
+    width: 44,
+    height: 44,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  lightboxImg: {
+    maxWidth: '90vw',
+    maxHeight: '90vh',
+    objectFit: 'contain' as const,
+    borderRadius: 8,
+    cursor: 'default',
+  },
+  lightboxNav: {
+    position: 'absolute' as const,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 48,
+    height: 48,
+    borderRadius: '50%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+};
+
 /* ─── Publication card ─── */
 function PublicationCard({
   pub,
@@ -1341,18 +1601,11 @@ function PublicationCard({
           pub.contenu && <p style={styles.content}>{pub.contenu}</p>
         )}
 
-        {pub.medias && pub.medias.length > 0 && (
-          <div style={styles.mediaContainer}>
-            {pub.medias.map((m, i) => (
-              <img key={i} src={m.url} alt="" style={styles.mediaImg} />
-            ))}
-          </div>
-        )}
-        {!pub.medias?.length && pub.media && (
-          <div style={styles.mediaContainer}>
-            <img src={pub.media} alt="" style={styles.mediaImg} />
-          </div>
-        )}
+        {pub.medias && pub.medias.length > 0 ? (
+          <MediaCarousel medias={pub.medias} />
+        ) : pub.media ? (
+          <MediaCarousel medias={[{ type: 'image', url: pub.media }]} />
+        ) : null}
 
         <div style={styles.actions}>
           <motion.button
@@ -1395,16 +1648,20 @@ function PublicationCard({
 export default function Feed() {
   const { utilisateur } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [publications, setPublications] = useState<Publication[]>([]);
   const [stories, setStories] = useState<StoriesGroupees[]>([]);
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<{ file: File; preview: string; type: 'image' | 'video' }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ProfilUtilisateur[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
+  const [showStoryCreator, setShowStoryCreator] = useState(false);
 
   const currentUserId = utilisateur?.id || (utilisateur as any)?._id || '';
   const currentUserRole = utilisateur?.role || '';
@@ -1470,13 +1727,50 @@ export default function Feed() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newFiles = Array.from(files).slice(0, 10 - selectedFiles.length).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      type: (file.type.startsWith('video/') ? 'video' : 'image') as 'image' | 'video',
+    }));
+    setSelectedFiles((prev) => [...prev, ...newFiles]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => {
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handlePost = async () => {
-    if (!newPost.trim()) return;
+    if (!newPost.trim() && selectedFiles.length === 0) return;
     setPosting(true);
-    const res = await creerPublication(newPost.trim());
+    let mediaUrls: string[] | undefined;
+    if (selectedFiles.length > 0) {
+      mediaUrls = await Promise.all(selectedFiles.map((f) => fileToBase64(f.file)));
+    }
+    const res = await creerPublication(newPost.trim() || ' ', mediaUrls);
     if (res.succes && res.data) {
       setPublications((prev) => [res.data!.publication, ...prev]);
       setNewPost('');
+      selectedFiles.forEach((f) => URL.revokeObjectURL(f.preview));
+      setSelectedFiles([]);
+      toast('Publication partagee !', 'success');
+    } else {
+      toast(res.message || 'Erreur lors de la publication', 'error');
     }
     setPosting(false);
   };
@@ -1606,17 +1900,32 @@ export default function Feed() {
         </AnimatePresence>
       </div>
 
-      {stories.length > 0 && (
-        <div style={styles.storiesRow}>
-          {stories.map((group, idx) => (
-            <StoryRing
-              key={group.utilisateur._id}
-              group={group}
-              onClick={() => setStoryViewerIndex(idx)}
-            />
-          ))}
-        </div>
-      )}
+      <div style={styles.storiesRow}>
+        {/* Create story button */}
+        <button style={styles.createStoryBtn} onClick={() => setShowStoryCreator(true)}>
+          <div style={styles.createStoryPlus}>
+            <Plus size={22} color={couleurs.blanc} />
+          </div>
+          <span style={styles.createStoryLabel}>Creer</span>
+        </button>
+        {stories.map((group, idx) => (
+          <StoryRing
+            key={group.utilisateur._id}
+            group={group}
+            onClick={() => setStoryViewerIndex(idx)}
+          />
+        ))}
+      </div>
+
+      {/* Story Creator */}
+      <AnimatePresence>
+        {showStoryCreator && (
+          <StoryCreator
+            onClose={() => setShowStoryCreator(false)}
+            onCreated={chargerDonnees}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Story Viewer */}
       <AnimatePresence>
@@ -1648,23 +1957,76 @@ export default function Feed() {
             rows={2}
           />
         </div>
+
+        {/* Media preview */}
+        {selectedFiles.length > 0 && (
+          <div style={styles.mediaPreviews}>
+            {selectedFiles.map((f, i) => (
+              <div key={i} style={styles.mediaPreviewItem}>
+                {f.type === 'video' ? (
+                  <div style={styles.mediaPreviewVideo}>
+                    <video src={f.preview} style={styles.mediaPreviewImg} muted />
+                    <div style={styles.mediaPreviewVideoIcon}>
+                      <Film size={20} color="#fff" />
+                    </div>
+                  </div>
+                ) : (
+                  <img src={f.preview} alt="" style={styles.mediaPreviewImg} />
+                )}
+                <button style={styles.mediaPreviewRemove} onClick={() => removeFile(i)}>
+                  <X size={14} color="#fff" />
+                </button>
+              </div>
+            ))}
+            {selectedFiles.length < 10 && (
+              <button
+                style={styles.mediaPreviewAdd}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Plus size={24} color={couleurs.texteSecondaire} />
+              </button>
+            )}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFilesSelected}
+        />
+
         <div style={styles.composerBottom}>
-          <button style={styles.composerMediaBtn}>
-            <Image size={18} color={couleurs.primaire} />
-            <span>Photo</span>
-          </button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              style={styles.composerMediaBtn}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Image size={18} color={couleurs.primaire} />
+              <span>Photo</span>
+            </button>
+            <button
+              style={styles.composerMediaBtn}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Film size={18} color={couleurs.secondaire} />
+              <span>Video</span>
+            </button>
+          </div>
           <motion.button
             style={{
               ...styles.composerPostBtn,
-              opacity: newPost.trim() && !posting ? 1 : 0.5,
+              opacity: (newPost.trim() || selectedFiles.length > 0) && !posting ? 1 : 0.5,
             }}
-            whileHover={newPost.trim() ? { scale: 1.02 } : {}}
-            whileTap={newPost.trim() ? { scale: 0.98 } : {}}
+            whileHover={(newPost.trim() || selectedFiles.length > 0) ? { scale: 1.02 } : {}}
+            whileTap={(newPost.trim() || selectedFiles.length > 0) ? { scale: 0.98 } : {}}
             onClick={handlePost}
-            disabled={!newPost.trim() || posting}
+            disabled={(!newPost.trim() && selectedFiles.length === 0) || posting}
           >
             <Send size={16} />
-            Publier
+            {posting ? 'Publication...' : 'Publier'}
           </motion.button>
         </div>
       </div>
@@ -1817,6 +2179,34 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 24,
     scrollbarWidth: 'none' as any,
   },
+  createStoryBtn: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: 6,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    minWidth: 72,
+  },
+  createStoryPlus: {
+    width: 56,
+    height: 56,
+    borderRadius: '50%',
+    background: `linear-gradient(135deg, ${couleurs.primaire}, ${couleurs.primaireDark})`,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createStoryLabel: {
+    fontSize: '0.6875rem',
+    color: couleurs.texte,
+    fontWeight: '500',
+    maxWidth: 72,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
   storyBtn: {
     display: 'flex',
     flexDirection: 'column',
@@ -1940,6 +2330,68 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     cursor: 'pointer',
   },
+  /* Media previews in composer */
+  mediaPreviews: {
+    display: 'flex',
+    gap: 8,
+    padding: '8px 16px',
+    overflowX: 'auto' as const,
+    flexWrap: 'wrap' as const,
+  },
+  mediaPreviewItem: {
+    position: 'relative' as const,
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  mediaPreviewImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover' as const,
+    display: 'block',
+  },
+  mediaPreviewVideo: {
+    position: 'relative' as const,
+    width: '100%',
+    height: '100%',
+  },
+  mediaPreviewVideoIcon: {
+    position: 'absolute' as const,
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  mediaPreviewRemove: {
+    position: 'absolute' as const,
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: '50%',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+  },
+  mediaPreviewAdd: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    border: `2px dashed ${couleurs.bordure}`,
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   /* Feed */
   feed: {
     display: 'flex',
@@ -2055,20 +2507,23 @@ const styles: Record<string, React.CSSProperties> = {
   commentsSheet: {
     width: '100%',
     maxWidth: 640,
-    maxHeight: '85vh',
+    minHeight: '60vh',
+    maxHeight: '90vh',
     backgroundColor: couleurs.fondElevated,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     display: 'flex',
     flexDirection: 'column' as const,
     overflow: 'hidden',
+    boxShadow: '0 -8px 40px rgba(0,0,0,0.4)',
   },
   sheetHeader: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '12px 16px 8px',
+    padding: '16px 20px 12px',
     position: 'relative' as const,
+    borderBottom: `1px solid ${couleurs.bordure}`,
   },
   sheetHandle: {
     position: 'absolute' as const,
@@ -2081,10 +2536,11 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: couleurs.bordure,
   },
   sheetTitle: {
-    fontSize: '1rem',
-    fontWeight: '600',
+    fontSize: '1.0625rem',
+    fontWeight: '700',
     color: couleurs.texte,
     marginTop: 8,
+    letterSpacing: '-0.01em',
   },
   sheetClose: {
     position: 'absolute' as const,
@@ -2098,17 +2554,17 @@ const styles: Record<string, React.CSSProperties> = {
   commentsList: {
     flex: 1,
     overflowY: 'auto' as const,
-    padding: '12px 16px',
+    padding: '16px 20px',
   },
   /* Comment row */
   commentRow: {
     display: 'flex',
-    gap: 10,
+    gap: 12,
     alignItems: 'flex-start',
   },
   commentAvatarBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: '50%',
     overflow: 'hidden',
     border: 'none',
@@ -2135,29 +2591,29 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     color: couleurs.blanc,
     fontWeight: '600',
-    fontSize: '0.75rem',
+    fontSize: '0.875rem',
   },
   commentBubble: {
     backgroundColor: couleurs.fondInput,
-    borderRadius: 12,
-    padding: '8px 12px',
+    borderRadius: 14,
+    padding: '10px 14px',
   },
   commentAuthorBtn: {
     display: 'block',
-    fontSize: '0.8125rem',
+    fontSize: '0.875rem',
     fontWeight: '600',
     color: couleurs.texte,
     background: 'none',
     border: 'none',
     padding: 0,
     cursor: 'pointer',
-    marginBottom: 2,
+    marginBottom: 3,
     textAlign: 'left' as const,
   },
   commentText: {
-    fontSize: '0.875rem',
+    fontSize: '0.9375rem',
     color: couleurs.texte,
-    lineHeight: 1.4,
+    lineHeight: 1.5,
     margin: 0,
     whiteSpace: 'pre-wrap' as const,
     wordBreak: 'break-word' as const,
@@ -2165,12 +2621,12 @@ const styles: Record<string, React.CSSProperties> = {
   commentMeta: {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
+    gap: 14,
+    marginTop: 6,
     paddingLeft: 4,
   },
   commentTime: {
-    fontSize: '0.6875rem',
+    fontSize: '0.75rem',
     color: couleurs.texteMuted,
   },
   commentMetaBtn: {
@@ -2180,22 +2636,22 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    padding: 0,
-    fontSize: '0.6875rem',
+    padding: '2px 0',
+    fontSize: '0.75rem',
     fontWeight: '600',
     color: couleurs.texteSecondaire,
   },
   showRepliesBtn: {
     display: 'flex',
     alignItems: 'center',
-    gap: 4,
-    marginLeft: 42,
-    marginTop: 4,
-    marginBottom: 8,
+    gap: 6,
+    marginLeft: 52,
+    marginTop: 6,
+    marginBottom: 10,
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    fontSize: '0.75rem',
+    fontSize: '0.8125rem',
     fontWeight: '600',
     color: couleurs.primaire,
     padding: 0,
@@ -2204,14 +2660,14 @@ const styles: Record<string, React.CSSProperties> = {
   replyBanner: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    padding: '8px 16px',
+    gap: 10,
+    padding: '10px 20px',
     borderTop: `1px solid ${couleurs.bordure}`,
-    backgroundColor: couleurs.fondInput,
+    backgroundColor: `${couleurs.primaire}10`,
   },
   replyBannerText: {
     flex: 1,
-    fontSize: '0.75rem',
+    fontSize: '0.8125rem',
     color: couleurs.primaire,
     fontWeight: '500',
   },
@@ -2219,29 +2675,37 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    padding: 2,
+    padding: 4,
     display: 'flex',
+    borderRadius: '50%',
   },
   /* Comment input */
   commentInput: {
     display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '12px 16px',
+    alignItems: 'flex-end',
+    gap: 10,
+    padding: '14px 20px',
     borderTop: `1px solid ${couleurs.bordure}`,
+    backgroundColor: couleurs.fondElevated,
   },
   commentInputField: {
     flex: 1,
-    padding: '10px 14px',
+    padding: '12px 16px',
     borderRadius: 20,
     backgroundColor: couleurs.fondInput,
     border: `1px solid ${couleurs.bordure}`,
     color: couleurs.texte,
-    fontSize: '0.8125rem',
+    fontSize: '0.9375rem',
+    lineHeight: 1.5,
+    resize: 'none' as const,
+    fontFamily: 'inherit',
+    minHeight: 44,
+    maxHeight: 120,
+    outline: 'none',
   },
   commentSendBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: '50%',
     background: `linear-gradient(135deg, ${couleurs.primaire}, ${couleurs.primaireDark})`,
     border: 'none',
