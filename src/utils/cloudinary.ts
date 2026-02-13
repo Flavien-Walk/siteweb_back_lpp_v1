@@ -133,18 +133,39 @@ const ALLOWED_VIDEO_MIMES = [
   'data:video/webm;',
 ];
 
+// Taille max par type (en bytes décodés du base64)
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50 MB
+
+/**
+ * Estimer la taille en bytes d'un data URL base64
+ */
+const estimateBase64Size = (dataUrl: string): number => {
+  const base64Part = dataUrl.split(',')[1];
+  if (!base64Part) return 0;
+  return Math.ceil(base64Part.length * 3 / 4);
+};
+
 /**
  * Vérifier si une chaîne est une data URL base64 avec un type MIME image autorisé
+ * Inclut validation de taille
  */
 export const isBase64DataUrl = (str: string): boolean => {
-  return ALLOWED_IMAGE_MIMES.some((mime) => str.startsWith(mime));
+  if (!ALLOWED_IMAGE_MIMES.some((mime) => str.startsWith(mime))) return false;
+  // RED-18: Vérifier la taille
+  if (estimateBase64Size(str) > MAX_IMAGE_SIZE) return false;
+  return true;
 };
 
 /**
  * Vérifier si une chaîne est une data URL base64 avec un type MIME vidéo autorisé
+ * Inclut validation de taille
  */
 export const isBase64VideoDataUrl = (str: string): boolean => {
-  return ALLOWED_VIDEO_MIMES.some((mime) => str.startsWith(mime));
+  if (!ALLOWED_VIDEO_MIMES.some((mime) => str.startsWith(mime))) return false;
+  // RED-18: Vérifier la taille
+  if (estimateBase64Size(str) > MAX_VIDEO_SIZE) return false;
+  return true;
 };
 
 /**

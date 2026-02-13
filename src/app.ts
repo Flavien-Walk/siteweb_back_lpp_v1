@@ -116,13 +116,15 @@ export const creerApp = (): Application => {
 
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // max 100 requêtes par fenêtre
+    max: 300, // max 300 requêtes par fenêtre (mobile fait beaucoup d'appels)
     message: {
       succes: false,
       message: 'Trop de requêtes. Veuillez réessayer dans quelques minutes.',
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // RED-19: Validation stricte de l'IP pour trust proxy
+    validate: { trustProxy: false },
   });
 
   const limiterAuth = rateLimit({

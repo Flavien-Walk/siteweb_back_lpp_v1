@@ -21,9 +21,10 @@ const schemaEnvoyerMessage = z.object({
   destinataireId: z.string().optional(), // Pour créer une nouvelle conversation privée
   contenu: z
     .string()
-    .min(1, 'Le contenu est requis'),
+    .min(1, 'Le contenu est requis')
+    .max(25_000_000, 'Le contenu est trop volumineux'), // 25MB max pour base64 media
   type: z.enum(['texte', 'image', 'video']).default('texte'),
-  clientMessageId: z.string().optional(), // Pour idempotence côté client
+  clientMessageId: z.string().max(100).optional(),
   replyTo: z.string().optional(), // ID du message auquel on répond
 });
 
@@ -39,7 +40,7 @@ const schemaCreerGroupe = z.object({
     .min(1, 'Le nom du groupe est requis')
     .max(100, 'Le nom ne peut pas dépasser 100 caractères')
     .trim(),
-  participants: z.array(z.string()).min(1, 'Au moins un participant requis'),
+  participants: z.array(z.string()).min(1, 'Au moins un participant requis').max(50, 'Maximum 50 participants'),
   imageGroupe: z.string().url().optional(),
 });
 

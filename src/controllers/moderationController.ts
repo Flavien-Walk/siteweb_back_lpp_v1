@@ -13,6 +13,7 @@ import { Message, Conversation } from '../models/Message.js';
 import Live from '../models/Live.js';
 import Evenement from '../models/Evenement.js';
 import { auditLogger } from '../utils/auditLogger.js';
+import { forceDisconnectUser } from '../socket/index.js';
 
 // Escape special regex characters to prevent ReDoS attacks
 const escapeRegex = (str: string): string => {
@@ -271,6 +272,9 @@ export const warnUser = async (
           eventId: autoSuspendEventId,
         });
 
+        // RED-17: Déconnecter immédiatement l'utilisateur auto-suspendu
+        forceDisconnectUser(target._id.toString(), 'Votre compte a été suspendu automatiquement.');
+
         console.log(`[AUTO-ESCALADE] User ${target._id} suspendu automatiquement pour 7 jours (3 warnings) eventId: ${autoSuspendEventId}`);
 
       } else {
@@ -323,6 +327,9 @@ export const warnUser = async (
           actorRole: 'system', // Indique que c'est une action automatique
           eventId: autoBanEventId,
         });
+
+        // RED-17: Déconnecter immédiatement l'utilisateur auto-banni
+        forceDisconnectUser(target._id.toString(), 'Votre compte a été banni définitivement.');
 
         console.log(`[AUTO-ESCALADE] User ${target._id} banni automatiquement (3 warnings apres suspension) eventId: ${autoBanEventId}`);
       }
@@ -526,6 +533,9 @@ export const suspendUser = async (
     target.suspendReason = donnees.reason;
     await target.save();
 
+    // RED-17: Déconnecter immédiatement l'utilisateur suspendu
+    forceDisconnectUser(target._id.toString(), 'Votre compte a été suspendu.');
+
     // Log de l'action avec eventId
     await AuditLog.create({
       eventId,
@@ -712,6 +722,9 @@ export const banUser = async (
     target.banReason = donnees.reason;
     target.suspendedUntil = null; // Annuler toute suspension en cours
     await target.save();
+
+    // RED-17: Déconnecter immédiatement l'utilisateur banni de toutes les sessions socket
+    forceDisconnectUser(target._id.toString(), 'Votre compte a été banni.');
 
     // Log de l'action avec eventId
     await AuditLog.create({

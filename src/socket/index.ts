@@ -188,10 +188,18 @@ export function initializeSocket(httpServer: HttpServer): Server {
         return next(new Error('UserId invalide'));
       }
 
-      // Récupérer le nom de l'utilisateur
-      const user = await Utilisateur.findById(decoded.id).select('prenom nom');
+      // Récupérer l'utilisateur et vérifier son statut
+      const user = await Utilisateur.findById(decoded.id).select('prenom nom bannedAt suspendedUntil');
       if (!user) {
         return next(new Error('Utilisateur non trouvé'));
+      }
+
+      // RED-16: Bloquer les connexions socket des utilisateurs bannis/suspendus
+      if (user.bannedAt) {
+        return next(new Error('Compte banni'));
+      }
+      if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
+        return next(new Error('Compte suspendu'));
       }
 
       socket.userId = decoded.id;
@@ -545,6 +553,28 @@ export function forceLeaveConversation(userId: string, conversationId: string): 
   }
 
   console.log(`[SOCKET] force_leave émis pour user: ${userId}, conversation: ${conversationId}`);
+}
+
+/**
+ * RED-17: Déconnecter de force un utilisateur (ban/suspension temps réel)
+ * Appelé depuis les controllers de modération après une sanction
+ */
+export function forceDisconnectUser(userId: string, reason: string): void {
+  if (!io) return;
+
+  const userSocketIds = connectedUsers.get(userId);
+  if (!userSocketIds) return;
+
+  for (const socketId of userSocketIds) {
+    const socket = io.sockets.sockets.get(socketId) as SocketWithUser | undefined;
+    if (socket) {
+      socket.emit('force_disconnect', { reason });
+      socket.disconnect(true);
+    }
+  }
+
+  connectedUsers.delete(userId);
+  console.log(`[SOCKET] force_disconnect pour user: ${userId} (${reason})`);
 }
 
 /**
