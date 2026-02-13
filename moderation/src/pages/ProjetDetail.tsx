@@ -16,19 +16,38 @@ import { InlineEditor } from '@/components/InlineEditor'
 const categorieLabels: Record<string, string> = {
   tech: 'Technologie',
   food: 'Alimentation',
-  sante: 'Sant\u00e9',
-  education: '\u00c9ducation',
-  energie: '\u00c9nergie',
+  sante: 'Santé',
+  education: 'Éducation',
+  energie: 'Énergie',
   culture: 'Culture',
   environnement: 'Environnement',
   autre: 'Autre',
 }
 
 const maturiteLabels: Record<string, string> = {
-  idee: 'Id\u00e9e',
+  idee: 'Idée',
   prototype: 'Prototype',
   lancement: 'Lancement',
   croissance: 'Croissance',
+}
+
+const roleEquipeLabels: Record<string, string> = {
+  founder: 'Fondateur',
+  cto: 'Directeur technique',
+  ceo: 'Directeur général',
+  coo: 'Directeur des opérations',
+  cmo: 'Directeur marketing',
+  cfo: 'Directeur financier',
+  sales: 'Commercial',
+  developer: 'Développeur',
+  designer: 'Designer',
+  marketing: 'Marketing',
+  community: 'Community Manager',
+  manager: 'Manager',
+  advisor: 'Conseiller',
+  investor: 'Investisseur',
+  member: 'Membre',
+  co_founder: 'Co-fondateur',
 }
 
 const maturiteVariants: Record<string, 'default' | 'secondary' | 'success' | 'warning'> = {
@@ -146,7 +165,7 @@ export function ProjetDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
         <AlertTriangle className="h-12 w-12 mb-4" />
-        <p className="text-lg mb-4">Projet non trouv\u00e9</p>
+        <p className="text-lg mb-4">Projet non trouvé</p>
         <Link to="/projets">
           <Button variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -216,12 +235,12 @@ export function ProjetDetailPage() {
                     {categorieLabels[projet.categorie] || projet.categorie}
                   </Badge>
                   <Badge variant={projet.statut === 'published' ? 'success' : 'secondary'}>
-                    {projet.statut === 'published' ? 'Publi\u00e9' : 'Brouillon'}
+                    {projet.statut === 'published' ? 'Publié' : 'Brouillon'}
                   </Badge>
                   {projet.isHidden ? (
                     <Badge variant="destructive">
                       <EyeOff className="mr-1 h-3 w-3" />
-                      Masqu\u00e9
+                      Masqué
                     </Badge>
                   ) : (
                     <Badge variant="success">
@@ -264,24 +283,24 @@ export function ProjetDetailPage() {
               {/* Details Grid */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Cat\u00e9gorie</p>
+                  <p className="text-sm font-medium text-muted-foreground">Catégorie</p>
                   <p className="font-medium">{categorieLabels[projet.categorie] || projet.categorie}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Maturit\u00e9</p>
+                  <p className="text-sm font-medium text-muted-foreground">Maturité</p>
                   <p className="font-medium">{maturiteLabels[projet.maturite] || projet.maturite}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Cr\u00e9\u00e9 le</p>
+                    <p className="text-sm font-medium text-muted-foreground">Créé le</p>
                     <p className="text-sm">{formatDate(projet.dateCreation)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Mis \u00e0 jour</p>
+                    <p className="text-sm font-medium text-muted-foreground">Mis à jour</p>
                     <p className="text-sm">{formatRelativeTime(projet.dateMiseAJour)}</p>
                   </div>
                 </div>
@@ -292,7 +311,7 @@ export function ProjetDetailPage() {
                 <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <h4 className="font-semibold text-destructive mb-2 flex items-center gap-2">
                     <EyeOff className="h-4 w-4" />
-                    Projet masqu\u00e9
+                    Projet masqué
                   </h4>
                   {projet.hiddenReason && (
                     <p className="text-sm mb-2">
@@ -321,7 +340,7 @@ export function ProjetDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                \u00c9quipe ({projet.equipe?.length || 0})
+                Équipe ({projet.equipe?.length || 0})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -366,13 +385,13 @@ export function ProjetDetailPage() {
                           )}
                         </div>
                       </div>
-                      <Badge variant="outline">{membre.role}</Badge>
+                      <Badge variant="outline">{roleEquipeLabels[membre.role] || membre.role}</Badge>
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Aucun membre dans l'\u00e9quipe
+                  Aucun membre dans l'équipe
                 </p>
               )}
             </CardContent>
@@ -420,7 +439,7 @@ export function ProjetDetailPage() {
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground py-8">
-                  Aucune action de mod\u00e9ration enregistr\u00e9e
+                  Aucune action de modération enregistrée
                 </p>
               )}
             </CardContent>
@@ -488,7 +507,7 @@ export function ProjetDetailPage() {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  Cr\u00e9\u00e9 le
+                  Créé le
                 </span>
                 <span className="text-xs">{formatDate(projet.dateCreation)}</span>
               </div>
@@ -500,7 +519,7 @@ export function ProjetDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5" />
-                Actions de mod\u00e9ration
+                Actions de modération
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -533,7 +552,7 @@ export function ProjetDetailPage() {
                   disabled={unhideMutation.isPending}
                 >
                   <Eye className="mr-2 h-4 w-4" />
-                  R\u00e9afficher le projet
+                  Réafficher le projet
                 </Button>
               ) : (
                 <Button
@@ -567,7 +586,7 @@ export function ProjetDetailPage() {
             <CardHeader>
               <CardTitle>
                 {confirmAction.type === 'hide' && 'Masquer le projet'}
-                {confirmAction.type === 'unhide' && 'R\u00e9afficher le projet'}
+                {confirmAction.type === 'unhide' && 'Réafficher le projet'}
                 {confirmAction.type === 'delete' && 'Supprimer le projet'}
               </CardTitle>
             </CardHeader>
@@ -575,11 +594,11 @@ export function ProjetDetailPage() {
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   {confirmAction.type === 'hide' &&
-                    'Le projet sera masqu\u00e9 et ne sera plus visible par les utilisateurs.'}
+                    'Le projet sera masqué et ne sera plus visible par les utilisateurs.'}
                   {confirmAction.type === 'unhide' &&
                     'Le projet sera de nouveau visible par les utilisateurs.'}
                   {confirmAction.type === 'delete' &&
-                    'Cette action est irr\u00e9versible. Le projet sera d\u00e9finitivement supprim\u00e9.'}
+                    'Cette action est irréversible. Le projet sera définitivement supprimé.'}
                 </p>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -608,7 +627,7 @@ export function ProjetDetailPage() {
                     }
                   >
                     {confirmAction.type === 'hide' && 'Masquer'}
-                    {confirmAction.type === 'unhide' && 'R\u00e9afficher'}
+                    {confirmAction.type === 'unhide' && 'Réafficher'}
                     {confirmAction.type === 'delete' && 'Supprimer'}
                   </Button>
                 </div>

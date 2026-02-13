@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { auditService, type AuditListParams } from '@/services/audit'
 import { PageTransition } from '@/components/PageTransition'
 import { useAuth } from '@/auth/AuthContext'
@@ -371,37 +371,32 @@ export function AuditPage() {
                   </TableCell>
                   <TableCell>
                     {log.moderator ? (
-                      <div className="flex items-center gap-2">
-                        {log.moderator.avatar ? (
-                          <img
-                            src={log.moderator.avatar}
-                            alt=""
-                            className="h-6 w-6 rounded-full"
-                          />
-                        ) : (
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs">
-                            {log.moderator.prenom?.[0]}
-                          </div>
-                        )}
+                      <Link to={`/users/${log.moderator._id}`} className="flex items-center gap-2 hover:underline">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-medium">
+                          {log.moderator.prenom?.[0]}
+                        </div>
                         <span className="text-sm">
-                          {log.moderator.prenom} {log.moderator.nom?.[0]}.
+                          {log.moderator.prenom} {log.moderator.nom}
                         </span>
-                      </div>
+                      </Link>
                     ) : (
                       <span className="text-muted-foreground">Système</span>
                     )}
                   </TableCell>
                   <TableCell>
                     {log.targetUser ? (
-                      <div className="flex items-center gap-2">
+                      <Link to={`/users/${log.targetUser._id || log.targetId}`} className="flex items-center gap-2 hover:underline">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-medium">
+                          {log.targetUser.prenom?.[0]}
+                        </div>
                         <span className="text-sm">
                           {log.targetUser.prenom} {log.targetUser.nom}
                         </span>
-                      </div>
+                      </Link>
                     ) : log.targetId ? (
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {log.targetId.slice(-8)}
-                      </span>
+                      <Link to={`/users/${log.targetId}`} className="text-sm text-primary hover:underline">
+                        Voir l'utilisateur
+                      </Link>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
