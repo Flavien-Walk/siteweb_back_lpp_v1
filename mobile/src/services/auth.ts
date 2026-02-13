@@ -194,8 +194,18 @@ export const getSanctionInfo = async (): Promise<ReponseAPI<SanctionInfo>> => {
 
 /**
  * Déconnexion
+ * Appelle le backend pour blacklister le JWT puis supprime le token local
  */
 export const deconnexion = async (): Promise<void> => {
+  // Blacklister le JWT cote serveur avant de supprimer localement
+  try {
+    const token = await getToken();
+    if (token) {
+      await api.post('/auth/deconnexion', {}, true);
+    }
+  } catch {
+    // Ignorer les erreurs reseau - la suppression locale se fait quand meme
+  }
   await removeToken();
   await AsyncStorage.removeItem(STORAGE_KEYS.UTILISATEUR);
 };
