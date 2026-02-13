@@ -26,6 +26,7 @@ import {
   unblockIP,
   getBlockedIPs,
   getSecurityEvents,
+  getBackendHealth,
 } from '../controllers/securityController.js';
 import {
   getStaffMessages,
@@ -341,6 +342,9 @@ router.post('/security/block-ip', verifierJwt, requireMinRole('admin_modo'), blo
 
 // DELETE /api/admin/security/unblock-ip/:id - Debloquer une IP
 router.delete('/security/unblock-ip/:id', verifierJwt, requireMinRole('admin_modo'), unblockIP);
+
+// GET /api/admin/security/health - Analyse sante backend temps reel
+router.get('/security/health', verifierJwt, requireMinRole('admin_modo'), getBackendHealth);
 
 // ============ NOTIFICATIONS BROADCAST ============
 
