@@ -10,6 +10,7 @@ export const actionLabels: Record<string, string> = {
   user_suspend: 'Suspension',
   user_ban: 'Bannissement',
   user_unban: 'Débannissement',
+  user_unsuspend: 'Levée de suspension',
   user_role_change: 'Changement de rôle',
   user_surveillance_on: 'Surveillance activée',
   user_surveillance_off: 'Surveillance retirée',
@@ -45,6 +46,7 @@ export const actionBarColors: Record<string, string> = {
   user_suspend: 'bg-orange-500',
   user_ban: 'bg-red-600',
   user_unban: 'bg-emerald-500',
+  user_unsuspend: 'bg-teal-400',
   user_role_change: 'bg-blue-500',
   user_surveillance_on: 'bg-amber-400',
   user_surveillance_off: 'bg-zinc-500',
@@ -112,14 +114,17 @@ export const sanctionLabels: Record<string, string> = {
   suspend: 'Suspension temporaire',
   ban: 'Bannissement définitif',
   unban: 'Débannissement',
+  unsuspend: 'Levée de suspension',
   'user:warn': 'Avertissement',
   'user:suspend': 'Suspension temporaire',
   'user:ban': 'Bannissement définitif',
   'user:unban': 'Débannissement',
+  'user:unsuspend': 'Levée de suspension',
   user_warn: 'Avertissement',
   user_suspend: 'Suspension temporaire',
   user_ban: 'Bannissement définitif',
   user_unban: 'Débannissement',
+  user_unsuspend: 'Levée de suspension',
 }
 
 export function getSanctionLabel(action: string): string {
@@ -148,6 +153,19 @@ const metadataKeyLabels: Record<string, string> = {
   contentType: 'Type de contenu',
   oldValue: 'Ancienne valeur',
   newValue: 'Nouvelle valeur',
+  suspendedUntil: 'Suspendu jusqu\'au',
+  suspendedAt: 'Suspendu le',
+  unsuspendedAt: 'Levée le',
+  bannedAt: 'Banni le',
+  unbannedAt: 'Débanni le',
+  warnedAt: 'Averti le',
+  expiresAt: 'Expire le',
+  reportId: 'Signalement',
+  userId: 'Utilisateur',
+  publicationId: 'Publication',
+  commentaireId: 'Commentaire',
+  projetId: 'Projet',
+  storyId: 'Story',
 }
 
 const metadataValueLabels: Record<string, string> = {
@@ -178,9 +196,25 @@ const metadataValueLabels: Record<string, string> = {
   admin: 'Administrateur',
 }
 
+/** Détecte si une chaîne ressemble à une date ISO (2026-02-04T16:54:36.008Z) */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
 function formatMetadataValue(value: unknown): string {
   if (value === null || value === undefined) return '-'
   const str = String(value)
+  // Formater les dates ISO en texte lisible
+  if (ISO_DATE_RE.test(str)) {
+    const d = new Date(str)
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    }
+  }
   return metadataValueLabels[str] || str
 }
 

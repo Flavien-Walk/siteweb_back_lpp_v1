@@ -40,31 +40,15 @@ import {
   Pencil,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
-import { formatMetadata, formatReason } from '@/lib/labels'
+import { getActionLabel, actionLabels, formatMetadata, formatReason } from '@/lib/labels'
 
-const actionLabels: Record<string, string> = {
-  user_warn: 'Avertissement',
-  user_suspend: 'Suspension',
-  user_ban: 'Bannissement',
-  user_unban: 'Débannissement',
-  user_role_change: 'Changement de rôle',
-  user_surveillance_on: 'Surveillance activée',
-  user_surveillance_off: 'Surveillance retirée',
-  report_approve: 'Signalement approuvé',
-  report_reject: 'Signalement rejeté',
-  report_escalate: 'Signalement escaladé',
-  report_assign: 'Signalement assigné',
-  content_delete: 'Contenu supprimé',
-  content_restore: 'Contenu restauré',
-  content_hide: 'Contenu masqué',
-  content_unhide: 'Contenu réaffiché',
-  content_edit: 'Contenu modifié',
-  staff_chat: 'Message staff',
-}
+/** Normalise user:warn → user_warn, report:process → report_process, etc. */
+const norm = (s: string) => s.replace(/:/g, '_')
 
 const actionIcons: Record<string, React.ReactNode> = {
   user_warn: <AlertTriangle className="h-4 w-4 text-warning" />,
   user_suspend: <Shield className="h-4 w-4 text-warning" />,
+  user_unsuspend: <Shield className="h-4 w-4 text-teal-400" />,
   user_ban: <Ban className="h-4 w-4 text-destructive" />,
   user_unban: <Shield className="h-4 w-4 text-success" />,
   user_role_change: <User className="h-4 w-4 text-primary" />,
@@ -74,6 +58,7 @@ const actionIcons: Record<string, React.ReactNode> = {
   report_reject: <Flag className="h-4 w-4 text-muted-foreground" />,
   report_escalate: <Flag className="h-4 w-4 text-destructive" />,
   report_assign: <Flag className="h-4 w-4 text-primary" />,
+  report_process: <Flag className="h-4 w-4 text-teal-400" />,
   content_delete: <X className="h-4 w-4 text-destructive" />,
   content_restore: <RefreshCw className="h-4 w-4 text-success" />,
   content_hide: <EyeOff className="h-4 w-4 text-orange-400" />,
@@ -106,30 +91,34 @@ function SourceBadge({ source }: { source?: string }) {
   )
 }
 
+const actionVariants: Record<string, string> = {
+  user_warn: 'warning',
+  user_suspend: 'warning',
+  user_unsuspend: 'success',
+  user_ban: 'destructive',
+  user_unban: 'success',
+  user_role_change: 'default',
+  user_surveillance_on: 'warning',
+  user_surveillance_off: 'secondary',
+  report_approve: 'success',
+  report_reject: 'secondary',
+  report_escalate: 'escalated',
+  report_assign: 'default',
+  report_process: 'success',
+  content_delete: 'destructive',
+  content_restore: 'success',
+  content_hide: 'warning',
+  content_unhide: 'success',
+  content_edit: 'default',
+  staff_chat: 'outline',
+}
+
 function ActionBadge({ action }: { action: string }) {
-  const variants: Record<string, string> = {
-    user_warn: 'warning',
-    user_suspend: 'warning',
-    user_ban: 'destructive',
-    user_unban: 'success',
-    user_role_change: 'default',
-    user_surveillance_on: 'warning',
-    user_surveillance_off: 'secondary',
-    report_approve: 'success',
-    report_reject: 'secondary',
-    report_escalate: 'escalated',
-    report_assign: 'default',
-    content_delete: 'destructive',
-    content_restore: 'success',
-    content_hide: 'warning',
-    content_unhide: 'success',
-    content_edit: 'default',
-    staff_chat: 'outline',
-  }
+  const key = norm(action)
   return (
-    <Badge variant={variants[action] as never} className="gap-1">
-      {actionIcons[action]}
-      {actionLabels[action] || action}
+    <Badge variant={(actionVariants[key] || 'secondary') as never} className="gap-1">
+      {actionIcons[key]}
+      {getActionLabel(action)}
     </Badge>
   )
 }
