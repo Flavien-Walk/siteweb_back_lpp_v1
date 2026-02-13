@@ -1,96 +1,100 @@
 import api from './api'
 import type { ApiResponse } from '@/types'
 
+// Types pour les events de securite
+export interface SecurityEvent {
+  _id: string
+  type: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  ip: string
+  method: string
+  path: string
+  statusCode: number
+  details: string
+  blocked: boolean
+  dateCreation: string
+  metadata?: Record<string, unknown>
+}
+
+export interface SuspiciousIP {
+  ip: string
+  count: number
+  types: string[]
+  lastSeen: string
+  maxSeverity: string
+}
+
+export interface OffenderIP {
+  ip: string
+  totalEvents: number
+  criticalCount: number
+  types: string[]
+  firstSeen: string
+  lastSeen: string
+}
+
+export interface AttackedPath {
+  path: string
+  count: number
+  types: string[]
+}
+
+export interface HourlyPoint {
+  _id: { hour: number; day: number }
+  total: number
+  critical: number
+  high: number
+  blocked: number
+}
+
+export interface DailyPoint {
+  _id: string
+  total: number
+  critical: number
+  high: number
+  medium: number
+  low: number
+}
+
 export interface SecurityDashboardData {
-  securityScore: number
-  alertLevel: 'normal' | 'elevated' | 'high' | 'critical'
-  criticalReports: number
-  highReports: number
-  sanctions: {
-    last24h: number
-    last7d: number
+  threatLevel: 'normal' | 'elevated' | 'high' | 'critical'
+  lastUpdated: string
+
+  summary: {
+    totalEvents24h: number
+    totalEvents7j: number
+    criticalEvents24h: number
+    highEvents24h: number
+    blockedEvents24h: number
+    eventsPerHour: number
   }
-  surveillanceCount: number
-  autoEscalations: number
-  recentEscalations: Array<{
-    _id: string
-    targetType: string
-    reason: string
-    priority: string
-    escalationReason: string
-    escalatedAt: string
-  }>
-  recentBans: Array<{
-    _id: string
-    prenom: string
-    nom: string
-    avatar?: string
-    bannedAt: string
-    banReason?: string
-  }>
-  activeSuspensions: Array<{
-    _id: string
-    prenom: string
-    nom: string
-    avatar?: string
-    suspendedUntil: string
-    suspendReason?: string
-  }>
-  reportsByReason: Array<{ _id: string; count: number }>
-  reportsTrend: Array<{
-    _id: string
-    count: number
+
+  attackTypes: {
+    brute_force: number
+    injection_attempt: number
+    rate_limit_hit: number
+    unauthorized_access: number
+    forbidden_access: number
+    token_forgery: number
+    suspicious_signup: number
+    cors_violation: number
+    anomaly: number
+  }
+
+  severityBreakdown: {
     critical: number
     high: number
-  }>
-  moderatorActions: Array<{
-    _id: string
-    totalActions: number
-    warns: number
-    suspensions: number
-    bans: number
-    contentActions: number
-    moderator: {
-      _id: string
-      prenom: string
-      nom: string
-      avatar?: string
-    } | null
-  }>
-  topReportedUsers: Array<{
-    _id: string
-    count: number
-    reasons: string[]
-    maxPriority: string
-    user: {
-      _id: string
-      prenom: string
-      nom: string
-      avatar?: string
-      warnings?: Array<{ reason: string }>
-      surveillance?: { active: boolean }
-      bannedAt?: string
-      suspendedUntil?: string
-    } | null
-  }>
-  securityEvents: Array<{
-    _id: string
-    action: string
-    actor?: { _id: string; prenom: string; nom: string }
-    targetType?: string
-    targetId?: string
-    metadata?: Record<string, unknown>
-    dateCreation: string
-  }>
-  recentActions: Array<{
-    _id: string
-    action: string
-    actor?: { _id: string; prenom: string; nom: string; avatar?: string }
-    targetType?: string
-    targetId?: string
-    metadata?: Record<string, unknown>
-    dateCreation: string
-  }>
+    medium: number
+    low: number
+  }
+
+  topSuspiciousIPs: SuspiciousIP[]
+  recentEvents: SecurityEvent[]
+  hourlyTrend: HourlyPoint[]
+  dailyTrend: DailyPoint[]
+  topAttackedPaths: AttackedPath[]
+  criticalEvents: SecurityEvent[]
+  topOffenderIPs: OffenderIP[]
 }
 
 export const securityService = {

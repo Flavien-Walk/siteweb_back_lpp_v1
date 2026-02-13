@@ -1,458 +1,589 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import { securityService } from '@/services/security'
-import type { SecurityDashboardData } from '@/services/security'
+import type { SecurityDashboardData, SecurityEvent } from '@/services/security'
 import { PageTransition } from '@/components/PageTransition'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { getActionLabel } from '@/lib/labels'
-import { formatRelativeTime } from '@/lib/utils'
 import {
   Shield,
   ShieldAlert,
   ShieldCheck,
   RefreshCw,
   AlertTriangle,
-  TrendingUp,
-  Users,
-  Ban,
-  Clock,
-  Eye,
-  Flame,
   Activity,
-  UserX,
   Zap,
-  BarChart3,
+  Globe,
+  Lock,
+  ShieldX,
+  Eye,
+  Bug,
+  Wifi,
+  Server,
+  XCircle,
 } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts'
 
-// Labels des raisons de signalement
-const reasonLabels: Record<string, string> = {
-  spam: 'Spam',
-  harcelement: 'Harcelement',
-  contenu_inapproprie: 'Contenu inapproprie',
-  fausse_info: 'Fausse information',
-  nudite: 'Nudite',
-  violence: 'Violence',
-  haine: 'Haine',
-  autre: 'Autre',
+// ============================================
+// CONSTANTES
+// ============================================
+
+const THREAT_COLORS = {
+  normal: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', fill: '#10b981' },
+  elevated: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30', fill: '#f59e0b' },
+  high: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/30', fill: '#f97316' },
+  critical: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30', fill: '#ef4444' },
+} as const
+
+const SEVERITY_COLORS = {
+  critical: '#ef4444',
+  high: '#f97316',
+  medium: '#f59e0b',
+  low: '#6b7280',
 }
 
-// Couleurs priorite
-const priorityConfig: Record<string, { label: string; color: string; bg: string }> = {
-  critical: { label: 'Critique', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
-  high: { label: 'Haute', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
-  medium: { label: 'Moyenne', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-  low: { label: 'Basse', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+const ATTACK_TYPE_LABELS: Record<string, { label: string; icon: typeof Shield; color: string }> = {
+  brute_force: { label: 'Brute Force', icon: Lock, color: '#ef4444' },
+  injection_attempt: { label: 'Injection', icon: Bug, color: '#f97316' },
+  rate_limit_hit: { label: 'Rate Limit', icon: Zap, color: '#f59e0b' },
+  unauthorized_access: { label: 'Acces non autorise', icon: ShieldX, color: '#8b5cf6' },
+  forbidden_access: { label: 'Permission refusee', icon: XCircle, color: '#ec4899' },
+  token_forgery: { label: 'Token forge', icon: ShieldAlert, color: '#ef4444' },
+  suspicious_signup: { label: 'Inscription suspecte', icon: Eye, color: '#f97316' },
+  cors_violation: { label: 'CORS violation', icon: Globe, color: '#6366f1' },
+  anomaly: { label: 'Anomalie', icon: Activity, color: '#14b8a6' },
 }
 
-// Couleurs niveau alerte
-const alertConfig: Record<string, { label: string; icon: typeof ShieldCheck; color: string; bg: string; glow: string }> = {
-  normal: { label: 'Normal', icon: ShieldCheck, color: 'text-emerald-400', bg: 'from-emerald-500/20 to-emerald-500/5', glow: 'shadow-emerald-500/20' },
-  elevated: { label: 'Eleve', icon: Shield, color: 'text-amber-400', bg: 'from-amber-500/20 to-amber-500/5', glow: 'shadow-amber-500/20' },
-  high: { label: 'Haut', icon: ShieldAlert, color: 'text-orange-400', bg: 'from-orange-500/20 to-orange-500/5', glow: 'shadow-orange-500/20' },
-  critical: { label: 'Critique', icon: Flame, color: 'text-red-400', bg: 'from-red-500/20 to-red-500/5', glow: 'shadow-red-500/20' },
+const SEVERITY_LABELS: Record<string, string> = {
+  critical: 'Critique',
+  high: 'Haute',
+  medium: 'Moyenne',
+  low: 'Basse',
 }
 
-function ScoreGauge({ score, size = 'lg' }: { score: number; size?: 'sm' | 'lg' }) {
-  const color = score >= 80 ? 'text-emerald-400' : score >= 60 ? 'text-amber-400' : score >= 40 ? 'text-orange-400' : 'text-red-400'
-  const strokeColor = score >= 80 ? '#34d399' : score >= 60 ? '#fbbf24' : score >= 40 ? '#fb923c' : '#f87171'
-  const radius = size === 'lg' ? 60 : 30
-  const circumference = 2 * Math.PI * radius
-  const offset = circumference - (score / 100) * circumference
-  const svgSize = size === 'lg' ? 160 : 80
+// ============================================
+// COMPOSANTS
+// ============================================
+
+function ThreatLevelBanner({ level }: { level: SecurityDashboardData['threatLevel'] }) {
+  const config = THREAT_COLORS[level]
+  const labels = {
+    normal: { title: 'Niveau de menace : Normal', desc: 'Aucune activite suspecte detectee.' },
+    elevated: { title: 'Niveau de menace : Eleve', desc: 'Activite inhabituelle detectee. Surveillance accrue recommandee.' },
+    high: { title: 'Niveau de menace : Haut', desc: 'Plusieurs tentatives d\'intrusion detectees. Investigation requise.' },
+    critical: { title: 'Niveau de menace : Critique', desc: 'Attaques actives detectees ! Action immediate necessaire.' },
+  }
+  const { title, desc } = labels[level]
+  const Icon = level === 'normal' ? ShieldCheck : level === 'critical' ? ShieldAlert : AlertTriangle
 
   return (
-    <div className="relative flex items-center justify-center">
-      <svg width={svgSize} height={svgSize} className="-rotate-90">
-        <circle
-          cx={svgSize / 2}
-          cy={svgSize / 2}
-          r={radius}
-          fill="none"
-          stroke="rgba(255,255,255,0.05)"
-          strokeWidth={size === 'lg' ? 8 : 4}
-        />
-        <circle
-          cx={svgSize / 2}
-          cy={svgSize / 2}
-          r={radius}
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth={size === 'lg' ? 8 : 4}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <div className={`absolute flex flex-col items-center ${color}`}>
-        <span className={size === 'lg' ? 'text-3xl font-bold' : 'text-lg font-bold'}>{score}</span>
-        {size === 'lg' && <span className="text-xs opacity-60">/100</span>}
+    <div className={`rounded-xl border-2 ${config.border} ${config.bg} p-5`}>
+      <div className="flex items-center gap-4">
+        <div className={`flex h-14 w-14 items-center justify-center rounded-full ${config.bg}`}>
+          <Icon className={`h-7 w-7 ${config.text}`} />
+        </div>
+        <div className="flex-1">
+          <h2 className={`text-lg font-bold ${config.text}`}>{title}</h2>
+          <p className="text-sm text-zinc-400">{desc}</p>
+        </div>
+        {level !== 'normal' && (
+          <div className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider ${config.bg} ${config.text} border ${config.border}`}>
+            {level === 'critical' ? 'ALERTE' : level === 'high' ? 'ATTENTION' : 'SURVEILLANCE'}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function AlertBanner({ data }: { data: SecurityDashboardData }) {
-  const config = alertConfig[data.alertLevel] || alertConfig.normal
-  const Icon = config.icon
-
+function StatCard({ label, value, icon: Icon, color, sub }: {
+  label: string
+  value: number
+  icon: typeof Shield
+  color: string
+  sub?: string
+}) {
   return (
-    <div className={`relative overflow-hidden rounded-xl border bg-gradient-to-r ${config.bg} border-white/5 p-6 shadow-lg ${config.glow}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <ScoreGauge score={data.securityScore} />
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <Icon className={`h-5 w-5 ${config.color}`} />
-              <h2 className="text-lg font-semibold">
-                Niveau d'alerte : <span className={config.color}>{config.label}</span>
-              </h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Score de securite global de la plateforme
-            </p>
-            <div className="mt-3 flex gap-4 text-sm">
-              <span className="flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
-                <span className="text-red-400 font-medium">{data.criticalReports}</span> critique{data.criticalReports !== 1 ? 's' : ''}
-              </span>
-              <span className="flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
-                <span className="text-orange-400 font-medium">{data.highReports}</span> haute{data.highReports !== 1 ? 's' : ''}
-              </span>
-              <span className="flex items-center gap-1">
-                <Zap className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-amber-400 font-medium">{data.sanctions.last24h}</span> sanction{data.sanctions.last24h !== 1 ? 's' : ''} (24h)
-              </span>
-            </div>
+            <p className="text-xs text-zinc-500 uppercase tracking-wider">{label}</p>
+            <p className="text-2xl font-bold mt-1" style={{ color }}>{value}</p>
+            {sub && <p className="text-xs text-zinc-500 mt-0.5">{sub}</p>}
+          </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: color + '15' }}>
+            <Icon className="h-5 w-5" style={{ color }} />
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
-function StatsCards({ data }: { data: SecurityDashboardData }) {
-  const cards = [
-    {
-      label: 'Signalements critiques',
-      value: data.criticalReports,
-      icon: Flame,
-      color: 'text-red-400',
-      bg: 'bg-red-500/10',
-    },
-    {
-      label: 'Sanctions (24h)',
-      value: data.sanctions.last24h,
-      icon: Ban,
-      color: 'text-orange-400',
-      bg: 'bg-orange-500/10',
-    },
-    {
-      label: 'Sanctions (7j)',
-      value: data.sanctions.last7d,
-      icon: Activity,
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10',
-    },
-    {
-      label: 'Sous surveillance',
-      value: data.surveillanceCount,
-      icon: Eye,
-      color: 'text-blue-400',
-      bg: 'bg-blue-500/10',
-    },
-    {
-      label: 'Auto-escalades (7j)',
-      value: data.autoEscalations,
-      icon: TrendingUp,
-      color: 'text-purple-400',
-      bg: 'bg-purple-500/10',
-    },
-    {
-      label: 'Suspensions actives',
-      value: data.activeSuspensions.length,
-      icon: UserX,
-      color: 'text-rose-400',
-      bg: 'bg-rose-500/10',
-    },
-  ]
+function AttackTypeBreakdown({ attackTypes }: { attackTypes: SecurityDashboardData['attackTypes'] }) {
+  const entries = Object.entries(attackTypes)
+    .map(([key, value]) => ({
+      type: key,
+      count: value,
+      ...ATTACK_TYPE_LABELS[key],
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  const total = entries.reduce((s, e) => s + e.count, 0)
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      {cards.map((card) => (
-        <Card key={card.label} className="border-white/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`rounded-lg p-2 ${card.bg}`}>
-                <card.icon className={`h-4 w-4 ${card.color}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{card.value}</p>
-                <p className="text-xs text-muted-foreground">{card.label}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  )
-}
-
-function ReportsTrendChart({ data }: { data: SecurityDashboardData['reportsTrend'] }) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Aucune donnee disponible</p>
-  }
-
-  const maxCount = Math.max(...data.map((d) => d.count), 1)
-
-  return (
-    <div className="space-y-3">
-      {data.map((day) => {
-        const date = new Date(day._id)
-        const label = date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
-        const percent = (day.count / maxCount) * 100
-        const criticalPercent = (day.critical / maxCount) * 100
-        const highPercent = (day.high / maxCount) * 100
-
-        return (
-          <div key={day._id} className="flex items-center gap-3">
-            <span className="w-24 text-xs text-muted-foreground shrink-0">{label}</span>
-            <div className="flex-1 relative h-6 rounded-md bg-white/5 overflow-hidden">
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <Server className="h-4 w-4 text-zinc-500" />
+          Types d'attaques (24h)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2.5">
+        {entries.map(({ type, count, label, color }) => (
+          <div key={type} className="flex items-center gap-3">
+            <div className="w-28 text-xs text-zinc-400 truncate">{label}</div>
+            <div className="flex-1 h-5 bg-zinc-800 rounded-full overflow-hidden">
               <div
-                className="absolute inset-y-0 left-0 bg-primary/30 rounded-md transition-all"
-                style={{ width: `${percent}%` }}
-              />
-              {highPercent > 0 && (
-                <div
-                  className="absolute inset-y-0 left-0 bg-orange-500/50 rounded-md"
-                  style={{ width: `${highPercent}%` }}
-                />
-              )}
-              {criticalPercent > 0 && (
-                <div
-                  className="absolute inset-y-0 left-0 bg-red-500/60 rounded-md"
-                  style={{ width: `${criticalPercent}%` }}
-                />
-              )}
-              <span className="absolute inset-0 flex items-center px-2 text-xs font-medium">
-                {day.count}
-              </span>
-            </div>
-          </div>
-        )
-      })}
-      <div className="flex gap-4 text-xs text-muted-foreground pt-1">
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-primary/30" /> Total</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-orange-500/50" /> Haute</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-500/60" /> Critique</span>
-      </div>
-    </div>
-  )
-}
-
-function ReasonDistribution({ data }: { data: SecurityDashboardData['reportsByReason'] }) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Aucune donnee</p>
-  }
-
-  const total = data.reduce((sum, r) => sum + r.count, 0)
-  const colors = ['bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-blue-500', 'bg-purple-500', 'bg-emerald-500', 'bg-pink-500', 'bg-cyan-500']
-
-  return (
-    <div className="space-y-2.5">
-      {data.map((reason, i) => {
-        const percent = Math.round((reason.count / total) * 100)
-        return (
-          <div key={reason._id} className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span>{reasonLabels[reason._id] || reason._id}</span>
-              <span className="text-muted-foreground">{reason.count} ({percent}%)</span>
-            </div>
-            <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-              <div
-                className={`h-full rounded-full ${colors[i % colors.length]} transition-all`}
-                style={{ width: `${percent}%` }}
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: total > 0 ? `${Math.max((count / total) * 100, count > 0 ? 4 : 0)}%` : '0%',
+                  backgroundColor: color,
+                  opacity: 0.8,
+                }}
               />
             </div>
+            <span className="text-xs font-mono text-zinc-300 w-8 text-right">{count}</span>
           </div>
-        )
-      })}
-    </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
-function ModeratorActivity({ data }: { data: SecurityDashboardData['moderatorActions'] }) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Aucune activite</p>
+function SeverityPieChart({ breakdown }: { breakdown: SecurityDashboardData['severityBreakdown'] }) {
+  const data = [
+    { name: 'Critique', value: breakdown.critical, color: SEVERITY_COLORS.critical },
+    { name: 'Haute', value: breakdown.high, color: SEVERITY_COLORS.high },
+    { name: 'Moyenne', value: breakdown.medium, color: SEVERITY_COLORS.medium },
+    { name: 'Basse', value: breakdown.low, color: SEVERITY_COLORS.low },
+  ].filter(d => d.value > 0)
+
+  const total = data.reduce((s, d) => s + d.value, 0)
+
+  if (total === 0) {
+    return (
+      <Card className="bg-zinc-900/50 border-zinc-800">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-zinc-300">Severite (7 jours)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-48 text-zinc-600 text-sm">
+            Aucun evenement
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="space-y-3">
-      {data.map((mod) => (
-        <div key={mod._id || 'unknown'} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
-          <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium">
-            {mod.moderator ? `${mod.moderator.prenom?.[0] || ''}${mod.moderator.nom?.[0] || ''}` : '?'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {mod.moderator ? `${mod.moderator.prenom} ${mod.moderator.nom}` : 'Inconnu'}
-            </p>
-            <div className="flex gap-2 text-xs text-muted-foreground">
-              <span>{mod.totalActions} actions</span>
-              {mod.warns > 0 && <span className="text-amber-400">{mod.warns} avert.</span>}
-              {mod.suspensions > 0 && <span className="text-orange-400">{mod.suspensions} susp.</span>}
-              {mod.bans > 0 && <span className="text-red-400">{mod.bans} ban{mod.bans > 1 ? 's' : ''}</span>}
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold">{mod.totalActions}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function TopReportedUsers({ data }: { data: SecurityDashboardData['topReportedUsers'] }) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Aucun utilisateur signale</p>
-  }
-
-  return (
-    <div className="space-y-2">
-      {data.slice(0, 8).map((entry) => {
-        const config = priorityConfig[entry.maxPriority] || priorityConfig.medium
-        return (
-          <div key={entry._id || 'unknown'} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
-            <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center text-xs">
-              {entry.user?.avatar ? (
-                <img src={entry.user.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-              ) : (
-                `${entry.user?.prenom?.[0] || '?'}${entry.user?.nom?.[0] || ''}`
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              {entry.user ? (
-                <Link to={`/users/${entry.user._id}`} className="text-sm font-medium truncate hover:text-primary transition-colors">
-                  {entry.user.prenom} {entry.user.nom}
-                </Link>
-              ) : (
-                <span className="text-sm text-muted-foreground">Utilisateur supprime</span>
-              )}
-              <div className="flex gap-1 flex-wrap mt-0.5">
-                {entry.reasons.slice(0, 3).map((r) => (
-                  <span key={r} className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">
-                    {reasonLabels[r] || r}
-                  </span>
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300">Severite (7 jours)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4">
+          <ResponsiveContainer width="50%" height={160}>
+            <PieChart>
+              <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={35} outerRadius={65} strokeWidth={0}>
+                {data.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
                 ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-2">
+            {data.map(d => (
+              <div key={d.name} className="flex items-center gap-2">
+                <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                <span className="text-xs text-zinc-400">{d.name}</span>
+                <span className="text-xs font-mono text-zinc-300 ml-auto">{d.value}</span>
               </div>
-            </div>
-            <div className="text-right flex items-center gap-2">
-              <Badge variant="outline" className={`${config.bg} ${config.color} text-xs`}>
-                {config.label}
-              </Badge>
-              <span className="text-lg font-bold">{entry.count}</span>
-            </div>
+            ))}
           </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function SecurityEventsFeed({ data }: { data: SecurityDashboardData['securityEvents'] }) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Aucun evenement sensible (24h)</p>
-  }
-
-  const actionColors: Record<string, string> = {
-    'user:ban': 'text-red-400',
-    'user:unban': 'text-emerald-400',
-    'user:suspend': 'text-orange-400',
-    'user:unsuspend': 'text-teal-400',
-    'user:change_role': 'text-blue-400',
-    'content:delete': 'text-red-300',
-    'user:surveillance_on': 'text-amber-400',
-    'user:surveillance_off': 'text-gray-400',
-  }
-
-  return (
-    <div className="space-y-1">
-      {data.map((event) => (
-        <div key={event._id} className="flex items-start gap-2 py-2 px-2 rounded hover:bg-white/5 transition-colors text-sm">
-          <div className={`mt-0.5 h-1.5 w-1.5 rounded-full shrink-0 ${
-            event.action.includes('ban') ? 'bg-red-400' :
-            event.action.includes('suspend') ? 'bg-orange-400' :
-            event.action.includes('delete') ? 'bg-red-300' :
-            'bg-blue-400'
-          }`} />
-          <div className="flex-1 min-w-0">
-            <span className={actionColors[event.action] || 'text-muted-foreground'}>
-              {getActionLabel(event.action)}
-            </span>
-            {event.actor && (
-              <span className="text-muted-foreground">
-                {' '}par {event.actor.prenom} {event.actor.nom}
-              </span>
-            )}
-          </div>
-          <span className="text-xs text-muted-foreground shrink-0">
-            {formatRelativeTime(event.dateCreation)}
-          </span>
         </div>
-      ))}
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
-function EscalationsFeed({ data }: { data: SecurityDashboardData['recentEscalations'] }) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Aucune escalade recente</p>
-  }
+function HourlyChart({ data }: { data: SecurityDashboardData['hourlyTrend'] }) {
+  const chartData = data.map(d => ({
+    hour: `${String(d._id.hour).padStart(2, '0')}h`,
+    total: d.total,
+    critical: d.critical,
+    high: d.high,
+    blocked: d.blocked,
+  }))
 
   return (
-    <div className="space-y-2">
-      {data.slice(0, 10).map((esc) => {
-        const config = priorityConfig[esc.priority] || priorityConfig.medium
-        return (
-          <div key={esc._id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-white/5 transition-colors">
-            <TrendingUp className={`h-4 w-4 mt-0.5 shrink-0 ${config.color}`} />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm">
-                <span className="capitalize">{esc.targetType}</span>
-                {' - '}
-                <span className={config.color}>{reasonLabels[esc.reason] || esc.reason}</span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {esc.escalationReason}
-              </p>
-            </div>
-            <span className="text-xs text-muted-foreground shrink-0">
-              {formatRelativeTime(esc.escalatedAt)}
-            </span>
-          </div>
-        )
-      })}
-    </div>
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-zinc-500" />
+          Activite horaire (24h)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {chartData.length === 0 ? (
+          <div className="flex items-center justify-center h-48 text-zinc-600 text-sm">Aucune donnee</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradCritical" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="hour" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#a1a1aa' }}
+              />
+              <Area type="monotone" dataKey="total" stroke="#6366f1" fill="url(#gradTotal)" strokeWidth={2} name="Total" />
+              <Area type="monotone" dataKey="critical" stroke="#ef4444" fill="url(#gradCritical)" strokeWidth={2} name="Critique" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
-export function SecurityPage() {
-  const { data, isLoading, error, refetch } = useQuery({
+function DailyChart({ data }: { data: SecurityDashboardData['dailyTrend'] }) {
+  const chartData = data.map(d => ({
+    date: d._id.slice(5), // MM-DD
+    critical: d.critical,
+    high: d.high,
+    medium: d.medium,
+    low: d.low,
+  }))
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <Wifi className="h-4 w-4 text-zinc-500" />
+          Tendance 7 jours
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {chartData.length === 0 ? (
+          <div className="flex items-center justify-center h-48 text-zinc-600 text-sm">Aucune donnee</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#a1a1aa' }}
+              />
+              <Bar dataKey="critical" stackId="a" fill={SEVERITY_COLORS.critical} radius={[0, 0, 0, 0]} name="Critique" />
+              <Bar dataKey="high" stackId="a" fill={SEVERITY_COLORS.high} name="Haute" />
+              <Bar dataKey="medium" stackId="a" fill={SEVERITY_COLORS.medium} name="Moyenne" />
+              <Bar dataKey="low" stackId="a" fill={SEVERITY_COLORS.low} radius={[4, 4, 0, 0]} name="Basse" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function EventSeverityBadge({ severity }: { severity: string }) {
+  const styles: Record<string, string> = {
+    critical: 'bg-red-500/15 text-red-400 border-red-500/30',
+    high: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+    medium: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    low: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',
+  }
+  return (
+    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${styles[severity] || styles.low}`}>
+      {SEVERITY_LABELS[severity] || severity}
+    </Badge>
+  )
+}
+
+function formatTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'a l\'instant'
+  if (mins < 60) return `il y a ${mins}min`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `il y a ${hours}h`
+  const days = Math.floor(hours / 24)
+  return `il y a ${days}j`
+}
+
+function LiveEventsFeed({ events }: { events: SecurityEvent[] }) {
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          Evenements en temps reel
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1 max-h-[400px] overflow-y-auto pr-1">
+          {events.length === 0 ? (
+            <div className="text-center py-8 text-zinc-600 text-sm">Aucun evenement enregistre</div>
+          ) : events.map(event => {
+            const config = ATTACK_TYPE_LABELS[event.type]
+            const Icon = config?.icon || Shield
+            return (
+              <div
+                key={event._id}
+                className="flex items-start gap-3 py-2.5 px-3 rounded-lg hover:bg-zinc-800/50 transition-colors border-l-2"
+                style={{ borderLeftColor: config?.color || '#6b7280' }}
+              >
+                <Icon className="h-4 w-4 mt-0.5 shrink-0" style={{ color: config?.color || '#6b7280' }} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-zinc-200">
+                      {config?.label || event.type}
+                    </span>
+                    <EventSeverityBadge severity={event.severity} />
+                    {event.blocked && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                        Bloque
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{event.details}</p>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] text-zinc-600">
+                    <span className="font-mono">{event.ip}</span>
+                    <span>{event.method} {event.path.length > 40 ? event.path.slice(0, 40) + '...' : event.path}</span>
+                    <span className="ml-auto">{formatTimeAgo(event.dateCreation)}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function TopIPsTable({ ips }: { ips: SecurityDashboardData['topSuspiciousIPs'] }) {
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <Globe className="h-4 w-4 text-zinc-500" />
+          IPs suspectes (24h)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {ips.length === 0 ? (
+          <div className="text-center py-6 text-zinc-600 text-sm">Aucune IP suspecte</div>
+        ) : (
+          <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
+            {ips.map((ip, i) => (
+              <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-zinc-800/50 transition-colors">
+                <span className="text-xs font-mono text-zinc-300 w-32 shrink-0">{ip.ip}</span>
+                <div className="flex-1 flex flex-wrap gap-1">
+                  {ip.types.map(t => {
+                    const conf = ATTACK_TYPE_LABELS[t]
+                    return (
+                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: (conf?.color || '#6b7280') + '20', color: conf?.color || '#6b7280' }}>
+                        {conf?.label || t}
+                      </span>
+                    )
+                  })}
+                </div>
+                <span className="text-sm font-bold text-zinc-300">{ip.count}</span>
+                <EventSeverityBadge severity={ip.maxSeverity} />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function TopOffenders({ offenders }: { offenders: SecurityDashboardData['topOffenderIPs'] }) {
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <ShieldAlert className="h-4 w-4 text-red-400" />
+          Top menaces (30 jours)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {offenders.length === 0 ? (
+          <div className="text-center py-6 text-zinc-600 text-sm">Aucune menace identifiee</div>
+        ) : (
+          <div className="space-y-2">
+            {offenders.map((o, i) => (
+              <div key={i} className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm text-zinc-200">{o.ip}</span>
+                  <div className="flex items-center gap-2">
+                    {o.criticalCount > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">
+                        {o.criticalCount} crit.
+                      </span>
+                    )}
+                    <span className="text-sm font-bold text-zinc-300">{o.totalEvents} events</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <div className="flex flex-wrap gap-1">
+                    {o.types.map(t => {
+                      const conf = ATTACK_TYPE_LABELS[t]
+                      return (
+                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: (conf?.color || '#6b7280') + '20', color: conf?.color || '#6b7280' }}>
+                          {conf?.label || t}
+                        </span>
+                      )
+                    })}
+                  </div>
+                  <span className="text-[10px] text-zinc-600">
+                    {formatTimeAgo(o.firstSeen)} - {formatTimeAgo(o.lastSeen)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AttackedPaths({ paths }: { paths: SecurityDashboardData['topAttackedPaths'] }) {
+  const max = paths.length > 0 ? paths[0].count : 1
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <Server className="h-4 w-4 text-zinc-500" />
+          Endpoints cibles (30 jours)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {paths.length === 0 ? (
+          <div className="text-center py-6 text-zinc-600 text-sm">Aucune donnee</div>
+        ) : (
+          <div className="space-y-2">
+            {paths.map((p, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-[11px] font-mono text-zinc-400 w-48 truncate shrink-0" title={p.path}>
+                  {p.path}
+                </span>
+                <div className="flex-1 h-4 bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-indigo-500/60"
+                    style={{ width: `${(p.count / max) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs font-mono text-zinc-300 w-8 text-right">{p.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function CriticalAlerts({ events }: { events: SecurityEvent[] }) {
+  if (events.length === 0) return null
+
+  return (
+    <Card className="bg-zinc-900/50 border-red-900/30 border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-red-400 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4" />
+          Alertes critiques ({events.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+          {events.map(event => {
+            const config = ATTACK_TYPE_LABELS[event.type]
+            return (
+              <div key={event._id} className="p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-red-300">{config?.label || event.type}</span>
+                    {event.blocked && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                        Bloque
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-zinc-500">{formatTimeAgo(event.dateCreation)}</span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1">{event.details}</p>
+                <div className="flex items-center gap-3 mt-1 text-[10px] text-zinc-600">
+                  <span className="font-mono">{event.ip}</span>
+                  <span>{event.method} {event.path}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================
+// PAGE PRINCIPALE
+// ============================================
+
+export default function SecurityPage() {
+  const { data, isLoading, error, refetch, isFetching } = useQuery<SecurityDashboardData>({
     queryKey: ['security-dashboard'],
-    queryFn: () => securityService.getDashboard(),
-    refetchInterval: 30000,
-    staleTime: 15000,
+    queryFn: securityService.getDashboard,
+    refetchInterval: 15_000, // Refresh toutes les 15s
+    retry: 2,
   })
 
   if (isLoading) {
     return (
       <PageTransition>
-        <div className="flex h-[60vh] items-center justify-center">
-          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-3">
+            <Shield className="h-10 w-10 text-zinc-600 animate-pulse" />
+            <p className="text-zinc-500 text-sm">Chargement du moniteur de securite...</p>
+          </div>
         </div>
       </PageTransition>
     )
@@ -461,12 +592,12 @@ export function SecurityPage() {
   if (error || !data) {
     return (
       <PageTransition>
-        <div className="flex flex-col h-[60vh] items-center justify-center text-muted-foreground">
-          <AlertTriangle className="h-8 w-8 mb-2" />
-          <p>Erreur lors du chargement des donnees de securite</p>
-          <Button variant="outline" className="mt-4" onClick={() => refetch()}>
-            Reessayer
-          </Button>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <ShieldAlert className="h-10 w-10 text-red-400" />
+            <p className="text-zinc-400 text-sm">Erreur de chargement du dashboard securite</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Reessayer</Button>
+          </div>
         </div>
       </PageTransition>
     )
@@ -474,199 +605,75 @@ export function SecurityPage() {
 
   return (
     <PageTransition>
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Shield className="h-6 w-6 text-primary" />
-              Securite
+            <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Centre de securite
             </h1>
-            <p className="text-muted-foreground">
-              Monitoring de securite et detection des menaces
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Monitoring serveur et detection d'intrusion
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Actualiser
-          </Button>
-        </div>
-
-        {/* Banniere alerte + score */}
-        <AlertBanner data={data} />
-
-        {/* Cartes stats */}
-        <StatsCards data={data} />
-
-        {/* Grille principale */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Tendance signalements (7j) */}
-          <Card className="border-white/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
-                Tendance des signalements
-              </CardTitle>
-              <CardDescription>7 derniers jours</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ReportsTrendChart data={data.reportsTrend} />
-            </CardContent>
-          </Card>
-
-          {/* Distribution par raison */}
-          <Card className="border-white/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                Repartition des signalements
-              </CardTitle>
-              <CardDescription>30 derniers jours</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ReasonDistribution data={data.reportsByReason} />
-            </CardContent>
-          </Card>
-
-          {/* Evenements securite sensibles */}
-          <Card className="border-white/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-red-400" />
-                Actions sensibles
-              </CardTitle>
-              <CardDescription>Dernières 24 heures</CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto">
-              <SecurityEventsFeed data={data.securityEvents} />
-            </CardContent>
-          </Card>
-
-          {/* Escalades */}
-          <Card className="border-white/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-amber-400" />
-                Escalades recentes
-              </CardTitle>
-              <CardDescription>7 derniers jours ({data.autoEscalations} auto-escalade{data.autoEscalations !== 1 ? 's' : ''})</CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto">
-              <EscalationsFeed data={data.recentEscalations} />
-            </CardContent>
-          </Card>
-
-          {/* Utilisateurs les plus signales */}
-          <Card className="border-white/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4 text-rose-400" />
-                Utilisateurs les plus signales
-              </CardTitle>
-              <CardDescription>30 derniers jours</CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto">
-              <TopReportedUsers data={data.topReportedUsers} />
-            </CardContent>
-          </Card>
-
-          {/* Activite moderateurs */}
-          <Card className="border-white/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4 text-blue-400" />
-                Activite des moderateurs
-              </CardTitle>
-              <CardDescription>7 derniers jours</CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto">
-              <ModeratorActivity data={data.moderatorActions} />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Section bans et suspensions recents */}
-        {(data.recentBans.length > 0 || data.activeSuspensions.length > 0) && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {data.recentBans.length > 0 && (
-              <Card className="border-white/5">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Ban className="h-4 w-4 text-red-400" />
-                    Bannissements recents
-                  </CardTitle>
-                  <CardDescription>30 derniers jours</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {data.recentBans.map((user) => (
-                      <div key={user._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5">
-                        <div className="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center">
-                          {user.avatar ? (
-                            <img src={user.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                          ) : (
-                            <Ban className="h-4 w-4 text-red-400" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <Link to={`/users/${user._id}`} className="text-sm font-medium hover:text-primary">
-                            {user.prenom} {user.nom}
-                          </Link>
-                          {user.banReason && (
-                            <p className="text-xs text-muted-foreground truncate">{user.banReason}</p>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {formatRelativeTime(user.bannedAt)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {data.activeSuspensions.length > 0 && (
-              <Card className="border-white/5">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-orange-400" />
-                    Suspensions actives
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {data.activeSuspensions.map((user) => (
-                      <div key={user._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5">
-                        <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center">
-                          {user.avatar ? (
-                            <img src={user.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                          ) : (
-                            <Clock className="h-4 w-4 text-orange-400" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <Link to={`/users/${user._id}`} className="text-sm font-medium hover:text-primary">
-                            {user.prenom} {user.nom}
-                          </Link>
-                          {user.suspendReason && (
-                            <p className="text-xs text-muted-foreground truncate">{user.suspendReason}</p>
-                          )}
-                        </div>
-                        <span className="text-xs text-orange-400">
-                          Expire {formatRelativeTime(user.suspendedUntil)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-zinc-600">
+              MAJ: {new Date(data.lastUpdated).toLocaleTimeString('fr-FR')}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="h-8"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Actualisation...' : 'Actualiser'}
+            </Button>
           </div>
-        )}
+        </div>
+
+        {/* Threat Level Banner */}
+        <ThreatLevelBanner level={data.threatLevel} />
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <StatCard label="Events 24h" value={data.summary.totalEvents24h} icon={Activity} color="#6366f1" sub={`${data.summary.eventsPerHour}/h`} />
+          <StatCard label="Critiques" value={data.summary.criticalEvents24h} icon={AlertTriangle} color="#ef4444" />
+          <StatCard label="Hautes" value={data.summary.highEvents24h} icon={ShieldAlert} color="#f97316" />
+          <StatCard label="Bloques" value={data.summary.blockedEvents24h} icon={ShieldCheck} color="#10b981" />
+          <StatCard label="7 jours" value={data.summary.totalEvents7j} icon={Wifi} color="#8b5cf6" />
+          <StatCard label="Brute Force" value={data.attackTypes.brute_force} icon={Lock} color="#ef4444" />
+        </div>
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <HourlyChart data={data.hourlyTrend} />
+          <DailyChart data={data.dailyTrend} />
+        </div>
+
+        {/* Critical Alerts */}
+        <CriticalAlerts events={data.criticalEvents} />
+
+        {/* Main Grid: Attack Types + Severity + Events Feed */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <AttackTypeBreakdown attackTypes={data.attackTypes} />
+          <SeverityPieChart breakdown={data.severityBreakdown} />
+          <div className="lg:col-span-1">
+            <AttackedPaths paths={data.topAttackedPaths} />
+          </div>
+        </div>
+
+        {/* IPs + Live Feed */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <TopIPsTable ips={data.topSuspiciousIPs} />
+          <LiveEventsFeed events={data.recentEvents} />
+        </div>
+
+        {/* Top Offenders */}
+        <TopOffenders offenders={data.topOffenderIPs} />
       </div>
     </PageTransition>
   )
 }
-
-export default SecurityPage
