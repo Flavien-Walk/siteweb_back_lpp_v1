@@ -21,7 +21,6 @@ import {
   Clock,
   Ban,
   Shield,
-  Play,
   Plus,
   Film,
 } from 'lucide-react';

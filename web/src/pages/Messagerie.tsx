@@ -3,8 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Send, ArrowLeft, PenSquare, X, MoreHorizontal,
-  Reply, Pencil, Trash2, Smile, Image, Users, Plus,
-  Check, CheckCheck, Volume2, VolumeX, LogOut, UserPlus,
+  Reply, Pencil, Trash2, Smile, Users, Plus,
+  Check, CheckCheck, Volume2, VolumeX,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';

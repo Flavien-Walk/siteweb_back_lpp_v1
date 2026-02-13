@@ -13,7 +13,6 @@ import {
   CornerDownRight,
   Pencil,
   ArrowLeft,
-  Play,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
