@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Eye, EyeOff, Trash2, RefreshCw, AlertTriangle, Briefcase, Users, Clock } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Trash2, RefreshCw, AlertTriangle, Briefcase, Users, Clock, Pencil, FileText } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
+import { InlineEditor } from '@/components/InlineEditor'
 
 const categorieLabels: Record<string, string> = {
   tech: 'Technologie',
@@ -90,6 +91,33 @@ export function ProjetDetailPage() {
     },
     onError: (error: Error) => {
       toast.error('Erreur lors de la suppression du projet', { description: error.message })
+    },
+  })
+
+  // Edit mutation
+  const editMutation = useMutation({
+    mutationFn: (data: { nom?: string; description?: string; pitch?: string; reason?: string }) =>
+      projetsService.editProjet(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projet', id] })
+      toast.success('Projet modifié')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la modification', { description: error.message })
+    },
+  })
+
+  // Status change mutation
+  const statusMutation = useMutation({
+    mutationFn: ({ statut, reason }: { statut: 'draft' | 'published'; reason?: string }) =>
+      projetsService.changeStatus(id!, statut, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projet', id] })
+      queryClient.invalidateQueries({ queryKey: ['projets'] })
+      toast.success('Statut du projet modifié')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors du changement de statut', { description: error.message })
     },
   })
 
@@ -207,15 +235,29 @@ export function ProjetDetailPage() {
               {/* Description */}
               <div>
                 <p className="text-sm font-medium text-muted-foreground mb-1">Description</p>
-                <p className="text-sm leading-relaxed">{projet.description || 'Aucune description'}</p>
+                <InlineEditor
+                  value={projet.description || ''}
+                  onSave={async (value, reason) => {
+                    await editMutation.mutateAsync({ description: value, reason })
+                  }}
+                  multiline
+                  placeholder="Aucune description"
+                />
               </div>
 
               {/* Pitch */}
               <div>
                 <p className="text-sm font-medium text-muted-foreground mb-1">Pitch</p>
-                <p className="text-sm leading-relaxed bg-muted/50 p-3 rounded-lg italic">
-                  {projet.pitch || 'Aucun pitch'}
-                </p>
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <InlineEditor
+                    value={projet.pitch || ''}
+                    onSave={async (value, reason) => {
+                      await editMutation.mutateAsync({ pitch: value, reason })
+                    }}
+                    multiline
+                    placeholder="Aucun pitch"
+                  />
+                </div>
               </div>
 
               {/* Details Grid */}
@@ -461,6 +503,28 @@ export function ProjetDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Status change */}
+              {projet.statut === 'published' ? (
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  onClick={() => statusMutation.mutate({ statut: 'draft', reason: 'Mis en attente par la modération' })}
+                  disabled={statusMutation.isPending}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Mettre en brouillon
+                </Button>
+              ) : (
+                <Button
+                  className="w-full"
+                  onClick={() => statusMutation.mutate({ statut: 'published' })}
+                  disabled={statusMutation.isPending}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Publier
+                </Button>
+              )}
+              <div className="border-t border-zinc-700 my-2" />
               {projet.isHidden ? (
                 <Button
                   className="w-full"

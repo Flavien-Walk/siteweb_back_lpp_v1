@@ -28,6 +28,7 @@ const ConversationDetailPage = lazy(() => import('@/pages/ConversationDetail'))
 const LivesPage = lazy(() => import('@/pages/Lives'))
 const EvenementsPage = lazy(() => import('@/pages/Evenements'))
 const NotificationsPage = lazy(() => import('@/pages/Notifications'))
+const SurveillancePage = lazy(() => import('@/pages/Surveillance'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +89,8 @@ function App() {
               <Route path="users/:id" element={<ProtectedRoute requiredPermission="users:view"><Lazy><UserDetailPage /></Lazy></ProtectedRoute>} />
 
               <Route path="suspended" element={<ProtectedRoute requiredPermission="users:view"><Lazy><SuspendedUsersPage /></Lazy></ProtectedRoute>} />
+
+              <Route path="surveillance" element={<ProtectedRoute requiredPermission="users:view"><Lazy><SurveillancePage /></Lazy></ProtectedRoute>} />
 
               <Route path="stories" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><StoriesPage /></Lazy></ProtectedRoute>} />
               <Route path="stories/:id" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><StoryDetailPage /></Lazy></ProtectedRoute>} />

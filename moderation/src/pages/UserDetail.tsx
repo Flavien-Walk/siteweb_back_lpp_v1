@@ -26,8 +26,11 @@ import {
   Activity,
   ChevronRight,
   Share2,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
+import { RiskBadge } from '@/components/RiskBadge'
 import type { User as UserType, TimelineEvent, AuditLog, UserReport } from '@/types'
 
 const roleLabels: Record<string, string> = {
@@ -99,6 +102,7 @@ export function UserDetailPage() {
   const [newRole, setNewRole] = useState('')
   const [historyTab, setHistoryTab] = useState<HistoryTab>('timeline')
   const [activityFilter, setActivityFilter] = useState<'all' | 'share'>('all')
+  const [surveillanceReason, setSurveillanceReason] = useState('')
 
   // Fetch user
   const {
@@ -215,6 +219,18 @@ export function UserDetailPage() {
     },
   })
 
+  const toggleSurveillanceMutation = useMutation({
+    mutationFn: ({ active, reason }: { active: boolean; reason?: string }) =>
+      usersService.toggleSurveillance(id!, active, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user', id] })
+      toast.success('Surveillance mise à jour')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur', { description: error.message })
+    },
+  })
+
   const canWarn = hasPermission('users:warn')
   const canSuspend = hasPermission('users:suspend')
   const canBan = hasPermission('users:ban')
@@ -284,6 +300,9 @@ export function UserDetailPage() {
             <h1 className="text-2xl font-bold flex items-center gap-3">
               {user.prenom} {user.nom}
               <UserStatusBadge user={user} />
+              {user.moderation?.riskScore > 0 && (
+                <RiskBadge score={user.moderation.riskScore} />
+              )}
             </h1>
             <p className="text-muted-foreground flex items-center gap-2">
               <Mail className="h-4 w-4" />
@@ -964,6 +983,64 @@ export function UserDetailPage() {
                     </div>
                   )}
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Surveillance Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Surveillance
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {user?.surveillance?.active ? (
+                <>
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <p className="text-sm font-medium text-amber-400 mb-1">Sous surveillance</p>
+                    {user.surveillance.reason && (
+                      <p className="text-xs text-zinc-400">{user.surveillance.reason}</p>
+                    )}
+                    {user.surveillance.addedBy && (
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Par {user.surveillance.addedBy.prenom} {user.surveillance.addedBy.nom}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleSurveillanceMutation.mutate({ active: false })}
+                    disabled={toggleSurveillanceMutation.isPending}
+                  >
+                    <EyeOff className="mr-2 h-4 w-4" />
+                    Retirer la surveillance
+                  </Button>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Raison de la mise sous surveillance"
+                    value={surveillanceReason}
+                    onChange={(e) => setSurveillanceReason(e.target.value)}
+                  />
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      toggleSurveillanceMutation.mutate({ active: true, reason: surveillanceReason })
+                      setSurveillanceReason('')
+                    }}
+                    disabled={toggleSurveillanceMutation.isPending}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Mettre sous surveillance
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>

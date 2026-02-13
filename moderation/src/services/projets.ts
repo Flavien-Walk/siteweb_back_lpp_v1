@@ -87,6 +87,28 @@ export const projetsService = {
       throw new Error(response.data.message || 'Impossible de supprimer le projet')
     }
   },
+
+  async editProjet(id: string, data: { nom?: string; description?: string; pitch?: string; categorie?: string; maturite?: string; secteur?: string; reason?: string }): Promise<Projet> {
+    const response = await api.patch<ApiResponse<{ projet: Projet }>>(
+      `/moderation/content/projet/${id}`,
+      data
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Impossible de modifier le projet')
+    }
+    return response.data.data.projet
+  },
+
+  async changeStatus(id: string, statut: 'draft' | 'published', reason?: string): Promise<Projet> {
+    const response = await api.patch<ApiResponse<{ projet: Projet }>>(
+      `/moderation/content/projet/${id}/status`,
+      { statut, reason }
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Impossible de changer le statut')
+    }
+    return response.data.data.projet
+  },
 }
 
 export default projetsService

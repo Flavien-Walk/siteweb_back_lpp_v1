@@ -24,7 +24,9 @@ import {
   ShieldAlert,
   Check,
   X,
+  Flame,
 } from 'lucide-react'
+import { RiskBadge } from '@/components/RiskBadge'
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -248,6 +250,156 @@ export function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <WeeklyTrendChart />
           <ReasonDistributionChart data={stats?.reports.byReason} />
+        </div>
+
+        {/* Surveillance + At-Risk Users */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Surveillance Widget */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Eye className="h-4 w-4 text-amber-400" />
+                Surveillance ({stats?.surveillance?.count ?? 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stats?.surveillance?.users && stats.surveillance.users.length > 0 ? (
+                <div className="space-y-3">
+                  {stats.surveillance.users.map((u: any) => (
+                    <Link
+                      key={u._id}
+                      to={`/users/${u._id}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors"
+                    >
+                      {u.avatar ? (
+                        <img src={u.avatar} alt="" className="w-8 h-8 rounded-full" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-xs font-medium text-amber-400">
+                          {u.prenom?.[0]}{u.nom?.[0]}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{u.prenom} {u.nom}</p>
+                        {u.surveillance?.reason && (
+                          <p className="text-xs text-zinc-500 truncate">{u.surveillance.reason}</p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                  {stats.surveillance.count > 5 && (
+                    <Link to="/surveillance" className="text-xs text-primary hover:underline block text-center pt-2">
+                      Voir tous ({stats.surveillance.count})
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun utilisateur sous surveillance</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* At-Risk Users Widget */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Flame className="h-4 w-4 text-red-400" />
+                Utilisateurs a risque
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stats?.atRiskUsers && stats.atRiskUsers.length > 0 ? (
+                <div className="space-y-3">
+                  {stats.atRiskUsers.map((u: any) => (
+                    <Link
+                      key={u._id}
+                      to={`/users/${u._id}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors"
+                    >
+                      {u.avatar ? (
+                        <img src={u.avatar} alt="" className="w-8 h-8 rounded-full" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-xs font-medium text-red-400">
+                          {u.prenom?.[0]}{u.nom?.[0]}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{u.prenom} {u.nom}</p>
+                        <p className="text-xs text-zinc-500">
+                          {u.warnings?.length || 0} warn · {u.reportsReceivedCount || 0} reports
+                        </p>
+                      </div>
+                      <RiskBadge score={u.riskScore} showLabel={false} />
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun utilisateur a risque</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Content Stats + Recent Actions */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Content Stats */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Contenu de la plateforme</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold">{stats?.contentStats?.publications ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">Publications</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats?.contentStats?.commentaires ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">Commentaires</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats?.contentStats?.projets ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">Projets</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats?.contentStats?.stories ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">Stories</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats?.contentStats?.lives ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">Lives</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Actions */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Actions recentes</CardTitle>
+                <Link to="/audit" className="text-xs text-primary hover:underline">Voir tout</Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {stats?.recentActions && stats.recentActions.length > 0 ? (
+                <div className="space-y-2">
+                  {stats.recentActions.slice(0, 5).map((action: any) => (
+                    <div key={action._id} className="flex items-center gap-3 text-sm p-2 rounded hover:bg-zinc-800/50">
+                      <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium">{action.actor?.prenom} {action.actor?.nom}</span>
+                        <span className="text-muted-foreground"> - </span>
+                        <span className="text-xs text-zinc-400">{action.action}</span>
+                      </div>
+                      <span className="text-xs text-zinc-500 shrink-0">{new Date(action.dateCreation).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucune action recente</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Quick actions */}

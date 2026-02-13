@@ -25,6 +25,7 @@ import {
   Calendar,
   ChevronDown,
   Bell,
+  Eye,
 } from 'lucide-react'
 
 interface NavItem {
@@ -52,6 +53,7 @@ const navSections: NavSection[] = [
       { label: 'Signalements', href: '/reports', icon: <Flag className="h-4 w-4" />, permission: 'reports:view' },
       { label: 'Utilisateurs', href: '/users', icon: <Users className="h-4 w-4" />, permission: 'users:view' },
       { label: 'Suspendus', href: '/suspended', icon: <UserX className="h-4 w-4" />, permission: 'users:view' },
+      { label: 'Surveillance', href: '/surveillance', icon: <Eye className="h-4 w-4" />, permission: 'users:view' },
     ],
   },
   {

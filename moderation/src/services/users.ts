@@ -324,6 +324,51 @@ export const usersService = {
 
     return response.data.data
   },
+
+  async toggleSurveillance(id: string, active: boolean, reason?: string): Promise<void> {
+    const response = await api.post<ApiResponse<void>>(
+      `/admin/users/${id}/surveillance`,
+      { active, reason }
+    )
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur lors du changement de surveillance')
+    }
+  },
+
+  async getSurveillanceUsers(params: { page?: number; limit?: number } = {}): Promise<PaginatedResponse<User>> {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.append('page', String(params.page))
+    if (params.limit) searchParams.append('limit', String(params.limit))
+
+    const response = await api.get<ApiResponse<{
+      users: User[]
+      pagination: { page: number; limit: number; total: number; pages: number }
+    }>>(`/admin/users/surveillance?${searchParams.toString()}`)
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement')
+    }
+
+    const { users, pagination } = response.data.data
+    return {
+      items: users,
+      currentPage: pagination.page,
+      totalPages: pagination.pages,
+      totalCount: pagination.total,
+      hasNextPage: pagination.page < pagination.pages,
+      hasPrevPage: pagination.page > 1,
+    }
+  },
+
+  async getAtRiskUsers(limit = 20): Promise<User[]> {
+    const response = await api.get<ApiResponse<{ users: User[] }>>(
+      `/admin/users/at-risk?limit=${limit}`
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement')
+    }
+    return response.data.data.users
+  },
 }
 
 export default usersService

@@ -25,6 +25,7 @@ import {
   X,
   AlertTriangle,
   Heart,
+  Pencil,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 
@@ -34,6 +35,11 @@ export function CommentairesPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{
     commentaireId: string
+    reason: string
+  } | null>(null)
+  const [editingComment, setEditingComment] = useState<{
+    commentaireId: string
+    contenu: string
     reason: string
   } | null>(null)
 
@@ -62,6 +68,19 @@ export function CommentairesPage() {
     },
     onError: (error: Error) => {
       toast.error('Erreur lors de la suppression du commentaire', { description: error.message })
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, contenu, reason }: { id: string; contenu: string; reason?: string }) =>
+      commentairesService.editCommentaire(id, contenu, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commentaires'] })
+      setEditingComment(null)
+      toast.success('Commentaire modifié')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur lors de la modification', { description: error.message })
     },
   })
 
@@ -211,7 +230,12 @@ export function CommentairesPage() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm max-w-[300px] truncate">{com.contenu}</p>
+                      <div className="max-w-[300px]">
+                        <p className="text-sm truncate">{com.contenu}</p>
+                        {com.modifie && (
+                          <span className="text-[10px] text-amber-400 italic">modifié{com.editedBy ? ` par ${com.editedBy.prenom} ${com.editedBy.nom}` : ''}</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {typeof com.publication === 'string' ? (
@@ -236,13 +260,24 @@ export function CommentairesPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setConfirmDelete({ commentaireId: com._id, reason: '' })}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingComment({ commentaireId: com._id, contenu: com.contenu, reason: '' })}
+                          title="Modifier"
+                        >
+                          <Pencil className="h-4 w-4 text-blue-400" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setConfirmDelete({ commentaireId: com._id, reason: '' })}
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -295,6 +330,51 @@ export function CommentairesPage() {
                     disabled={confirmDelete.reason.length < 5 || deleteMutation.isPending}
                   >
                     Supprimer
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {editingComment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Modifier le commentaire</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Contenu</label>
+                  <textarea
+                    className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y"
+                    rows={4}
+                    value={editingComment.contenu}
+                    onChange={(e) => setEditingComment({ ...editingComment, contenu: e.target.value })}
+                    maxLength={1000}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Raison de la modification</label>
+                  <Input
+                    placeholder="Raison (optionnel)"
+                    value={editingComment.reason}
+                    onChange={(e) => setEditingComment({ ...editingComment, reason: e.target.value })}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setEditingComment(null)}>Annuler</Button>
+                  <Button
+                    onClick={() => editMutation.mutate({
+                      id: editingComment.commentaireId,
+                      contenu: editingComment.contenu,
+                      reason: editingComment.reason || undefined,
+                    })}
+                    disabled={!editingComment.contenu.trim() || editMutation.isPending}
+                  >
+                    Enregistrer
                   </Button>
                 </div>
               </div>

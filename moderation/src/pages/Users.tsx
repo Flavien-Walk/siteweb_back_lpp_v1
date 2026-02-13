@@ -31,6 +31,7 @@ import {
   X,
   Shield,
 } from 'lucide-react'
+import { RiskScoreBar } from '@/components/RiskBadge'
 import { formatRelativeTime } from '@/lib/utils'
 import type { User } from '@/types'
 
@@ -287,6 +288,7 @@ export function UsersPage() {
               <TableHead>Email</TableHead>
               <TableHead>Rôle</TableHead>
               <TableHead>Statut</TableHead>
+              <TableHead>Risque</TableHead>
               <TableHead>Inscrit le</TableHead>
               <TableHead>Avertissements</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -301,13 +303,14 @@ export function UsersPage() {
                   <TableCell><div className="h-5 w-20 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-5 w-16 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
+                  <TableCell><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-4 w-8 animate-pulse rounded bg-muted" /></TableCell>
                   <TableCell><div className="h-8 w-20 animate-pulse rounded bg-muted ml-auto" /></TableCell>
                 </TableRow>
               ))
             ) : data?.items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                   Aucun utilisateur trouvé
                 </TableCell>
               </TableRow>
@@ -341,6 +344,16 @@ export function UsersPage() {
                   </TableCell>
                   <TableCell>
                     <UserStatusBadge user={user} />
+                  </TableCell>
+                  <TableCell>
+                    {(user.riskScore ?? 0) > 0 && (
+                      <RiskScoreBar score={user.riskScore ?? 0} className="w-24" />
+                    )}
+                    {user.surveillance?.active && (
+                      <span className="text-[10px] text-amber-400 flex items-center gap-0.5 mt-0.5">
+                        <Eye className="w-2.5 h-2.5" /> surveillé
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatRelativeTime(user.dateCreation)}

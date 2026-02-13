@@ -52,6 +52,33 @@ export const commentairesService = {
       throw new Error(response.data.message || 'Impossible de supprimer le commentaire')
     }
   },
+
+  async editCommentaire(id: string, contenu: string, reason?: string): Promise<Commentaire> {
+    const response = await api.patch<ApiResponse<{ commentaire: Commentaire }>>(
+      `/moderation/content/commentaire/${id}`,
+      { contenu, reason }
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Impossible de modifier le commentaire')
+    }
+    return response.data.data.commentaire
+  },
+
+  async getThread(id: string): Promise<{
+    commentaire: Commentaire
+    reponses: Commentaire[]
+    publication: any
+  }> {
+    const response = await api.get<ApiResponse<{
+      commentaire: Commentaire
+      reponses: Commentaire[]
+      publication: any
+    }>>(`/admin/commentaires/${id}/thread`)
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Thread non trouvé')
+    }
+    return response.data.data
+  },
 }
 
 export default commentairesService

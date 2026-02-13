@@ -14,6 +14,7 @@ export type Permission =
   | 'users:edit_roles'
   | 'content:hide'
   | 'content:delete'
+  | 'content:edit'
   | 'audit:view'
   | 'audit:export'
   | 'config:view'
@@ -30,6 +31,29 @@ export interface Warning {
   }
   date: string
   expiresAt?: string
+}
+
+export interface SurveillanceNote {
+  _id?: string
+  content: string
+  author: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  date: string
+}
+
+export interface Surveillance {
+  active: boolean
+  reason?: string
+  addedBy?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  addedAt?: string
+  notes: SurveillanceNote[]
 }
 
 export interface User {
@@ -51,6 +75,9 @@ export interface User {
   publicationsCount?: number
   commentsCount?: number
   reportsCount?: number
+  surveillance?: Surveillance
+  reportsReceivedCount?: number
+  riskScore?: number
 }
 
 // ============ REPORTS ============
@@ -258,6 +285,31 @@ export interface StaffMessage {
 
 // ============ DASHBOARD ============
 
+export interface AtRiskUser {
+  _id: string
+  prenom: string
+  nom: string
+  avatar?: string
+  warnings?: Warning[]
+  surveillance?: Surveillance
+  moderation?: {
+    status: string
+    autoSuspensionsCount: number
+  }
+  suspendedUntil?: string | null
+  dateCreation: string
+  riskScore: number
+  reportsReceivedCount: number
+}
+
+export interface SurveillanceUser {
+  _id: string
+  prenom: string
+  nom: string
+  avatar?: string
+  surveillance: Surveillance
+}
+
 export interface DashboardStats {
   reports: {
     pending: number
@@ -270,6 +322,19 @@ export interface DashboardStats {
     banned: number
     suspended: number
   }
+  surveillance: {
+    count: number
+    users: SurveillanceUser[]
+  }
+  contentStats: {
+    publications: number
+    commentaires: number
+    projets: number
+    stories: number
+    lives: number
+  }
+  atRiskUsers: AtRiskUser[]
+  recentActions: AuditLog[]
 }
 
 // ============ PAGINATION ============
@@ -386,6 +451,14 @@ export interface Commentaire {
   likes: string[]
   likesCount: number
   reponseA?: string
+  modifie?: boolean
+  editedBy?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  editReason?: string
+  editedAt?: string
   dateCreation: string
   dateMiseAJour?: string
 }
