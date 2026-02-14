@@ -24,7 +24,7 @@ import moderationRoutes from './routes/moderationRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
-import { securityMonitor, checkBlockedIP } from './middlewares/securityMonitor.js';
+import { securityMonitor, checkBlockedIP, sanitizeQueryParams, hideAdminRoutes } from './middlewares/securityMonitor.js';
 
 /**
  * Créer et configurer l'application Express
@@ -222,10 +222,33 @@ export const creerApp = (): Application => {
   // Middleware de detection d'intrusion (avant les routes, apres le parsing)
   app.use('/api/', securityMonitor);
 
+  // PENTEST-01: Sanitisation des query params (strip operateurs MongoDB $gt, $ne, etc.)
+  app.use('/api/', sanitizeQueryParams);
+
   app.use('/api/', limiter);
   app.use('/api/auth/connexion', limiterAuth);
   app.use('/api/auth/inscription', limiterInscription);
   app.use('/api/auth/moi', limiterHeartbeat); // P0-4: Rate limit sur heartbeat
+
+  // PENTEST-02: Rate limit strict sur endpoints publics de lecture (anti-scraping)
+  const limiterPublicRead = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // max 30 req/min par IP sur les endpoints publics
+    message: {
+      succes: false,
+      message: 'Trop de requetes. Veuillez patienter.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/projets', limiterPublicRead);
+  app.use('/api/feed', limiterPublicRead);
+  app.use('/api/utilisateurs', limiterPublicRead);
+
+  // PENTEST-03: Masquer existence des routes admin (404 au lieu de 401 sans token)
+  app.use('/api/admin/', hideAdminRoutes);
+  app.use('/api/moderation/', hideAdminRoutes);
+
   app.use('/api/admin/', limiterAdmin);
   app.use('/api/moderation/', limiterAdmin);
   // Actions de sanction spécifiques (warn, suspend, ban)

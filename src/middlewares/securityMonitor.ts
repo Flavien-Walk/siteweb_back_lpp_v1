@@ -368,6 +368,73 @@ setInterval(() => {
 }, ATTACK_WINDOW);
 
 // ============================================
+// MIDDLEWARE SANITISATION QUERY PARAMS (PENTEST-01)
+// ============================================
+const stripMongoOperators = (obj: unknown, path = ''): { cleaned: unknown; stripped: string[] } => {
+  const stripped: string[] = [];
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      if (key.startsWith('$')) {
+        stripped.push(`${path}.${key}`);
+        continue;
+      }
+      const sub = stripMongoOperators(val, `${path}.${key}`);
+      stripped.push(...sub.stripped);
+      result[key] = sub.cleaned;
+    }
+    return { cleaned: result, stripped };
+  }
+  if (Array.isArray(obj)) {
+    const arr: unknown[] = [];
+    for (let i = 0; i < obj.length; i++) {
+      const sub = stripMongoOperators(obj[i], `${path}[${i}]`);
+      stripped.push(...sub.stripped);
+      arr.push(sub.cleaned);
+    }
+    return { cleaned: arr, stripped };
+  }
+  return { cleaned: obj, stripped };
+};
+
+export const sanitizeQueryParams = (req: Request, res: Response, next: NextFunction): void => {
+  if (req.query && typeof req.query === 'object') {
+    const { cleaned, stripped } = stripMongoOperators(req.query, 'query');
+    if (stripped.length > 0) {
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      logSecurityEvent('injection_attempt', 'critical', req, 200,
+        `Injection NoSQL via query params detectee et nettoyee: ${stripped.join(', ')}`, {
+          source: 'query_params',
+          strippedKeys: stripped,
+          originalQuery: JSON.stringify(req.query).slice(0, 500),
+        }, false);
+      trackAttack(ip, req);
+      req.query = cleaned as any;
+    }
+  }
+  next();
+};
+
+// ============================================
+// MIDDLEWARE MASQUAGE ADMIN (PENTEST-03)
+// ============================================
+export const hideAdminRoutes = (req: Request, res: Response, next: NextFunction): void => {
+  // Si pas de token Authorization sur les routes admin, retourner 404 au lieu de 401
+  if (!req.headers.authorization) {
+    logSecurityEvent('unauthorized_access', 'medium', req, 404,
+      `Tentative d'acces admin sans token: ${req.originalUrl}`, {
+        source: 'admin_enumeration',
+      });
+    res.status(404).json({
+      succes: false,
+      message: `Route ${req.method} ${req.originalUrl} non trouvée.`,
+    });
+    return;
+  }
+  next();
+};
+
+// ============================================
 // MIDDLEWARE PRINCIPAL
 // ============================================
 export const securityMonitor = (req: Request, res: Response, next: NextFunction): void => {

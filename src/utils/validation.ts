@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+// PENTEST-04: Supprime les balises HTML et les patterns XSS des champs texte
+const stripHtml = (val: string): string =>
+  val.replace(/<[^>]*>/g, '').replace(/javascript\s*:/gi, '').replace(/on\w+\s*=/gi, '');
+
 /**
  * Schéma de validation pour l'inscription
  */
@@ -10,7 +14,8 @@ export const schemaInscription = z.object({
     })
     .min(2, 'Le prénom doit contenir au moins 2 caractères')
     .max(50, 'Le prénom ne peut pas dépasser 50 caractères')
-    .trim(),
+    .trim()
+    .transform(stripHtml),
 
   nom: z
     .string({
@@ -18,7 +23,8 @@ export const schemaInscription = z.object({
     })
     .min(2, 'Le nom doit contenir au moins 2 caractères')
     .max(50, 'Le nom ne peut pas dépasser 50 caractères')
-    .trim(),
+    .trim()
+    .transform(stripHtml),
 
   email: z
     .string({

@@ -85,6 +85,13 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
       const projetObj = p.toObject() as any;
       projetObj.estSuivi = userId ? p.followers.some((f: any) => f.equals(userId)) : false;
       projetObj.nbFollowers = p.followers.length;
+      // PENTEST-05: Filtrer documents prives dans la liste publique
+      if (projetObj.documents) {
+        const isPorteur = userId && projetObj.porteur?._id?.toString() === userId.toString();
+        if (!isPorteur) {
+          projetObj.documents = projetObj.documents.filter((d: any) => d.visibilite === 'public');
+        }
+      }
       return projetObj;
     });
 
