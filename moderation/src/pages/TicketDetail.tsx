@@ -17,6 +17,8 @@ import {
   User,
   Clock,
   Tag,
+  UserCheck,
+  UserX,
 } from 'lucide-react'
 import type { TicketStatus, TicketCategory, TicketPriority } from '@/types'
 
@@ -56,7 +58,7 @@ function StatusBadge({ status }: { status: TicketStatus }) {
 
 export function TicketDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user: currentUser } = useAuth()
   const queryClient = useQueryClient()
   const [replyContent, setReplyContent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -95,6 +97,21 @@ export function TicketDetailPage() {
       toast.error('Erreur', { description: error.message })
     },
   })
+
+  const assignMutation = useMutation({
+    mutationFn: (assigneeId: string) => ticketsService.assignTicket(id!, assigneeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', id] })
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      toast.success('Ticket pris en charge')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur', { description: error.message })
+    },
+  })
+
+  const isAssignedToMe = ticket?.assignedTo?._id === currentUser?._id
+  const isAssigned = !!ticket?.assignedTo
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -293,9 +310,25 @@ export function TicketDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Assigné à</p>
-                  <p className="text-sm mt-1">
-                    {ticket.assignedTo ? `${ticket.assignedTo.prenom} ${ticket.assignedTo.nom}` : 'Non assigné'}
-                  </p>
+                  {ticket.assignedTo ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      {ticket.assignedTo.avatar ? (
+                        <img src={ticket.assignedTo.avatar} alt="" className="h-5 w-5 rounded-full" />
+                      ) : (
+                        <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
+                          {ticket.assignedTo.prenom?.[0]}
+                        </div>
+                      )}
+                      <p className="text-sm font-medium">
+                        {ticket.assignedTo.prenom} {ticket.assignedTo.nom}
+                      </p>
+                      {isAssignedToMe && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-primary border-primary/30">Moi</Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm mt-1 text-muted-foreground italic">Non assigné</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -333,6 +366,37 @@ export function TicketDetailPage() {
                   <CardTitle className="text-sm">Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 space-y-3">
+                  {/* Prendre / Liberer le ticket */}
+                  {ticket.status !== 'termine' && (
+                    <div>
+                      {!isAssigned ? (
+                        <Button
+                          className="w-full"
+                          onClick={() => currentUser && assignMutation.mutate(currentUser._id)}
+                          disabled={assignMutation.isPending || !currentUser}
+                        >
+                          <UserCheck className="mr-2 h-4 w-4" />
+                          {assignMutation.isPending ? 'Assignation...' : 'Prendre le ticket'}
+                        </Button>
+                      ) : isAssignedToMe ? (
+                        <div className="text-center text-xs text-muted-foreground py-1">
+                          <UserCheck className="inline h-3.5 w-3.5 mr-1 text-primary" />
+                          Vous gerez ce ticket
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => currentUser && assignMutation.mutate(currentUser._id)}
+                          disabled={assignMutation.isPending || !currentUser}
+                        >
+                          <UserX className="mr-2 h-4 w-4" />
+                          {assignMutation.isPending ? 'Reassignation...' : 'Reprendre le ticket'}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">Changer le statut</label>
                     <Select

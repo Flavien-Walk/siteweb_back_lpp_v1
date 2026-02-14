@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
+import { useAuth } from '@/auth/AuthContext'
 import { ticketsService, type TicketListParams } from '@/services/tickets'
 import { PageTransition } from '@/components/PageTransition'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,6 +26,7 @@ import {
   Eye,
   RefreshCw,
   X,
+  UserCheck,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import type { TicketStatus, TicketCategory, TicketPriority } from '@/types'
@@ -78,6 +81,21 @@ function TicketPriorityBadge({ priority }: { priority: TicketPriority }) {
 export function TicketsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
+  const { user: currentUser, hasPermission } = useAuth()
+  const queryClient = useQueryClient()
+  const canRespond = hasPermission('tickets:respond' as never)
+
+  const assignMutation = useMutation({
+    mutationFn: (ticketId: string) => ticketsService.assignTicket(ticketId, currentUser!._id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Ticket pris en charge')
+    },
+    onError: (error: Error) => {
+      toast.error('Erreur', { description: error.message })
+    },
+  })
 
   const params: TicketListParams = {
     page: parseInt(searchParams.get('page') || '1'),
@@ -292,18 +310,41 @@ export function TicketsPage() {
                     <TableCell>
                       <TicketPriorityBadge priority={ticket.priority} />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {ticket.assignedTo ? `${ticket.assignedTo.prenom} ${ticket.assignedTo.nom?.[0]}.` : '-'}
+                    <TableCell className="text-sm">
+                      {ticket.assignedTo ? (
+                        <span className={ticket.assignedTo._id === currentUser?._id ? 'text-primary font-medium' : 'text-muted-foreground'}>
+                          {ticket.assignedTo.prenom} {ticket.assignedTo.nom?.[0]}.
+                          {ticket.assignedTo._id === currentUser?._id && ' (moi)'}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground italic">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatRelativeTime(ticket.dateMiseAJour)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link to={`/tickets/${ticket._id}`}>
-                        <Button variant="ghost" size="icon" title="Voir détails">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </Link>
+                      <div className="flex items-center justify-end gap-1">
+                        {canRespond && !ticket.assignedTo && ticket.status !== 'termine' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Prendre le ticket"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              assignMutation.mutate(ticket._id)
+                            }}
+                            disabled={assignMutation.isPending}
+                          >
+                            <UserCheck className="h-4 w-4 text-primary" />
+                          </Button>
+                        )}
+                        <Link to={`/tickets/${ticket._id}`}>
+                          <Button variant="ghost" size="icon" title="Voir détails">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

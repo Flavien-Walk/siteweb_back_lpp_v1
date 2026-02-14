@@ -78,10 +78,10 @@ export const ticketsService = {
     return response.data.data.ticket
   },
 
-  async assignTicket(id: string, staffId: string): Promise<SupportTicket> {
+  async assignTicket(id: string, assigneeId: string): Promise<SupportTicket> {
     const response = await api.post<ApiResponse<{ ticket: SupportTicket }>>(
       `/admin/tickets/${id}/assign`,
-      { staffId }
+      { assigneeId }
     )
 
     if (!response.data.succes || !response.data.data) {
