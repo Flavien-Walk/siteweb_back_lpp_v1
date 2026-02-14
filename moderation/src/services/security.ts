@@ -101,6 +101,21 @@ export interface BlockedIP {
   actif: boolean
 }
 
+export interface BannedDevice {
+  _id: string
+  fingerprint: string
+  userAgentRaw: string
+  navigateur: string
+  os: string
+  appareil: string
+  raison: string
+  bloquePar: { _id: string; prenom: string; nom: string } | null
+  actif: boolean
+  ipsConnues: string[]
+  dateCreation: string
+  expireAt?: string | null
+}
+
 export interface SecurityDashboardData {
   threatLevel: ThreatLevel
   lastUpdated: string
@@ -341,6 +356,36 @@ export const securityService = {
     const params: Record<string, string> = {}
     if (actif !== undefined) params.actif = String(actif)
     const response = await api.get('/admin/security/blocked-ips', { params })
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur')
+    }
+    return response.data.data
+  },
+
+  async banDevice(params: {
+    userAgent: string; raison: string; duree?: number
+    navigateur?: string; os?: string; appareil?: string; ipsConnues?: string[]
+  }): Promise<BannedDevice> {
+    const response = await api.post<ApiResponse<BannedDevice>>(
+      '/admin/security/ban-device', params
+    )
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur de bannissement')
+    }
+    return response.data.data!
+  },
+
+  async unbanDevice(id: string): Promise<void> {
+    const response = await api.delete(`/admin/security/unban-device/${id}`)
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur de debannissement')
+    }
+  },
+
+  async getBannedDevices(actif?: boolean): Promise<BannedDevice[]> {
+    const params: Record<string, string> = {}
+    if (actif !== undefined) params.actif = String(actif)
+    const response = await api.get('/admin/security/banned-devices', { params })
     if (!response.data.succes) {
       throw new Error(response.data.message || 'Erreur')
     }

@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import {
@@ -568,24 +567,48 @@ function StatsEmpreinteNumerique({ deviceStats, recentEvents }: { deviceStats: S
   const [onglet, setOnglet] = useState<'navigateurs' | 'os' | 'appareils' | 'combinaisons'>('navigateurs')
   const colors = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe', '#f5f3ff', '#818cf8', '#4f46e5', '#4338ca']
 
+  // Nettoyer les donnees: remplacer les noms null/vides par un label lisible
+  const cleanDeviceData = (data: { nom: string; count: number }[], fallback: string) => {
+    return data
+      .map(d => ({ ...d, nom: d.nom && d.nom !== 'null' ? d.nom : fallback }))
+      .reduce((acc, item) => {
+        const existing = acc.find(a => a.nom === item.nom)
+        if (existing) { existing.count += item.count } else { acc.push({ ...item }) }
+        return acc
+      }, [] as { nom: string; count: number }[])
+      .sort((a, b) => b.count - a.count)
+  }
+
   // Calculer les combinaisons uniques (fingerprint-like)
   const combinaisons = useMemo(() => {
-    const comboMap = new Map<string, { navigateur: string; os: string; appareil: string; count: number; ips: Set<string> }>()
+    const comboMap = new Map<string, { navigateur: string; os: string; appareil: string; count: number; ips: Set<string>; userAgents: Set<string> }>()
     recentEvents.forEach((e) => {
-      if (e.navigateur === 'Inconnu' && e.os === 'Inconnu') return
-      const key = `${e.navigateur}|${e.os}|${e.appareil}`
+      const nav = e.navigateur && e.navigateur !== 'Inconnu' ? e.navigateur : null
+      const osVal = e.os && e.os !== 'Inconnu' ? e.os : null
+      const app = e.appareil && e.appareil !== 'Inconnu' ? e.appareil : null
+      // Garder les events qui ont au moins une info device
+      if (!nav && !osVal && !app) return
+      const key = `${nav || '?'}|${osVal || '?'}|${app || '?'}`
       const existing = comboMap.get(key)
       if (existing) {
         existing.count++
         existing.ips.add(e.ip)
+        if (e.userAgent) existing.userAgents.add(e.userAgent)
       } else {
-        comboMap.set(key, { navigateur: e.navigateur, os: e.os, appareil: e.appareil, count: 1, ips: new Set([e.ip]) })
+        comboMap.set(key, {
+          navigateur: nav || 'Inconnu',
+          os: osVal || 'Inconnu',
+          appareil: app || 'Inconnu',
+          count: 1,
+          ips: new Set([e.ip]),
+          userAgents: new Set(e.userAgent ? [e.userAgent] : []),
+        })
       }
     })
     return Array.from(comboMap.values())
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10)
-      .map(c => ({ ...c, ipsCount: c.ips.size }))
+      .slice(0, 15)
+      .map(c => ({ ...c, ipsCount: c.ips.size, uaCount: c.userAgents.size }))
   }, [recentEvents])
 
   const getIcon = (appareil: string) => {
@@ -598,23 +621,33 @@ function StatsEmpreinteNumerique({ deviceStats, recentEvents }: { deviceStats: S
   const renderList = () => {
     if (onglet === 'combinaisons') {
       return combinaisons.length === 0 ? (
-        <p className="text-xs text-zinc-600 text-center py-4">Aucune empreinte</p>
+        <div className="text-center py-6">
+          <Fingerprint className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
+          <p className="text-xs text-zinc-600">Aucune empreinte identifiable</p>
+          <p className="text-[10px] text-zinc-700 mt-1">Les evenements n'ont pas assez de donnees navigateur/OS</p>
+        </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-[280px] overflow-y-auto">
           {combinaisons.map((c, i) => {
             const DevIcon = getIcon(c.appareil)
             return (
-              <div key={i} className="p-2 rounded-lg bg-zinc-800/30 hover:bg-zinc-800/60 transition-colors">
+              <div key={i} className="p-2.5 rounded-lg bg-zinc-800/30 hover:bg-zinc-800/60 transition-colors border border-zinc-800/50">
                 <div className="flex items-center gap-2">
-                  <DevIcon className="h-4 w-4 text-zinc-400 shrink-0" />
+                  <div className="p-1.5 rounded-md bg-indigo-500/10">
+                    <DevIcon className="h-4 w-4 text-indigo-400" />
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] text-zinc-300 truncate font-medium">{c.navigateur !== 'Inconnu' ? c.navigateur : 'Navigateur inconnu'}</p>
-                    <p className="text-[10px] text-zinc-500 truncate">{c.os !== 'Inconnu' ? c.os : 'OS inconnu'} - {c.appareil !== 'Inconnu' ? c.appareil : '?'}</p>
+                    <p className="text-[11px] text-zinc-200 truncate font-medium">{c.navigateur}</p>
+                    <p className="text-[10px] text-zinc-500 truncate">{c.os} - {c.appareil}</p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-[11px] font-bold text-zinc-300">{c.count} req.</p>
                     <p className="text-[10px] text-zinc-600">{c.ipsCount} IP{c.ipsCount > 1 ? 's' : ''}</p>
                   </div>
+                </div>
+                {/* Barre de proportion */}
+                <div className="mt-1.5 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-indigo-500/40" style={{ width: `${Math.min(100, (c.count / Math.max(1, combinaisons[0]?.count)) * 100)}%` }} />
                 </div>
               </div>
             )
@@ -623,16 +656,21 @@ function StatsEmpreinteNumerique({ deviceStats, recentEvents }: { deviceStats: S
       )
     }
 
-    const data = deviceStats[onglet as 'navigateurs' | 'os' | 'appareils']
+    const rawData = deviceStats[onglet as 'navigateurs' | 'os' | 'appareils']
+    const fallbackLabel = onglet === 'navigateurs' ? 'Navigateur non identifie' : onglet === 'os' ? 'OS non identifie' : 'Appareil non identifie'
+    const data = cleanDeviceData(rawData, fallbackLabel)
     const total = data.reduce((s, d) => s + d.count, 0)
 
-    return data.length === 0 ? (
-      <p className="text-xs text-zinc-600 text-center py-4">Aucune donnee</p>
+    return data.length === 0 || total === 0 ? (
+      <div className="text-center py-6">
+        <Monitor className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
+        <p className="text-xs text-zinc-600">Aucune donnee disponible</p>
+      </div>
     ) : (
       <>
         <ResponsiveContainer width="100%" height={140}>
           <PieChart>
-            <Pie data={data.map((d) => ({ name: d.nom, value: d.count }))} cx="50%" cy="50%" outerRadius={55} dataKey="value">
+            <Pie data={data.map((d) => ({ name: d.nom, value: d.count }))} cx="50%" cy="50%" outerRadius={55} dataKey="value" label={({ name, percent }) => (percent ?? 0) > 0.08 ? `${(name ?? '').toString().slice(0, 12)}` : ''} labelLine={false}>
               {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
             </Pie>
             <RechartsTooltip
@@ -642,12 +680,12 @@ function StatsEmpreinteNumerique({ deviceStats, recentEvents }: { deviceStats: S
           </PieChart>
         </ResponsiveContainer>
         <div className="space-y-1 mt-2">
-          {data.slice(0, 6).map((d, i) => (
-            <div key={d.nom} className="flex items-center gap-2 text-xs">
-              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
-              <span className="text-zinc-400 truncate flex-1">{d.nom}</span>
+          {data.slice(0, 8).map((d, i) => (
+            <div key={`${d.nom}-${i}`} className="flex items-center gap-2 text-xs">
+              <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+              <span className="text-zinc-300 truncate flex-1 font-medium">{d.nom}</span>
               <span className="font-mono text-zinc-300">{d.count}</span>
-              <span className="text-zinc-600 w-8 text-right">{total > 0 ? ((d.count / total) * 100).toFixed(0) : 0}%</span>
+              <span className="text-zinc-500 w-10 text-right">{total > 0 ? ((d.count / total) * 100).toFixed(0) : 0}%</span>
             </div>
           ))}
         </div>
@@ -784,26 +822,43 @@ function FluxTempsReel({ events, onInvestigateIP }: {
         </div>
         <div className="flex flex-wrap gap-2 mt-2">
           <div className="flex-1 min-w-[200px]">
-            <Input placeholder="Rechercher (IP, chemin, navigateur)..." value={recherche} onChange={(e) => setRecherche(e.target.value)} className="h-7 text-xs" />
+            <Input placeholder="Rechercher (IP, chemin, navigateur)..." value={recherche} onChange={(e) => setRecherche(e.target.value)} className="h-8 text-xs" />
           </div>
-          <Select value={filtreSeverite} onChange={(e) => setFiltreSeverite(e.target.value)} className="h-7 text-xs w-28">
-            <option value="">Severite</option>
-            <option value="critical">Critique</option>
-            <option value="high">Haute</option>
-            <option value="medium">Moyenne</option>
-            <option value="low">Basse</option>
-          </Select>
-          <Select value={filtreType} onChange={(e) => setFiltreType(e.target.value)} className="h-7 text-xs w-32">
-            <option value="">Type</option>
+          <select
+            value={filtreSeverite} onChange={(e) => setFiltreSeverite(e.target.value)}
+            className="h-8 text-xs w-28 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-300 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="" className="bg-zinc-900 text-zinc-300">Severite</option>
+            <option value="critical" className="bg-zinc-900 text-red-400">Critique</option>
+            <option value="high" className="bg-zinc-900 text-orange-400">Haute</option>
+            <option value="medium" className="bg-zinc-900 text-amber-400">Moyenne</option>
+            <option value="low" className="bg-zinc-900 text-zinc-400">Basse</option>
+          </select>
+          <select
+            value={filtreType} onChange={(e) => setFiltreType(e.target.value)}
+            className="h-8 text-xs w-32 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-300 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="" className="bg-zinc-900 text-zinc-300">Type</option>
             {Object.entries(TYPES_ATTAQUE).map(([key, val]) => (
-              <option key={key} value={key}>{val.label}</option>
+              <option key={key} value={key} className="bg-zinc-900 text-zinc-300">{val.label}</option>
             ))}
-          </Select>
-          <Select value={filtreBloque} onChange={(e) => setFiltreBloque(e.target.value)} className="h-7 text-xs w-24">
-            <option value="">Statut</option>
-            <option value="oui">Bloque</option>
-            <option value="non">Non bloque</option>
-          </Select>
+          </select>
+          <select
+            value={filtreBloque} onChange={(e) => setFiltreBloque(e.target.value)}
+            className="h-8 text-xs w-28 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-300 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="" className="bg-zinc-900 text-zinc-300">Statut</option>
+            <option value="oui" className="bg-zinc-900 text-emerald-400">Bloque</option>
+            <option value="non" className="bg-zinc-900 text-red-400">Non bloque</option>
+          </select>
+          {(filtreSeverite || filtreType || filtreBloque || recherche) && (
+            <button
+              onClick={() => { setFiltreSeverite(''); setFiltreType(''); setFiltreBloque(''); setRecherche('') }}
+              className="h-8 px-2 text-[10px] text-zinc-500 hover:text-zinc-300 border border-zinc-700 rounded-md hover:bg-zinc-800 transition-colors"
+            >
+              Reinitialiser
+            </button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="max-h-[500px] overflow-y-auto space-y-1">
@@ -1020,8 +1075,129 @@ function IPsBloquees({ blockedIPs, onUnblock }: { blockedIPs: BlockedIP[]; onUnb
 }
 
 // ============================================
+// APPAREILS BANNIS (anti IP dynamique)
+// ============================================
+
+function AppareilsBannis({ onUnban }: { onUnban: (id: string) => void }) {
+  const { data: devices, isLoading } = useQuery({
+    queryKey: ['banned-devices'],
+    queryFn: () => securityService.getBannedDevices(true),
+    refetchInterval: 30000,
+  })
+
+  if (isLoading) return null
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <Smartphone className="h-4 w-4 text-orange-400" /> Appareils bannis ({devices?.length || 0})
+          <Tooltip content="Le bannissement par appareil bloque les attaquants meme si leur adresse IP change (IP dynamique). Base sur l'empreinte du navigateur.">
+            <span><Info className="h-3 w-3 text-zinc-600 cursor-help" /></span>
+          </Tooltip>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="max-h-[300px] overflow-y-auto">
+        {!devices || devices.length === 0 ? (
+          <p className="text-xs text-zinc-600 text-center py-4">Aucun appareil banni</p>
+        ) : (
+          <div className="space-y-2">
+            {devices.map((d) => {
+              const DevIcon = d.appareil.includes('Smartphone') ? Smartphone : d.appareil.includes('Tablette') ? Tablet : Laptop
+              return (
+                <div key={d._id} className="flex items-center justify-between p-2.5 rounded-lg bg-orange-500/5 border border-orange-500/10">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <DevIcon className="h-4 w-4 text-orange-400 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-orange-300 font-medium truncate">{d.navigateur} / {d.os}</p>
+                      <p className="text-[10px] text-zinc-500 truncate">{d.raison}</p>
+                      <div className="text-[10px] text-zinc-600">
+                        {d.ipsConnues.length > 0 && <span>{d.ipsConnues.length} IP{d.ipsConnues.length > 1 ? 's' : ''} connue{d.ipsConnues.length > 1 ? 's' : ''} | </span>}
+                        {d.bloquePar ? `Par ${d.bloquePar.prenom} ${d.bloquePar.nom}` : 'Systeme'}
+                        {d.expireAt && <span className="text-amber-500"> | Expire: {formatDateShort(d.expireAt)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <Tooltip content="Debannir cet appareil"><span>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-emerald-400 shrink-0" onClick={() => onUnban(d._id)}>
+                      <Unlock className="h-3.5 w-3.5" />
+                    </Button>
+                  </span></Tooltip>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================
 // MODALS
 // ============================================
+
+function ModalBanDevice({ open, onClose, onConfirm, isLoading, prefill }: {
+  open: boolean; onClose: () => void
+  onConfirm: (params: { userAgent: string; raison: string; duree?: number; navigateur?: string; os?: string; appareil?: string; ipsConnues?: string[] }) => void
+  isLoading: boolean
+  prefill?: { userAgent: string; navigateur: string; os: string; appareil: string; ips: string[] }
+}) {
+  const [raison, setRaison] = useState('')
+  const [duree, setDuree] = useState<string>('')
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Smartphone className="h-5 w-5 text-orange-400" /> Bannir un appareil</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/10">
+            <p className="text-xs text-zinc-400 mb-1">Empreinte de l'appareil</p>
+            <p className="text-sm text-zinc-200 font-medium">{prefill?.navigateur || 'Inconnu'} / {prefill?.os || 'Inconnu'}</p>
+            <p className="text-[10px] text-zinc-600 mt-1">{prefill?.appareil || 'Inconnu'}{prefill?.ips && prefill.ips.length > 0 ? ` - ${prefill.ips.length} IP(s) connue(s)` : ''}</p>
+          </div>
+          <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20">
+            <p className="text-[11px] text-amber-400">Ce bannissement bloquera cet appareil meme si l'adresse IP change. Utile contre les attaquants avec IP dynamique.</p>
+          </div>
+          <div>
+            <label className="text-sm text-zinc-400">Raison du bannissement *</label>
+            <Input value={raison} onChange={(e) => setRaison(e.target.value)} placeholder="Ex: Attaquant persistant, IP dynamique..." className="mt-1" />
+          </div>
+          <div>
+            <label className="text-sm text-zinc-400">Duree</label>
+            <select value={duree} onChange={(e) => setDuree(e.target.value)} className="mt-1 w-full h-10 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-300 px-3 text-sm">
+              <option value="" className="bg-zinc-900">Permanent</option>
+              <option value="24" className="bg-zinc-900">24 heures</option>
+              <option value="72" className="bg-zinc-900">3 jours</option>
+              <option value="168" className="bg-zinc-900">7 jours</option>
+              <option value="720" className="bg-zinc-900">30 jours</option>
+            </select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Annuler</Button>
+          <Button
+            className="bg-orange-600 hover:bg-orange-700 text-white"
+            onClick={() => onConfirm({
+              userAgent: prefill?.userAgent || '',
+              raison,
+              duree: duree ? parseInt(duree) : undefined,
+              navigateur: prefill?.navigateur,
+              os: prefill?.os,
+              appareil: prefill?.appareil,
+              ipsConnues: prefill?.ips,
+            })}
+            disabled={!raison.trim() || isLoading}
+          >
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Smartphone className="h-4 w-4 mr-1" />} Bannir l'appareil
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function ModalBlocageIP({ open, onClose, ip, onConfirm, isLoading }: {
   open: boolean; onClose: () => void; ip: string
@@ -1046,15 +1222,15 @@ function ModalBlocageIP({ open, onClose, ip, onConfirm, isLoading }: {
           </div>
           <div>
             <label className="text-sm text-zinc-400">Duree du blocage</label>
-            <Select value={duree} onChange={(e) => setDuree(e.target.value)} className="mt-1">
-              <option value="">Permanent</option>
-              <option value="1">1 heure</option>
-              <option value="6">6 heures</option>
-              <option value="24">24 heures</option>
-              <option value="72">3 jours</option>
-              <option value="168">7 jours</option>
-              <option value="720">30 jours</option>
-            </Select>
+            <select value={duree} onChange={(e) => setDuree(e.target.value)} className="mt-1 w-full h-10 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-300 px-3 text-sm">
+              <option value="" className="bg-zinc-900">Permanent</option>
+              <option value="1" className="bg-zinc-900">1 heure</option>
+              <option value="6" className="bg-zinc-900">6 heures</option>
+              <option value="24" className="bg-zinc-900">24 heures</option>
+              <option value="72" className="bg-zinc-900">3 jours</option>
+              <option value="168" className="bg-zinc-900">7 jours</option>
+              <option value="720" className="bg-zinc-900">30 jours</option>
+            </select>
           </div>
         </div>
         <DialogFooter>
@@ -1068,8 +1244,9 @@ function ModalBlocageIP({ open, onClose, ip, onConfirm, isLoading }: {
   )
 }
 
-function ModalInvestigationIP({ open, onClose, ip, onBlock }: {
+function ModalInvestigationIP({ open, onClose, ip, onBlock, onBanDevice }: {
   open: boolean; onClose: () => void; ip: string; onBlock: (ip: string) => void
+  onBanDevice: (prefill: { userAgent: string; navigateur: string; os: string; appareil: string; ips: string[] }) => void
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['security-investigate', ip],
@@ -1103,12 +1280,26 @@ function ModalInvestigationIP({ open, onClose, ip, onBlock }: {
                   <p className={`text-3xl font-black ${dangerColors[data.dangerLevel].text}`}>{data.dangerScore}/100</p>
                   <p className={`text-sm font-medium ${dangerColors[data.dangerLevel].text} capitalize`}>Niveau : {data.dangerLevel}</p>
                 </div>
-                <div className="text-right">
+                <div className="flex flex-col gap-1.5 items-end">
                   {data.estBloquee ? (
                     <Badge className="bg-red-500/20 text-red-400 border-0">IP deja bloquee</Badge>
                   ) : data.dangerScore >= 50 ? (
-                    <Button size="sm" variant="destructive" onClick={() => onBlock(ip)}><Ban className="h-3.5 w-3.5 mr-1" /> Bloquer</Button>
+                    <Button size="sm" variant="destructive" onClick={() => onBlock(ip)}><Ban className="h-3.5 w-3.5 mr-1" /> Bloquer IP</Button>
                   ) : null}
+                  {data.empreinteNumerique.navigateurs.length > 0 && data.derniersEvenements.length > 0 && (
+                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-[11px] h-7" onClick={() => {
+                      const lastEvent = data.derniersEvenements[0]
+                      onBanDevice({
+                        userAgent: lastEvent.userAgent || '',
+                        navigateur: data.empreinteNumerique.navigateurs[0]?.nom || lastEvent.navigateur || 'Inconnu',
+                        os: data.empreinteNumerique.os[0]?.nom || lastEvent.os || 'Inconnu',
+                        appareil: data.empreinteNumerique.appareils[0]?.nom || lastEvent.appareil || 'Inconnu',
+                        ips: [ip],
+                      })
+                    }}>
+                      <Smartphone className="h-3 w-3 mr-1" /> Bannir appareil
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1472,6 +1663,7 @@ export default function SecurityPage() {
 
   const [investigatingIP, setInvestigatingIP] = useState<string | null>(null)
   const [blockingIP, setBlockingIP] = useState<string | null>(null)
+  const [banningDevice, setBanningDevice] = useState<{ userAgent: string; navigateur: string; os: string; appareil: string; ips: string[] } | null>(null)
   const [critiquesOuvert, setCritiquesOuvert] = useState(false)
   const [ongletPrincipal, setOngletPrincipal] = useState<'securite' | 'backend'>('securite')
 
@@ -1493,6 +1685,20 @@ export default function SecurityPage() {
   const unblockMutation = useMutation({
     mutationFn: (id: string) => securityService.unblockIP(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['security-dashboard'] }),
+  })
+
+  const banDeviceMutation = useMutation({
+    mutationFn: (params: Parameters<typeof securityService.banDevice>[0]) =>
+      securityService.banDevice(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['banned-devices'] })
+      setBanningDevice(null)
+    },
+  })
+
+  const unbanDeviceMutation = useMutation({
+    mutationFn: (id: string) => securityService.unbanDevice(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banned-devices'] }),
   })
 
   const scrollToCritiques = useCallback(() => {
@@ -1615,6 +1821,7 @@ export default function SecurityPage() {
               <TopRecidivistes offenders={data.topOffenderIPs} onInvestigate={setInvestigatingIP} onBlock={setBlockingIP} />
               <div className="space-y-4">
                 <IPsBloquees blockedIPs={data.blockedIPs} onUnblock={(id) => unblockMutation.mutate(id)} />
+                <AppareilsBannis onUnban={(id) => unbanDeviceMutation.mutate(id)} />
                 <CheminsAttaques paths={data.topAttackedPaths} />
               </div>
             </div>
@@ -1631,6 +1838,7 @@ export default function SecurityPage() {
           <ModalInvestigationIP
             open={!!investigatingIP} onClose={() => setInvestigatingIP(null)} ip={investigatingIP}
             onBlock={(ip) => { setInvestigatingIP(null); setBlockingIP(ip); }}
+            onBanDevice={(prefill) => { setInvestigatingIP(null); setBanningDevice(prefill); }}
           />
         )}
         {blockingIP && (
@@ -1638,6 +1846,14 @@ export default function SecurityPage() {
             open={!!blockingIP} onClose={() => setBlockingIP(null)} ip={blockingIP}
             onConfirm={(ip, raison, duree) => blockMutation.mutate({ ip, raison, duree })}
             isLoading={blockMutation.isPending}
+          />
+        )}
+        {banningDevice && (
+          <ModalBanDevice
+            open={!!banningDevice} onClose={() => setBanningDevice(null)}
+            prefill={banningDevice}
+            onConfirm={(params) => banDeviceMutation.mutate(params)}
+            isLoading={banDeviceMutation.isPending}
           />
         )}
       </div>
