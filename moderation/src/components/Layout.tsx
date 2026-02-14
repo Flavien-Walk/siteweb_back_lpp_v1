@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/auth/AuthContext'
+import { useKeepAlive } from '@/hooks/useKeepAlive'
 import { dashboardService } from '@/services/dashboard'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -258,6 +259,7 @@ function SidebarContent({
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  useKeepAlive()
 
   return (
     <div className="flex h-screen bg-background">
