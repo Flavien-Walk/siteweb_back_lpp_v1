@@ -62,7 +62,7 @@ const SecurityEventSchema = new Schema<ISecurityEvent>(
     metadata: { type: Schema.Types.Mixed, default: {} },
     userId: { type: String, default: null },
     blocked: { type: Boolean, default: false },
-    dateCreation: { type: Date, default: Date.now, index: true },
+    dateCreation: { type: Date, default: Date.now },
   },
   { timestamps: false, collection: 'securityevents' }
 );
