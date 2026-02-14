@@ -559,17 +559,23 @@ export const assignerTicket = async (
       throw new ErreurAPI('ID ticket invalide.', 400);
     }
 
-    const ticket = await SupportTicket.findByIdAndUpdate(
-      id,
-      { assignedTo: new mongoose.Types.ObjectId(donnees.assigneeId) },
-      { new: true }
-    )
-      .populate('user', '_id prenom nom avatar email')
-      .populate('assignedTo', '_id prenom nom avatar');
-
-    if (!ticket) {
+    // Trouver le ticket pour verifier son statut actuel
+    const ticketExistant = await SupportTicket.findById(id);
+    if (!ticketExistant) {
       throw new ErreurAPI('Ticket non trouve.', 404);
     }
+
+    // Construire la mise a jour : assigner + passer en_cours si en_attente
+    const update: Record<string, unknown> = {
+      assignedTo: new mongoose.Types.ObjectId(donnees.assigneeId),
+    };
+    if (ticketExistant.status === 'en_attente') {
+      update.status = 'en_cours';
+    }
+
+    const ticket = await SupportTicket.findByIdAndUpdate(id, update, { new: true })
+      .populate('user', '_id prenom nom avatar email')
+      .populate('assignedTo', '_id prenom nom avatar');
 
     res.json({
       succes: true,
