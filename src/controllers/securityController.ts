@@ -1168,6 +1168,29 @@ export const getBannedDevices = async (
 // UTILITAIRES
 // ============================================
 
+// ============================================
+// PURGE DONNEES SECURITE
+// ============================================
+export const purgeSecurityData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const deletedEvents = await SecurityEvent.deleteMany({});
+    const deletedBlockedIPs = await BlockedIP.deleteMany({});
+    const deletedBannedDevices = await BannedDevice.deleteMany({});
+
+    res.status(200).json({
+      succes: true,
+      message: 'Donnees de securite purgees avec succes',
+      data: {
+        eventsSupprimes: deletedEvents.deletedCount,
+        ipsDebloquees: deletedBlockedIPs.deletedCount,
+        appareilsDebannis: deletedBannedDevices.deletedCount,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;

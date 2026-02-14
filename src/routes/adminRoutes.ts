@@ -30,6 +30,7 @@ import {
   banDevice,
   unbanDevice,
   getBannedDevices,
+  purgeSecurityData,
 } from '../controllers/securityController.js';
 import {
   getStaffMessages,
@@ -359,6 +360,9 @@ router.post('/security/ban-device', verifierJwt, requireMinRole('admin_modo'), b
 
 // DELETE /api/admin/security/unban-device/:id - Debannir un appareil
 router.delete('/security/unban-device/:id', verifierJwt, requireMinRole('admin_modo'), unbanDevice);
+
+// DELETE /api/admin/security/purge - Purger toutes les donnees de securite (super_admin uniquement)
+router.delete('/security/purge', verifierJwt, requireMinRole('super_admin'), purgeSecurityData);
 
 // ============ NOTIFICATIONS BROADCAST ============
 
