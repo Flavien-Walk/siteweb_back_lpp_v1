@@ -219,6 +219,11 @@ export default function Notifications() {
         pathname: '/(app)/accueil',
         params: { publicationId: notif.data.publicationId },
       });
+    } else if (notif.type === 'support_reponse' && notif.data?.ticketId) {
+      router.push({
+        pathname: '/(app)/support',
+        params: { ticketId: notif.data.ticketId },
+      });
     }
   };
 
@@ -330,6 +335,8 @@ export default function Notifications() {
         return 'checkmark-circle';
       case 'broadcast':
         return 'megaphone';
+      case 'support_reponse':
+        return 'headset';
       case 'systeme':
       default:
         return 'notifications';
@@ -381,6 +388,8 @@ export default function Notifications() {
         return couleurs.succes;
       case 'broadcast':
         return '#7C5CFF'; // Violet primaire
+      case 'support_reponse':
+        return '#3B82F6'; // Bleu
       default:
         return couleurs.texteSecondaire;
     }

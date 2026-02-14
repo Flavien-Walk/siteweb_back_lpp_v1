@@ -16,11 +16,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   FlatList,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import {
@@ -123,37 +125,53 @@ const styles = StyleSheet.create({
   submitBtnText: { fontSize: typographie.tailles.base, fontWeight: typographie.poids.semibold },
 
   // Detail / Conversation
-  messagesContainer: { flex: 1, padding: espacements.lg },
-  messageBubble: { maxWidth: '80%', borderRadius: rayons.lg, padding: espacements.md, marginBottom: espacements.md },
-  messageUser: { alignSelf: 'flex-end' },
-  messageStaff: { alignSelf: 'flex-start' },
-  messageSender: { fontSize: typographie.tailles.xs, fontWeight: typographie.poids.semibold, marginBottom: 4 },
+  messagesContainer: { flex: 1, paddingHorizontal: espacements.md },
+  messageBubble: {
+    maxWidth: '80%',
+    borderRadius: 18,
+    paddingHorizontal: espacements.md,
+    paddingVertical: 10,
+    marginBottom: espacements.sm,
+  },
+  messageUser: {
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 4,
+  },
+  messageStaff: {
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 4,
+  },
+  messageSender: { fontSize: typographie.tailles.xs, fontWeight: typographie.poids.semibold, marginBottom: 2 },
   messageContent: { fontSize: typographie.tailles.sm, lineHeight: 20 },
-  messageDate: { fontSize: 10, marginTop: 4, textAlign: 'right' },
+  messageDate: { fontSize: 10, marginTop: 4, textAlign: 'right', opacity: 0.7 },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: espacements.md,
-    borderTopWidth: 1,
+    paddingHorizontal: espacements.md,
+    paddingTop: espacements.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
     gap: espacements.sm,
   },
   messageInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: rayons.lg,
+    borderRadius: 20,
     paddingHorizontal: espacements.md,
-    paddingVertical: espacements.sm,
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 8,
     fontSize: typographie.tailles.sm,
-    maxHeight: 100,
+    maxHeight: 120,
+    minHeight: 40,
   },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 0 },
   closedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: espacements.sm,
-    padding: espacements.md,
-    borderTopWidth: 1,
+    paddingVertical: espacements.md,
+    paddingHorizontal: espacements.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   closedText: { fontSize: typographie.tailles.sm },
 
@@ -172,12 +190,38 @@ const styles = StyleSheet.create({
   },
   detailSubject: { fontSize: typographie.tailles.lg, fontWeight: typographie.poids.semibold, marginBottom: espacements.sm },
   detailBadges: { flexDirection: 'row', gap: espacements.sm, flexWrap: 'wrap' },
+
+  // Filter chips
+  filterRow: { gap: espacements.sm, marginBottom: espacements.lg, paddingHorizontal: 2 },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: espacements.md,
+    paddingVertical: 6,
+    borderRadius: rayons.full,
+    borderWidth: 1,
+  },
+  filterChipText: { fontSize: typographie.tailles.xs, fontWeight: typographie.poids.medium },
+  filterChipCount: { fontSize: typographie.tailles.xs },
+
+  // Assigned moderator
+  assignedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.sm,
+    marginTop: espacements.sm,
+  },
+  assignedText: { fontSize: typographie.tailles.xs },
 });
 
 export default function SupportScreen() {
   const { couleurs } = useTheme();
   const colors = couleurs || defaultCouleurs;
   const { tokenReady, userHydrated, isAuthenticated } = useUser();
+  const insets = useSafeAreaInsets();
+
+  const { ticketId: deepLinkTicketId } = useLocalSearchParams<{ ticketId?: string }>();
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -186,6 +230,7 @@ export default function SupportScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
 
   // Create form state
   const [subject, setSubject] = useState('');
@@ -195,6 +240,7 @@ export default function SupportScreen() {
   // Detail message input
   const [replyMessage, setReplyMessage] = useState('');
   const scrollRef = useRef<ScrollView>(null);
+  const deepLinkHandled = useRef(false);
 
   const isHydrated = tokenReady && userHydrated;
 
@@ -244,6 +290,14 @@ export default function SupportScreen() {
       setIsLoading(false);
     }
   }, []);
+
+  // Deep link : ouvrir un ticket depuis une notification
+  useEffect(() => {
+    if (deepLinkTicketId && isHydrated && !deepLinkHandled.current) {
+      deepLinkHandled.current = true;
+      openTicket(deepLinkTicketId);
+    }
+  }, [deepLinkTicketId, isHydrated, openTicket]);
 
   // Create ticket
   const handleCreateTicket = useCallback(async () => {
@@ -353,8 +407,12 @@ export default function SupportScreen() {
             </Pressable>
             <Text style={[styles.headerTitle, { color: colors.texte }]}>Nouveau ticket</Text>
           </View>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+          >
+            <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
               <Text style={[styles.formLabel, { color: colors.texte, marginTop: 0 }]}>Sujet</Text>
               <TextInput
                 style={[styles.input, { color: colors.texte, borderColor: colors.bordure, backgroundColor: colors.fondCard }]}
@@ -430,9 +488,14 @@ export default function SupportScreen() {
     const statusColor = STATUS_COLORS[selectedTicket.status];
 
     return (
-      <View style={[styles.container, { backgroundColor: colors.fond }]}>
+      <View style={[styles.container, { backgroundColor: colors.fond, paddingTop: insets.top }]}>
         <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior="padding"
+          keyboardVerticalOffset={0}
+        >
+          {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
             <Pressable style={styles.backButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={24} color={colors.texte} />
@@ -442,7 +505,7 @@ export default function SupportScreen() {
             </Text>
           </View>
 
-          {/* Ticket info */}
+          {/* Ticket info badges */}
           <View style={[styles.detailHeader, { borderBottomColor: colors.bordure }]}>
             <View style={styles.detailBadges}>
               <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
@@ -456,86 +519,106 @@ export default function SupportScreen() {
                 </Text>
               </View>
             </View>
-          </View>
-
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            {/* Messages */}
-            <ScrollView
-              ref={scrollRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={{ paddingBottom: espacements.lg }}
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
-            >
-              {selectedTicket.messages.map((msg, i) => {
-                const isUser = msg.senderRole === 'user';
-                return (
-                  <View
-                    key={msg._id || i}
-                    style={[
-                      styles.messageBubble,
-                      isUser ? styles.messageUser : styles.messageStaff,
-                      {
-                        backgroundColor: isUser
-                          ? colors.primaireLight || 'rgba(124, 92, 255, 0.15)'
-                          : colors.fondCard,
-                      },
-                    ]}
-                  >
-                    {!isUser && (
-                      <Text style={[styles.messageSender, { color: colors.primaire }]}>
-                        {msg.sender?.prenom} {msg.sender?.nom} (Staff)
-                      </Text>
-                    )}
-                    <Text style={[styles.messageContent, { color: colors.texte }]}>
-                      {msg.content}
-                    </Text>
-                    <Text style={[styles.messageDate, { color: colors.texteMuted }]}>
-                      {formatDateTime(msg.dateCreation)}
-                    </Text>
-                  </View>
-                );
-              })}
-            </ScrollView>
-
-            {/* Input bar or closed banner */}
-            {isClosed ? (
-              <View style={[styles.closedBanner, { borderTopColor: colors.bordure }]}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.succes || defaultCouleurs.succes} />
-                <Text style={[styles.closedText, { color: colors.texteSecondaire }]}>
-                  Ce ticket est termine
+            {selectedTicket.assignedTo && (
+              <View style={styles.assignedRow}>
+                <Ionicons name="person-circle-outline" size={16} color={colors.texteSecondaire} />
+                <Text style={[styles.assignedText, { color: colors.texteSecondaire }]}>
+                  Pris en charge par {selectedTicket.assignedTo.prenom} {selectedTicket.assignedTo.nom}
                 </Text>
               </View>
-            ) : (
-              <View style={[styles.inputBar, { borderTopColor: colors.bordure }]}>
-                <TextInput
-                  style={[styles.messageInput, { color: colors.texte, borderColor: colors.bordure, backgroundColor: colors.fondCard }]}
-                  placeholder="Ecrire un message..."
-                  placeholderTextColor={colors.texteMuted}
-                  value={replyMessage}
-                  onChangeText={setReplyMessage}
-                  multiline
-                  maxLength={2000}
-                />
-                <Pressable
-                  style={[styles.sendBtn, { backgroundColor: replyMessage.trim() ? colors.primaire : colors.bordure }]}
-                  onPress={handleSendReply}
-                  disabled={!replyMessage.trim() || isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator size="small" color={colors.blanc || '#FFF'} />
-                  ) : (
-                    <Ionicons name="send" size={18} color={colors.blanc || '#FFF'} />
-                  )}
-                </Pressable>
-              </View>
             )}
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+          </View>
+
+          {/* Messages */}
+          <ScrollView
+            ref={scrollRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={{ paddingBottom: espacements.md, flexGrow: 1, justifyContent: 'flex-end' }}
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {selectedTicket.messages.map((msg, i) => {
+              const isUser = msg.senderRole === 'user';
+              return (
+                <View
+                  key={msg._id || i}
+                  style={[
+                    styles.messageBubble,
+                    isUser ? styles.messageUser : styles.messageStaff,
+                    {
+                      backgroundColor: isUser
+                        ? colors.primaire
+                        : colors.fondCard,
+                    },
+                  ]}
+                >
+                  {!isUser && (
+                    <Text style={[styles.messageSender, { color: colors.primaire }]}>
+                      {msg.sender?.prenom} {msg.sender?.nom}
+                    </Text>
+                  )}
+                  <Text style={[styles.messageContent, { color: isUser ? '#FFFFFF' : colors.texte }]}>
+                    {msg.content}
+                  </Text>
+                  <Text style={[styles.messageDate, { color: isUser ? 'rgba(255,255,255,0.6)' : colors.texteMuted }]}>
+                    {formatDateTime(msg.dateCreation)}
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          {/* Input bar or closed banner */}
+          {isClosed ? (
+            <View style={[styles.closedBanner, { borderTopColor: colors.bordure, paddingBottom: insets.bottom || espacements.md }]}>
+              <Ionicons name="checkmark-circle" size={18} color={colors.succes || defaultCouleurs.succes} />
+              <Text style={[styles.closedText, { color: colors.texteSecondaire }]}>
+                Ce ticket est termine
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.inputBar, { borderTopColor: colors.bordure, paddingBottom: insets.bottom || espacements.md }]}>
+              <TextInput
+                style={[styles.messageInput, { color: colors.texte, borderColor: colors.bordure, backgroundColor: colors.fondCard }]}
+                placeholder="Ecrire un message..."
+                placeholderTextColor={colors.texteMuted}
+                value={replyMessage}
+                onChangeText={setReplyMessage}
+                multiline
+                maxLength={2000}
+              />
+              <Pressable
+                style={[styles.sendBtn, { backgroundColor: replyMessage.trim() ? colors.primaire : colors.bordure }]}
+                onPress={handleSendReply}
+                disabled={!replyMessage.trim() || isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color={colors.blanc || '#FFF'} />
+                ) : (
+                  <Ionicons name="send" size={18} color={colors.blanc || '#FFF'} />
+                )}
+              </Pressable>
+            </View>
+          )}
+        </KeyboardAvoidingView>
       </View>
     );
   }
 
   // ============ LIST VIEW (default) ============
+  const STATUS_FILTERS: { key: TicketStatus | 'all'; label: string }[] = [
+    { key: 'all', label: 'Tous' },
+    { key: 'en_attente', label: 'En attente' },
+    { key: 'en_cours', label: 'En cours' },
+    { key: 'termine', label: 'Termines' },
+  ];
+
+  const filteredTickets = statusFilter === 'all'
+    ? tickets
+    : tickets.filter((t) => t.status === statusFilter);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.fond }]}>
       <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
@@ -586,44 +669,109 @@ export default function SupportScreen() {
               <Text style={[styles.newTicketText, { color: colors.blanc || '#FFF' }]}>Nouveau ticket</Text>
             </Pressable>
 
+            {/* Status filters */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {STATUS_FILTERS.map((f) => {
+                const isActive = statusFilter === f.key;
+                const filterColor = f.key !== 'all' ? STATUS_COLORS[f.key as TicketStatus] : null;
+                return (
+                  <Pressable
+                    key={f.key}
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: isActive
+                          ? (filterColor?.bg || colors.primaireLight || 'rgba(124, 92, 255, 0.15)')
+                          : 'transparent',
+                        borderColor: isActive
+                          ? (filterColor?.text || colors.primaire)
+                          : colors.bordure,
+                      },
+                    ]}
+                    onPress={() => setStatusFilter(f.key)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        {
+                          color: isActive
+                            ? (filterColor?.text || colors.primaire)
+                            : colors.texteSecondaire,
+                        },
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                    {f.key !== 'all' && (
+                      <Text
+                        style={[
+                          styles.filterChipCount,
+                          {
+                            color: isActive
+                              ? (filterColor?.text || colors.primaire)
+                              : colors.texteMuted,
+                          },
+                        ]}
+                      >
+                        {tickets.filter((t) => t.status === f.key).length}
+                      </Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
             {/* Ticket list */}
-            {tickets.map((ticket) => {
-              const statusColor = STATUS_COLORS[ticket.status];
-              return (
-                <Pressable
-                  key={ticket._id}
-                  style={[styles.ticketCard, { backgroundColor: colors.fondCard, borderColor: colors.bordure }]}
-                  onPress={() => openTicket(ticket._id)}
-                >
-                  <View style={styles.ticketHeader}>
-                    <Text style={[styles.ticketSubject, { color: colors.texte }]} numberOfLines={2}>
-                      {ticket.subject}
-                    </Text>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
-                      <Text style={[styles.statusText, { color: statusColor.text }]}>
-                        {STATUS_LABELS[ticket.status]}
+            {filteredTickets.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: espacements.xxxl }}>
+                <Ionicons name="filter-outline" size={32} color={colors.texteMuted} />
+                <Text style={[styles.dateText, { color: colors.texteMuted, marginTop: espacements.sm }]}>
+                  Aucun ticket {statusFilter !== 'all' ? STATUS_LABELS[statusFilter].toLowerCase() : ''}
+                </Text>
+              </View>
+            ) : (
+              filteredTickets.map((ticket) => {
+                const statusColor = STATUS_COLORS[ticket.status];
+                return (
+                  <Pressable
+                    key={ticket._id}
+                    style={[styles.ticketCard, { backgroundColor: colors.fondCard, borderColor: colors.bordure }]}
+                    onPress={() => openTicket(ticket._id)}
+                  >
+                    <View style={styles.ticketHeader}>
+                      <Text style={[styles.ticketSubject, { color: colors.texte }]} numberOfLines={2}>
+                        {ticket.subject}
                       </Text>
+                      <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
+                        <Text style={[styles.statusText, { color: statusColor.text }]}>
+                          {STATUS_LABELS[ticket.status]}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.ticketMeta}>
-                    <View style={[styles.categoryBadge, { borderColor: colors.bordure }]}>
-                      <Text style={[styles.categoryText, { color: colors.texteSecondaire }]}>
-                        {CATEGORY_LABELS[ticket.category]}
-                      </Text>
-                    </View>
-                    <Text style={[styles.dateText, { color: colors.texteMuted }]}>
-                      {formatDate(ticket.dateMiseAJour)}
-                    </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Ionicons name="chatbubble-outline" size={12} color={colors.texteMuted} />
+                    <View style={styles.ticketMeta}>
+                      <View style={[styles.categoryBadge, { borderColor: colors.bordure }]}>
+                        <Text style={[styles.categoryText, { color: colors.texteSecondaire }]}>
+                          {CATEGORY_LABELS[ticket.category]}
+                        </Text>
+                      </View>
                       <Text style={[styles.dateText, { color: colors.texteMuted }]}>
-                        {ticket.messages?.length || 0}
+                        {formatDate(ticket.dateMiseAJour)}
                       </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="chatbubble-outline" size={12} color={colors.texteMuted} />
+                        <Text style={[styles.dateText, { color: colors.texteMuted }]}>
+                          {ticket.messages?.length || 0}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                </Pressable>
-              );
-            })}
+                  </Pressable>
+                );
+              })
+            )}
           </ScrollView>
         )}
       </SafeAreaView>

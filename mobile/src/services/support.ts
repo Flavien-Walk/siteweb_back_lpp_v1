@@ -33,6 +33,12 @@ export interface SupportTicket {
   category: TicketCategory;
   status: TicketStatus;
   priority: string;
+  assignedTo?: {
+    _id: string;
+    prenom: string;
+    nom: string;
+    avatar?: string;
+  };
   messages: TicketMessage[];
   dateCreation: string;
   dateMiseAJour: string;

@@ -24,7 +24,9 @@ export type TypeNotification =
   | 'sanction_unsuspend'
   | 'sanction_unwarn'
   // Broadcast (notifications envoyées par l'équipe)
-  | 'broadcast';
+  | 'broadcast'
+  // Support
+  | 'support_reponse';
 
 export interface Notification {
   _id: string;
@@ -57,6 +59,9 @@ export interface Notification {
     // Données broadcast
     broadcastBadge?: 'actu' | 'maintenance' | 'mise_a_jour' | 'evenement' | 'important';
     broadcastId?: string;
+    // Données support
+    ticketId?: string;
+    ticketSubject?: string;
   };
 }
 
