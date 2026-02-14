@@ -609,14 +609,14 @@ export default function SupportScreen() {
 
   // ============ LIST VIEW (default) ============
   const STATUS_FILTERS: { key: TicketStatus | 'all'; label: string }[] = [
-    { key: 'all', label: 'Tous' },
+    { key: 'all', label: 'Actifs' },
     { key: 'en_attente', label: 'En attente' },
     { key: 'en_cours', label: 'En cours' },
     { key: 'termine', label: 'Termines' },
   ];
 
   const filteredTickets = statusFilter === 'all'
-    ? tickets
+    ? tickets.filter((t) => t.status !== 'termine')
     : tickets.filter((t) => t.status === statusFilter);
 
   return (
@@ -730,7 +730,7 @@ export default function SupportScreen() {
               <View style={{ alignItems: 'center', paddingVertical: espacements.xxxl }}>
                 <Ionicons name="filter-outline" size={32} color={colors.texteMuted} />
                 <Text style={[styles.dateText, { color: colors.texteMuted, marginTop: espacements.sm }]}>
-                  Aucun ticket {statusFilter !== 'all' ? STATUS_LABELS[statusFilter].toLowerCase() : ''}
+                  Aucun ticket {statusFilter !== 'all' ? STATUS_LABELS[statusFilter].toLowerCase() : 'actif'}
                 </Text>
               </View>
             ) : (
