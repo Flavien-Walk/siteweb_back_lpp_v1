@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import mongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
@@ -254,6 +255,19 @@ export const creerApp = (): Application => {
 
   // Cookie parser pour les cookies httpOnly (OAuth)
   app.use(cookieParser());
+
+  // ============================================
+  // SANITISATION MONGODB (VULN-02)
+  // ============================================
+  // Supprime les operateurs MongoDB ($gt, $ne, $in, etc.)
+  // de req.body, req.query et req.params pour empecher
+  // les injections NoSQL meme si elles passent le securityMonitor
+  app.use(mongoSanitize({
+    replaceWith: '_',
+    onSanitize: ({ req, key }) => {
+      console.warn(`[MONGO-SANITIZE] Operateur MongoDB supprime dans ${key} depuis ${req.ip} - ${req.originalUrl}`);
+    },
+  }));
 
   // ============================================
   // PASSPORT

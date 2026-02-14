@@ -295,6 +295,58 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
 };
 
 // ============================================
+// COMPTEUR D'ATTAQUES PAR IP (auto-blocage)
+// ============================================
+const ipAttackCounts = new Map<string, { count: number; window: number }>();
+const ATTACK_BLOCK_THRESHOLD = 5; // 5 injections detectees -> blocage auto
+const ATTACK_WINDOW = 10 * 60 * 1000; // fenetre de 10 minutes
+
+const trackAttack = async (ip: string, req: Request): Promise<void> => {
+  const now = Date.now();
+  const data = ipAttackCounts.get(ip) || { count: 0, window: now };
+  if (now - data.window > ATTACK_WINDOW) {
+    data.count = 0;
+    data.window = now;
+  }
+  data.count++;
+  ipAttackCounts.set(ip, data);
+
+  // Auto-blocage apres ATTACK_BLOCK_THRESHOLD tentatives d'injection
+  if (data.count >= ATTACK_BLOCK_THRESHOLD) {
+    try {
+      const existing = await BlockedIP.findOne({ ip }).lean();
+      if (!existing) {
+        await BlockedIP.create({
+          ip,
+          raison: `Auto-bloque: ${data.count} tentatives d'injection en ${ATTACK_WINDOW / 60000} min`,
+          bloquePar: 'system_auto',
+          actif: true,
+        });
+        // Invalider le cache pour prise en compte immediate
+        invalidateBlockedIPCache(ip);
+        logSecurityEvent('ip_blocked', 'critical', req, 403,
+          `IP ${ip} auto-bloquee apres ${data.count} injections detectees`, {
+            attackCount: data.count,
+            autoBlocked: true,
+          }, true);
+      }
+    } catch {
+      // Silencieux en cas d'erreur DB
+    }
+  }
+};
+
+// Nettoyage periodique des compteurs d'attaque
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of ipAttackCounts.entries()) {
+    if (now - data.window > ATTACK_WINDOW * 2) {
+      ipAttackCounts.delete(ip);
+    }
+  }
+}, ATTACK_WINDOW);
+
+// ============================================
 // MIDDLEWARE PRINCIPAL
 // ============================================
 export const securityMonitor = (req: Request, res: Response, next: NextFunction): void => {
@@ -317,24 +369,44 @@ export const securityMonitor = (req: Request, res: Response, next: NextFunction)
     });
   }
 
-  // --- 2. Scanner les payloads entrants ---
+  // --- 2. Scanner les payloads entrants et BLOQUER si injection detectee ---
   // URL + query params
   const urlCheck = checkPayload(req.originalUrl);
   if (urlCheck) {
-    logSecurityEvent(urlCheck.type, 'critical', req, 0, urlCheck.detail, {
+    logSecurityEvent(urlCheck.type, 'critical', req, 403, urlCheck.detail, {
       source: 'url',
       payload: req.originalUrl.slice(0, 200),
     }, true);
+
+    // Tracker l'attaque pour auto-blocage
+    trackAttack(ip, req);
+
+    // BLOQUER la requete
+    res.status(403).json({
+      succes: false,
+      message: 'Requete bloquee : contenu malveillant detecte.',
+    });
+    return;
   }
 
   // Body (POST/PUT/PATCH)
   if (req.body && typeof req.body === 'object') {
     const bodyCheck = deepScanValue(req.body);
     if (bodyCheck) {
-      logSecurityEvent(bodyCheck.type, 'critical', req, 0, bodyCheck.detail, {
+      logSecurityEvent(bodyCheck.type, 'critical', req, 403, bodyCheck.detail, {
         source: 'body',
         payload: JSON.stringify(req.body).slice(0, 500),
       }, true);
+
+      // Tracker l'attaque pour auto-blocage
+      trackAttack(ip, req);
+
+      // BLOQUER la requete
+      res.status(403).json({
+        succes: false,
+        message: 'Requete bloquee : contenu malveillant detecte.',
+      });
+      return;
     }
   }
 
