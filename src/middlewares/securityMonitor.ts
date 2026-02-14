@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import SecurityEvent, { SecurityEventType, SeverityLevel } from '../models/SecurityEvent.js';
 import BlockedIP from '../models/BlockedIP.js';
-import { isDeviceBanned, generateDeviceFingerprint } from '../models/BannedDevice.js';
+import BannedDevice, { isDeviceBanned, generateDeviceFingerprint } from '../models/BannedDevice.js';
 
 // ============================================
 // PATTERNS DE DETECTION
@@ -316,40 +316,147 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
 };
 
 // ============================================
-// COMPTEUR D'ATTAQUES PAR IP (auto-blocage)
+// SYSTEME AUTO-PROTECTION (blocage IP + ban device)
 // ============================================
-const ipAttackCounts = new Map<string, { count: number; window: number }>();
-const ATTACK_BLOCK_THRESHOLD = 5; // 5 injections detectees -> blocage auto
-const ATTACK_WINDOW = 10 * 60 * 1000; // fenetre de 10 minutes
 
-const trackAttack = async (ip: string, req: Request): Promise<void> => {
+// Types de menaces avec seuils et durees differentes
+type ThreatType = 'injection' | 'brute_force' | 'admin_enum' | 'rate_abuse' | 'anomaly' | 'forbidden';
+
+interface ThreatConfig {
+  threshold: number;       // nombre de tentatives avant blocage
+  window: number;          // fenetre de temps (ms)
+  blockDuration: number;   // duree blocage IP (ms), 0 = permanent
+  banDevice: boolean;      // bannir aussi l'appareil ?
+  deviceBanDuration: number; // duree ban device (ms), 0 = permanent
+}
+
+const THREAT_CONFIGS: Record<ThreatType, ThreatConfig> = {
+  injection: {
+    threshold: 3,                    // 3 injections = blocage
+    window: 10 * 60 * 1000,         // fenetre 10 min
+    blockDuration: 24 * 60 * 60 * 1000, // IP bloquee 24h
+    banDevice: true,                 // ban device aussi
+    deviceBanDuration: 7 * 24 * 60 * 60 * 1000, // device banni 7 jours
+  },
+  brute_force: {
+    threshold: 10,                   // 10 echecs login = blocage
+    window: 15 * 60 * 1000,         // fenetre 15 min
+    blockDuration: 60 * 60 * 1000,  // IP bloquee 1h
+    banDevice: true,                 // ban device au-dela de 20 tentatives
+    deviceBanDuration: 24 * 60 * 60 * 1000, // device banni 24h
+  },
+  admin_enum: {
+    threshold: 5,                    // 5 tentatives enum admin = blocage
+    window: 10 * 60 * 1000,         // fenetre 10 min
+    blockDuration: 2 * 60 * 60 * 1000, // IP bloquee 2h
+    banDevice: false,
+    deviceBanDuration: 0,
+  },
+  rate_abuse: {
+    threshold: 15,                   // 15 hits rate limit = blocage
+    window: 15 * 60 * 1000,         // fenetre 15 min
+    blockDuration: 30 * 60 * 1000,  // IP bloquee 30 min
+    banDevice: false,
+    deviceBanDuration: 0,
+  },
+  anomaly: {
+    threshold: 1,                    // declenche au premier seuil
+    window: 60 * 1000,              // fenetre 1 min
+    blockDuration: 15 * 60 * 1000,  // IP bloquee 15 min
+    banDevice: false,
+    deviceBanDuration: 0,
+  },
+  forbidden: {
+    threshold: 10,                   // 10 acces 403 = blocage
+    window: 10 * 60 * 1000,         // fenetre 10 min
+    blockDuration: 60 * 60 * 1000,  // IP bloquee 1h
+    banDevice: false,
+    deviceBanDuration: 0,
+  },
+};
+
+// Compteurs par IP et par type de menace
+const threatCounters = new Map<string, { count: number; window: number; blocked: boolean }>();
+
+const getThreatKey = (ip: string, type: ThreatType): string => `${ip}:${type}`;
+
+const trackAttack = async (ip: string, req: Request, threatType: ThreatType = 'injection'): Promise<void> => {
+  const config = THREAT_CONFIGS[threatType];
+  const key = getThreatKey(ip, threatType);
   const now = Date.now();
-  const data = ipAttackCounts.get(ip) || { count: 0, window: now };
-  if (now - data.window > ATTACK_WINDOW) {
+
+  const data = threatCounters.get(key) || { count: 0, window: now, blocked: false };
+  if (now - data.window > config.window) {
     data.count = 0;
     data.window = now;
+    data.blocked = false;
   }
   data.count++;
-  ipAttackCounts.set(ip, data);
+  threatCounters.set(key, data);
 
-  // Auto-blocage apres ATTACK_BLOCK_THRESHOLD tentatives d'injection
-  if (data.count >= ATTACK_BLOCK_THRESHOLD) {
+  // Deja bloque dans cette fenetre ? On ne re-bloque pas
+  if (data.blocked) return;
+
+  // Seuil atteint -> auto-blocage IP
+  if (data.count >= config.threshold) {
+    data.blocked = true;
+
     try {
-      const existing = await BlockedIP.findOne({ ip }).lean();
-      if (!existing) {
+      // --- Blocage IP ---
+      const existingIP = await BlockedIP.findOne({ ip, actif: true }).lean();
+      if (!existingIP) {
+        const expireAt = config.blockDuration > 0 ? new Date(now + config.blockDuration) : null;
         await BlockedIP.create({
           ip,
-          raison: `Auto-bloque: ${data.count} tentatives d'injection en ${ATTACK_WINDOW / 60000} min`,
+          raison: `[AUTO] ${threatType}: ${data.count} tentatives en ${Math.round(config.window / 60000)} min`,
           bloquePar: 'system_auto',
           actif: true,
+          expireAt,
         });
-        // Invalider le cache pour prise en compte immediate
         invalidateBlockedIPCache(ip);
         logSecurityEvent('ip_blocked', 'critical', req, 403,
-          `IP ${ip} auto-bloquee apres ${data.count} injections detectees`, {
+          `IP ${ip} auto-bloquee [${threatType}] apres ${data.count} tentatives (duree: ${config.blockDuration > 0 ? Math.round(config.blockDuration / 60000) + 'min' : 'permanent'})`, {
+            threatType,
             attackCount: data.count,
             autoBlocked: true,
+            blockDuration: config.blockDuration,
+            expireAt: expireAt?.toISOString() || 'permanent',
           }, true);
+      }
+
+      // --- Ban device (si configure et UA disponible) ---
+      if (config.banDevice) {
+        const ua = req.headers['user-agent'] || '';
+        if (ua && ua.length >= 10) {
+          const fingerprint = generateDeviceFingerprint(ua);
+          const existingDevice = await BannedDevice.findOne({ fingerprint, actif: true }).lean();
+          if (!existingDevice) {
+            const parsed = parseUserAgent(ua);
+            const deviceExpireAt = config.deviceBanDuration > 0 ? new Date(now + config.deviceBanDuration) : null;
+            await BannedDevice.create({
+              fingerprint,
+              userAgentRaw: ua.slice(0, 500),
+              navigateur: parsed.navigateur,
+              os: parsed.os,
+              appareil: parsed.appareil,
+              raison: `[AUTO] ${threatType}: ${data.count} tentatives depuis IP ${ip}`,
+              bloquePar: 'system_auto',
+              actif: true,
+              ipsConnues: [ip],
+              expireAt: deviceExpireAt,
+            });
+            logSecurityEvent('ip_blocked', 'critical', req, 403,
+              `Appareil auto-banni [${threatType}]: ${parsed.navigateur} / ${parsed.os} (duree: ${config.deviceBanDuration > 0 ? Math.round(config.deviceBanDuration / 3600000) + 'h' : 'permanent'})`, {
+                threatType,
+                fingerprint,
+                navigateur: parsed.navigateur,
+                os: parsed.os,
+                appareil: parsed.appareil,
+                autoDeviceBan: true,
+                deviceBanDuration: config.deviceBanDuration,
+              }, true);
+          }
+        }
       }
     } catch {
       // Silencieux en cas d'erreur DB
@@ -357,15 +464,17 @@ const trackAttack = async (ip: string, req: Request): Promise<void> => {
   }
 };
 
-// Nettoyage periodique des compteurs d'attaque
+// Nettoyage periodique des compteurs de menaces
+const THREAT_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 min
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, data] of ipAttackCounts.entries()) {
-    if (now - data.window > ATTACK_WINDOW * 2) {
-      ipAttackCounts.delete(ip);
+  for (const [key, data] of threatCounters.entries()) {
+    // On garde le double de la fenetre la plus longue (15 min)
+    if (now - data.window > 30 * 60 * 1000) {
+      threatCounters.delete(key);
     }
   }
-}, ATTACK_WINDOW);
+}, THREAT_CLEANUP_INTERVAL);
 
 // ============================================
 // MIDDLEWARE SANITISATION QUERY PARAMS (PENTEST-01)
@@ -421,10 +530,13 @@ export const sanitizeQueryParams = (req: Request, res: Response, next: NextFunct
 export const hideAdminRoutes = (req: Request, res: Response, next: NextFunction): void => {
   // Si pas de token Authorization sur les routes admin, retourner 404 au lieu de 401
   if (!req.headers.authorization) {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
     logSecurityEvent('unauthorized_access', 'medium', req, 404,
       `Tentative d'acces admin sans token: ${req.originalUrl}`, {
         source: 'admin_enumeration',
       });
+    // Tracker pour auto-blocage apres repetition
+    trackAttack(ip, req, 'admin_enum');
     res.status(404).json({
       succes: false,
       message: `Route ${req.method} ${req.originalUrl} non trouvée.`,
@@ -455,6 +567,8 @@ export const securityMonitor = (req: Request, res: Response, next: NextFunction)
     logSecurityEvent('anomaly', 'high', req, 0, `Trafic anormal: ${ANOMALY_THRESHOLD} req/min depuis ${ip}`, {
       requestCount: ipData.count,
     });
+    // Auto-blocage DDoS / scraping
+    trackAttack(ip, req, 'anomaly');
   }
 
   // --- 2. Scanner les payloads entrants et BLOQUER si injection detectee ---
@@ -512,10 +626,14 @@ export const securityMonitor = (req: Request, res: Response, next: NextFunction)
         logSecurityEvent('brute_force', 'medium', req, 401, `Echec login: ${body?.message || 'inconnu'}`, {
           email: req.body?.email ? req.body.email.slice(0, 50) : 'N/A',
         });
+        // Tracker brute force pour auto-blocage
+        trackAttack(ip, req, 'brute_force');
       } else if (isTokenIssue) {
         logSecurityEvent('token_forgery', 'high', req, 401, `Token invalide: ${body?.message || 'inconnu'}`, {
           authHeader: (req.headers.authorization || '').slice(0, 50) + '...',
         });
+        // Token forgery = injection-level severity
+        trackAttack(ip, req, 'injection');
       } else {
         logSecurityEvent('unauthorized_access', 'medium', req, 401, `Acces non autorise: ${req.originalUrl}`, {});
       }
@@ -526,11 +644,15 @@ export const securityMonitor = (req: Request, res: Response, next: NextFunction)
       logSecurityEvent('forbidden_access', 'high', req, 403, `Permission refusee: ${body?.requiredPermission || req.originalUrl}`, {
         requiredPermission: body?.requiredPermission,
       });
+      // Tracker acces interdit pour auto-blocage
+      trackAttack(ip, req, 'forbidden');
     }
 
     // 429 - Rate limit
     if (statusCode === 429) {
       logSecurityEvent('rate_limit_hit', 'medium', req, 429, `Rate limit declenche sur ${req.originalUrl}`, {});
+      // Tracker abus rate limit pour auto-blocage
+      trackAttack(ip, req, 'rate_abuse');
 
       // Mettre a jour les erreurs IP
       const ipD = ipRequestCounts.get(ip);

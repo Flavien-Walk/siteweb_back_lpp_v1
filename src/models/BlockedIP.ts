@@ -13,7 +13,7 @@ const BlockedIPSchema = new Schema<IBlockedIP>(
   {
     ip: { type: String, required: true, unique: true, index: true },
     raison: { type: String, required: true },
-    bloquePar: { type: Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+    bloquePar: { type: Schema.Types.Mixed, required: true },
     dateCreation: { type: Date, default: Date.now },
     expireAt: { type: Date, default: null },
     actif: { type: Boolean, default: true, index: true },
