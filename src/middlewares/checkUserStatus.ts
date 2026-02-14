@@ -183,11 +183,11 @@ export const requirePermission = (permission: Permission) => {
     }
 
     // Vérifier la permission
+    // PENTEST-09: Ne pas exposer la permission requise dans la reponse (information leakage)
     if (!utilisateur.hasPermission(permission)) {
       res.status(403).json({
         succes: false,
         message: 'Permission insuffisante pour cette action.',
-        requiredPermission: permission,
       });
       return;
     }
@@ -291,11 +291,11 @@ export const requireAnyPermission = (permissions: Permission[]) => {
     // Vérifier qu'au moins une permission est présente
     const hasAny = permissions.some(p => utilisateur.hasPermission(p));
 
+    // PENTEST-09: Ne pas exposer les permissions requises dans la reponse
     if (!hasAny) {
       res.status(403).json({
         succes: false,
         message: 'Permission insuffisante pour cette action.',
-        requiredPermissions: permissions,
       });
       return;
     }

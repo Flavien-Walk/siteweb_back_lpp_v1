@@ -96,8 +96,9 @@ export const getUtilisateur = async (
     const { id } = req.params;
     const userId = req.utilisateur?._id;
 
+    // PENTEST-09: Ne pas exposer le role (revele le staff)
     const utilisateur = await Utilisateur.findById(id)
-      .select('prenom nom avatar bio role statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation profilPublic');
+      .select('prenom nom avatar bio statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation profilPublic');
 
     if (!utilisateur) {
       res.status(404).json({
@@ -158,7 +159,6 @@ export const getUtilisateur = async (
           nom: utilisateur.nom,
           avatar: utilisateur.avatar,
           bio: utilisateur.bio,
-          role: utilisateur.role,
           statut: utilisateur.statut,
           dateInscription: utilisateur.dateCreation,
           profilPublic: utilisateur.profilPublic ?? true,
@@ -647,10 +647,11 @@ export const getMesAmis = async (
 
     // Vérification bidirectionnelle STRICTE :
     // Récupérer directement les amis qui ont AUSSI l'utilisateur dans leur liste
+    // PENTEST-09: Ne pas exposer le role dans la liste d'amis
     const amisBidirectionnels = await Utilisateur.find({
       _id: { $in: amisIdsValides },
       amis: userId, // L'ami doit avoir l'utilisateur dans sa liste
-    }).select('_id prenom nom avatar statut role').lean();
+    }).select('_id prenom nom avatar statut').lean();
 
     // Si aucun ami bidirectionnel, retourner liste vide
     if (!amisBidirectionnels || amisBidirectionnels.length === 0) {
@@ -777,10 +778,11 @@ export const getAmisUtilisateur = async (
     // Trouver les utilisateurs qui :
     // 1. Sont dans la liste des amis potentiels
     // 2. ET ont l'utilisateur cible dans LEUR propre liste d'amis
+    // PENTEST-09: Ne pas exposer le role dans la liste d'amis
     const amisBidirectionnels = await Utilisateur.find({
       _id: { $in: amisIdsValides },
       amis: targetObjectId, // Utiliser ObjectId explicite pour la comparaison
-    }).select('_id prenom nom avatar statut role').lean();
+    }).select('_id prenom nom avatar statut').lean();
 
     // Si aucun ami bidirectionnel, retourner liste vide
     if (!amisBidirectionnels || amisBidirectionnels.length === 0) {
@@ -795,7 +797,6 @@ export const getAmisUtilisateur = async (
       nom: ami.nom,
       avatar: ami.avatar,
       statut: ami.statut,
-      role: ami.role,
     }));
 
     res.json({
@@ -862,11 +863,14 @@ export const getProjetsSuivisUtilisateur = async (
       .limit(50)
       .lean();
 
-    // Ajouter nbFollowers à chaque projet
-    const projetsAvecStats = projets.map((projet: any) => ({
-      ...projet,
-      nbFollowers: projet.followers?.length || 0,
-    }));
+    // Ajouter nbFollowers, retirer le tableau followers brut
+    const projetsAvecStats = projets.map((projet: any) => {
+      const { followers, ...rest } = projet;
+      return {
+        ...rest,
+        nbFollowers: followers?.length || 0,
+      };
+    });
 
     res.json({
       succes: true,

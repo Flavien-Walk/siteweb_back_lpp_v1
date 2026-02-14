@@ -85,6 +85,8 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
       const projetObj = p.toObject() as any;
       projetObj.estSuivi = userId ? p.followers.some((f: any) => f.equals(userId)) : false;
       projetObj.nbFollowers = p.followers.length;
+      // PENTEST-10: Ne pas exposer le tableau followers brut
+      delete projetObj.followers;
       // PENTEST-05: Filtrer documents prives dans la liste publique
       if (projetObj.documents) {
         const isPorteur = userId && projetObj.porteur?._id?.toString() === userId.toString();
@@ -119,10 +121,10 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
  */
 export const detailProjet = async (req: Request, res: Response): Promise<void> => {
   try {
+    // PENTEST-10: Ne pas populate followers (expose la liste complete des followers)
     const projet = await Projet.findById(req.params.id)
       .populate('porteur', 'prenom nom avatar statut')
-      .populate('equipe.utilisateur', 'prenom nom avatar')
-      .populate('followers', 'prenom nom avatar');
+      .populate('equipe.utilisateur', 'prenom nom avatar');
 
     if (!projet) {
       res.status(404).json({ succes: false, message: 'Projet non trouvé.' });
@@ -151,12 +153,13 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
     const projetData = projet.toObject() as any;
     projetData.documents = documentsFiltered;
 
-    // Indiquer si l'utilisateur suit le projet
-    const estSuivi = userId ? projet.followers.some((f: any) => f._id.equals(userId)) : false;
+    // Indiquer si l'utilisateur suit le projet (followers = ObjectIds non peuplés)
+    const estSuivi = userId ? projet.followers.some((f: any) => f.equals(userId)) : false;
 
-    // Ajouter estSuivi et nbFollowers au projet pour le mobile
+    // Ajouter estSuivi et nbFollowers, supprimer le tableau followers brut
     projetData.estSuivi = estSuivi;
     projetData.nbFollowers = projet.followers.length;
+    delete projetData.followers;
 
     res.json({
       succes: true,
@@ -292,12 +295,14 @@ export const mesProjets = async (req: Request, res: Response): Promise<void> => 
       .sort({ dateMiseAJour: -1 })
       .populate('porteur', 'prenom nom avatar');
 
-    // Ajouter nbFollowers et estSuivi pour chaque projet
-    const projetsAvecStats = projets.map((p) => ({
-      ...p.toObject(),
-      nbFollowers: p.followers.length,
-      estSuivi: true,
-    }));
+    // Ajouter nbFollowers et estSuivi, retirer followers brut
+    const projetsAvecStats = projets.map((p) => {
+      const obj = p.toObject() as any;
+      obj.nbFollowers = p.followers.length;
+      obj.estSuivi = true;
+      delete obj.followers;
+      return obj;
+    });
 
     res.json({ succes: true, data: { projets: projetsAvecStats } });
   } catch (error) {

@@ -55,7 +55,7 @@ export const schemaInscription = z.object({
     .refine((val) => val === true, {
       message: 'Vous devez accepter les conditions générales d\'utilisation',
     }),
-}).refine((data) => data.motDePasse === data.confirmationMotDePasse, {
+}).strict().refine((data) => data.motDePasse === data.confirmationMotDePasse, {
   message: 'Les mots de passe ne correspondent pas',
   path: ['confirmationMotDePasse'],
 });
