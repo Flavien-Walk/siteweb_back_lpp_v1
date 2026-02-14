@@ -285,9 +285,12 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
       originalPath: req.originalUrl,
     }, true);
 
+    // ESCALADE: IP deja bloquee mais revient = bannir le device aussi
+    autoBanDevice(ip, req, `[ESCALADE] IP ${ip} deja bloquee, tentative de contournement`);
+
     res.status(403).json({
       succes: false,
-      message: 'Acces refuse. Votre adresse IP a ete bloquee.',
+      message: 'Acces refuse.',
     });
     return;
   }
@@ -304,81 +307,312 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
           deviceBan: true,
         }, true);
 
+      // ESCALADE: device banni mais IP nouvelle = bloquer cette IP aussi
+      autoBlockIP(ip, req, `[ESCALADE] Appareil banni detecte sur nouvelle IP ${ip}`);
+
       res.status(403).json({
         succes: false,
-        message: 'Acces refuse. Votre appareil a ete bloque.',
+        message: 'Acces refuse.',
       });
       return;
     }
+  }
+
+  // 3. Detection proxy/VPN (AVANT tout traitement)
+  const proxyDetection = detectProxy(req);
+  if (proxyDetection) {
+    logSecurityEvent('unauthorized_access', 'critical', req, 403,
+      `PROXY/VPN DETECTE: ${proxyDetection}`, {
+        source: 'proxy_detection',
+        headers: {
+          via: req.headers['via'],
+          forwarded: req.headers['forwarded'],
+          xForwardedFor: req.headers['x-forwarded-for'],
+        },
+      }, true);
+    trackAttack(ip, req, 'proxy');
+
+    res.status(403).json({
+      succes: false,
+      message: 'Acces refuse.',
+    });
+    return;
+  }
+
+  // 4. Detection outils de hacking (nikto, sqlmap, nmap, etc.)
+  if (ua) {
+    const maliciousUA = detectMaliciousUA(ua);
+    if (maliciousUA) {
+      logSecurityEvent('injection_attempt', 'critical', req, 403,
+        `OUTIL MALVEILLANT: ${maliciousUA}`, {
+          source: 'malicious_ua',
+          userAgent: ua.slice(0, 300),
+        }, true);
+      trackAttack(ip, req, 'suspicious_ua');
+
+      res.status(403).json({
+        succes: false,
+        message: 'Acces refuse.',
+      });
+      return;
+    }
+
+    // 5. Outils CLI sur routes sensibles (curl, python, etc.)
+    if (isCLIToolOnSensitiveRoute(ua, req.originalUrl)) {
+      logSecurityEvent('unauthorized_access', 'high', req, 403,
+        `Outil CLI sur route sensible: ${ua.slice(0, 80)} -> ${req.originalUrl}`, {
+          source: 'cli_tool_sensitive',
+          userAgent: ua.slice(0, 300),
+        }, true);
+      trackAttack(ip, req, 'suspicious_ua');
+
+      res.status(403).json({
+        succes: false,
+        message: 'Acces refuse.',
+      });
+      return;
+    }
+  }
+
+  // 6. Pas de User-Agent du tout = suspect (bots basiques)
+  if (!ua || ua.length < 5) {
+    logSecurityEvent('unauthorized_access', 'medium', req, 403,
+      `Requete sans User-Agent depuis ${ip}: ${req.originalUrl}`, {
+        source: 'missing_ua',
+      }, true);
+    trackAttack(ip, req, 'suspicious_ua');
+
+    res.status(403).json({
+      succes: false,
+      message: 'Acces refuse.',
+    });
+    return;
   }
 
   next();
 };
 
 // ============================================
-// SYSTEME AUTO-PROTECTION (blocage IP + ban device)
+// SYSTEME AUTO-PROTECTION STRICT (tolerance zero)
 // ============================================
 
-// Types de menaces avec seuils et durees differentes
-type ThreatType = 'injection' | 'brute_force' | 'admin_enum' | 'rate_abuse' | 'anomaly' | 'forbidden';
+// Types de menaces - TOUS les bans sont PERMANENTS
+type ThreatType = 'injection' | 'brute_force' | 'admin_enum' | 'rate_abuse' | 'anomaly' | 'forbidden' | 'proxy' | 'suspicious_ua';
 
 interface ThreatConfig {
   threshold: number;       // nombre de tentatives avant blocage
   window: number;          // fenetre de temps (ms)
-  blockDuration: number;   // duree blocage IP (ms), 0 = permanent
-  banDevice: boolean;      // bannir aussi l'appareil ?
-  deviceBanDuration: number; // duree ban device (ms), 0 = permanent
+  permanent: boolean;      // ban permanent (true = pas d'expiry)
+  banDevice: boolean;      // bannir aussi l'appareil
 }
 
 const THREAT_CONFIGS: Record<ThreatType, ThreatConfig> = {
+  // INJECTION: 1 seule tentative = ban permanent IP + device
   injection: {
-    threshold: 3,                    // 3 injections = blocage
-    window: 10 * 60 * 1000,         // fenetre 10 min
-    blockDuration: 24 * 60 * 60 * 1000, // IP bloquee 24h
-    banDevice: true,                 // ban device aussi
-    deviceBanDuration: 7 * 24 * 60 * 60 * 1000, // device banni 7 jours
+    threshold: 1,
+    window: 60 * 60 * 1000,         // 1h (pour le compteur)
+    permanent: true,
+    banDevice: true,
   },
+  // BRUTE FORCE: 5 echecs login = ban permanent IP + device
   brute_force: {
-    threshold: 10,                   // 10 echecs login = blocage
-    window: 15 * 60 * 1000,         // fenetre 15 min
-    blockDuration: 60 * 60 * 1000,  // IP bloquee 1h
-    banDevice: true,                 // ban device au-dela de 20 tentatives
-    deviceBanDuration: 24 * 60 * 60 * 1000, // device banni 24h
+    threshold: 5,
+    window: 15 * 60 * 1000,         // 15 min
+    permanent: true,
+    banDevice: true,
   },
+  // ADMIN ENUM: 3 tentatives = ban permanent IP + device
   admin_enum: {
-    threshold: 5,                    // 5 tentatives enum admin = blocage
-    window: 10 * 60 * 1000,         // fenetre 10 min
-    blockDuration: 2 * 60 * 60 * 1000, // IP bloquee 2h
-    banDevice: false,
-    deviceBanDuration: 0,
+    threshold: 3,
+    window: 10 * 60 * 1000,         // 10 min
+    permanent: true,
+    banDevice: true,
   },
+  // RATE ABUSE: 10 hits 429 = ban permanent IP
   rate_abuse: {
-    threshold: 15,                   // 15 hits rate limit = blocage
-    window: 15 * 60 * 1000,         // fenetre 15 min
-    blockDuration: 30 * 60 * 1000,  // IP bloquee 30 min
-    banDevice: false,
-    deviceBanDuration: 0,
+    threshold: 10,
+    window: 15 * 60 * 1000,
+    permanent: true,
+    banDevice: true,
   },
+  // ANOMALIE / DDoS: seuil atteint = ban permanent IP
   anomaly: {
-    threshold: 1,                    // declenche au premier seuil
-    window: 60 * 1000,              // fenetre 1 min
-    blockDuration: 15 * 60 * 1000,  // IP bloquee 15 min
-    banDevice: false,
-    deviceBanDuration: 0,
+    threshold: 1,
+    window: 60 * 1000,
+    permanent: true,
+    banDevice: true,
   },
+  // FORBIDDEN 403 repetes: 5 acces = ban permanent IP + device
   forbidden: {
-    threshold: 10,                   // 10 acces 403 = blocage
-    window: 10 * 60 * 1000,         // fenetre 10 min
-    blockDuration: 60 * 60 * 1000,  // IP bloquee 1h
-    banDevice: false,
-    deviceBanDuration: 0,
+    threshold: 5,
+    window: 10 * 60 * 1000,
+    permanent: true,
+    banDevice: true,
+  },
+  // PROXY/VPN detecte: ban immediat permanent
+  proxy: {
+    threshold: 1,
+    window: 60 * 60 * 1000,
+    permanent: true,
+    banDevice: true,
+  },
+  // UA suspect (outils hacking): ban immediat permanent
+  suspicious_ua: {
+    threshold: 1,
+    window: 60 * 60 * 1000,
+    permanent: true,
+    banDevice: true,
   },
 };
 
-// Compteurs par IP et par type de menace
+// ============================================
+// DETECTION PROXY / VPN / TOR
+// ============================================
+
+// Headers revele par les proxies
+const PROXY_HEADERS = [
+  'x-forwarded-host',
+  'via',
+  'x-proxy-id',
+  'proxy-connection',
+  'x-real-ip',       // Si present en plus de X-Forwarded-For = double proxy
+  'forwarded',       // RFC 7239
+  'x-originating-ip',
+  'x-remote-ip',
+  'x-remote-addr',
+  'x-proxy-connection',
+  'proxy-authorization',
+];
+
+// User-Agents d'outils de hacking / scanning
+const MALICIOUS_UA_PATTERNS = [
+  /nikto/i, /sqlmap/i, /nmap/i, /masscan/i, /zap\//i, /burp/i,
+  /dirbuster/i, /gobuster/i, /wfuzz/i, /ffuf/i, /nuclei/i,
+  /hydra/i, /metasploit/i, /nessus/i, /openvas/i, /acunetix/i,
+  /arachni/i, /w3af/i, /skipfish/i, /wpscan/i, /joomscan/i,
+  /havij/i, /commix/i, /xerxes/i, /slowloris/i, /hulk/i,
+  /siege/i, /wreckuests/i, /loic/i, /hoic/i,
+];
+
+// User-Agents d'outils CLI suspects (bloques sur routes sensibles seulement)
+const CLI_UA_PATTERNS = [
+  /^curl\//i, /^wget\//i, /python-requests/i, /python-urllib/i,
+  /node-fetch/i, /axios\//i, /^Go-http-client/i, /^Ruby/i,
+  /^Perl/i, /^PHP\//i, /^Java\//i, /^Apache-HttpClient/i,
+  /httpie/i, /insomnia/i, /postman/i,
+];
+
+// Routes sensibles ou les outils CLI sont interdits
+const SENSITIVE_ROUTES = [
+  '/api/auth/',
+  '/api/admin/',
+  '/api/moderation/',
+  '/api/profil/',
+  '/api/messagerie/',
+  '/api/notifications/',
+];
+
+const detectProxy = (req: Request): string | null => {
+  // 1. Headers proxy classiques
+  for (const header of PROXY_HEADERS) {
+    if (req.headers[header]) {
+      return `Header proxy detecte: ${header}=${String(req.headers[header]).slice(0, 100)}`;
+    }
+  }
+
+  // 2. Chaine X-Forwarded-For suspecte (multiple proxies)
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) {
+    const ips = String(xff).split(',').map(s => s.trim());
+    // Plus de 2 IPs dans la chaine = proxy chain suspecte
+    if (ips.length > 2) {
+      return `Chaine proxy detectee: X-Forwarded-For contient ${ips.length} IPs`;
+    }
+  }
+
+  return null;
+};
+
+const detectMaliciousUA = (ua: string): string | null => {
+  for (const pattern of MALICIOUS_UA_PATTERNS) {
+    if (pattern.test(ua)) {
+      return `Outil de hacking detecte: ${ua.slice(0, 100)}`;
+    }
+  }
+  return null;
+};
+
+const isCLIToolOnSensitiveRoute = (ua: string, path: string): boolean => {
+  const isSensitive = SENSITIVE_ROUTES.some(route => path.startsWith(route));
+  if (!isSensitive) return false;
+  return CLI_UA_PATTERNS.some(pattern => pattern.test(ua));
+};
+
+// ============================================
+// COMPTEURS ET LOGIQUE DE BLOCAGE
+// ============================================
+
 const threatCounters = new Map<string, { count: number; window: number; blocked: boolean }>();
 
 const getThreatKey = (ip: string, type: ThreatType): string => `${ip}:${type}`;
+
+const autoBlockIP = async (ip: string, req: Request, raison: string): Promise<void> => {
+  try {
+    const existing = await BlockedIP.findOne({ ip, actif: true }).lean();
+    if (!existing) {
+      await BlockedIP.create({
+        ip,
+        raison,
+        bloquePar: 'system_auto',
+        actif: true,
+        expireAt: null, // PERMANENT
+      });
+      invalidateBlockedIPCache(ip);
+      logSecurityEvent('ip_blocked', 'critical', req, 403,
+        `IP ${ip} BANNIE DEFINITIVEMENT: ${raison}`, {
+          autoBlocked: true,
+          permanent: true,
+        }, true);
+    }
+  } catch { /* silencieux */ }
+};
+
+const autoBanDevice = async (ip: string, req: Request, raison: string): Promise<void> => {
+  const ua = req.headers['user-agent'] || '';
+  if (!ua || ua.length < 5) return;
+  try {
+    const fingerprint = generateDeviceFingerprint(ua);
+    const existing = await BannedDevice.findOne({ fingerprint, actif: true }).lean();
+    if (!existing) {
+      const parsed = parseUserAgent(ua);
+      await BannedDevice.create({
+        fingerprint,
+        userAgentRaw: ua.slice(0, 500),
+        navigateur: parsed.navigateur,
+        os: parsed.os,
+        appareil: parsed.appareil,
+        raison,
+        bloquePar: 'system_auto',
+        actif: true,
+        ipsConnues: [ip],
+        expireAt: null, // PERMANENT
+      });
+      logSecurityEvent('ip_blocked', 'critical', req, 403,
+        `APPAREIL BANNI DEFINITIVEMENT: ${parsed.navigateur} / ${parsed.os} - ${raison}`, {
+          fingerprint,
+          navigateur: parsed.navigateur,
+          os: parsed.os,
+          permanent: true,
+        }, true);
+    } else {
+      // Appareil deja banni - ajouter l'IP a la liste connue
+      const ips = (existing as any).ipsConnues || [];
+      if (!ips.includes(ip)) {
+        await BannedDevice.updateOne({ _id: existing._id }, { $addToSet: { ipsConnues: ip } });
+      }
+    }
+  } catch { /* silencieux */ }
+};
 
 const trackAttack = async (ip: string, req: Request, threatType: ThreatType = 'injection'): Promise<void> => {
   const config = THREAT_CONFIGS[threatType];
@@ -394,82 +628,27 @@ const trackAttack = async (ip: string, req: Request, threatType: ThreatType = 'i
   data.count++;
   threatCounters.set(key, data);
 
-  // Deja bloque dans cette fenetre ? On ne re-bloque pas
+  // Deja bloque dans cette fenetre
   if (data.blocked) return;
 
-  // Seuil atteint -> auto-blocage IP
+  // Seuil atteint -> BAN DEFINITIF
   if (data.count >= config.threshold) {
     data.blocked = true;
+    const raison = `[AUTO] ${threatType}: ${data.count} tentative(s) en ${Math.round(config.window / 60000)} min`;
 
-    try {
-      // --- Blocage IP ---
-      const existingIP = await BlockedIP.findOne({ ip, actif: true }).lean();
-      if (!existingIP) {
-        const expireAt = config.blockDuration > 0 ? new Date(now + config.blockDuration) : null;
-        await BlockedIP.create({
-          ip,
-          raison: `[AUTO] ${threatType}: ${data.count} tentatives en ${Math.round(config.window / 60000)} min`,
-          bloquePar: 'system_auto',
-          actif: true,
-          expireAt,
-        });
-        invalidateBlockedIPCache(ip);
-        logSecurityEvent('ip_blocked', 'critical', req, 403,
-          `IP ${ip} auto-bloquee [${threatType}] apres ${data.count} tentatives (duree: ${config.blockDuration > 0 ? Math.round(config.blockDuration / 60000) + 'min' : 'permanent'})`, {
-            threatType,
-            attackCount: data.count,
-            autoBlocked: true,
-            blockDuration: config.blockDuration,
-            expireAt: expireAt?.toISOString() || 'permanent',
-          }, true);
-      }
+    await autoBlockIP(ip, req, raison);
 
-      // --- Ban device (si configure et UA disponible) ---
-      if (config.banDevice) {
-        const ua = req.headers['user-agent'] || '';
-        if (ua && ua.length >= 10) {
-          const fingerprint = generateDeviceFingerprint(ua);
-          const existingDevice = await BannedDevice.findOne({ fingerprint, actif: true }).lean();
-          if (!existingDevice) {
-            const parsed = parseUserAgent(ua);
-            const deviceExpireAt = config.deviceBanDuration > 0 ? new Date(now + config.deviceBanDuration) : null;
-            await BannedDevice.create({
-              fingerprint,
-              userAgentRaw: ua.slice(0, 500),
-              navigateur: parsed.navigateur,
-              os: parsed.os,
-              appareil: parsed.appareil,
-              raison: `[AUTO] ${threatType}: ${data.count} tentatives depuis IP ${ip}`,
-              bloquePar: 'system_auto',
-              actif: true,
-              ipsConnues: [ip],
-              expireAt: deviceExpireAt,
-            });
-            logSecurityEvent('ip_blocked', 'critical', req, 403,
-              `Appareil auto-banni [${threatType}]: ${parsed.navigateur} / ${parsed.os} (duree: ${config.deviceBanDuration > 0 ? Math.round(config.deviceBanDuration / 3600000) + 'h' : 'permanent'})`, {
-                threatType,
-                fingerprint,
-                navigateur: parsed.navigateur,
-                os: parsed.os,
-                appareil: parsed.appareil,
-                autoDeviceBan: true,
-                deviceBanDuration: config.deviceBanDuration,
-              }, true);
-          }
-        }
-      }
-    } catch {
-      // Silencieux en cas d'erreur DB
+    if (config.banDevice) {
+      await autoBanDevice(ip, req, raison);
     }
   }
 };
 
-// Nettoyage periodique des compteurs de menaces
-const THREAT_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 min
+// Nettoyage periodique des compteurs
+const THREAT_CLEANUP_INTERVAL = 5 * 60 * 1000;
 setInterval(() => {
   const now = Date.now();
   for (const [key, data] of threatCounters.entries()) {
-    // On garde le double de la fenetre la plus longue (15 min)
     if (now - data.window > 30 * 60 * 1000) {
       threatCounters.delete(key);
     }
