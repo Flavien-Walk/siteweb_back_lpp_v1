@@ -39,25 +39,29 @@ export type Permission =
   | 'content:edit'
   | 'config:view'
   | 'config:edit'
-  | 'staff:chat';
+  | 'staff:chat'
+  | 'tickets:view'
+  | 'tickets:respond';
 
 // Permissions par défaut selon le rôle
 // Note: 'admin' legacy a les mêmes permissions que 'admin_modo'
 export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
   user: [],
-  modo_test: ['reports:view'],
-  modo: ['reports:view', 'reports:process', 'users:view', 'users:warn', 'content:hide', 'staff:chat'],
+  modo_test: ['reports:view', 'tickets:view'],
+  modo: ['reports:view', 'reports:process', 'users:view', 'users:warn', 'content:hide', 'staff:chat', 'tickets:view', 'tickets:respond'],
   admin_modo: [
     'reports:view', 'reports:process', 'reports:escalate',
     'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
     'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
+    'tickets:view', 'tickets:respond',
   ],
   admin: [ // Legacy: mêmes permissions que admin_modo
     'reports:view', 'reports:process', 'reports:escalate',
     'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
     'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
+    'tickets:view', 'tickets:respond',
   ],
   super_admin: [
     'reports:view', 'reports:process', 'reports:escalate',
@@ -66,6 +70,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
     'audit:view', 'audit:export',
     'config:view', 'config:edit',
     'staff:chat',
+    'tickets:view', 'tickets:respond',
   ],
 };
 

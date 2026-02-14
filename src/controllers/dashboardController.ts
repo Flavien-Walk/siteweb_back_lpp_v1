@@ -7,6 +7,7 @@ import Commentaire from '../models/Commentaire.js';
 import Projet from '../models/Projet.js';
 import Story from '../models/Story.js';
 import Live from '../models/Live.js';
+import SupportTicket from '../models/SupportTicket.js';
 
 /**
  * Obtenir les données du dashboard admin
@@ -36,6 +37,8 @@ export const getDashboard = async (
       storiesCount,
       livesCount,
       recentActions,
+      ticketsEnAttente,
+      ticketsEnCours,
     ] = await Promise.all([
       Report.countDocuments({ status: 'pending' }),
       Report.countDocuments({ status: 'pending', escalatedAt: { $ne: null } }),
@@ -60,6 +63,8 @@ export const getDashboard = async (
         .sort({ dateCreation: -1 })
         .limit(10)
         .lean(),
+      SupportTicket.countDocuments({ status: 'en_attente' }),
+      SupportTicket.countDocuments({ status: 'en_cours' }),
     ]);
 
     // Récupérer les utilisateurs à risque (top 5)
@@ -121,6 +126,10 @@ export const getDashboard = async (
           projets: projetsCount,
           stories: storiesCount,
           lives: livesCount,
+        },
+        tickets: {
+          enAttente: ticketsEnAttente,
+          enCours: ticketsEnCours,
         },
         atRiskUsers,
         recentActions,

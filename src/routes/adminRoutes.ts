@@ -54,6 +54,14 @@ import {
   listBroadcasts,
 } from '../controllers/broadcastController.js';
 import {
+  getTicketStats,
+  listerTicketsAdmin,
+  getTicketAdmin,
+  repondreTicketAdmin,
+  changerStatutTicket,
+  assignerTicket,
+} from '../controllers/supportTicketController.js';
+import {
   listUsers,
   getUserModerationDetails,
   getUserAuditHistory,
@@ -383,5 +391,25 @@ router.get('/notifications/broadcast', verifierJwt, requireMinRole('admin_modo')
 
 // POST /api/admin/notifications/broadcast - Envoyer une notification broadcast
 router.post('/notifications/broadcast', verifierJwt, requireMinRole('admin_modo'), sendBroadcast);
+
+// ============ TICKETS SUPPORT ============
+
+// GET /api/admin/tickets/stats - Stats des tickets (dashboard)
+router.get('/tickets/stats', verifierJwt, requirePermission('tickets:view'), getTicketStats);
+
+// GET /api/admin/tickets - Lister tous les tickets
+router.get('/tickets', verifierJwt, requirePermission('tickets:view'), listerTicketsAdmin);
+
+// GET /api/admin/tickets/:id - Detail d'un ticket
+router.get('/tickets/:id', verifierJwt, requirePermission('tickets:view'), getTicketAdmin);
+
+// POST /api/admin/tickets/:id/respond - Repondre a un ticket
+router.post('/tickets/:id/respond', verifierJwt, requirePermission('tickets:respond'), repondreTicketAdmin);
+
+// PATCH /api/admin/tickets/:id/status - Changer le statut d'un ticket
+router.patch('/tickets/:id/status', verifierJwt, requirePermission('tickets:respond'), changerStatutTicket);
+
+// POST /api/admin/tickets/:id/assign - Assigner un ticket
+router.post('/tickets/:id/assign', verifierJwt, requirePermission('tickets:respond'), assignerTicket);
 
 export default router;
