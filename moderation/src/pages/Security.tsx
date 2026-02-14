@@ -21,7 +21,7 @@ import {
   ChevronDown, ChevronUp, Info, Target, Fingerprint, Clock, TrendingUp,
   BarChart3, ShieldOff, Unlock, ExternalLink, Loader2, AlertOctagon,
   Lightbulb, Server, Database, Cpu, HardDrive, CheckCircle2, XOctagon,
-  Wrench, FileWarning, Chrome, Smartphone, Laptop, Tablet, Trash2,
+  Wrench, FileWarning, Chrome, Smartphone, Laptop, Tablet, Trash2, Archive, History,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -1436,6 +1436,185 @@ function RecommandationsCorrections({ data }: { data: SecurityDashboardData }) {
 }
 
 // ============================================
+// HISTORIQUE DES PURGES
+// ============================================
+
+function HistoriquePurges({ onViewDetail }: { onViewDetail: (id: string) => void }) {
+  const queryClient = useQueryClient()
+
+  const { data: purges, isLoading } = useQuery({
+    queryKey: ['purge-history'],
+    queryFn: securityService.getPurgeHistory,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => securityService.deletePurge(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purge-history'] }),
+  })
+
+  if (isLoading) return <div className="text-center py-4 text-zinc-500 text-sm">Chargement...</div>
+  if (!purges || purges.length === 0) {
+    return (
+      <Card className="bg-zinc-900/50 border-zinc-800">
+        <CardContent className="py-6 text-center">
+          <Archive className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
+          <p className="text-sm text-zinc-500">Aucune archive de purge</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <History className="h-4 w-4 text-indigo-400" /> Historique des purges
+          <Badge variant="outline" className="ml-auto text-[10px]">{purges.length}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+        {purges.map((p) => (
+          <div key={p._id} className="flex items-center justify-between bg-zinc-800/50 rounded-lg p-3 border border-zinc-700/50">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <Clock className="h-3 w-3" />
+                {new Date(p.dateCreation).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+              <div className="flex items-center gap-3 mt-1 text-xs">
+                <span className="text-zinc-300">{p.stats.events} event{p.stats.events > 1 ? 's' : ''}</span>
+                <span className="text-zinc-500">|</span>
+                <span className="text-zinc-300">{p.stats.blockedIPs} IP{p.stats.blockedIPs > 1 ? 's' : ''}</span>
+                <span className="text-zinc-500">|</span>
+                <span className="text-zinc-300">{p.stats.bannedDevices} appareil{p.stats.bannedDevices > 1 ? 's' : ''}</span>
+              </div>
+              {p.note && <p className="text-[10px] text-zinc-500 mt-1 truncate">{p.note}</p>}
+            </div>
+            <div className="flex items-center gap-1 ml-2">
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-indigo-400 hover:text-indigo-300" onClick={() => onViewDetail(p._id)}>
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost" size="sm" className="h-7 px-2 text-red-400 hover:text-red-300"
+                onClick={() => { if (confirm('Supprimer definitivement cette archive ?')) deleteMutation.mutate(p._id) }}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ModalDetailPurge({ open, onClose, purgeId }: { open: boolean; onClose: () => void; purgeId: string }) {
+  const [onglet, setOnglet] = useState<'events' | 'ips' | 'devices'>('events')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['purge-detail', purgeId],
+    queryFn: () => securityService.getPurgeDetail(purgeId),
+    enabled: open && !!purgeId,
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-zinc-200">
+            <Archive className="h-5 w-5 text-indigo-400" /> Archive de purge
+            {data && (
+              <span className="text-xs text-zinc-500 ml-2">
+                {new Date(data.dateCreation).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 text-indigo-400 animate-spin" />
+          </div>
+        ) : data ? (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-zinc-800/50 rounded-lg p-3 text-center border border-zinc-700/50">
+                <div className="text-lg font-bold text-zinc-200">{data.stats.events}</div>
+                <div className="text-[10px] text-zinc-500">Evenements</div>
+              </div>
+              <div className="bg-zinc-800/50 rounded-lg p-3 text-center border border-zinc-700/50">
+                <div className="text-lg font-bold text-zinc-200">{data.stats.blockedIPs}</div>
+                <div className="text-[10px] text-zinc-500">IPs bloquees</div>
+              </div>
+              <div className="bg-zinc-800/50 rounded-lg p-3 text-center border border-zinc-700/50">
+                <div className="text-lg font-bold text-zinc-200">{data.stats.bannedDevices}</div>
+                <div className="text-[10px] text-zinc-500">Appareils bannis</div>
+              </div>
+            </div>
+
+            {data.note && (
+              <p className="text-xs text-zinc-400 bg-zinc-800/30 rounded px-3 py-2 mb-3">Note : {data.note}</p>
+            )}
+
+            {/* Onglets */}
+            <div className="flex gap-1 bg-zinc-800/50 rounded-lg p-1 mb-3">
+              {([
+                { key: 'events' as const, label: 'Evenements', count: data.archivedEvents.length },
+                { key: 'ips' as const, label: 'IPs bloquees', count: data.archivedBlockedIPs.length },
+                { key: 'devices' as const, label: 'Appareils', count: data.archivedBannedDevices.length },
+              ]).map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  onClick={() => setOnglet(key)}
+                  className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${onglet === key ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
+
+            {/* Contenu */}
+            <div className="flex-1 overflow-y-auto space-y-1">
+              {onglet === 'events' && data.archivedEvents.map((e, i) => (
+                <div key={i} className="flex items-center gap-3 bg-zinc-800/30 rounded-lg px-3 py-2 text-xs border border-zinc-700/30">
+                  <Badge variant="outline" className={`text-[9px] ${e.severity === 'critical' ? 'border-red-500/50 text-red-400' : e.severity === 'high' ? 'border-orange-500/50 text-orange-400' : e.severity === 'medium' ? 'border-yellow-500/50 text-yellow-400' : 'border-zinc-600 text-zinc-400'}`}>
+                    {e.severity}
+                  </Badge>
+                  <span className="text-zinc-400 font-mono">{e.ip}</span>
+                  <span className="text-zinc-500 truncate flex-1">{e.type} - {e.details?.toString().slice(0, 80)}</span>
+                  <span className="text-zinc-600 shrink-0">{new Date(e.dateCreation as string).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              ))}
+              {onglet === 'ips' && data.archivedBlockedIPs.map((ip, i) => (
+                <div key={i} className="flex items-center gap-3 bg-zinc-800/30 rounded-lg px-3 py-2 text-xs border border-zinc-700/30">
+                  <Ban className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                  <span className="text-zinc-300 font-mono">{ip.ip}</span>
+                  <span className="text-zinc-500 truncate flex-1">{ip.raison}</span>
+                  <Badge variant="outline" className={`text-[9px] ${ip.actif ? 'border-red-500/50 text-red-400' : 'border-zinc-600 text-zinc-500'}`}>
+                    {ip.actif ? 'Actif' : 'Inactif'}
+                  </Badge>
+                </div>
+              ))}
+              {onglet === 'devices' && data.archivedBannedDevices.map((d, i) => (
+                <div key={i} className="flex items-center gap-3 bg-zinc-800/30 rounded-lg px-3 py-2 text-xs border border-zinc-700/30">
+                  <Monitor className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                  <span className="text-zinc-300">{d.navigateur} / {d.os}</span>
+                  <span className="text-zinc-500 truncate flex-1">{d.raison}</span>
+                  <span className="text-zinc-600">{d.ipsConnues?.length || 0} IP(s)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500 text-center py-8">Archive introuvable</p>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================
 // ANALYSEUR BACKEND TEMPS REEL
 // ============================================
 
@@ -1667,6 +1846,8 @@ export default function SecurityPage() {
   const [critiquesOuvert, setCritiquesOuvert] = useState(false)
   const [ongletPrincipal, setOngletPrincipal] = useState<'securite' | 'backend'>('securite')
   const [confirmPurge, setConfirmPurge] = useState(false)
+  const [purgeNote, setPurgeNote] = useState('')
+  const [viewingPurge, setViewingPurge] = useState<string | null>(null)
 
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['security-dashboard'],
@@ -1703,11 +1884,13 @@ export default function SecurityPage() {
   })
 
   const purgeMutation = useMutation({
-    mutationFn: () => securityService.purgeSecurityData(),
+    mutationFn: (note?: string) => securityService.purgeSecurityData(note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['security-dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['banned-devices'] })
+      queryClient.invalidateQueries({ queryKey: ['purge-history'] })
       setConfirmPurge(false)
+      setPurgeNote('')
     },
   })
 
@@ -1839,6 +2022,9 @@ export default function SecurityPage() {
 
             {/* Flux temps reel */}
             <FluxTempsReel events={data.recentEvents} onInvestigateIP={setInvestigatingIP} />
+
+            {/* Historique des purges */}
+            <HistoriquePurges onViewDetail={setViewingPurge} />
           </>
         ) : (
           <AnalyseurBackend />
@@ -1869,7 +2055,7 @@ export default function SecurityPage() {
         )}
 
         {/* Dialog purge */}
-        <Dialog open={confirmPurge} onOpenChange={setConfirmPurge}>
+        <Dialog open={confirmPurge} onOpenChange={(open) => { setConfirmPurge(open); if (!open) setPurgeNote('') }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-red-400">
@@ -1877,22 +2063,36 @@ export default function SecurityPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3 py-2">
-              <p className="text-sm text-zinc-300">Cette action va supprimer definitivement :</p>
+              <p className="text-sm text-zinc-300">Les donnees seront archivees avant suppression. Vous pourrez les consulter dans l'historique des purges.</p>
               <ul className="text-sm text-zinc-400 space-y-1 ml-4 list-disc">
                 <li>Tous les evenements de securite</li>
                 <li>Toutes les IPs bloquees</li>
                 <li>Tous les appareils bannis</li>
               </ul>
-              <p className="text-xs text-red-400/80 mt-2">Cette action est irreversible. Le niveau de menace repassera a "normal".</p>
+              <div>
+                <label className="text-xs text-zinc-500 mb-1 block">Note (optionnelle)</label>
+                <Input
+                  placeholder="Raison de la purge..."
+                  value={purgeNote}
+                  onChange={(e) => setPurgeNote(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <p className="text-xs text-amber-400/80 flex items-center gap-1"><Archive className="h-3 w-3" /> Les donnees seront archivees et consultables a tout moment.</p>
             </div>
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setConfirmPurge(false)}>Annuler</Button>
-              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => purgeMutation.mutate()} disabled={purgeMutation.isPending}>
-                {purgeMutation.isPending ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Purge en cours...</> : <><Trash2 className="h-3.5 w-3.5 mr-1" /> Confirmer la purge</>}
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => purgeMutation.mutate(purgeNote || undefined)} disabled={purgeMutation.isPending}>
+                {purgeMutation.isPending ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Archivage et purge...</> : <><Trash2 className="h-3.5 w-3.5 mr-1" /> Archiver et purger</>}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Modal detail purge */}
+        {viewingPurge && (
+          <ModalDetailPurge open={!!viewingPurge} onClose={() => setViewingPurge(null)} purgeId={viewingPurge} />
+        )}
       </div>
     </PageTransition>
   )

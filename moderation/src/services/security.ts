@@ -116,6 +116,20 @@ export interface BannedDevice {
   expireAt?: string | null
 }
 
+export interface PurgeHistoryItem {
+  _id: string
+  purgePar: string
+  note: string
+  stats: { events: number; blockedIPs: number; bannedDevices: number }
+  dateCreation: string
+}
+
+export interface PurgeDetail extends PurgeHistoryItem {
+  archivedEvents: SecurityEvent[]
+  archivedBlockedIPs: BlockedIP[]
+  archivedBannedDevices: BannedDevice[]
+}
+
 export interface SecurityDashboardData {
   threatLevel: ThreatLevel
   lastUpdated: string
@@ -402,14 +416,38 @@ export const securityService = {
     return response.data.data
   },
 
-  async purgeSecurityData(): Promise<{ eventsSupprimes: number; ipsDebloquees: number; appareilsDebannis: number }> {
-    const response = await api.delete<ApiResponse<{ eventsSupprimes: number; ipsDebloquees: number; appareilsDebannis: number }>>(
-      '/admin/security/purge'
+  async purgeSecurityData(note?: string): Promise<{ archiveId: string; eventsSupprimes: number; ipsDebloquees: number; appareilsDebannis: number }> {
+    const response = await api.delete<ApiResponse<{ archiveId: string; eventsSupprimes: number; ipsDebloquees: number; appareilsDebannis: number }>>(
+      '/admin/security/purge',
+      { data: { note } }
     )
     if (!response.data.succes || !response.data.data) {
       throw new Error(response.data.message || 'Erreur de purge')
     }
     return response.data.data
+  },
+
+  async getPurgeHistory(): Promise<PurgeHistoryItem[]> {
+    const response = await api.get<ApiResponse<PurgeHistoryItem[]>>('/admin/security/purge-history')
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur')
+    }
+    return response.data.data
+  },
+
+  async getPurgeDetail(id: string): Promise<PurgeDetail> {
+    const response = await api.get<ApiResponse<PurgeDetail>>(`/admin/security/purge-history/${id}`)
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur')
+    }
+    return response.data.data
+  },
+
+  async deletePurge(id: string): Promise<void> {
+    const response = await api.delete(`/admin/security/purge-history/${id}`)
+    if (!response.data.succes) {
+      throw new Error(response.data.message || 'Erreur de suppression')
+    }
   },
 }
 
