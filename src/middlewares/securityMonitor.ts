@@ -151,21 +151,27 @@ const isWhitelistedIP = (ip: string): boolean => {
 // ============================================
 // CACHE BLOCAGE IP (evite des queries a chaque requete)
 // ============================================
-const blockedIPCache = new Map<string, { blocked: boolean; checkedAt: number }>();
+const blockedIPCache = new Map<string, { blocked: boolean; checkedAt: number; permanent?: boolean }>();
 const BLOCKED_CACHE_TTL = 30 * 1000; // 30 secondes
 
-const isIPBlocked = async (ip: string): Promise<boolean> => {
+interface BlockedIPInfo {
+  blocked: boolean;
+  permanent: boolean; // true = ban permanent (vraie attaque), false = ban temporaire
+}
+
+const isIPBlocked = async (ip: string): Promise<BlockedIPInfo> => {
   const cached = blockedIPCache.get(ip);
   if (cached && Date.now() - cached.checkedAt < BLOCKED_CACHE_TTL) {
-    return cached.blocked;
+    return { blocked: cached.blocked, permanent: cached.permanent ?? false };
   }
   try {
     const found = await BlockedIP.findOne({ ip, actif: true }).lean();
     const blocked = !!found;
-    blockedIPCache.set(ip, { blocked, checkedAt: Date.now() });
-    return blocked;
+    const permanent = blocked && !found?.expireAt; // pas d'expiration = permanent
+    blockedIPCache.set(ip, { blocked, checkedAt: Date.now(), permanent });
+    return { blocked, permanent };
   } catch {
-    return false;
+    return { blocked: false, permanent: false };
   }
 };
 
@@ -299,13 +305,18 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
   }
 
   // 1. Verification IP bloquee
-  if (await isIPBlocked(ip)) {
+  const ipStatus = await isIPBlocked(ip);
+  if (ipStatus.blocked) {
     logSecurityEvent('ip_blocked', 'high', req, 403, `Requete bloquee - IP bannie: ${ip}`, {
       originalPath: req.originalUrl,
+      permanent: ipStatus.permanent,
     }, true);
 
-    // PAS d'escalade : on ne bannit plus le device juste parce que l'IP revient
-    // Ca evite la cascade ou un dev se retrouve banni partout
+    // ESCALADE seulement si le ban est PERMANENT (vraie attaque: injection, proxy, hacking)
+    // Les bans temporaires (brute force, rate limit) ne declenchent PAS de ban device
+    if (ipStatus.permanent) {
+      autoBanDevice(ip, req, `[ESCALADE] IP ${ip} bannie definitivement, tentative de contournement`);
+    }
 
     res.status(403).json({
       succes: false,
@@ -326,7 +337,9 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
           deviceBan: true,
         }, true);
 
-      // PAS d'escalade : on ne bloque plus l'IP juste parce que le device est banni
+      // ESCALADE : appareil banni sur nouvelle IP = bloquer cette IP aussi (permanent)
+      // Les device bans sont TOUJOURS permanents (uniquement pour vraies attaques)
+      autoBlockIP(ip, req, `[ESCALADE] Appareil banni detecte sur nouvelle IP ${ip}`);
 
       res.status(403).json({
         succes: false,
