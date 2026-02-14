@@ -27,6 +27,9 @@ import {
   getBlockedIPs,
   getSecurityEvents,
   getBackendHealth,
+  banDevice,
+  unbanDevice,
+  getBannedDevices,
 } from '../controllers/securityController.js';
 import {
   getStaffMessages,
@@ -345,6 +348,17 @@ router.delete('/security/unblock-ip/:id', verifierJwt, requireMinRole('admin_mod
 
 // GET /api/admin/security/health - Analyse sante backend temps reel
 router.get('/security/health', verifierJwt, requireMinRole('admin_modo'), getBackendHealth);
+
+// --- Appareils bannis (anti IP dynamique) ---
+
+// GET /api/admin/security/banned-devices - Liste des appareils bannis
+router.get('/security/banned-devices', verifierJwt, requireMinRole('admin_modo'), getBannedDevices);
+
+// POST /api/admin/security/ban-device - Bannir un appareil
+router.post('/security/ban-device', verifierJwt, requireMinRole('admin_modo'), banDevice);
+
+// DELETE /api/admin/security/unban-device/:id - Debannir un appareil
+router.delete('/security/unban-device/:id', verifierJwt, requireMinRole('admin_modo'), unbanDevice);
 
 // ============ NOTIFICATIONS BROADCAST ============
 

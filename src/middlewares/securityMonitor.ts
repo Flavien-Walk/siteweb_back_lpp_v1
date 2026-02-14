@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import SecurityEvent, { SecurityEventType, SeverityLevel } from '../models/SecurityEvent.js';
 import BlockedIP from '../models/BlockedIP.js';
+import { isDeviceBanned, generateDeviceFingerprint } from '../models/BannedDevice.js';
 
 // ============================================
 // PATTERNS DE DETECTION
@@ -278,8 +279,8 @@ const deepScanValue = (obj: unknown, depth = 0): { type: SecurityEventType; deta
 export const checkBlockedIP = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
+  // 1. Verification IP bloquee
   if (await isIPBlocked(ip)) {
-    // Logger le blocage
     logSecurityEvent('ip_blocked', 'high', req, 403, `Requete bloquee - IP bannie: ${ip}`, {
       originalPath: req.originalUrl,
     }, true);
@@ -289,6 +290,26 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
       message: 'Acces refuse. Votre adresse IP a ete bloquee.',
     });
     return;
+  }
+
+  // 2. Verification appareil banni (contourne les IP dynamiques)
+  const ua = req.headers['user-agent'] || '';
+  if (ua && ua.length >= 10) {
+    const bannedDevice = await isDeviceBanned(ua);
+    if (bannedDevice) {
+      logSecurityEvent('ip_blocked', 'high', req, 403,
+        `Requete bloquee - Appareil banni: ${bannedDevice.navigateur} / ${bannedDevice.os}`, {
+          originalPath: req.originalUrl,
+          fingerprint: generateDeviceFingerprint(ua),
+          deviceBan: true,
+        }, true);
+
+      res.status(403).json({
+        succes: false,
+        message: 'Acces refuse. Votre appareil a ete bloque.',
+      });
+      return;
+    }
   }
 
   next();
