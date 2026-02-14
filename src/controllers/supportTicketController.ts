@@ -110,8 +110,12 @@ export const listerMesTickets = async (
     const skip = (pageNum - 1) * limitNum;
 
     const filtre: Record<string, unknown> = { user: userId };
-    if (typeof status === 'string' && ['en_attente', 'en_cours', 'termine'].includes(status)) {
-      filtre.status = status;
+    if (typeof status === 'string') {
+      if (status === 'active') {
+        filtre.status = { $in: ['en_attente', 'en_cours'] };
+      } else if (['en_attente', 'en_cours', 'termine'].includes(status)) {
+        filtre.status = status;
+      }
     }
 
     const [tickets, total] = await Promise.all([
@@ -312,8 +316,12 @@ export const listerTicketsAdmin = async (
     const skip = (pageNum - 1) * limitNum;
 
     const filtre: Record<string, unknown> = {};
-    if (typeof status === 'string' && ['en_attente', 'en_cours', 'termine'].includes(status)) {
-      filtre.status = status;
+    if (typeof status === 'string') {
+      if (status === 'active') {
+        filtre.status = { $in: ['en_attente', 'en_cours'] };
+      } else if (['en_attente', 'en_cours', 'termine'].includes(status)) {
+        filtre.status = status;
+      }
     }
     if (typeof category === 'string' && ['bug', 'compte', 'contenu', 'signalement', 'suggestion', 'autre'].includes(category)) {
       filtre.category = category;
