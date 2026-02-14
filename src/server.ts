@@ -7,6 +7,7 @@ import http from 'http';
 import { creerApp } from './app.js';
 import { connecterMongo, fermerMongo } from './config/mongo.js';
 import { initializeSocket, getConnectedUsersCount } from './socket/index.js';
+import { purgeAutoBlocks } from './middlewares/securityMonitor.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -56,6 +57,10 @@ const demarrerServeur = async (): Promise<void> => {
 
     // Connexion à MongoDB
     await connecterMongo();
+
+    // Purge des auto-blocks si SECURITY_RESET=true
+    // Utile quand un dev est bloque par le systeme de securite
+    await purgeAutoBlocks();
 
     // Créer l'application Express
     const app = creerApp();

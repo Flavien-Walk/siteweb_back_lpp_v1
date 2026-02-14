@@ -136,6 +136,19 @@ const parseUserAgent = (ua: string): ParsedUA => {
 };
 
 // ============================================
+// WHITELIST IPs (dev, monitoring, CI)
+// Variable d'environnement: WHITELISTED_IPS=1.2.3.4,5.6.7.8
+// ============================================
+const WHITELISTED_IPS = new Set(
+  (process.env.WHITELISTED_IPS || '').split(',').map(s => s.trim()).filter(Boolean)
+);
+
+const isWhitelistedIP = (ip: string): boolean => {
+  if (WHITELISTED_IPS.size === 0) return false;
+  return WHITELISTED_IPS.has(ip);
+};
+
+// ============================================
 // CACHE BLOCAGE IP (evite des queries a chaque requete)
 // ============================================
 const blockedIPCache = new Map<string, { blocked: boolean; checkedAt: number }>();
@@ -279,14 +292,20 @@ const deepScanValue = (obj: unknown, depth = 0): { type: SecurityEventType; deta
 export const checkBlockedIP = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
+  // 0. Whitelist : IPs de confiance (devs, monitoring) passent toujours
+  if (isWhitelistedIP(ip)) {
+    next();
+    return;
+  }
+
   // 1. Verification IP bloquee
   if (await isIPBlocked(ip)) {
     logSecurityEvent('ip_blocked', 'high', req, 403, `Requete bloquee - IP bannie: ${ip}`, {
       originalPath: req.originalUrl,
     }, true);
 
-    // ESCALADE: IP deja bloquee mais revient = bannir le device aussi
-    autoBanDevice(ip, req, `[ESCALADE] IP ${ip} deja bloquee, tentative de contournement`);
+    // PAS d'escalade : on ne bannit plus le device juste parce que l'IP revient
+    // Ca evite la cascade ou un dev se retrouve banni partout
 
     res.status(403).json({
       succes: false,
@@ -307,8 +326,7 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
           deviceBan: true,
         }, true);
 
-      // ESCALADE: device banni mais IP nouvelle = bloquer cette IP aussi
-      autoBlockIP(ip, req, `[ESCALADE] Appareil banni detecte sur nouvelle IP ${ip}`);
+      // PAS d'escalade : on ne bloque plus l'IP juste parce que le device est banni
 
       res.status(403).json({
         succes: false,
@@ -396,71 +414,83 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
 // SYSTEME AUTO-PROTECTION STRICT (tolerance zero)
 // ============================================
 
-// Types de menaces - TOUS les bans sont PERMANENTS
+// Types de menaces
+// Bans PERMANENTS : uniquement pour les vraies attaques (injection, hacking tools, proxy)
+// Bans TEMPORAIRES : pour les comportements suspects (brute force, rate abuse, 403 repetes)
 type ThreatType = 'injection' | 'brute_force' | 'admin_enum' | 'rate_abuse' | 'anomaly' | 'forbidden' | 'proxy' | 'suspicious_ua';
 
 interface ThreatConfig {
   threshold: number;       // nombre de tentatives avant blocage
   window: number;          // fenetre de temps (ms)
   permanent: boolean;      // ban permanent (true = pas d'expiry)
-  banDevice: boolean;      // bannir aussi l'appareil
+  duration: number;        // duree du ban temporaire (ms) - ignore si permanent=true
+  banDevice: boolean;      // bannir aussi l'appareil (reserve aux vraies attaques)
 }
 
 const THREAT_CONFIGS: Record<ThreatType, ThreatConfig> = {
-  // INJECTION: 1 seule tentative = ban permanent IP + device
+  // INJECTION: 1 seule tentative = ban permanent IP + device (vraie attaque)
   injection: {
     threshold: 1,
-    window: 60 * 60 * 1000,         // 1h (pour le compteur)
+    window: 60 * 60 * 1000,
     permanent: true,
+    duration: 0,
     banDevice: true,
   },
-  // BRUTE FORCE: 5 echecs login = ban permanent IP + device
+  // BRUTE FORCE: 10 echecs login = ban temporaire 1h (IP seulement)
   brute_force: {
-    threshold: 5,
-    window: 15 * 60 * 1000,         // 15 min
-    permanent: true,
-    banDevice: true,
-  },
-  // ADMIN ENUM: 3 tentatives = ban permanent IP + device
-  admin_enum: {
-    threshold: 3,
-    window: 10 * 60 * 1000,         // 10 min
-    permanent: true,
-    banDevice: true,
-  },
-  // RATE ABUSE: 10 hits 429 = ban permanent IP
-  rate_abuse: {
     threshold: 10,
-    window: 15 * 60 * 1000,
-    permanent: true,
-    banDevice: true,
+    window: 15 * 60 * 1000,         // 15 min
+    permanent: false,
+    duration: 60 * 60 * 1000,       // 1h
+    banDevice: false,
   },
-  // ANOMALIE / DDoS: seuil atteint = ban permanent IP
+  // ADMIN ENUM: 5 tentatives = ban temporaire 1h (IP seulement)
+  admin_enum: {
+    threshold: 5,
+    window: 10 * 60 * 1000,
+    permanent: false,
+    duration: 60 * 60 * 1000,       // 1h
+    banDevice: false,
+  },
+  // RATE ABUSE: 15 hits 429 = ban temporaire 30min (IP seulement)
+  rate_abuse: {
+    threshold: 15,
+    window: 15 * 60 * 1000,
+    permanent: false,
+    duration: 30 * 60 * 1000,       // 30min
+    banDevice: false,
+  },
+  // ANOMALIE / DDoS: seuil atteint = ban temporaire 30min (IP seulement)
   anomaly: {
     threshold: 1,
     window: 60 * 1000,
-    permanent: true,
-    banDevice: true,
+    permanent: false,
+    duration: 30 * 60 * 1000,       // 30min
+    banDevice: false,
   },
-  // FORBIDDEN 403 repetes: 5 acces = ban permanent IP + device
+  // FORBIDDEN 403 repetes: 20 acces = ban temporaire 30min (IP seulement)
+  // Seuil eleve car les 403 applicatifs (permission refusee) sont normaux pour le staff
   forbidden: {
-    threshold: 5,
+    threshold: 20,
     window: 10 * 60 * 1000,
-    permanent: true,
-    banDevice: true,
+    permanent: false,
+    duration: 30 * 60 * 1000,       // 30min
+    banDevice: false,
   },
-  // PROXY/VPN detecte: ban immediat permanent
+  // PROXY/VPN detecte: ban permanent IP + device (vraie attaque)
   proxy: {
     threshold: 1,
     window: 60 * 60 * 1000,
     permanent: true,
+    duration: 0,
     banDevice: true,
   },
-  // UA suspect (outils hacking): ban immediat permanent
+  // UA suspect (outils hacking): ban permanent IP + device (vraie attaque)
   suspicious_ua: {
     threshold: 1,
     window: 60 * 60 * 1000,
     permanent: true,
+    duration: 0,
     banDevice: true,
   },
 };
@@ -554,22 +584,27 @@ const threatCounters = new Map<string, { count: number; window: number; blocked:
 
 const getThreatKey = (ip: string, type: ThreatType): string => `${ip}:${type}`;
 
-const autoBlockIP = async (ip: string, req: Request, raison: string): Promise<void> => {
+const autoBlockIP = async (ip: string, req: Request, raison: string, duration?: number): Promise<void> => {
   try {
+    if (isWhitelistedIP(ip)) return; // jamais bloquer une IP whitelistee
+
     const existing = await BlockedIP.findOne({ ip, actif: true }).lean();
     if (!existing) {
+      const expireAt = duration ? new Date(Date.now() + duration) : null;
       await BlockedIP.create({
         ip,
         raison,
         bloquePar: 'system_auto',
         actif: true,
-        expireAt: null, // PERMANENT
+        expireAt,
       });
       invalidateBlockedIPCache(ip);
+      const durLabel = duration ? `${Math.round(duration / 60000)} min` : 'PERMANENT';
       logSecurityEvent('ip_blocked', 'critical', req, 403,
-        `IP ${ip} BANNIE DEFINITIVEMENT: ${raison}`, {
+        `IP ${ip} BLOQUEE (${durLabel}): ${raison}`, {
           autoBlocked: true,
-          permanent: true,
+          permanent: !duration,
+          duration: duration || null,
         }, true);
     }
   } catch { /* silencieux */ }
@@ -629,13 +664,15 @@ const trackAttack = async (ip: string, req: Request, threatType: ThreatType = 'i
   // Deja bloque dans cette fenetre
   if (data.blocked) return;
 
-  // Seuil atteint -> BAN DEFINITIF
+  // Seuil atteint -> BLOQUER
   if (data.count >= config.threshold) {
     data.blocked = true;
-    const raison = `[AUTO] ${threatType}: ${data.count} tentative(s) en ${Math.round(config.window / 60000)} min`;
+    const durLabel = config.permanent ? 'PERMANENT' : `${Math.round(config.duration / 60000)} min`;
+    const raison = `[AUTO] ${threatType}: ${data.count} tentative(s) en ${Math.round(config.window / 60000)} min (ban ${durLabel})`;
 
-    await autoBlockIP(ip, req, raison);
+    await autoBlockIP(ip, req, raison, config.permanent ? undefined : config.duration);
 
+    // Bannir l'appareil SEULEMENT pour les vraies attaques (injection, proxy, hacking tools)
     if (config.banDevice) {
       await autoBanDevice(ip, req, raison);
     }
@@ -803,26 +840,29 @@ export const securityMonitor = (req: Request, res: Response, next: NextFunction)
         logSecurityEvent('brute_force', 'medium', req, 401, `Echec login: ${body?.message || 'inconnu'}`, {
           email: req.body?.email ? req.body.email.slice(0, 50) : 'N/A',
         });
-        // Tracker brute force pour auto-blocage
+        // Tracker brute force pour auto-blocage (ban temporaire, pas permanent)
         trackAttack(ip, req, 'brute_force');
       } else if (isTokenIssue) {
-        logSecurityEvent('token_forgery', 'high', req, 401, `Token invalide: ${body?.message || 'inconnu'}`, {
+        logSecurityEvent('token_forgery', 'medium', req, 401, `Token invalide: ${body?.message || 'inconnu'}`, {
           authHeader: (req.headers.authorization || '').slice(0, 50) + '...',
         });
-        // Token forgery = injection-level severity
-        trackAttack(ip, req, 'injection');
+        // Token expire/invalide = brute force, PAS injection
+        // Un JWT expire est un cas normal (session expiree), pas une attaque
+        trackAttack(ip, req, 'brute_force');
       } else {
         logSecurityEvent('unauthorized_access', 'medium', req, 401, `Acces non autorise: ${req.originalUrl}`, {});
       }
     }
 
     // 403 - Permission insuffisante
+    // On logue mais on ne track PAS comme menace
+    // Les 403 applicatifs (permission refusee par l'app) sont normaux pour le staff
+    // Seuls les 403 du security middleware (deja traites dans checkBlockedIP) sont des menaces
     if (statusCode === 403) {
-      logSecurityEvent('forbidden_access', 'high', req, 403, `Permission refusee: ${body?.requiredPermission || req.originalUrl}`, {
+      logSecurityEvent('forbidden_access', 'medium', req, 403, `Permission refusee: ${body?.requiredPermission || req.originalUrl}`, {
         requiredPermission: body?.requiredPermission,
       });
-      // Tracker acces interdit pour auto-blocage
-      trackAttack(ip, req, 'forbidden');
+      // PAS de trackAttack ici - les 403 applicatifs ne sont pas des attaques
     }
 
     // 429 - Rate limit
@@ -858,4 +898,26 @@ export const securityMonitor = (req: Request, res: Response, next: NextFunction)
   };
 
   next();
+};
+
+// ============================================
+// PURGE AUTO-BLOCKS AU DEMARRAGE
+// ============================================
+// Appeler cette fonction au demarrage du serveur pour purger les blocages automatiques.
+// Utile quand un dev se retrouve bloque par le systeme de securite.
+// Active via la variable d'environnement SECURITY_RESET=true
+export const purgeAutoBlocks = async (): Promise<void> => {
+  if (process.env.SECURITY_RESET !== 'true') return;
+
+  try {
+    const ipResult = await BlockedIP.deleteMany({ bloquePar: 'system_auto' });
+    const deviceResult = await BannedDevice.deleteMany({ bloquePar: 'system_auto' });
+    invalidateBlockedIPCache();
+    threatCounters.clear();
+    ipRequestCounts.clear();
+    console.log(`[SECURITY] PURGE AUTO-BLOCKS: ${ipResult.deletedCount} IP(s), ${deviceResult.deletedCount} appareil(s) supprime(s)`);
+    console.log('[SECURITY] Pensez a retirer SECURITY_RESET=true apres le redemarrage');
+  } catch (err) {
+    console.error('[SECURITY] Erreur purge auto-blocks:', err);
+  }
 };
