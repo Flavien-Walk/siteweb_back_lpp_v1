@@ -32,6 +32,8 @@ const SurveillancePage = lazy(() => import('@/pages/Surveillance'))
 const StatisticsPage = lazy(() => import('@/pages/Statistics'))
 const CartographyPage = lazy(() => import('@/pages/Cartography'))
 const SecurityPage = lazy(() => import('@/pages/Security'))
+const TicketsPage = lazy(() => import('@/pages/Tickets'))
+const TicketDetailPage = lazy(() => import('@/pages/TicketDetail'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -124,6 +126,9 @@ function App() {
               <Route path="cartography" element={<ProtectedRoute requiredPermission="content:hide"><Lazy><CartographyPage /></Lazy></ProtectedRoute>} />
 
               <Route path="security" element={<ProtectedRoute requiredPermission="audit:view"><Lazy><SecurityPage /></Lazy></ProtectedRoute>} />
+
+              <Route path="tickets" element={<ProtectedRoute requiredPermission="tickets:view"><Lazy><TicketsPage /></Lazy></ProtectedRoute>} />
+              <Route path="tickets/:id" element={<ProtectedRoute requiredPermission="tickets:view"><Lazy><TicketDetailPage /></Lazy></ProtectedRoute>} />
             </Route>
 
             <Route path="*" element={<NotFoundPage />} />

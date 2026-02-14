@@ -20,6 +20,8 @@ export type Permission =
   | 'config:view'
   | 'config:edit'
   | 'staff:chat'
+  | 'tickets:view'
+  | 'tickets:respond'
 
 export interface Warning {
   _id?: string
@@ -344,6 +346,51 @@ export interface SurveillanceUser {
   surveillance: Surveillance
 }
 
+// ============ SUPPORT TICKETS ============
+
+export type TicketStatus = 'en_attente' | 'en_cours' | 'termine'
+export type TicketCategory = 'bug' | 'compte' | 'contenu' | 'signalement' | 'suggestion' | 'autre'
+export type TicketPriority = 'low' | 'medium' | 'high'
+
+export interface TicketMessage {
+  _id?: string
+  sender: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+  }
+  senderRole: 'user' | 'staff'
+  content: string
+  dateCreation: string
+}
+
+export interface SupportTicket {
+  _id: string
+  user: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    email?: string
+  }
+  subject: string
+  category: TicketCategory
+  status: TicketStatus
+  priority: TicketPriority
+  assignedTo?: {
+    _id: string
+    prenom: string
+    nom: string
+  }
+  messages: TicketMessage[]
+  dateCreation: string
+  dateMiseAJour: string
+  dateFermeture?: string
+}
+
+// ============ DASHBOARD ============
+
 export interface DashboardStats {
   reports: {
     pending: number
@@ -366,6 +413,10 @@ export interface DashboardStats {
     projets: number
     stories: number
     lives: number
+  }
+  tickets?: {
+    enAttente: number
+    enCours: number
   }
   atRiskUsers: AtRiskUser[]
   recentActions: AuditLog[]

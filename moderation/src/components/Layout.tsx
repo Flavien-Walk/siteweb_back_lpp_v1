@@ -30,6 +30,7 @@ import {
   Eye,
   BarChart3,
   MapPin,
+  Headphones,
 } from 'lucide-react'
 
 interface NavItem {
@@ -58,6 +59,7 @@ const navSections: NavSection[] = [
       { label: 'Utilisateurs', href: '/users', icon: <Users className="h-4 w-4" />, permission: 'users:view' },
       { label: 'Suspendus', href: '/suspended', icon: <UserX className="h-4 w-4" />, permission: 'users:view' },
       { label: 'Surveillance', href: '/surveillance', icon: <Eye className="h-4 w-4" />, permission: 'users:view' },
+      { label: 'Tickets Support', href: '/tickets', icon: <Headphones className="h-4 w-4" />, permission: 'tickets:view' },
     ],
   },
   {
@@ -200,6 +202,11 @@ function SidebarContent({
                               {item.href === '/reports' && (dashStats?.reports?.pending ?? 0) > 0 && (
                                 <Badge variant="destructive" className="ml-auto text-[10px] px-1.5 py-0 h-5 min-w-5 flex items-center justify-center">
                                   {dashStats?.reports?.pending}
+                                </Badge>
+                              )}
+                              {item.href === '/tickets' && (dashStats?.tickets?.enAttente ?? 0) > 0 && (
+                                <Badge variant="warning" className="ml-auto text-[10px] px-1.5 py-0 h-5 min-w-5 flex items-center justify-center">
+                                  {dashStats?.tickets?.enAttente}
                                 </Badge>
                               )}
                             </Link>

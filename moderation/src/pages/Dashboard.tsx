@@ -25,6 +25,7 @@ import {
   Check,
   X,
   Flame,
+  Headphones,
 } from 'lucide-react'
 import { RiskBadge } from '@/components/RiskBadge'
 
@@ -339,8 +340,41 @@ export function DashboardPage() {
           </Card>
         </div>
 
-        {/* Content Stats + Recent Actions */}
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Tickets Support + Content Stats + Recent Actions */}
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Tickets Support */}
+          <Card className="relative overflow-hidden hover:border-primary/30 transition-all duration-300">
+            <div className="absolute inset-0 bg-linear-to-br from-cyan-500/5 to-transparent pointer-events-none" />
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Headphones className="h-4 w-4 text-cyan-400" />
+                  Tickets Support
+                </CardTitle>
+                <Link to="/tickets" className="text-xs text-primary hover:underline">Voir tout</Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  <div className="h-10 animate-pulse rounded bg-muted" />
+                  <div className="h-10 animate-pulse rounded bg-muted" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Link to="/tickets?status=en_attente" className="flex items-center justify-between p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 hover:border-amber-500/40 transition-colors">
+                    <span className="text-sm text-amber-400">En attente</span>
+                    <span className="text-2xl font-bold text-amber-400">{stats?.tickets?.enAttente ?? 0}</span>
+                  </Link>
+                  <Link to="/tickets?status=en_cours" className="flex items-center justify-between p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 hover:border-blue-500/40 transition-colors">
+                    <span className="text-sm text-blue-400">En cours</span>
+                    <span className="text-2xl font-bold text-blue-400">{stats?.tickets?.enCours ?? 0}</span>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Content Stats */}
           <Card>
             <CardHeader>
