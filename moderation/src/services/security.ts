@@ -401,6 +401,16 @@ export const securityService = {
     }
     return response.data.data
   },
+
+  async purgeSecurityData(): Promise<{ eventsSupprimes: number; ipsDebloquees: number; appareilsDebannis: number }> {
+    const response = await api.delete<ApiResponse<{ eventsSupprimes: number; ipsDebloquees: number; appareilsDebannis: number }>>(
+      '/admin/security/purge'
+    )
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur de purge')
+    }
+    return response.data.data
+  },
 }
 
 export default securityService

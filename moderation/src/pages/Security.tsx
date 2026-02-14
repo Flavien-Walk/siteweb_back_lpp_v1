@@ -21,7 +21,7 @@ import {
   ChevronDown, ChevronUp, Info, Target, Fingerprint, Clock, TrendingUp,
   BarChart3, ShieldOff, Unlock, ExternalLink, Loader2, AlertOctagon,
   Lightbulb, Server, Database, Cpu, HardDrive, CheckCircle2, XOctagon,
-  Wrench, FileWarning, Chrome, Smartphone, Laptop, Tablet,
+  Wrench, FileWarning, Chrome, Smartphone, Laptop, Tablet, Trash2,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -1666,6 +1666,7 @@ export default function SecurityPage() {
   const [banningDevice, setBanningDevice] = useState<{ userAgent: string; navigateur: string; os: string; appareil: string; ips: string[] } | null>(null)
   const [critiquesOuvert, setCritiquesOuvert] = useState(false)
   const [ongletPrincipal, setOngletPrincipal] = useState<'securite' | 'backend'>('securite')
+  const [confirmPurge, setConfirmPurge] = useState(false)
 
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['security-dashboard'],
@@ -1699,6 +1700,15 @@ export default function SecurityPage() {
   const unbanDeviceMutation = useMutation({
     mutationFn: (id: string) => securityService.unbanDevice(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banned-devices'] }),
+  })
+
+  const purgeMutation = useMutation({
+    mutationFn: () => securityService.purgeSecurityData(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['security-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['banned-devices'] })
+      setConfirmPurge(false)
+    },
   })
 
   const scrollToCritiques = useCallback(() => {
@@ -1747,6 +1757,7 @@ export default function SecurityPage() {
           </div>
           <div className="flex items-center gap-3">
             <div className="text-[10px] text-zinc-600">Maj: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString('fr-FR') : '--'}</div>
+            <Button variant="outline" size="sm" onClick={() => setConfirmPurge(true)} className="text-red-400 border-red-500/30 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5 mr-1" /> Purger</Button>
             <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Actualiser</Button>
           </div>
         </div>
@@ -1856,6 +1867,32 @@ export default function SecurityPage() {
             isLoading={banDeviceMutation.isPending}
           />
         )}
+
+        {/* Dialog purge */}
+        <Dialog open={confirmPurge} onOpenChange={setConfirmPurge}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-400">
+                <Trash2 className="h-5 w-5" /> Purger les donnees de securite
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-zinc-300">Cette action va supprimer definitivement :</p>
+              <ul className="text-sm text-zinc-400 space-y-1 ml-4 list-disc">
+                <li>Tous les evenements de securite</li>
+                <li>Toutes les IPs bloquees</li>
+                <li>Tous les appareils bannis</li>
+              </ul>
+              <p className="text-xs text-red-400/80 mt-2">Cette action est irreversible. Le niveau de menace repassera a "normal".</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setConfirmPurge(false)}>Annuler</Button>
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => purgeMutation.mutate()} disabled={purgeMutation.isPending}>
+                {purgeMutation.isPending ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Purge en cours...</> : <><Trash2 className="h-3.5 w-3.5 mr-1" /> Confirmer la purge</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </PageTransition>
   )
