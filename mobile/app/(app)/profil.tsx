@@ -1446,6 +1446,29 @@ export default function Profil() {
             color={couleurs.texteSecondaire}
           />
         </Pressable>
+
+        {/* Item navigation vers ecran support */}
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => router.push('/support')}
+        >
+          <View style={styles.menuIcon}>
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={20}
+              color={couleurs.texteSecondaire}
+            />
+          </View>
+          <View style={styles.menuContent}>
+            <Text style={styles.menuLabel}>Support</Text>
+            <Text style={styles.menuDescription}>Contacter le support</Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={couleurs.texteSecondaire}
+          />
+        </Pressable>
       </View>
 
       {/* Section active */}
