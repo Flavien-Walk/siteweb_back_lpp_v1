@@ -216,6 +216,15 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   });
 
+  // Route de sante AVANT les checks securite (monitoring / health check doit toujours repondre)
+  app.get('/api/sante', (_req, res) => {
+    res.status(200).json({
+      succes: true,
+      message: 'API La Première Pierre opérationnelle',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // Middleware de verification IP bloquee (tout en premier)
   app.use('/api/', checkBlockedIP);
 
@@ -302,15 +311,6 @@ export const creerApp = (): Application => {
   // ============================================
   // ROUTES
   // ============================================
-
-  // Route de santé
-  app.get('/api/sante', (_req, res) => {
-    res.status(200).json({
-      succes: true,
-      message: 'API La Première Pierre opérationnelle',
-      timestamp: new Date().toISOString(),
-    });
-  });
 
   // Routes d'authentification
   app.use('/api/auth', authRoutes);

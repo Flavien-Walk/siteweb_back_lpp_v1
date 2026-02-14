@@ -469,14 +469,12 @@ const THREAT_CONFIGS: Record<ThreatType, ThreatConfig> = {
 // DETECTION PROXY / VPN / TOR
 // ============================================
 
-// Headers revele par les proxies
+// Headers SUSPECTS (pas ceux ajoutes par Render/Cloudflare qui sont normaux)
+// x-forwarded-for, x-forwarded-host, x-forwarded-proto, x-real-ip, forwarded, via
+// sont ajoutes par l'infra Render/Cloudflare -> NE PAS LES BLOQUER
 const PROXY_HEADERS = [
-  'x-forwarded-host',
-  'via',
   'x-proxy-id',
   'proxy-connection',
-  'x-real-ip',       // Si present en plus de X-Forwarded-For = double proxy
-  'forwarded',       // RFC 7239
   'x-originating-ip',
   'x-remote-ip',
   'x-remote-addr',
@@ -521,11 +519,11 @@ const detectProxy = (req: Request): string | null => {
   }
 
   // 2. Chaine X-Forwarded-For suspecte (multiple proxies)
+  // Cloudflare + Render = 2 IPs normal. > 4 = chaine proxy suspecte
   const xff = req.headers['x-forwarded-for'];
   if (xff) {
     const ips = String(xff).split(',').map(s => s.trim());
-    // Plus de 2 IPs dans la chaine = proxy chain suspecte
-    if (ips.length > 2) {
+    if (ips.length > 4) {
       return `Chaine proxy detectee: X-Forwarded-For contient ${ips.length} IPs`;
     }
   }
