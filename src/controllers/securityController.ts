@@ -4,6 +4,7 @@ import os from 'os';
 import SecurityEvent from '../models/SecurityEvent.js';
 import BlockedIP from '../models/BlockedIP.js';
 import BannedDevice, { generateDeviceFingerprint } from '../models/BannedDevice.js';
+import SecurityPurge from '../models/SecurityPurge.js';
 import Utilisateur from '../models/Utilisateur.js';
 import Publication from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
@@ -1169,23 +1170,99 @@ export const getBannedDevices = async (
 // ============================================
 
 // ============================================
-// PURGE DONNEES SECURITE
+// PURGE DONNEES SECURITE (avec archivage)
 // ============================================
 export const purgeSecurityData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const deletedEvents = await SecurityEvent.deleteMany({});
-    const deletedBlockedIPs = await BlockedIP.deleteMany({});
-    const deletedBannedDevices = await BannedDevice.deleteMany({});
+    const { note } = req.body || {};
+
+    // Archiver toutes les donnees avant suppression
+    const [events, blockedIPs, bannedDevices] = await Promise.all([
+      SecurityEvent.find({}).lean(),
+      BlockedIP.find({}).lean(),
+      BannedDevice.find({}).lean(),
+    ]);
+
+    // Creer l'archive
+    const archive = await SecurityPurge.create({
+      purgePar: (req as any).utilisateur?._id || 'unknown',
+      note: note || '',
+      stats: {
+        events: events.length,
+        blockedIPs: blockedIPs.length,
+        bannedDevices: bannedDevices.length,
+      },
+      archivedEvents: events,
+      archivedBlockedIPs: blockedIPs,
+      archivedBannedDevices: bannedDevices,
+    });
+
+    // Supprimer les donnees
+    await Promise.all([
+      SecurityEvent.deleteMany({}),
+      BlockedIP.deleteMany({}),
+      BannedDevice.deleteMany({}),
+    ]);
 
     res.status(200).json({
       succes: true,
-      message: 'Donnees de securite purgees avec succes',
+      message: 'Donnees archivees et purgees avec succes',
       data: {
-        eventsSupprimes: deletedEvents.deletedCount,
-        ipsDebloquees: deletedBlockedIPs.deletedCount,
-        appareilsDebannis: deletedBannedDevices.deletedCount,
+        archiveId: archive._id,
+        eventsSupprimes: events.length,
+        ipsDebloquees: blockedIPs.length,
+        appareilsDebannis: bannedDevices.length,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================
+// HISTORIQUE DES PURGES
+// ============================================
+export const getPurgeHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const purges = await SecurityPurge.find({})
+      .select('purgePar note stats dateCreation')
+      .sort({ dateCreation: -1 })
+      .limit(50)
+      .lean();
+
+    res.status(200).json({ succes: true, data: purges });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPurgeDetail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const purge = await SecurityPurge.findById(id).lean();
+
+    if (!purge) {
+      res.status(404).json({ succes: false, message: 'Archive introuvable' });
+      return;
+    }
+
+    res.status(200).json({ succes: true, data: purge });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deletePurge = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const purge = await SecurityPurge.findByIdAndDelete(id);
+
+    if (!purge) {
+      res.status(404).json({ succes: false, message: 'Archive introuvable' });
+      return;
+    }
+
+    res.status(200).json({ succes: true, message: 'Archive supprimee definitivement' });
   } catch (error) {
     next(error);
   }

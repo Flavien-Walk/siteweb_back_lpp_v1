@@ -31,6 +31,9 @@ import {
   unbanDevice,
   getBannedDevices,
   purgeSecurityData,
+  getPurgeHistory,
+  getPurgeDetail,
+  deletePurge,
 } from '../controllers/securityController.js';
 import {
   getStaffMessages,
@@ -363,6 +366,15 @@ router.delete('/security/unban-device/:id', verifierJwt, requireMinRole('admin_m
 
 // DELETE /api/admin/security/purge - Purger toutes les donnees de securite (super_admin uniquement)
 router.delete('/security/purge', verifierJwt, requireMinRole('super_admin'), purgeSecurityData);
+
+// GET /api/admin/security/purge-history - Historique des purges
+router.get('/security/purge-history', verifierJwt, requireMinRole('admin_modo'), getPurgeHistory);
+
+// GET /api/admin/security/purge-history/:id - Detail d'une purge archivee
+router.get('/security/purge-history/:id', verifierJwt, requireMinRole('admin_modo'), getPurgeDetail);
+
+// DELETE /api/admin/security/purge-history/:id - Supprimer definitivement une archive
+router.delete('/security/purge-history/:id', verifierJwt, requireMinRole('super_admin'), deletePurge);
 
 // ============ NOTIFICATIONS BROADCAST ============
 
