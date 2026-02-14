@@ -7,6 +7,8 @@ import http from 'http';
 import { creerApp } from './app.js';
 import { connecterMongo, fermerMongo } from './config/mongo.js';
 import { initializeSocket, getConnectedUsersCount } from './socket/index.js';
+import BlockedIP from './models/BlockedIP.js';
+import BannedDevice from './models/BannedDevice.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -56,6 +58,18 @@ const demarrerServeur = async (): Promise<void> => {
 
     // Connexion à MongoDB
     await connecterMongo();
+
+    // Nettoyage auto-bans errones (proxy detection false positive)
+    // Supprime tous les bans automatiques pour repartir propre
+    try {
+      const deletedIPs = await BlockedIP.deleteMany({ bloquePar: 'system_auto' });
+      const deletedDevices = await BannedDevice.deleteMany({ bloquePar: 'system_auto' });
+      if (deletedIPs.deletedCount > 0 || deletedDevices.deletedCount > 0) {
+        console.log(`[CLEANUP] ${deletedIPs.deletedCount} IPs auto-bloquees et ${deletedDevices.deletedCount} devices auto-bannis supprimes`);
+      }
+    } catch (e) {
+      console.warn('[CLEANUP] Erreur nettoyage auto-bans:', e);
+    }
 
     // Créer l'application Express
     const app = creerApp();
