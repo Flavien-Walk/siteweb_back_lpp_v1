@@ -100,7 +100,7 @@ export function TicketsPage() {
   const params: TicketListParams = {
     page: parseInt(searchParams.get('page') || '1'),
     limit: parseInt(searchParams.get('limit') || '20'),
-    status: (searchParams.get('status') as TicketStatus) || undefined,
+    status: (searchParams.get('status') as TicketStatus | 'active') || 'active',
     category: (searchParams.get('category') as TicketCategory) || undefined,
     priority: (searchParams.get('priority') as TicketPriority) || undefined,
     sort: searchParams.get('sort') || 'dateMiseAJour',
@@ -131,7 +131,7 @@ export function TicketsPage() {
     setSearchParams({ page: '1', limit: '20' })
   }
 
-  const hasActiveFilters = params.status || params.category || params.priority
+  const hasActiveFilters = (params.status && params.status !== 'active') || params.category || params.priority
 
   return (
     <PageTransition>
@@ -180,9 +180,10 @@ export function TicketsPage() {
                 <div>
                   <label className="mb-1 block text-sm font-medium">Statut</label>
                   <Select
-                    value={params.status || ''}
-                    onChange={(e) => updateParams({ status: e.target.value as TicketStatus || undefined })}
+                    value={params.status || 'active'}
+                    onChange={(e) => updateParams({ status: (e.target.value || 'active') as TicketStatus | 'active' })}
                   >
+                    <option value="active">Actifs</option>
                     <option value="">Tous</option>
                     {Object.entries(statusLabels).map(([value, label]) => (
                       <option key={value} value={value}>{label}</option>

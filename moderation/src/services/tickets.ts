@@ -4,7 +4,7 @@ import type { SupportTicket, TicketStatus, TicketCategory, TicketPriority, ApiRe
 export interface TicketListParams {
   page?: number
   limit?: number
-  status?: TicketStatus
+  status?: TicketStatus | 'active'
   category?: TicketCategory
   priority?: TicketPriority
   assignedTo?: string
