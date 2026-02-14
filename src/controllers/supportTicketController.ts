@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import SupportTicket from '../models/SupportTicket.js';
+import Notification from '../models/Notification.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
 // ============================================
@@ -178,6 +179,7 @@ export const getMonTicket = async (
     }
 
     const ticket = await SupportTicket.findById(id)
+      .populate('assignedTo', '_id prenom nom avatar')
       .populate('messages.sender', '_id prenom nom avatar');
 
     if (!ticket) {
@@ -464,6 +466,28 @@ export const repondreTicketAdmin = async (
     await ticket.populate('user', '_id prenom nom avatar email');
     await ticket.populate('assignedTo', '_id prenom nom avatar');
     await ticket.populate('messages.sender', '_id prenom nom avatar role');
+
+    // Creer une notification pour l'utilisateur
+    const staffUser = req.utilisateur!;
+    try {
+      await Notification.create({
+        destinataire: ticket.user._id,
+        type: 'support_reponse',
+        titre: 'Reponse du support',
+        message: `${staffUser.prenom} ${staffUser.nom} a repondu a votre ticket "${ticket.subject.substring(0, 80)}".`,
+        data: {
+          ticketId: ticket._id.toString(),
+          ticketSubject: ticket.subject,
+          userId: staffId.toString(),
+          userPrenom: staffUser.prenom,
+          userNom: staffUser.nom,
+          userAvatar: staffUser.avatar || undefined,
+        },
+      });
+    } catch (notifError) {
+      // Ne pas bloquer la reponse si la notification echoue
+      console.error('Erreur creation notification support:', notifError);
+    }
 
     res.json({
       succes: true,

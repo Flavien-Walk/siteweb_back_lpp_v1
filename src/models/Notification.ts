@@ -18,7 +18,8 @@ export type TypeNotification =
   | 'sanction_unwarn'
   | 'moderation'
   | 'project_follow'
-  | 'broadcast';
+  | 'broadcast'
+  | 'support_reponse';
 
 export interface INotificationData {
   userId?: string;
@@ -45,6 +46,9 @@ export interface INotificationData {
   // Champ pour les notifications broadcast
   broadcastBadge?: 'actu' | 'maintenance' | 'mise_a_jour' | 'evenement' | 'important';
   broadcastId?: string;
+  // Champ pour les notifications support
+  ticketId?: string;
+  ticketSubject?: string;
 }
 
 export interface INotification extends Document {
@@ -68,7 +72,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow', 'broadcast'],
+      enum: ['projet-update', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow', 'broadcast', 'support_reponse'],
       required: true,
     },
     titre: {
@@ -110,6 +114,9 @@ const notificationSchema = new Schema<INotification>(
         // Champ pour les notifications broadcast
         broadcastBadge: { type: String, enum: ['actu', 'maintenance', 'mise_a_jour', 'evenement', 'important'] },
         broadcastId: String,
+        // Champs pour les notifications support
+        ticketId: String,
+        ticketSubject: String,
       },
       default: null,
     },
