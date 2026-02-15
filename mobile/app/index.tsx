@@ -23,6 +23,10 @@ export default function Index() {
 
   // Rediriger vers l'écran approprié
   if (estConnecte) {
+    if (utilisateur && !utilisateur.emailVerifie) {
+      if (__DEV__) console.log('[INDEX] -> Redirect vers verification-email');
+      return <Redirect href="/(auth)/verification-email" />;
+    }
     if (__DEV__) console.log('[INDEX] -> Redirect vers accueil');
     return <Redirect href="/(app)/accueil" />;
   }

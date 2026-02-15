@@ -63,7 +63,11 @@ export default function Connexion() {
 
       if (reponse.succes && reponse.data) {
         setUtilisateur(reponse.data.utilisateur);
-        router.replace('/(app)/accueil');
+        if (!reponse.data.utilisateur.emailVerifie) {
+          router.replace('/(auth)/verification-email');
+        } else {
+          router.replace('/(app)/accueil');
+        }
       } else {
         setErreur(reponse.message || 'Erreur de connexion');
         if (reponse.erreurs) {
@@ -88,7 +92,11 @@ export default function Connexion() {
 
       if (result.succes && result.utilisateur) {
         setUtilisateur(result.utilisateur);
-        router.replace('/(app)/accueil');
+        if (!result.utilisateur.emailVerifie) {
+          router.replace('/(auth)/verification-email');
+        } else {
+          router.replace('/(app)/accueil');
+        }
       } else {
         setErreur(result.message || 'Erreur de connexion');
       }

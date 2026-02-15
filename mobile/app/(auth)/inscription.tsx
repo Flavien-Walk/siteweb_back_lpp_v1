@@ -92,8 +92,12 @@ export default function Inscription() {
 
       if (reponse.succes && reponse.data) {
         setUtilisateur(reponse.data.utilisateur);
-        // Rediriger vers le choix du statut apres inscription
-        router.replace('/(app)/choix-statut');
+        // Rediriger vers la vérification email si pas encore vérifié
+        if (!reponse.data.utilisateur.emailVerifie) {
+          router.replace('/(auth)/verification-email');
+        } else {
+          router.replace('/(app)/choix-statut');
+        }
       } else {
         setErreur(reponse.message || 'Erreur lors de l\'inscription');
         if (reponse.erreurs) {

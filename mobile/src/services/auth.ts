@@ -397,4 +397,20 @@ export const getModerationStatus = async (): Promise<ReponseAPI<ModerationStatus
   return await api.get<ModerationStatus>('/auth/moderation-status', true);
 };
 
+/**
+ * Verifier l'email avec un code 6 chiffres
+ */
+export const verifierEmail = async (
+  code: string
+): Promise<ReponseAPI<{ emailVerifie: boolean }>> => {
+  return api.post<{ emailVerifie: boolean }>('/auth/verifier-email', { code }, true);
+};
+
+/**
+ * Renvoyer le code de verification email
+ */
+export const renvoyerCodeVerification = async (): Promise<ReponseAPI<void>> => {
+  return api.post<void>('/auth/renvoyer-code', {}, true);
+};
+
 export { getToken };
