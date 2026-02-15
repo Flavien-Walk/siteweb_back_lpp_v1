@@ -5,6 +5,8 @@ import {
   ArrowLeft, User, Image, Lock, ShieldAlert,
   Save, Upload, Trash2, Eye, EyeOff, AlertTriangle,
   Globe, LockKeyhole, Shield, History, Rocket, Compass,
+  Headset, Plus, Send, MessageCircle, Filter, CheckCircle2,
+  Clock, ArrowRight, ChevronLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -18,11 +20,16 @@ import {
   getModerationStatus,
 } from '../services/auth';
 import type { SanctionItem, ModerationStatus, StatutUtilisateur } from '../services/auth';
+import {
+  creerTicket, listerMesTickets, getMonTicket, ajouterMessage,
+  CATEGORY_LABELS, STATUS_LABELS,
+  type SupportTicket, type TicketCategory, type TicketStatus,
+} from '../services/support';
 import { couleurs } from '../styles/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-type Section = 'profil' | 'avatar' | 'securite' | 'sanctions' | 'confidentialite';
+type Section = 'profil' | 'avatar' | 'securite' | 'sanctions' | 'confidentialite' | 'support';
 
 interface SidebarItem {
   key: Section;
@@ -36,7 +43,16 @@ const sidebarItems: SidebarItem[] = [
   { key: 'securite', label: 'Securite', icon: Lock },
   { key: 'sanctions', label: 'Sanctions', icon: Shield },
   { key: 'confidentialite', label: 'Confidentialite', icon: ShieldAlert },
+  { key: 'support', label: 'Support', icon: Headset },
 ];
+
+const STATUS_COLORS: Record<TicketStatus, { bg: string; text: string }> = {
+  en_attente: { bg: 'rgba(255, 189, 89, 0.15)', text: '#FFBD59' },
+  en_cours: { bg: 'rgba(45, 126, 230, 0.15)', text: '#2D7EE6' },
+  termine: { bg: 'rgba(0, 214, 143, 0.15)', text: '#00D68F' },
+};
+
+const CATEGORIES: TicketCategory[] = ['bug', 'compte', 'contenu', 'signalement', 'suggestion', 'autre'];
 
 export default function Reglages() {
   const { utilisateur, rafraichirUtilisateur, deconnexion } = useAuth();
@@ -79,6 +95,21 @@ export default function Reglages() {
   const [motDePasseSuppression, setMotDePasseSuppression] = useState('');
   const [suppressionLoading, setSuppressionLoading] = useState(false);
   const [suppressionMessage, setSuppressionMessage] = useState<{ type: 'succes' | 'erreur'; text: string } | null>(null);
+
+  // --- Support state ---
+  const [supportView, setSupportView] = useState<'list' | 'create' | 'detail'>('list');
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportLoaded, setSupportLoaded] = useState(false);
+  const [supportFilter, setSupportFilter] = useState<TicketStatus | 'all'>('all');
+  const [ticketSubject, setTicketSubject] = useState('');
+  const [ticketCategory, setTicketCategory] = useState<TicketCategory | null>(null);
+  const [ticketMessage, setTicketMessage] = useState('');
+  const [ticketSubmitting, setTicketSubmitting] = useState(false);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [supportError, setSupportError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // --- Statut state ---
   const [statutSelectionne, setStatutSelectionne] = useState<StatutUtilisateur>(utilisateur?.statut || 'visiteur');
@@ -299,6 +330,106 @@ export default function Reglages() {
     })();
   }, [activeSection, sanctionsLoaded]);
 
+  // Load support tickets when section becomes active
+  const fetchSupportTickets = useCallback(async () => {
+    setSupportLoading(true);
+    setSupportError(null);
+    try {
+      const res = await listerMesTickets();
+      if (res.succes && res.data) {
+        setSupportTickets(res.data.tickets || []);
+      } else {
+        setSupportError(res.message || 'Erreur lors du chargement');
+      }
+    } catch {
+      setSupportError('Erreur de connexion');
+    } finally {
+      setSupportLoading(false);
+      setSupportLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection !== 'support' || supportLoaded) return;
+    fetchSupportTickets();
+  }, [activeSection, supportLoaded, fetchSupportTickets]);
+
+  const handleOpenTicket = async (ticketId: string) => {
+    setSupportLoading(true);
+    try {
+      const res = await getMonTicket(ticketId);
+      if (res.succes && res.data) {
+        setSelectedTicket(res.data.ticket);
+        setSupportView('detail');
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
+    } catch {
+      setSupportError('Erreur de connexion');
+    } finally {
+      setSupportLoading(false);
+    }
+  };
+
+  const handleCreateTicket = async () => {
+    if (!ticketSubject.trim() || !ticketCategory || !ticketMessage.trim()) return;
+    setTicketSubmitting(true);
+    setSupportError(null);
+    try {
+      const res = await creerTicket({ subject: ticketSubject.trim(), category: ticketCategory, message: ticketMessage.trim() });
+      if (res.succes) {
+        setTicketSubject('');
+        setTicketCategory(null);
+        setTicketMessage('');
+        setSupportView('list');
+        fetchSupportTickets();
+      } else {
+        setSupportError(res.message || 'Erreur lors de la creation');
+      }
+    } catch {
+      setSupportError('Erreur de connexion');
+    } finally {
+      setTicketSubmitting(false);
+    }
+  };
+
+  const handleSendReply = async () => {
+    if (!replyMessage.trim() || !selectedTicket) return;
+    setTicketSubmitting(true);
+    try {
+      const res = await ajouterMessage(selectedTicket._id, replyMessage.trim());
+      if (res.succes && res.data) {
+        setSelectedTicket(res.data.ticket);
+        setReplyMessage('');
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
+    } catch {
+      setSupportError('Erreur de connexion');
+    } finally {
+      setTicketSubmitting(false);
+    }
+  };
+
+  const handleSupportBack = () => {
+    if (supportView === 'create' || supportView === 'detail') {
+      setSupportView('list');
+      setSelectedTicket(null);
+      setSupportError(null);
+      fetchSupportTickets();
+    }
+  };
+
+  const formatSupportDate = (dateStr: string): string => {
+    try {
+      return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return dateStr; }
+  };
+
+  const formatSupportDateTime = (dateStr: string): string => {
+    try {
+      return new Date(dateStr).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch { return dateStr; }
+  };
+
   const handleToggleProfilPublic = async () => {
     const newValue = !profilPublic;
     setProfilPublic(newValue);
@@ -381,18 +512,56 @@ export default function Reglages() {
         />
       </div>
 
-      <div style={styles.formGroup}>
-        <label style={styles.label}>Bio</label>
-        <textarea
-          value={bio}
-          onChange={(e) => {
-            if (e.target.value.length <= 150) setBio(e.target.value);
-          }}
-          style={styles.textarea}
-          placeholder="Parlez de vous en quelques mots..."
-          rows={4}
-        />
-        <span style={styles.charCount}>{bio.length}/150</span>
+      {/* Statut entrepreneur / visiteur */}
+      <div style={{ marginTop: 8, marginBottom: 24 }}>
+        <label style={styles.label}>Statut</label>
+        <p style={{ fontSize: '0.8125rem', color: couleurs.texteSecondaire, marginBottom: 12, marginTop: 0 }}>
+          Choisis ton profil sur la plateforme.
+        </p>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => handleChangerStatut('visiteur')}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              padding: '14px 16px',
+              borderRadius: 12,
+              border: `2px solid ${statutSelectionne === 'visiteur' ? '#10B981' : couleurs.bordure}`,
+              backgroundColor: statutSelectionne === 'visiteur' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+              cursor: 'pointer',
+              transition: 'all 150ms ease',
+            }}
+          >
+            <Compass size={18} color={statutSelectionne === 'visiteur' ? '#10B981' : couleurs.texteSecondaire} />
+            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: statutSelectionne === 'visiteur' ? '#10B981' : couleurs.texteSecondaire }}>
+              Visiteur
+            </span>
+          </button>
+          <button
+            onClick={() => handleChangerStatut('entrepreneur')}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              padding: '14px 16px',
+              borderRadius: 12,
+              border: `2px solid ${statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.bordure}`,
+              backgroundColor: statutSelectionne === 'entrepreneur' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+              cursor: 'pointer',
+              transition: 'all 150ms ease',
+            }}
+          >
+            <Rocket size={18} color={statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire} />
+            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire }}>
+              Entrepreneur
+            </span>
+          </button>
+        </div>
       </div>
 
       {profilMessage && (
@@ -418,57 +587,6 @@ export default function Reglages() {
         <Save size={16} />
         {profilLoading ? 'Sauvegarde...' : 'Sauvegarder'}
       </motion.button>
-
-      {/* Statut entrepreneur / visiteur */}
-      <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${couleurs.bordure}` }}>
-        <h3 style={{ ...styles.sectionTitle, fontSize: '1.125rem' }}>Statut</h3>
-        <p style={styles.sectionDesc}>Choisis ton profil sur la plateforme.</p>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            onClick={() => handleChangerStatut('visiteur')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-              padding: '16px 20px',
-              borderRadius: 12,
-              border: `2px solid ${statutSelectionne === 'visiteur' ? '#10B981' : couleurs.bordure}`,
-              backgroundColor: statutSelectionne === 'visiteur' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
-              cursor: 'pointer',
-              transition: 'all 150ms ease',
-            }}
-          >
-            <Compass size={20} color={statutSelectionne === 'visiteur' ? '#10B981' : couleurs.texteSecondaire} />
-            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: statutSelectionne === 'visiteur' ? '#10B981' : couleurs.texteSecondaire }}>
-              Visiteur
-            </span>
-          </button>
-          <button
-            onClick={() => handleChangerStatut('entrepreneur')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-              padding: '16px 20px',
-              borderRadius: 12,
-              border: `2px solid ${statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.bordure}`,
-              backgroundColor: statutSelectionne === 'entrepreneur' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-              cursor: 'pointer',
-              transition: 'all 150ms ease',
-            }}
-          >
-            <Rocket size={20} color={statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire} />
-            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire }}>
-              Entrepreneur
-            </span>
-          </button>
-        </div>
-      </div>
 
       {/* Modale confirmation switch entrepreneur → visiteur */}
       {showModalStatut && (
@@ -1009,6 +1127,385 @@ export default function Reglages() {
     </motion.div>
   );
 
+  const STATUS_FILTERS: { key: TicketStatus | 'all'; label: string }[] = [
+    { key: 'all', label: 'Actifs' },
+    { key: 'en_attente', label: 'En attente' },
+    { key: 'en_cours', label: 'En cours' },
+    { key: 'termine', label: 'Termines' },
+  ];
+
+  const filteredTickets = supportFilter === 'all'
+    ? supportTickets.filter((t) => t.status !== 'termine')
+    : supportTickets.filter((t) => t.status === supportFilter);
+
+  const renderSupport = () => {
+    // Create ticket view
+    if (supportView === 'create') {
+      const canSubmit = ticketSubject.trim().length > 0 && ticketCategory !== null && ticketMessage.trim().length > 0;
+      return (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key="support-create">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <motion.button
+              style={{ ...styles.backBtn, padding: 8 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSupportBack}
+            >
+              <ChevronLeft size={18} />
+            </motion.button>
+            <h2 style={{ ...styles.sectionTitle, marginBottom: 0 }}>Nouveau ticket</h2>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Sujet</label>
+            <input
+              type="text"
+              value={ticketSubject}
+              onChange={(e) => setTicketSubject(e.target.value)}
+              style={styles.input}
+              placeholder="Decrivez brievement votre probleme"
+              maxLength={200}
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Categorie</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 8 }}>
+              {CATEGORIES.map((cat) => (
+                <motion.button
+                  key={cat}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 10,
+                    border: `1px solid ${ticketCategory === cat ? couleurs.primaire : couleurs.bordure}`,
+                    backgroundColor: ticketCategory === cat ? couleurs.primaireLight : 'transparent',
+                    color: ticketCategory === cat ? couleurs.primaire : couleurs.texteSecondaire,
+                    fontSize: '0.8125rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                  }}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setTicketCategory(cat)}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Message</label>
+            <textarea
+              value={ticketMessage}
+              onChange={(e) => setTicketMessage(e.target.value)}
+              style={styles.textarea}
+              placeholder="Decrivez votre probleme en detail..."
+              rows={5}
+              maxLength={2000}
+            />
+          </div>
+
+          {supportError && (
+            <div style={{ ...styles.message, backgroundColor: couleurs.dangerLight, color: couleurs.danger }}>
+              {supportError}
+            </div>
+          )}
+
+          <motion.button
+            style={{ ...styles.primaryBtn, opacity: canSubmit && !ticketSubmitting ? 1 : 0.5 }}
+            whileHover={canSubmit ? { scale: 1.02 } : {}}
+            whileTap={canSubmit ? { scale: 0.98 } : {}}
+            onClick={handleCreateTicket}
+            disabled={!canSubmit || ticketSubmitting}
+          >
+            <Send size={16} />
+            {ticketSubmitting ? 'Envoi...' : 'Envoyer'}
+          </motion.button>
+        </motion.div>
+      );
+    }
+
+    // Detail view
+    if (supportView === 'detail' && selectedTicket) {
+      const isClosed = selectedTicket.status === 'termine';
+      const statusColor = STATUS_COLORS[selectedTicket.status];
+
+      return (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key="support-detail">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <motion.button
+              style={{ ...styles.backBtn, padding: 8 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSupportBack}
+            >
+              <ChevronLeft size={18} />
+            </motion.button>
+            <h2 style={{ ...styles.sectionTitle, marginBottom: 0, flex: 1, fontSize: '1.1rem' }}>{selectedTicket.subject}</h2>
+          </div>
+
+          {/* Badges */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' as const }}>
+            <span style={{
+              padding: '4px 10px',
+              borderRadius: 8,
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              backgroundColor: statusColor.bg,
+              color: statusColor.text,
+            }}>
+              {STATUS_LABELS[selectedTicket.status]}
+            </span>
+            <span style={{
+              padding: '4px 10px',
+              borderRadius: 8,
+              fontSize: '0.75rem',
+              fontWeight: '500',
+              border: `1px solid ${couleurs.bordure}`,
+              color: couleurs.texteSecondaire,
+            }}>
+              {CATEGORY_LABELS[selectedTicket.category]}
+            </span>
+            {selectedTicket.assignedTo && (
+              <span style={{
+                padding: '4px 10px',
+                borderRadius: 8,
+                fontSize: '0.75rem',
+                color: couleurs.texteSecondaire,
+                border: `1px solid ${couleurs.bordure}`,
+              }}>
+                Pris en charge par {selectedTicket.assignedTo.prenom} {selectedTicket.assignedTo.nom}
+              </span>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div style={{
+            maxHeight: 400,
+            overflowY: 'auto' as const,
+            padding: 16,
+            borderRadius: 14,
+            backgroundColor: couleurs.fond,
+            border: `1px solid ${couleurs.bordure}`,
+            marginBottom: 16,
+            display: 'flex',
+            flexDirection: 'column' as const,
+            gap: 10,
+          }}>
+            {selectedTicket.messages.map((msg) => {
+              const isUser = msg.senderRole === 'user';
+              return (
+                <div
+                  key={msg._id}
+                  style={{
+                    maxWidth: '80%',
+                    alignSelf: isUser ? 'flex-end' : 'flex-start',
+                    backgroundColor: isUser ? couleurs.primaire : couleurs.fondCard,
+                    borderRadius: 16,
+                    borderBottomRightRadius: isUser ? 4 : 16,
+                    borderBottomLeftRadius: isUser ? 16 : 4,
+                    padding: '10px 14px',
+                  }}
+                >
+                  {!isUser && (
+                    <p style={{ fontSize: '0.7rem', fontWeight: '600', color: couleurs.primaire, margin: '0 0 2px 0' }}>
+                      {msg.sender?.prenom} {msg.sender?.nom}
+                    </p>
+                  )}
+                  <p style={{ fontSize: '0.8125rem', color: isUser ? '#FFFFFF' : couleurs.texte, margin: 0, lineHeight: 1.5 }}>
+                    {msg.content}
+                  </p>
+                  <p style={{ fontSize: '0.65rem', color: isUser ? 'rgba(255,255,255,0.6)' : couleurs.texteMuted, margin: '4px 0 0', textAlign: 'right' as const }}>
+                    {formatSupportDateTime(msg.dateCreation)}
+                  </p>
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input or closed banner */}
+          {isClosed ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: 14,
+              borderRadius: 12,
+              backgroundColor: 'rgba(0, 214, 143, 0.08)',
+              border: '1px solid rgba(0, 214, 143, 0.2)',
+            }}>
+              <CheckCircle2 size={16} color="#00D68F" />
+              <span style={{ fontSize: '0.8125rem', color: '#00D68F', fontWeight: '500' }}>Ce ticket est termine</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input
+                type="text"
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                style={{ ...styles.input, flex: 1 }}
+                placeholder="Ecrire un message..."
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
+              />
+              <motion.button
+                style={{
+                  ...styles.primaryBtn,
+                  width: 44,
+                  padding: 0,
+                  opacity: replyMessage.trim() && !ticketSubmitting ? 1 : 0.5,
+                }}
+                whileHover={replyMessage.trim() ? { scale: 1.05 } : {}}
+                whileTap={replyMessage.trim() ? { scale: 0.95 } : {}}
+                onClick={handleSendReply}
+                disabled={!replyMessage.trim() || ticketSubmitting}
+              >
+                <Send size={16} />
+              </motion.button>
+            </div>
+          )}
+        </motion.div>
+      );
+    }
+
+    // List view (default)
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key="support-list">
+        <h2 style={styles.sectionTitle}>Support</h2>
+        <p style={styles.sectionDesc}>Besoin d'aide ? Creez un ticket et notre equipe vous repondra.</p>
+
+        <motion.button
+          style={{ ...styles.primaryBtn, marginBottom: 20 }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => { setSupportView('create'); setSupportError(null); }}
+        >
+          <Plus size={16} />
+          Nouveau ticket
+        </motion.button>
+
+        {supportLoading && !supportLoaded ? (
+          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 12 }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton" style={{ height: 72, borderRadius: 12 }} />
+            ))}
+          </div>
+        ) : supportTickets.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 12, padding: '40px 20px' }}>
+            <Headset size={40} color={couleurs.texteMuted} />
+            <p style={{ fontSize: '1rem', fontWeight: '600', color: couleurs.texte, margin: 0 }}>Aucun ticket</p>
+            <p style={{ fontSize: '0.875rem', color: couleurs.texteSecondaire, margin: 0 }}>Vous n'avez pas encore cree de ticket.</p>
+          </div>
+        ) : (
+          <>
+            {/* Filters */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' as const }}>
+              {STATUS_FILTERS.map((f) => {
+                const isActive = supportFilter === f.key;
+                const filterColor = f.key !== 'all' ? STATUS_COLORS[f.key as TicketStatus] : null;
+                return (
+                  <motion.button
+                    key={f.key}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 20,
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      border: `1px solid ${isActive ? (filterColor?.text || couleurs.primaire) : couleurs.bordure}`,
+                      backgroundColor: isActive ? (filterColor?.bg || couleurs.primaireLight) : 'transparent',
+                      color: isActive ? (filterColor?.text || couleurs.primaire) : couleurs.texteSecondaire,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setSupportFilter(f.key)}
+                  >
+                    {f.label}
+                    {f.key !== 'all' && (
+                      <span style={{ opacity: 0.7 }}>
+                        {supportTickets.filter((t) => t.status === f.key).length}
+                      </span>
+                    )}
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            {/* Ticket list */}
+            {filteredTickets.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8, padding: '30px 20px' }}>
+                <Filter size={24} color={couleurs.texteMuted} />
+                <p style={{ fontSize: '0.8125rem', color: couleurs.texteMuted, margin: 0 }}>
+                  Aucun ticket {supportFilter !== 'all' ? STATUS_LABELS[supportFilter].toLowerCase() : 'actif'}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+                {filteredTickets.map((ticket) => {
+                  const sc = STATUS_COLORS[ticket.status];
+                  return (
+                    <motion.div
+                      key={ticket._id}
+                      style={{
+                        padding: 16,
+                        borderRadius: 14,
+                        backgroundColor: couleurs.fond,
+                        border: `1px solid ${couleurs.bordure}`,
+                        cursor: 'pointer',
+                      }}
+                      whileHover={{ x: 4, borderColor: couleurs.primaire }}
+                      onClick={() => handleOpenTicket(ticket._id)}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: couleurs.texte, flex: 1, marginRight: 12 }}>
+                          {ticket.subject}
+                        </span>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: 8,
+                          fontSize: '0.7rem',
+                          fontWeight: '600',
+                          backgroundColor: sc.bg,
+                          color: sc.text,
+                          whiteSpace: 'nowrap' as const,
+                        }}>
+                          {STATUS_LABELS[ticket.status]}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          fontSize: '0.7rem',
+                          border: `1px solid ${couleurs.bordure}`,
+                          color: couleurs.texteSecondaire,
+                        }}>
+                          {CATEGORY_LABELS[ticket.category]}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: couleurs.texteMuted }}>
+                          {formatSupportDate(ticket.dateMiseAJour)}
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.7rem', color: couleurs.texteMuted }}>
+                          <MessageCircle size={11} />
+                          {ticket.messages?.length || 0}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </motion.div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeSection) {
       case 'profil':
@@ -1021,6 +1518,8 @@ export default function Reglages() {
         return renderSanctions();
       case 'confidentialite':
         return renderConfidentialite();
+      case 'support':
+        return renderSupport();
     }
   };
 
