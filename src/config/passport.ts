@@ -28,6 +28,11 @@ export const configurerPassport = (): void => {
             });
 
             if (utilisateur) {
+              // Auto-verify OAuth users
+              if (!utilisateur.emailVerifie) {
+                utilisateur.emailVerifie = true;
+                await utilisateur.save();
+              }
               return done(null, utilisateur);
             }
 
@@ -50,6 +55,7 @@ export const configurerPassport = (): void => {
               providerId: profile.id,
               avatar: profile.photos?.[0]?.value,
               cguAcceptees: true,
+              emailVerifie: true,
             });
 
             return done(null, nouvelUtilisateur);
@@ -85,6 +91,10 @@ export const configurerPassport = (): void => {
             });
 
             if (utilisateur) {
+              if (!utilisateur.emailVerifie) {
+                utilisateur.emailVerifie = true;
+                await utilisateur.save();
+              }
               return done(null, utilisateur);
             }
 
@@ -98,6 +108,7 @@ export const configurerPassport = (): void => {
               providerId: profile.id,
               avatar: profile.photos?.[0]?.value,
               cguAcceptees: true,
+              emailVerifie: true,
             });
 
             return done(null, nouvelUtilisateur);
@@ -155,6 +166,10 @@ export const configurerPassport = (): void => {
                 });
 
                 if (utilisateur) {
+                  if (!utilisateur.emailVerifie) {
+                    utilisateur.emailVerifie = true;
+                    await utilisateur.save();
+                  }
                   return done(null, utilisateur);
                 }
 
@@ -168,6 +183,7 @@ export const configurerPassport = (): void => {
                   provider: 'apple',
                   providerId: appleId,
                   cguAcceptees: true,
+                  emailVerifie: true,
                 });
 
                 return done(null, nouvelUtilisateur);

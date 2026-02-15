@@ -289,6 +289,16 @@ export const creerApp = (): Application => {
   app.use('/api/auth/connexion', limiterAuth);
   app.use('/api/auth/inscription', limiterInscription);
   app.use('/api/auth/moi', limiterHeartbeat); // P0-4: Rate limit sur heartbeat
+  app.use('/api/auth/renvoyer-code', rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 3,
+    message: {
+      succes: false,
+      message: 'Trop de demandes de code. Reessayez dans quelques minutes.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
 
   // PENTEST-02: Rate limit strict sur endpoints publics de lecture (anti-scraping)
   const limiterPublicRead = rateLimit({

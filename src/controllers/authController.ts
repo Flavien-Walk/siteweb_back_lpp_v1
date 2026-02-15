@@ -11,6 +11,7 @@ import {
   validateTemporaryCode,
 } from '../utils/oauthStore.js';
 import { getLatestSanctionNotification } from '../utils/sanctionNotification.js';
+import { genererCodeVerification, envoyerEmailVerification } from '../services/emailService.js';
 import Notification from '../models/Notification.js';
 import AuditLog from '../models/AuditLog.js';
 
@@ -93,6 +94,16 @@ export const inscription = async (
       provider: 'local',
     });
 
+    // Generer le code de verification email
+    const code = genererCodeVerification();
+    utilisateur.codeVerification = code;
+    utilisateur.codeVerificationExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    await utilisateur.save();
+
+    // Envoyer l'email de verification (fire & forget)
+    envoyerEmailVerification(utilisateur.email, utilisateur.prenom, code)
+      .catch(err => console.error('[EMAIL] Erreur envoi verification:', err));
+
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
@@ -117,7 +128,7 @@ export const inscription = async (
           provider: utilisateur.provider,
           profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
-          // Données staff (cohérence avec /connexion et /moi)
+          emailVerifie: utilisateur.emailVerifie,
           isStaff,
           permissions: effectivePermissions,
         },
@@ -226,7 +237,7 @@ export const connexion = async (
           provider: utilisateur.provider,
           profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
-          // Données staff (pour que le mobile ait les permissions immédiatement)
+          emailVerifie: utilisateur.emailVerifie,
           isStaff,
           permissions: effectivePermissions,
         },
@@ -298,6 +309,7 @@ export const moi = async (
           profilPublic: utilisateur.profilPublic ?? true,
           dateCreation: utilisateur.dateCreation,
           nbAmis: utilisateur.amis?.length || 0,
+          emailVerifie: utilisateur.emailVerifie,
           // Données staff (pour mobile et moderation tool)
           isStaff,
           permissions: effectivePermissions,
@@ -489,6 +501,7 @@ export const exchangeOAuthCode = async (
           provider: utilisateur.provider,
           profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
+          emailVerifie: utilisateur.emailVerifie,
           isStaff,
           permissions: effectivePermissions,
         },
@@ -854,6 +867,98 @@ export const getModerationStatus = async (
           banReason: utilisateur.banReason,
         }),
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Verifier l'email avec un code 6 chiffres
+ * POST /api/auth/verifier-email
+ */
+export const verifierEmail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { code } = req.body;
+
+    if (!code || typeof code !== 'string' || code.length !== 6) {
+      throw new ErreurAPI('Code invalide. Entrez le code a 6 chiffres recu par email.', 400);
+    }
+
+    const utilisateur = await Utilisateur.findById(req.utilisateur!._id)
+      .select('+codeVerification +codeVerificationExpire');
+
+    if (!utilisateur) {
+      throw new ErreurAPI('Utilisateur non trouve.', 404);
+    }
+
+    if (utilisateur.emailVerifie) {
+      res.status(200).json({ succes: true, message: 'Email deja verifie.' });
+      return;
+    }
+
+    if (!utilisateur.codeVerification || !utilisateur.codeVerificationExpire) {
+      throw new ErreurAPI('Aucun code en attente. Renvoyez un nouveau code.', 400);
+    }
+
+    if (utilisateur.codeVerificationExpire < new Date()) {
+      throw new ErreurAPI('Code expire. Renvoyez un nouveau code.', 400);
+    }
+
+    if (utilisateur.codeVerification !== code) {
+      throw new ErreurAPI('Code incorrect.', 400);
+    }
+
+    utilisateur.emailVerifie = true;
+    utilisateur.codeVerification = undefined;
+    utilisateur.codeVerificationExpire = undefined;
+    await utilisateur.save();
+
+    res.status(200).json({
+      succes: true,
+      message: 'Email verifie avec succes !',
+      data: { emailVerifie: true },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Renvoyer un code de verification
+ * POST /api/auth/renvoyer-code
+ */
+export const renvoyerCodeVerification = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const utilisateur = await Utilisateur.findById(req.utilisateur!._id);
+
+    if (!utilisateur) {
+      throw new ErreurAPI('Utilisateur non trouve.', 404);
+    }
+
+    if (utilisateur.emailVerifie) {
+      res.status(200).json({ succes: true, message: 'Email deja verifie.' });
+      return;
+    }
+
+    const code = genererCodeVerification();
+    utilisateur.codeVerification = code;
+    utilisateur.codeVerificationExpire = new Date(Date.now() + 10 * 60 * 1000);
+    await utilisateur.save();
+
+    await envoyerEmailVerification(utilisateur.email, utilisateur.prenom, code);
+
+    res.status(200).json({
+      succes: true,
+      message: 'Nouveau code envoye par email.',
     });
   } catch (error) {
     next(error);

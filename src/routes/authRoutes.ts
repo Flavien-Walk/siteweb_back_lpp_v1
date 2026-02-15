@@ -5,6 +5,8 @@ import {
   connexion,
   deconnexion,
   moi,
+  verifierEmail,
+  renvoyerCodeVerification,
   callbackOAuth,
   getOAuthToken,
   exchangeOAuthCode,
@@ -49,6 +51,18 @@ router.post('/inscription', inscription);
  * Connexion d'un utilisateur existant
  */
 router.post('/connexion', connexion);
+
+/**
+ * POST /api/auth/verifier-email
+ * Verifier l'email avec un code 6 chiffres
+ */
+router.post('/verifier-email', verifierJwt, verifierEmail);
+
+/**
+ * POST /api/auth/renvoyer-code
+ * Renvoyer un code de verification email
+ */
+router.post('/renvoyer-code', verifierJwt, renvoyerCodeVerification);
 
 /**
  * POST /api/auth/deconnexion

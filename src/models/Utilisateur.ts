@@ -141,6 +141,10 @@ export interface IUtilisateur extends Document {
     addedAt?: Date;
     notes: { content: string; author: mongoose.Types.ObjectId; date: Date }[];
   };
+  // Verification email
+  emailVerifie: boolean;
+  codeVerification?: string;
+  codeVerificationExpire?: Date;
   // Timestamps
   dateCreation: Date;
   dateMiseAJour: Date;
@@ -239,6 +243,19 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     profilPublic: {
       type: Boolean,
       default: true,
+    },
+    // Verification email
+    emailVerifie: {
+      type: Boolean,
+      default: false,
+    },
+    codeVerification: {
+      type: String,
+      select: false,
+    },
+    codeVerificationExpire: {
+      type: Date,
+      select: false,
     },
     // Système d'amis
     amis: [{
