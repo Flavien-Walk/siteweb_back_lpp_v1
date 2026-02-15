@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell, UserPlus, Heart, MessageCircle, CheckCheck,
   Trash2, Megaphone, AlertTriangle, Check, X, Rocket,
-  CheckCircle,
+  CheckCircle, XCircle,
 } from 'lucide-react';
 import { useSocket } from '../contexts/SocketContext';
 import {
@@ -33,8 +33,9 @@ function getNotifIcon(type: string) {
     case 'broadcast':
       return <Megaphone size={18} color={couleurs.accent} />;
     case 'project_follow':
-    case 'projet-update':
       return <Rocket size={18} color={couleurs.primaire} />;
+    case 'projet_cloture':
+      return <XCircle size={18} color="#EF4444" />;
     case 'sanction_warn':
     case 'sanction_suspend':
     case 'sanction_ban':
@@ -99,6 +100,11 @@ function NotificationCard({
         </div>
       )}
       <div style={styles.notifContent}>
+        {notif.type === 'projet_cloture' && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.7rem', fontWeight: 600, color: '#EF4444', backgroundColor: 'rgba(239,68,68,0.1)', padding: '2px 8px', borderRadius: 6, marginBottom: 4, width: 'fit-content' }}>
+            <XCircle size={10} /> Projet clôturé
+          </span>
+        )}
         <span style={styles.notifTitle}>{notif.titre}</span>
         <span style={styles.notifMsg}>{notif.message}</span>
         <span style={styles.notifTime}>{timeAgo}</span>
