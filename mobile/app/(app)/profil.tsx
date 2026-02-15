@@ -40,6 +40,8 @@ import {
   modifierAvatar,
   getModerationStatus,
   ModerationStatus,
+  modifierStatut,
+  StatutUtilisateur,
 } from '../../src/services/auth';
 import { getPublicationsUtilisateur, Publication } from '../../src/services/publications';
 import { getMesStories, Story } from '../../src/services/stories';
@@ -123,6 +125,12 @@ export default function Profil() {
 
   // Statut de moderation (pour afficher les avertissements)
   const [moderationStatus, setModerationStatus] = useState<ModerationStatus | null>(null);
+
+  // Switch statut entrepreneur/visiteur
+  const [showModalStatut, setShowModalStatut] = useState(false);
+  const [raisonCloture, setRaisonCloture] = useState('');
+  const [statutLoading, setStatutLoading] = useState(false);
+  const [statutMessage, setStatutMessage] = useState<{ type: 'succes' | 'erreur'; texte: string } | null>(null);
 
   // Modal visionneuse média
   const [imageModalVisible, setImageModalVisible] = useState(false);
@@ -1040,6 +1048,56 @@ export default function Profil() {
     </Pressable>
   );
 
+  const handleChangerStatut = async (nouveauStatut: StatutUtilisateur) => {
+    // Si entrepreneur → visiteur, ouvrir la modale de confirmation
+    if (utilisateur?.statut === 'entrepreneur' && nouveauStatut === 'visiteur') {
+      setShowModalStatut(true);
+      return;
+    }
+
+    // Changement direct (visiteur → entrepreneur ou même statut)
+    setStatutLoading(true);
+    setStatutMessage(null);
+    try {
+      const reponse = await modifierStatut(nouveauStatut);
+      if (reponse.succes && reponse.data) {
+        updateUser(reponse.data.utilisateur);
+        setStatutMessage({ type: 'succes', texte: 'Statut mis a jour !' });
+      } else {
+        setStatutMessage({ type: 'erreur', texte: reponse.message || 'Erreur lors du changement.' });
+      }
+    } catch {
+      setStatutMessage({ type: 'erreur', texte: 'Impossible de contacter le serveur.' });
+    } finally {
+      setStatutLoading(false);
+    }
+  };
+
+  const handleConfirmerSwitchVisiteur = async () => {
+    if (raisonCloture.trim().length < 10) {
+      setStatutMessage({ type: 'erreur', texte: 'La raison doit contenir au moins 10 caracteres.' });
+      return;
+    }
+
+    setStatutLoading(true);
+    setStatutMessage(null);
+    try {
+      const reponse = await modifierStatut('visiteur', raisonCloture.trim());
+      if (reponse.succes && reponse.data) {
+        updateUser(reponse.data.utilisateur);
+        setShowModalStatut(false);
+        setRaisonCloture('');
+        setStatutMessage({ type: 'succes', texte: reponse.message || 'Statut mis a jour !' });
+      } else {
+        setStatutMessage({ type: 'erreur', texte: reponse.message || 'Erreur lors du changement.' });
+      }
+    } catch {
+      setStatutMessage({ type: 'erreur', texte: 'Impossible de contacter le serveur.' });
+    } finally {
+      setStatutLoading(false);
+    }
+  };
+
   const renderProfilSection = () => (
     <View style={styles.parametresContent}>
       <Text style={styles.parametresTitle}>Informations personnelles</Text>
@@ -1082,6 +1140,51 @@ export default function Profil() {
         />
       </View>
 
+      {/* Statut entrepreneur / visiteur */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Statut</Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+          <Pressable
+            style={[
+              styles.statutCard,
+              { borderColor: utilisateur?.statut === 'visiteur' ? '#10B981' : couleurs.bordure },
+              utilisateur?.statut === 'visiteur' && { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+            ]}
+            onPress={() => handleChangerStatut('visiteur')}
+            disabled={statutLoading}
+          >
+            <Ionicons name="compass-outline" size={22} color={utilisateur?.statut === 'visiteur' ? '#10B981' : couleurs.texteSecondaire} />
+            <Text style={[styles.statutCardText, utilisateur?.statut === 'visiteur' && { color: '#10B981' }]}>
+              Visiteur
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.statutCard,
+              { borderColor: utilisateur?.statut === 'entrepreneur' ? '#F59E0B' : couleurs.bordure },
+              utilisateur?.statut === 'entrepreneur' && { backgroundColor: 'rgba(245, 158, 11, 0.1)' },
+            ]}
+            onPress={() => handleChangerStatut('entrepreneur')}
+            disabled={statutLoading}
+          >
+            <Ionicons name="rocket-outline" size={22} color={utilisateur?.statut === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire} />
+            <Text style={[styles.statutCardText, utilisateur?.statut === 'entrepreneur' && { color: '#F59E0B' }]}>
+              Entrepreneur
+            </Text>
+          </Pressable>
+        </View>
+        {statutLoading && <ActivityIndicator style={{ marginTop: 8 }} color={couleurs.primaire} />}
+        {statutMessage && (
+          <Text style={{
+            marginTop: 8,
+            fontSize: 13,
+            color: statutMessage.type === 'succes' ? '#10B981' : couleurs.danger,
+          }}>
+            {statutMessage.texte}
+          </Text>
+        )}
+      </View>
+
       <Pressable
         style={[styles.btnPrimary, chargement && styles.btnDisabled]}
         onPress={handleModifierProfil}
@@ -1093,6 +1196,88 @@ export default function Profil() {
           <Text style={styles.btnPrimaryText}>Enregistrer les modifications</Text>
         )}
       </Pressable>
+
+      {/* Modale confirmation switch entrepreneur → visiteur */}
+      <Modal
+        visible={showModalStatut}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: couleurs.fondCard, maxWidth: 420 }]}>
+            <Text style={[styles.parametresTitle, { marginBottom: 8 }]}>Changer de statut</Text>
+
+            <View style={{
+              backgroundColor: 'rgba(255, 77, 109, 0.1)',
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: 'rgba(255, 77, 109, 0.2)',
+            }}>
+              <Text style={{ color: couleurs.danger, fontSize: 13, lineHeight: 20 }}>
+                Passer en mode Visiteur supprimera tous tes projets et avertira tes abonnes.
+              </Text>
+            </View>
+
+            <Text style={[styles.inputLabel, { marginBottom: 8 }]}>
+              Raison de la cloture (min. 10 caracteres)
+            </Text>
+            <TextInput
+              style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]}
+              value={raisonCloture}
+              onChangeText={setRaisonCloture}
+              placeholder="Explique pourquoi tu clotures tes projets..."
+              placeholderTextColor={couleurs.texteSecondaire}
+              multiline
+              maxLength={500}
+            />
+            <Text style={{ fontSize: 11, color: couleurs.texteSecondaire, marginTop: 4, marginBottom: 4 }}>
+              {raisonCloture.length}/500
+            </Text>
+
+            <View style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: 'rgba(245, 158, 11, 0.2)',
+            }}>
+              <Text style={{ color: '#F59E0B', fontSize: 12, lineHeight: 18 }}>
+                Ce message sera visible par tous les abonnes de tes projets.
+              </Text>
+            </View>
+
+            {statutMessage?.type === 'erreur' && (
+              <Text style={{ color: couleurs.danger, fontSize: 13, marginBottom: 12 }}>
+                {statutMessage.texte}
+              </Text>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Pressable
+                style={[styles.btnSecondary, { flex: 1 }]}
+                onPress={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); }}
+              >
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.btnDanger, { flex: 1 }, statutLoading && { opacity: 0.6 }]}
+                onPress={handleConfirmerSwitchVisiteur}
+                disabled={statutLoading}
+              >
+                {statutLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.btnDangerText}>Confirmer</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 
@@ -3106,5 +3291,40 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     color: couleurs.texteSecondaire,
     marginBottom: espacements.md,
     textAlign: 'center',
+  },
+
+  // Statut switcher
+  statutCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: rayons.md,
+    borderWidth: 1.5,
+    backgroundColor: couleurs.fond,
+  },
+  statutCardText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+  },
+
+  // Boutons secondaires (modale)
+  btnSecondary: {
+    backgroundColor: couleurs.fond,
+    borderRadius: rayons.md,
+    paddingVertical: espacements.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  btnSecondaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: couleurs.texte,
   },
 });
