@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { setToken } from './services/api';
 import MainLayout from './components/layout/MainLayout';
+import ErrorBoundary from './components/ErrorBoundary';
 import { couleurs } from './styles/theme';
 
 // Code splitting: chargement lazy des pages
@@ -78,6 +79,7 @@ function AuthCallback() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <Suspense fallback={<LoadingScreen />}>
     <Routes>
       <Route
@@ -137,6 +139,7 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
+    </ErrorBoundary>
   );
 }
 
