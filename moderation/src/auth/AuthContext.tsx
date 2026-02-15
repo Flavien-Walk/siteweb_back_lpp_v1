@@ -51,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(userData)
-    } catch {
+    } catch (err) {
+      console.error('[AuthContext] Echec refresh utilisateur:', err instanceof Error ? err.message : err)
       setUser(null)
       authService.logout()
     }

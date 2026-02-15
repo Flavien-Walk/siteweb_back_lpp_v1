@@ -12,8 +12,8 @@ export function useKeepAlive() {
 
   useEffect(() => {
     const ping = () => {
-      fetch(`${API_BASE_URL}/sante`, { method: 'GET' }).catch(() => {
-        // silencieux — on ne veut pas polluer la console
+      fetch(`${API_BASE_URL}/sante`, { method: 'GET' }).catch((err) => {
+        console.debug('[keepAlive] Ping echoue:', err instanceof Error ? err.message : err)
       })
     }
 

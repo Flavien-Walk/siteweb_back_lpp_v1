@@ -57,8 +57,8 @@ export const authService = {
   async logout() {
     try {
       await api.post('/auth/deconnexion', {})
-    } catch {
-      // Ignorer les erreurs reseau - suppression locale dans tous les cas
+    } catch (err) {
+      console.debug('[auth] Echec blacklist token:', err instanceof Error ? err.message : err)
     }
     setAuthToken(null)
   },

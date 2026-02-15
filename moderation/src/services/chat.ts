@@ -138,7 +138,8 @@ export const chatService = {
 
       // Backend returns { unreadCount } not { count }
       return response.data.data.unreadCount ?? response.data.data.count ?? 0
-    } catch {
+    } catch (err) {
+      console.debug('[chat] Echec getUnreadCount:', err instanceof Error ? err.message : err)
       return 0
     }
   },

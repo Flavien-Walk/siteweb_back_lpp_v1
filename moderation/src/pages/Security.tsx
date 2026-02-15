@@ -1442,7 +1442,7 @@ function RecommandationsCorrections({ data }: { data: SecurityDashboardData }) {
 
   const formatDate = (d: string) => {
     try { return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }
-    catch { return '' }
+    catch { return d }
   }
 
   return (

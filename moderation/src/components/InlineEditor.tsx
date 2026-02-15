@@ -50,8 +50,8 @@ export function InlineEditor({
       await onSave(draft.trim(), reason || undefined)
       setEditing(false)
       setReason('')
-    } catch {
-      // error handled by caller
+    } catch (err) {
+      console.error('[InlineEditor] Echec sauvegarde:', err instanceof Error ? err.message : err)
     } finally {
       setSaving(false)
     }
