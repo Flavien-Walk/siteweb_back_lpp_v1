@@ -457,8 +457,10 @@ export default function Notifications() {
     );
   };
 
+  const ItemSeparator = useCallback(() => <View style={styles.separator} />, []);
+
   // Render notification item
-  const renderNotification = ({ item }: { item: Notification }) => {
+  const renderNotification = useCallback(({ item }: { item: Notification }) => {
     const estEnCours = actionsEnCours.has(item._id);
     const estDemandeAmi = item.type === 'demande_ami';
     const estBroadcast = item.type === 'broadcast';
@@ -577,10 +579,10 @@ export default function Notifications() {
         </AnimatedPressable>
       </SwipeLeftToDelete>
     );
-  };
+  }, [actionsEnCours, couleurs, handleNotificationPress, handleLongPress, handleSupprimer, handleAccepterDemande, handleRefuserDemande]);
 
   // Compter les non lues
-  const nbNonLues = notifications.filter(n => !n.lue).length;
+  const nbNonLues = useMemo(() => notifications.filter(n => !n.lue).length, [notifications]);
 
   return (
     <SwipeableScreen edgeWidth={Dimensions.get('window').width}>
@@ -643,7 +645,7 @@ export default function Notifications() {
             />
           }
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={ItemSeparator}
         />
       )}
     </View>

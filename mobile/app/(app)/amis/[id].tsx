@@ -62,14 +62,16 @@ export default function ListeAmisPage() {
     chargerAmis();
   }, [chargerAmis]);
 
-  const naviguerVersProfil = (userId: string) => {
+  const naviguerVersProfil = useCallback((userId: string) => {
     router.push({
       pathname: '/(app)/utilisateur/[id]',
       params: { id: userId },
     });
-  };
+  }, [router]);
 
-  const renderAmi = ({ item }: { item: ProfilUtilisateur }) => (
+  const ItemSeparator = useCallback(() => <View style={styles.separator} />, []);
+
+  const renderAmi = useCallback(({ item }: { item: ProfilUtilisateur }) => (
     <Pressable
       style={({ pressed }) => [
         styles.amiItem,
@@ -103,7 +105,7 @@ export default function ListeAmisPage() {
       </View>
       <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
     </Pressable>
-  );
+  ), [naviguerVersProfil, couleurs]);
 
   // Chargement
   if (chargement) {
@@ -182,6 +184,10 @@ export default function ListeAmisPage() {
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          windowSize={10}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={rafraichissement}
@@ -190,7 +196,7 @@ export default function ListeAmisPage() {
               colors={[couleurs.primaire]}
             />
           }
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={ItemSeparator}
         />
       )}
     </View>

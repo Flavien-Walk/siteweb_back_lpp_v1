@@ -269,12 +269,12 @@ export default function Messages() {
   }, [conversations, amisIds]);
 
   // Ouvrir une conversation
-  const ouvrirConversation = (conv: Conversation) => {
+  const ouvrirConversation = useCallback((conv: Conversation) => {
     router.push({
       pathname: '/(app)/conversation/[id]',
       params: { id: conv._id },
     });
-  };
+  }, [router]);
 
   // Supprimer une conversation (seulement de mon côté)
   const handleSupprimerConversation = async (convId: string) => {
@@ -458,7 +458,7 @@ export default function Messages() {
   };
 
   // Render conversation item
-  const renderConversation = ({ item }: { item: Conversation }) => {
+  const renderConversation = useCallback(({ item }: { item: Conversation }) => {
     const nom = item.estGroupe
       ? item.nomGroupe
       : `${item.participant?.prenom} ${item.participant?.nom}`;
@@ -538,7 +538,7 @@ export default function Messages() {
         </AnimatedPressable>
       </Swipeable>
     );
-  };
+  }, [ouvrirConversation, couleurs]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -647,6 +647,10 @@ export default function Messages() {
           renderItem={renderConversation}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}
+          windowSize={10}
+          initialNumToRender={10}
+          maxToRenderPerBatch={5}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={rafraichissement}
