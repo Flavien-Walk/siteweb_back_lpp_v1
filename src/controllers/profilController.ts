@@ -482,23 +482,32 @@ export const modifierStatut = async (
     }
 
     let projetsSupprimes = 0;
+    let brouillonsSupprimes = 0;
 
     // Entrepreneur → Visiteur : vérifier et supprimer les projets
     if (utilisateur.statut === 'entrepreneur' && donnees.statut === 'visiteur') {
       const projets = await Projet.find({ porteur: userId });
+      const projetsPublies = projets.filter((p) => p.statut === 'published');
+      brouillonsSupprimes = projets.filter((p) => p.statut === 'draft').length;
 
       if (projets.length > 0) {
-        if (!donnees.raisonCloture) {
+        // Raison obligatoire uniquement si projets publiés
+        if (projetsPublies.length > 0 && !donnees.raisonCloture) {
           throw new ErreurAPI(
-            'Vous avez des projets actifs. Fournissez une raison de clôture pour passer en mode visiteur.',
-            400
+            'Vous avez des projets publiés. Fournissez une raison de clôture pour passer en mode visiteur.',
+            400,
+            {
+              code: 'RAISON_REQUISE',
+              projetsPublies: String(projetsPublies.length),
+              brouillons: String(brouillonsSupprimes),
+            }
           );
         }
 
-        // Notifier tous les followers de chaque projet puis supprimer
+        // Notifier les followers des projets publiés puis supprimer tous les projets
         for (const projet of projets) {
-          // Créer les notifications pour chaque follower
-          if (projet.followers && projet.followers.length > 0) {
+          // Créer les notifications pour chaque follower (projets publiés uniquement)
+          if (projet.statut === 'published' && projet.followers && projet.followers.length > 0) {
             const notifications = projet.followers.map((followerId) => ({
               destinataire: followerId,
               type: 'projet-update' as const,
@@ -549,7 +558,7 @@ export const modifierStatut = async (
           }
         }
 
-        projetsSupprimes = projets.length;
+        projetsSupprimes = projetsPublies.length;
       }
     }
 
@@ -560,7 +569,7 @@ export const modifierStatut = async (
     res.json({
       succes: true,
       message: projetsSupprimes > 0
-        ? `Statut mis à jour. ${projetsSupprimes} projet(s) clôturé(s) et abonnés notifiés.`
+        ? `Statut mis à jour. ${projetsSupprimes} projet(s) supprimé(s) et abonnés notifiés.`
         : 'Statut mis à jour avec succès.',
       data: {
         utilisateur: {
@@ -573,6 +582,7 @@ export const modifierStatut = async (
           provider: utilisateur.provider,
         },
         projetsSupprimes,
+        brouillonsSupprimes,
       },
     });
   } catch (error) {
