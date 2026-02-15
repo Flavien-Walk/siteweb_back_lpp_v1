@@ -1202,7 +1202,7 @@ export default function Profil() {
         animationType="slide"
         onRequestClose={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}
       >
-        <KeyboardView style={styles.modalOverlay}>
+        <View style={styles.modalOverlay}>
           <Pressable
             style={styles.modalOverlayTouchable}
             onPress={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}
@@ -1299,7 +1299,7 @@ export default function Profil() {
               </Pressable>
             </View>
           </View>
-        </KeyboardView>
+        </View>
       </Modal>
     </View>
   );
