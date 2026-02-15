@@ -485,11 +485,28 @@ export default function Reglages() {
               backgroundColor: couleurs.dangerLight,
               borderRadius: 12,
               padding: 14,
-              marginBottom: 16,
+              marginBottom: 12,
               border: '1px solid rgba(255, 77, 109, 0.2)',
             }}>
-              <p style={{ color: couleurs.danger, fontSize: '0.8125rem', margin: 0, lineHeight: 1.5 }}>
-                Passer en mode Visiteur supprimera tous tes projets publies et avertira tes abonnes. Tes brouillons seront conserves et reapparaitront si tu repasses entrepreneur.
+              <p style={{ color: couleurs.danger, fontSize: '0.8125rem', fontWeight: 600, margin: '0 0 6px 0', lineHeight: 1.5 }}>
+                Attention, cette action est irreversible pour tes projets publies :
+              </p>
+              <ul style={{ color: couleurs.danger, fontSize: '0.8rem', margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                <li>Tous tes projets publies seront definitivement supprimes</li>
+                <li>Chaque abonne recevra une notification avec la raison que tu vas ecrire ci-dessous</li>
+                <li>Tes brouillons seront conserves et reapparaitront si tu repasses entrepreneur</li>
+              </ul>
+            </div>
+
+            <div style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 16,
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+            }}>
+              <p style={{ color: '#F59E0B', fontSize: '0.8rem', fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
+                Le message que tu ecris sera envoye tel quel a tous les abonnes de tes projets. Il sera visible publiquement. Fais attention a ce que tu ecris et donne une vraie raison.
               </p>
             </div>
 
@@ -502,19 +519,6 @@ export default function Reglages() {
               rows={4}
             />
             <span style={styles.charCount}>{raisonCloture.length}/500</span>
-
-            <div style={{
-              backgroundColor: 'rgba(245, 158, 11, 0.1)',
-              borderRadius: 12,
-              padding: 12,
-              marginTop: 12,
-              marginBottom: 16,
-              border: '1px solid rgba(245, 158, 11, 0.2)',
-            }}>
-              <p style={{ color: '#F59E0B', fontSize: '0.75rem', margin: 0, lineHeight: 1.5 }}>
-                Ce message sera visible par tous les abonnes de tes projets.
-              </p>
-            </div>
 
             {statutMessage?.type === 'erreur' && (
               <div style={{
