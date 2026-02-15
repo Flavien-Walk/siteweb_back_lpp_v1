@@ -468,6 +468,7 @@ export default function Messagerie() {
       socket.off('typing', handleTyping);
       socket.off('messageEdited', handleMsgEdited);
       socket.off('messageDeleted', handleMsgDeleted);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [socket, activeConvId, chargerConversations, utilisateur?.id]);
 

@@ -89,7 +89,9 @@ export const deconnexion = (): void => {
   // Appeler le backend pour blacklister le JWT avant de supprimer le token local
   const token = getToken();
   if (token) {
-    api.post('/auth/deconnexion', {}, true).catch(() => {});
+    api.post('/auth/deconnexion', {}, true).catch((err) => {
+      console.error('[AUTH] Echec blacklist token:', err instanceof Error ? err.message : err);
+    });
   }
   removeToken();
 };

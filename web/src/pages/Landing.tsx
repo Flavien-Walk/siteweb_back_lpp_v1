@@ -224,7 +224,9 @@ function FeaturedProjects() {
           setProjets(data.data.projets.slice(0, 6));
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[Landing] Echec chargement projets:', err instanceof Error ? err.message : err);
+      })
       .finally(() => setLoaded(true));
   }, []);
 
