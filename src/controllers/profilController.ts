@@ -531,10 +531,13 @@ export const modifierStatut = async (
             }
           }
 
-          // Supprimer le projet publié + cascade
+          // Supprimer le projet publié + cascade (sans toucher aux notifs de clôture qu'on vient de créer)
           await Promise.all([
             Projet.findByIdAndDelete(projet._id),
-            Notification.deleteMany({ 'data.projetId': projet._id.toString() }),
+            Notification.deleteMany({
+              'data.projetId': projet._id.toString(),
+              type: { $ne: 'projet-update' },
+            }),
             Report.deleteMany({ targetType: 'projet', targetId: projet._id }),
           ]);
 
