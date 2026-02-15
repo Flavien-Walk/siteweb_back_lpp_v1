@@ -72,6 +72,17 @@ export default function AppLayout() {
           fullScreenGestureEnabled: Platform.OS === 'ios',
         }}
       />
+      {/* Support - slide from right, Android: SwipeableScreen, iOS: native */}
+      <Stack.Screen
+        name="support"
+        options={{
+          presentation: 'card',
+          animation: 'slide_from_right',
+          animationDuration: 250,
+          gestureEnabled: Platform.OS === 'ios',
+          fullScreenGestureEnabled: Platform.OS === 'ios',
+        }}
+      />
       {/* Choix statut - fade, pas de geste */}
       <Stack.Screen
         name="choix-statut"

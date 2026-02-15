@@ -1212,7 +1212,7 @@ export default function Profil() {
               borderColor: 'rgba(255, 77, 109, 0.2)',
             }}>
               <Text style={{ color: couleurs.danger, fontSize: 13, lineHeight: 20 }}>
-                Passer en mode Visiteur supprimera tous tes projets publies et avertira tes abonnes. Tes brouillons seront egalement supprimes.
+                Passer en mode Visiteur supprimera tous tes projets publies et avertira tes abonnes. Tes brouillons seront conserves et reapparaitront si tu repasses entrepreneur.
               </Text>
             </View>
 

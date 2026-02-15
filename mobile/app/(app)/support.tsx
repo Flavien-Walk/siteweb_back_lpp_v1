@@ -18,6 +18,7 @@ import {
   Keyboard,
 } from 'react-native';
 import KeyboardView from '../../src/composants/KeyboardView';
+import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -374,23 +375,49 @@ export default function SupportScreen() {
     }
   };
 
+  // Swipe-back handler : selon le viewMode, retour dans l'ecran ou retour au profil
+  const handleSwipeBack = useCallback(() => {
+    if (viewMode === 'create' || viewMode === 'detail') {
+      setViewMode('list');
+      setSelectedTicket(null);
+      setError(null);
+      fetchTickets();
+    } else {
+      router.back();
+    }
+  }, [viewMode, fetchTickets]);
+
+  // Wrapper pour le swipe-back (Android: SwipeableScreen, iOS: natif)
+  const ScreenWrapper = useCallback(({ children }: { children: React.ReactNode }) => {
+    if (Platform.OS === 'android') {
+      return (
+        <SwipeableScreen onSwipeBack={handleSwipeBack} previousScreenColor={colors.fond}>
+          {children}
+        </SwipeableScreen>
+      );
+    }
+    return <>{children}</>;
+  }, [handleSwipeBack, colors.fond]);
+
   // ============ LOADING STATE ============
   if (!isHydrated || (isLoading && viewMode === 'list' && tickets.length === 0)) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.fond }]}>
-        <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
-            <Pressable style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={24} color={colors.texte} />
-            </Pressable>
-            <Text style={[styles.headerTitle, { color: colors.texte }]}>Support</Text>
-          </View>
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={colors.primaire} />
-          </View>
-        </SafeAreaView>
-      </View>
+      <ScreenWrapper>
+        <View style={[styles.container, { backgroundColor: colors.fond }]}>
+          <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
+              <Pressable style={styles.backButton} onPress={() => router.back()}>
+                <Ionicons name="arrow-back" size={24} color={colors.texte} />
+              </Pressable>
+              <Text style={[styles.headerTitle, { color: colors.texte }]}>Support</Text>
+            </View>
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="large" color={colors.primaire} />
+            </View>
+          </SafeAreaView>
+        </View>
+      </ScreenWrapper>
     );
   }
 
@@ -398,83 +425,85 @@ export default function SupportScreen() {
   if (viewMode === 'create') {
     const canSubmit = subject.trim().length > 0 && category !== null && message.trim().length > 0;
     return (
-      <View style={[styles.container, { backgroundColor: colors.fond }]}>
-        <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
-            <Pressable style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={24} color={colors.texte} />
-            </Pressable>
-            <Text style={[styles.headerTitle, { color: colors.texte }]}>Nouveau ticket</Text>
-          </View>
-          <KeyboardView offset={insets.top}>
-            <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
-              <Text style={[styles.formLabel, { color: colors.texte, marginTop: 0 }]}>Sujet</Text>
-              <TextInput
-                style={[styles.input, { color: colors.texte, borderColor: colors.bordure, backgroundColor: colors.fondCard }]}
-                placeholder="Decrivez brievement votre probleme"
-                placeholderTextColor={colors.texteMuted}
-                value={subject}
-                onChangeText={setSubject}
-                maxLength={200}
-              />
-
-              <Text style={[styles.formLabel, { color: colors.texte }]}>Categorie</Text>
-              <View style={styles.categoryGrid}>
-                {CATEGORIES.map((cat) => (
-                  <Pressable
-                    key={cat}
-                    style={[
-                      styles.categoryBtn,
-                      {
-                        borderColor: category === cat ? colors.primaire : colors.bordure,
-                        backgroundColor: category === cat ? colors.primaireLight || 'rgba(124, 92, 255, 0.15)' : 'transparent',
-                      },
-                    ]}
-                    onPress={() => setCategory(cat)}
-                  >
-                    <Text style={[styles.categoryBtnText, { color: category === cat ? colors.primaire : colors.texteSecondaire }]}>
-                      {CATEGORY_LABELS[cat]}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={[styles.formLabel, { color: colors.texte }]}>Message</Text>
-              <TextInput
-                style={[styles.input, styles.textArea, { color: colors.texte, borderColor: colors.bordure, backgroundColor: colors.fondCard }]}
-                placeholder="Decrivez votre probleme en detail..."
-                placeholderTextColor={colors.texteMuted}
-                value={message}
-                onChangeText={setMessage}
-                multiline
-                maxLength={2000}
-              />
-
-              <Pressable
-                style={[styles.submitBtn, { backgroundColor: canSubmit ? colors.primaire : colors.bordure, opacity: isSubmitting ? 0.6 : 1 }]}
-                onPress={handleCreateTicket}
-                disabled={!canSubmit || isSubmitting}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color={colors.blanc || '#FFF'} />
-                ) : (
-                  <>
-                    <Ionicons name="send" size={18} color={colors.blanc || '#FFF'} />
-                    <Text style={[styles.submitBtnText, { color: colors.blanc || '#FFF' }]}>Envoyer</Text>
-                  </>
-                )}
+      <ScreenWrapper>
+        <View style={[styles.container, { backgroundColor: colors.fond }]}>
+          <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
+              <Pressable style={styles.backButton} onPress={handleBack}>
+                <Ionicons name="arrow-back" size={24} color={colors.texte} />
               </Pressable>
+              <Text style={[styles.headerTitle, { color: colors.texte }]}>Nouveau ticket</Text>
+            </View>
+            <KeyboardView offset={insets.top}>
+              <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+                <Text style={[styles.formLabel, { color: colors.texte, marginTop: 0 }]}>Sujet</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.texte, borderColor: colors.bordure, backgroundColor: colors.fondCard }]}
+                  placeholder="Decrivez brievement votre probleme"
+                  placeholderTextColor={colors.texteMuted}
+                  value={subject}
+                  onChangeText={setSubject}
+                  maxLength={200}
+                />
 
-              {error && (
-                <Text style={[styles.errorText, { color: colors.erreur || colors.danger, marginTop: espacements.lg, textAlign: 'center' }]}>
-                  {error}
-                </Text>
-              )}
-            </ScrollView>
-          </KeyboardView>
-        </SafeAreaView>
-      </View>
+                <Text style={[styles.formLabel, { color: colors.texte }]}>Categorie</Text>
+                <View style={styles.categoryGrid}>
+                  {CATEGORIES.map((cat) => (
+                    <Pressable
+                      key={cat}
+                      style={[
+                        styles.categoryBtn,
+                        {
+                          borderColor: category === cat ? colors.primaire : colors.bordure,
+                          backgroundColor: category === cat ? colors.primaireLight || 'rgba(124, 92, 255, 0.15)' : 'transparent',
+                        },
+                      ]}
+                      onPress={() => setCategory(cat)}
+                    >
+                      <Text style={[styles.categoryBtnText, { color: category === cat ? colors.primaire : colors.texteSecondaire }]}>
+                        {CATEGORY_LABELS[cat]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={[styles.formLabel, { color: colors.texte }]}>Message</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea, { color: colors.texte, borderColor: colors.bordure, backgroundColor: colors.fondCard }]}
+                  placeholder="Decrivez votre probleme en detail..."
+                  placeholderTextColor={colors.texteMuted}
+                  value={message}
+                  onChangeText={setMessage}
+                  multiline
+                  maxLength={2000}
+                />
+
+                <Pressable
+                  style={[styles.submitBtn, { backgroundColor: canSubmit ? colors.primaire : colors.bordure, opacity: isSubmitting ? 0.6 : 1 }]}
+                  onPress={handleCreateTicket}
+                  disabled={!canSubmit || isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color={colors.blanc || '#FFF'} />
+                  ) : (
+                    <>
+                      <Ionicons name="send" size={18} color={colors.blanc || '#FFF'} />
+                      <Text style={[styles.submitBtnText, { color: colors.blanc || '#FFF' }]}>Envoyer</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                {error && (
+                  <Text style={[styles.errorText, { color: colors.erreur || colors.danger, marginTop: espacements.lg, textAlign: 'center' }]}>
+                    {error}
+                  </Text>
+                )}
+              </ScrollView>
+            </KeyboardView>
+          </SafeAreaView>
+        </View>
+      </ScreenWrapper>
     );
   }
 
@@ -484,9 +513,10 @@ export default function SupportScreen() {
     const statusColor = STATUS_COLORS[selectedTicket.status];
 
     return (
-      <View style={[styles.container, { backgroundColor: colors.fond, paddingTop: insets.top }]}>
-        <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
-        <KeyboardView>
+      <ScreenWrapper>
+        <View style={[styles.container, { backgroundColor: colors.fond, paddingTop: insets.top }]}>
+          <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+          <KeyboardView>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
             <Pressable style={styles.backButton} onPress={handleBack}>
@@ -594,8 +624,9 @@ export default function SupportScreen() {
               </Pressable>
             </View>
           )}
-        </KeyboardView>
-      </View>
+          </KeyboardView>
+        </View>
+      </ScreenWrapper>
     );
   }
 
@@ -612,10 +643,11 @@ export default function SupportScreen() {
     : tickets.filter((t) => t.status === statusFilter);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.fond }]}>
-      <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
+    <ScreenWrapper>
+      <View style={[styles.container, { backgroundColor: colors.fond }]}>
+        <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={colors.texte} />
           </Pressable>
@@ -766,7 +798,8 @@ export default function SupportScreen() {
             )}
           </ScrollView>
         )}
-      </SafeAreaView>
-    </View>
+        </SafeAreaView>
+      </View>
+    </ScreenWrapper>
   );
 }
