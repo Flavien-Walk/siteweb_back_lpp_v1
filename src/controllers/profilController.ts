@@ -438,11 +438,13 @@ export const modifierAvatar = async (
 // Schéma pour le statut
 const schemaModifierStatut = z.object({
   statut: z.enum(['visiteur', 'entrepreneur']),
+  raisonCloture: z.string().min(10, 'La raison doit contenir au moins 10 caractères.').max(500).optional(),
 });
 
 /**
  * PATCH /api/profil/statut
  * Modifier le statut de l'utilisateur (visiteur ou entrepreneur)
+ * Si entrepreneur → visiteur avec des projets : supprime les projets et notifie les followers
  */
 export const modifierStatut = async (
   req: Request,
@@ -453,19 +455,113 @@ export const modifierStatut = async (
     const donnees = schemaModifierStatut.parse(req.body);
     const userId = req.utilisateur!._id;
 
-    const utilisateur = await Utilisateur.findByIdAndUpdate(
-      userId,
-      { statut: donnees.statut },
-      { new: true }
-    );
-
+    const utilisateur = await Utilisateur.findById(userId);
     if (!utilisateur) {
       throw new ErreurAPI('Utilisateur non trouvé.', 404);
     }
 
+    // Même statut → rien à faire
+    if (utilisateur.statut === donnees.statut) {
+      res.json({
+        succes: true,
+        message: 'Statut inchangé.',
+        data: {
+          utilisateur: {
+            id: utilisateur._id,
+            prenom: utilisateur.prenom,
+            nom: utilisateur.nom,
+            avatar: utilisateur.avatar,
+            bio: utilisateur.bio,
+            statut: utilisateur.statut,
+            provider: utilisateur.provider,
+          },
+          projetsSupprimes: 0,
+        },
+      });
+      return;
+    }
+
+    let projetsSupprimes = 0;
+
+    // Entrepreneur → Visiteur : vérifier et supprimer les projets
+    if (utilisateur.statut === 'entrepreneur' && donnees.statut === 'visiteur') {
+      const projets = await Projet.find({ porteur: userId });
+
+      if (projets.length > 0) {
+        if (!donnees.raisonCloture) {
+          throw new ErreurAPI(
+            'Vous avez des projets actifs. Fournissez une raison de clôture pour passer en mode visiteur.',
+            400
+          );
+        }
+
+        // Notifier tous les followers de chaque projet puis supprimer
+        for (const projet of projets) {
+          // Créer les notifications pour chaque follower
+          if (projet.followers && projet.followers.length > 0) {
+            const notifications = projet.followers.map((followerId) => ({
+              destinataire: followerId,
+              type: 'projet-update' as const,
+              titre: `Projet "${projet.nom}" clôturé`,
+              message: donnees.raisonCloture!,
+              data: {
+                projetId: projet._id.toString(),
+                projetNom: projet.nom,
+                userId: userId.toString(),
+                userPrenom: utilisateur.prenom,
+                userNom: utilisateur.nom,
+              },
+            }));
+
+            try {
+              await Notification.insertMany(notifications, { ordered: false });
+            } catch (err: any) {
+              // Ignorer les erreurs de doublon (code 11000)
+              if (err.code !== 11000 && !err.writeErrors) {
+                console.error('Erreur envoi notifications clôture projet:', err);
+              }
+            }
+          }
+
+          // Supprimer le projet + cascade (notifications existantes du projet, reports)
+          await Promise.all([
+            Projet.findByIdAndDelete(projet._id),
+            Notification.deleteMany({ 'data.projetId': projet._id.toString() }),
+            Report.deleteMany({ targetType: 'projet', targetId: projet._id }),
+          ]);
+
+          // Audit log
+          try {
+            await AuditLog.create({
+              action: 'content:other',
+              targetType: 'publication',
+              targetId: projet._id,
+              performedBy: userId,
+              metadata: {
+                type: 'project_closed_status_change',
+                nom: projet.nom,
+                raison: donnees.raisonCloture,
+              },
+              source: 'api',
+            });
+          } catch (auditErr) {
+            console.error('Erreur audit log clôture projet:', auditErr);
+          }
+        }
+
+        projetsSupprimes = projets.length;
+      }
+    }
+
+    // Mettre à jour le statut
+    utilisateur.statut = donnees.statut;
+    await utilisateur.save();
+
     res.json({
       succes: true,
-      message: 'Statut mis à jour avec succès.',
+      message: projetsSupprimes > 0
+        ? `Statut mis à jour. ${projetsSupprimes} projet(s) clôturé(s) et abonnés notifiés.`
+        : 'Statut mis à jour avec succès.',
       data: {
         utilisateur: {
           id: utilisateur._id,
@@ -476,6 +572,7 @@ export const modifierStatut = async (
           statut: utilisateur.statut,
           provider: utilisateur.provider,
         },
+        projetsSupprimes,
       },
     });
   } catch (error) {
