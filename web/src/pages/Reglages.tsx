@@ -81,6 +81,7 @@ export default function Reglages() {
   const [suppressionMessage, setSuppressionMessage] = useState<{ type: 'succes' | 'erreur'; text: string } | null>(null);
 
   // --- Statut state ---
+  const [statutSelectionne, setStatutSelectionne] = useState<StatutUtilisateur>(utilisateur?.statut || 'visiteur');
   const [showModalStatut, setShowModalStatut] = useState(false);
   const [raisonCloture, setRaisonCloture] = useState('');
   const [statutLoading, setStatutLoading] = useState(false);
@@ -93,6 +94,7 @@ export default function Reglages() {
       setNom(utilisateur.nom || '');
       setBio(utilisateur.bio || '');
       setProfilPublic(utilisateur.profilPublic ?? true);
+      setStatutSelectionne(utilisateur.statut || 'visiteur');
     }
   }, [utilisateur]);
 
@@ -113,6 +115,31 @@ export default function Reglages() {
   const handleSauvegarderProfil = async () => {
     setProfilLoading(true);
     setProfilMessage(null);
+
+    // Changement de statut si different
+    if (statutSelectionne !== utilisateur?.statut) {
+      try {
+        const resStatut = await modifierStatut(statutSelectionne);
+        if (resStatut.succes) {
+          await rafraichirUtilisateur();
+        } else {
+          // Si erreur RAISON_REQUISE → ouvrir la modale
+          if (resStatut.erreurs?.code === 'RAISON_REQUISE') {
+            setShowModalStatut(true);
+            setProfilLoading(false);
+            return;
+          }
+          setProfilMessage({ type: 'erreur', text: resStatut.message || 'Erreur lors du changement de statut.' });
+          setProfilLoading(false);
+          return;
+        }
+      } catch {
+        setProfilMessage({ type: 'erreur', text: 'Impossible de contacter le serveur.' });
+        setProfilLoading(false);
+        return;
+      }
+    }
+
     try {
       const res = await modifierProfil({ prenom, nom, bio });
       if (res.succes) {
@@ -290,27 +317,9 @@ export default function Reglages() {
     }
   };
 
-  const handleChangerStatut = async (nouveauStatut: StatutUtilisateur) => {
-    if (utilisateur?.statut === 'entrepreneur' && nouveauStatut === 'visiteur') {
-      setShowModalStatut(true);
-      return;
-    }
-
-    setStatutLoading(true);
+  const handleChangerStatut = (nouveauStatut: StatutUtilisateur) => {
+    setStatutSelectionne(nouveauStatut);
     setStatutMessage(null);
-    try {
-      const res = await modifierStatut(nouveauStatut);
-      if (res.succes) {
-        await rafraichirUtilisateur();
-        setStatutMessage({ type: 'succes', text: 'Statut mis a jour !' });
-      } else {
-        setStatutMessage({ type: 'erreur', text: res.message || 'Erreur lors du changement.' });
-      }
-    } catch {
-      setStatutMessage({ type: 'erreur', text: 'Impossible de contacter le serveur.' });
-    } finally {
-      setStatutLoading(false);
-    }
   };
 
   const handleConfirmerSwitchVisiteur = async () => {
@@ -325,9 +334,10 @@ export default function Reglages() {
       const res = await modifierStatut('visiteur', raisonCloture.trim());
       if (res.succes) {
         await rafraichirUtilisateur();
+        setStatutSelectionne('visiteur');
         setShowModalStatut(false);
         setRaisonCloture('');
-        setStatutMessage({ type: 'succes', text: res.message || 'Statut mis a jour !' });
+        setProfilMessage({ type: 'succes', text: res.message || 'Statut mis a jour !' });
       } else {
         setStatutMessage({ type: 'erreur', text: res.message || 'Erreur lors du changement.' });
       }
@@ -417,7 +427,6 @@ export default function Reglages() {
         <div style={{ display: 'flex', gap: 12 }}>
           <button
             onClick={() => handleChangerStatut('visiteur')}
-            disabled={statutLoading}
             style={{
               flex: 1,
               display: 'flex',
@@ -426,20 +435,19 @@ export default function Reglages() {
               gap: 10,
               padding: '16px 20px',
               borderRadius: 12,
-              border: `2px solid ${utilisateur.statut === 'visiteur' ? '#10B981' : couleurs.bordure}`,
-              backgroundColor: utilisateur.statut === 'visiteur' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
-              cursor: statutLoading ? 'default' : 'pointer',
+              border: `2px solid ${statutSelectionne === 'visiteur' ? '#10B981' : couleurs.bordure}`,
+              backgroundColor: statutSelectionne === 'visiteur' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+              cursor: 'pointer',
               transition: 'all 150ms ease',
             }}
           >
-            <Compass size={20} color={utilisateur.statut === 'visiteur' ? '#10B981' : couleurs.texteSecondaire} />
-            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: utilisateur.statut === 'visiteur' ? '#10B981' : couleurs.texteSecondaire }}>
+            <Compass size={20} color={statutSelectionne === 'visiteur' ? '#10B981' : couleurs.texteSecondaire} />
+            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: statutSelectionne === 'visiteur' ? '#10B981' : couleurs.texteSecondaire }}>
               Visiteur
             </span>
           </button>
           <button
             onClick={() => handleChangerStatut('entrepreneur')}
-            disabled={statutLoading}
             style={{
               flex: 1,
               display: 'flex',
@@ -448,34 +456,23 @@ export default function Reglages() {
               gap: 10,
               padding: '16px 20px',
               borderRadius: 12,
-              border: `2px solid ${utilisateur.statut === 'entrepreneur' ? '#F59E0B' : couleurs.bordure}`,
-              backgroundColor: utilisateur.statut === 'entrepreneur' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-              cursor: statutLoading ? 'default' : 'pointer',
+              border: `2px solid ${statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.bordure}`,
+              backgroundColor: statutSelectionne === 'entrepreneur' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+              cursor: 'pointer',
               transition: 'all 150ms ease',
             }}
           >
-            <Rocket size={20} color={utilisateur.statut === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire} />
-            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: utilisateur.statut === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire }}>
+            <Rocket size={20} color={statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire} />
+            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: statutSelectionne === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire }}>
               Entrepreneur
             </span>
           </button>
         </div>
-
-        {statutMessage && (
-          <div style={{
-            ...styles.message,
-            marginTop: 12,
-            backgroundColor: statutMessage.type === 'succes' ? couleurs.succesLight : couleurs.dangerLight,
-            color: statutMessage.type === 'succes' ? couleurs.succes : couleurs.danger,
-          }}>
-            {statutMessage.text}
-          </div>
-        )}
       </div>
 
       {/* Modale confirmation switch entrepreneur → visiteur */}
       {showModalStatut && (
-        <div style={styles.modalOverlay} onClick={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); }}>
+        <div style={styles.modalOverlay} onClick={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -492,7 +489,7 @@ export default function Reglages() {
               border: '1px solid rgba(255, 77, 109, 0.2)',
             }}>
               <p style={{ color: couleurs.danger, fontSize: '0.8125rem', margin: 0, lineHeight: 1.5 }}>
-                Passer en mode Visiteur supprimera tous tes projets et avertira tes abonnes.
+                Passer en mode Visiteur supprimera tous tes projets publies et avertira tes abonnes. Tes brouillons seront egalement supprimes.
               </p>
             </div>
 
@@ -532,7 +529,7 @@ export default function Reglages() {
 
             <div style={{ display: 'flex', gap: 12 }}>
               <button
-                onClick={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); }}
+                onClick={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}
                 style={{ ...styles.secondaryBtn, flex: 1, justifyContent: 'center' }}
               >
                 Annuler
