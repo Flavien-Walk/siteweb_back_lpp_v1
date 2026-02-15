@@ -1207,12 +1207,30 @@ export default function Profil() {
               backgroundColor: 'rgba(255, 77, 109, 0.1)',
               borderRadius: 12,
               padding: 14,
-              marginBottom: 16,
+              marginBottom: 12,
               borderWidth: 1,
               borderColor: 'rgba(255, 77, 109, 0.2)',
             }}>
-              <Text style={{ color: couleurs.danger, fontSize: 13, lineHeight: 20 }}>
-                Passer en mode Visiteur supprimera tous tes projets publies et avertira tes abonnes. Tes brouillons seront conserves et reapparaitront si tu repasses entrepreneur.
+              <Text style={{ color: couleurs.danger, fontSize: 13, fontWeight: '600', lineHeight: 20, marginBottom: 6 }}>
+                Attention, cette action est irreversible pour tes projets publies :
+              </Text>
+              <Text style={{ color: couleurs.danger, fontSize: 12.5, lineHeight: 19 }}>
+                {'\u2022'} Tous tes projets publies seront definitivement supprimes{'\n'}
+                {'\u2022'} Chaque abonne recevra une notification avec la raison que tu vas ecrire ci-dessous{'\n'}
+                {'\u2022'} Tes brouillons seront conserves et reapparaitront si tu repasses entrepreneur
+              </Text>
+            </View>
+
+            <View style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: 'rgba(245, 158, 11, 0.25)',
+            }}>
+              <Text style={{ color: '#F59E0B', fontSize: 12.5, fontWeight: '600', lineHeight: 18 }}>
+                Le message que tu ecris sera envoye tel quel a tous les abonnes de tes projets. Il sera visible publiquement. Fais attention a ce que tu ecris et donne une vraie raison.
               </Text>
             </View>
 
@@ -1231,19 +1249,6 @@ export default function Profil() {
             <Text style={{ fontSize: 11, color: couleurs.texteSecondaire, marginTop: 4, marginBottom: 4 }}>
               {raisonCloture.length}/500
             </Text>
-
-            <View style={{
-              backgroundColor: 'rgba(245, 158, 11, 0.1)',
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 16,
-              borderWidth: 1,
-              borderColor: 'rgba(245, 158, 11, 0.2)',
-            }}>
-              <Text style={{ color: '#F59E0B', fontSize: 12, lineHeight: 18 }}>
-                Ce message sera visible par tous les abonnes de tes projets.
-              </Text>
-            </View>
 
             {statutMessage?.type === 'erreur' && (
               <Text style={{ color: couleurs.danger, fontSize: 13, marginBottom: 12 }}>
