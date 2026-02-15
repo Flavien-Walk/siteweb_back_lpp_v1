@@ -877,9 +877,9 @@ export const changeUserRole = async (
 
     const donnees = schemaChangeRole.parse(req.body);
 
-    // Seul un super_admin peut changer les rôles
-    if (moderator.role !== 'super_admin') {
-      throw new ErreurAPI('Seul un super administrateur peut modifier les rôles', 403);
+    // Vérifier la permission edit_roles
+    if (!moderator.hasPermission('users:edit_roles')) {
+      throw new ErreurAPI('Permission insuffisante pour modifier les rôles', 403);
     }
 
     const target = await Utilisateur.findById(userId);
@@ -887,9 +887,24 @@ export const changeUserRole = async (
       throw new ErreurAPI('Utilisateur non trouvé', 404);
     }
 
-    // Ne pas se rétrograder soi-même
-    if (target._id.equals(moderator._id) && donnees.newRole !== 'super_admin') {
-      throw new ErreurAPI('Vous ne pouvez pas vous rétrograder vous-même', 400);
+    // Ne pas se modifier soi-même
+    if (target._id.equals(moderator._id)) {
+      throw new ErreurAPI('Vous ne pouvez pas modifier votre propre rôle', 400);
+    }
+
+    const { ROLE_HIERARCHY } = await import('../models/Utilisateur.js');
+    const moderatorLevel = ROLE_HIERARCHY[moderator.role as keyof typeof ROLE_HIERARCHY] ?? 0;
+    const targetCurrentLevel = ROLE_HIERARCHY[target.role as keyof typeof ROLE_HIERARCHY] ?? 0;
+    const targetNewLevel = ROLE_HIERARCHY[donnees.newRole as keyof typeof ROLE_HIERARCHY] ?? 0;
+
+    // Un admin_modo ne peut agir que sur des grades strictement inferieurs au sien
+    if (targetCurrentLevel >= moderatorLevel) {
+      throw new ErreurAPI('Vous ne pouvez pas modifier le rôle d\'un membre de grade égal ou supérieur', 403);
+    }
+
+    // Un admin_modo ne peut promouvoir que jusqu'au grade juste en-dessous du sien
+    if (targetNewLevel >= moderatorLevel) {
+      throw new ErreurAPI('Vous ne pouvez pas promouvoir au-delà de votre propre grade', 403);
     }
 
     const oldRole = target.role;

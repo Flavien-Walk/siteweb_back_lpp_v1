@@ -47,18 +47,23 @@ export type Permission =
 // Note: 'admin' legacy a les mêmes permissions que 'admin_modo'
 export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
   user: [],
-  modo_test: ['reports:view', 'tickets:view'],
-  modo: ['reports:view', 'reports:process', 'users:view', 'users:warn', 'content:hide', 'staff:chat', 'tickets:view', 'tickets:respond'],
+  modo_test: ['reports:view', 'tickets:view', 'staff:chat'],
+  modo: [
+    'reports:view', 'reports:process', 'reports:escalate',
+    'users:view', 'users:warn', 'users:suspend', 'users:ban',
+    'content:hide', 'staff:chat',
+    'tickets:view', 'tickets:respond',
+  ],
   admin_modo: [
     'reports:view', 'reports:process', 'reports:escalate',
-    'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
+    'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban', 'users:edit_roles',
     'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
     'tickets:view', 'tickets:respond',
   ],
   admin: [ // Legacy: mêmes permissions que admin_modo
     'reports:view', 'reports:process', 'reports:escalate',
-    'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban',
+    'users:view', 'users:warn', 'users:suspend', 'users:ban', 'users:unban', 'users:edit_roles',
     'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
     'tickets:view', 'tickets:respond',
