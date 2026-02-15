@@ -22,7 +22,11 @@ export default function Connexion() {
     try {
       const reponse = await connexion(email, motDePasse);
       if (reponse.succes) {
-        navigate('/');
+        if (reponse.data?.utilisateur?.emailVerifie === false) {
+          navigate('/verification-email', { replace: true });
+        } else {
+          navigate('/', { replace: true });
+        }
       } else {
         setErreur(reponse.message || 'Identifiants incorrects');
       }

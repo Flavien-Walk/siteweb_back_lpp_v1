@@ -19,6 +19,7 @@ import Entrepreneur from './pages/Entrepreneur';
 import Reglages from './pages/Reglages';
 import AmisUtilisateur from './pages/AmisUtilisateur';
 import PublicationDetail from './pages/PublicationDetail';
+import VerificationEmail from './pages/VerificationEmail';
 import { couleurs } from './styles/theme';
 
 function LoadingScreen() {
@@ -34,6 +35,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { utilisateur, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!utilisateur) return <Navigate to="/connexion" replace />;
+  if (!utilisateur.emailVerifie) return <Navigate to="/verification-email" replace />;
   return <>{children}</>;
 }
 
@@ -100,6 +102,7 @@ export default function App() {
         }
       />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/verification-email" element={<VerificationEmail />} />
       <Route
         path="/choix-statut"
         element={

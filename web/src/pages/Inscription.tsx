@@ -46,7 +46,11 @@ export default function Inscription() {
     try {
       const reponse = await inscription({ ...form, cguAcceptees });
       if (reponse.succes) {
-        navigate('/choix-statut', { replace: true });
+        if (reponse.data?.utilisateur?.emailVerifie === false) {
+          navigate('/verification-email', { replace: true });
+        } else {
+          navigate('/choix-statut', { replace: true });
+        }
       } else {
         setErreur(reponse.message || 'Erreur lors de l\'inscription');
       }
