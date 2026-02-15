@@ -64,6 +64,8 @@ export interface User {
   nom: string
   email: string
   avatar?: string
+  bio?: string
+  profilPublic?: boolean
   role: Role
   permissions: Permission[]
   status?: 'active' | 'suspended' | 'banned'
@@ -382,6 +384,7 @@ export interface SupportTicket {
     _id: string
     prenom: string
     nom: string
+    avatar?: string
   }
   messages: TicketMessage[]
   dateCreation: string

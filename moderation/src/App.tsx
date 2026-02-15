@@ -34,12 +34,16 @@ const CartographyPage = lazy(() => import('@/pages/Cartography'))
 const SecurityPage = lazy(() => import('@/pages/Security'))
 const TicketsPage = lazy(() => import('@/pages/Tickets'))
 const TicketDetailPage = lazy(() => import('@/pages/TicketDetail'))
+const ProfilePage = lazy(() => import('@/pages/Profile'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60,
+      gcTime: 1000 * 60 * 10,
       retry: 1,
+      refetchOnWindowFocus: false,
+      refetchIntervalInBackground: false,
     },
   },
 })
@@ -129,6 +133,8 @@ function App() {
 
               <Route path="tickets" element={<ProtectedRoute requiredPermission="tickets:view"><Lazy><TicketsPage /></Lazy></ProtectedRoute>} />
               <Route path="tickets/:id" element={<ProtectedRoute requiredPermission="tickets:view"><Lazy><TicketDetailPage /></Lazy></ProtectedRoute>} />
+
+              <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
             </Route>
 
             <Route path="*" element={<NotFoundPage />} />

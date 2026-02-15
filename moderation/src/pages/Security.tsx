@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { securityService } from '@/services/security'
 import type {
@@ -199,8 +200,41 @@ function vulgariserAlerte(details: string, type: string, path?: string): { simpl
 /**
  * Genere des recommandations basees sur les donnees de securite
  */
-function genererRecommandations(data: SecurityDashboardData): { priorite: 'critique' | 'haute' | 'moyenne' | 'info'; titre: string; description: string; action: string }[] {
-  const recs: { priorite: 'critique' | 'haute' | 'moyenne' | 'info'; titre: string; description: string; action: string }[] = []
+interface CompteConcerne {
+  email: string
+  ip: string
+  userId?: string
+  date: string
+}
+
+interface Recommandation {
+  priorite: 'critique' | 'haute' | 'moyenne' | 'info'
+  titre: string
+  description: string
+  action: string
+  comptes?: CompteConcerne[]
+}
+
+/**
+ * Extrait les comptes/IPs concernes depuis les evenements de securite (dedupliques)
+ */
+function extraireComptes(events: SecurityEvent[], type: string): CompteConcerne[] {
+  const seen = new Set<string>()
+  return events
+    .filter(e => e.type === type)
+    .reduce<CompteConcerne[]>((acc, e) => {
+      const email = (e.metadata?.email as string) || ''
+      const key = email || e.ip
+      if (seen.has(key)) return acc
+      seen.add(key)
+      acc.push({ email, ip: e.ip, userId: e.userId, date: e.dateCreation })
+      return acc
+    }, [])
+}
+
+function genererRecommandations(data: SecurityDashboardData): Recommandation[] {
+  const recs: Recommandation[] = []
+  const allEvents = [...data.recentEvents, ...data.criticalEvents]
 
   // Injections detectees
   if ((data.attackTypes.injection_attempt || 0) > 0) {
@@ -210,6 +244,7 @@ function genererRecommandations(data: SecurityDashboardData): { priorite: 'criti
       titre: `${count} tentative(s) d'injection detectee(s)`,
       description: 'Des attaquants tentent d\'injecter du code malveillant dans votre application. Verifiez que toutes les entrees utilisateur sont correctement validees.',
       action: 'Verifier les routes ciblees, mettre a jour les dependances, renforcer la validation Zod',
+      comptes: extraireComptes(allEvents, 'injection_attempt'),
     })
   }
 
@@ -220,6 +255,7 @@ function genererRecommandations(data: SecurityDashboardData): { priorite: 'criti
       titre: `${data.attackTypes.brute_force} tentatives de force brute`,
       description: 'Plusieurs tentatives de connexion echouees detectees. Un attaquant essaie de deviner des mots de passe.',
       action: 'Verifier les comptes cibles, envisager le blocage des IPs recidivistes, activer le 2FA',
+      comptes: extraireComptes(allEvents, 'brute_force'),
     })
   }
 
@@ -230,6 +266,7 @@ function genererRecommandations(data: SecurityDashboardData): { priorite: 'criti
       titre: `${data.attackTypes.suspicious_signup} inscription(s) suspecte(s)`,
       description: 'Des comptes ont ete crees avec un comportement automatise (bots). Verifiez ces comptes manuellement.',
       action: 'Ajouter un CAPTCHA a l\'inscription, verifier les comptes recemment crees',
+      comptes: extraireComptes(allEvents, 'suspicious_signup'),
     })
   }
 
@@ -240,6 +277,7 @@ function genererRecommandations(data: SecurityDashboardData): { priorite: 'criti
       titre: `${data.attackTypes.token_forgery} token(s) falsifie(s)`,
       description: 'Des jetons d\'authentification invalides ont ete utilises. Cela peut indiquer une tentative de vol de session.',
       action: 'Verifier la rotation des cles JWT, controler les tokens blacklistes',
+      comptes: extraireComptes(allEvents, 'token_forgery'),
     })
   }
 
@@ -250,6 +288,7 @@ function genererRecommandations(data: SecurityDashboardData): { priorite: 'criti
       titre: `${data.attackTypes.rate_limit_hit} depassements de limite`,
       description: 'Le systeme de rate limiting a bloque de nombreuses requetes. Si c\'est normal, ajustez les limites.',
       action: 'Verifier si les limites sont adequates, bloquer les IPs les plus agressives',
+      comptes: extraireComptes(allEvents, 'rate_limit_hit'),
     })
   }
 
@@ -271,6 +310,7 @@ function genererRecommandations(data: SecurityDashboardData): { priorite: 'criti
       titre: `${data.attackTypes.anomaly} anomalie(s) de trafic`,
       description: 'Un volume de requetes anormal a ete detecte. Cela peut indiquer une attaque DDoS ou un scraping.',
       action: 'Analyser les patterns de trafic, envisager un WAF ou CDN avec protection DDoS',
+      comptes: extraireComptes(allEvents, 'anomaly'),
     })
   }
 
@@ -1082,7 +1122,7 @@ function AppareilsBannis({ onUnban }: { onUnban: (id: string) => void }) {
   const { data: devices, isLoading } = useQuery({
     queryKey: ['banned-devices'],
     queryFn: () => securityService.getBannedDevices(true),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   })
 
   if (isLoading) return null
@@ -1400,6 +1440,11 @@ function RecommandationsCorrections({ data }: { data: SecurityDashboardData }) {
     info: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', icon: CheckCircle2 },
   }
 
+  const formatDate = (d: string) => {
+    try { return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }
+    catch { return '' }
+  }
+
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader className="pb-3">
@@ -1411,6 +1456,7 @@ function RecommandationsCorrections({ data }: { data: SecurityDashboardData }) {
         {recommandations.map((rec, i) => {
           const config = prioriteConfig[rec.priorite]
           const Icon = config.icon
+          const comptes = rec.comptes?.filter(c => c.email || c.userId || c.ip) || []
           return (
             <div key={i} className={`p-3 rounded-lg ${config.bg} border ${config.border}`}>
               <div className="flex items-start gap-2">
@@ -1421,6 +1467,47 @@ function RecommandationsCorrections({ data }: { data: SecurityDashboardData }) {
                     <Badge className={`text-[9px] ${config.bg} ${config.text} border-0 uppercase`}>{rec.priorite}</Badge>
                   </div>
                   <p className="text-xs text-zinc-400 mt-1">{rec.description}</p>
+
+                  {/* Comptes concernes */}
+                  {comptes.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Concerne(s) :</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {comptes.slice(0, 8).map((c, j) => {
+                          const label = c.email || c.ip
+                          if (c.userId) {
+                            return (
+                              <Link
+                                key={j}
+                                to={`/users/${c.userId}`}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/50 text-[11px] text-zinc-300 hover:bg-zinc-700/80 hover:text-white transition-colors"
+                                title={`${label} - ${formatDate(c.date)}`}
+                              >
+                                <Eye className="h-3 w-3 text-indigo-400 shrink-0" />
+                                <span className="truncate max-w-[140px]">{label}</span>
+                              </Link>
+                            )
+                          }
+                          // Pas de userId : afficher avec l'email/IP cliquable vers la recherche users
+                          return (
+                            <Link
+                              key={j}
+                              to={c.email ? `/users?search=${encodeURIComponent(c.email)}` : '#'}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/50 text-[11px] text-zinc-300 hover:bg-zinc-700/80 hover:text-white transition-colors"
+                              title={`${label} - ${formatDate(c.date)}`}
+                            >
+                              <Globe className="h-3 w-3 text-zinc-500 shrink-0" />
+                              <span className="truncate max-w-[140px]">{label}</span>
+                            </Link>
+                          )
+                        })}
+                        {comptes.length > 8 && (
+                          <span className="text-[10px] text-zinc-500 self-center">+{comptes.length - 8} autres</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1 mt-2">
                     <Wrench className="h-3 w-3 text-zinc-500" />
                     <p className="text-[11px] text-zinc-500 italic">{rec.action}</p>
@@ -1622,7 +1709,7 @@ function AnalyseurBackend() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['backend-health'],
     queryFn: securityService.getBackendHealth,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   })
 
   const scoreColor = (score: number) => {
@@ -1852,7 +1939,7 @@ export default function SecurityPage() {
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['security-dashboard'],
     queryFn: securityService.getDashboard,
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   })
 
   const blockMutation = useMutation({

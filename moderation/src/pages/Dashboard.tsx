@@ -18,7 +18,6 @@ import {
   ArrowRight,
   RefreshCw,
   Shield,
-  Crown,
   Eye,
   ShieldCheck,
   ShieldAlert,
@@ -34,17 +33,17 @@ const staggerContainer = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1,
+      staggerChildren: 0.05,
     },
   },
 }
 
 const staggerItem = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 10 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' as const },
+    transition: { duration: 0.2, ease: 'easeOut' as const },
   },
 }
 
@@ -53,19 +52,17 @@ const roleStaggerContainer = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.12,
-      delayChildren: 0.1,
+      staggerChildren: 0.06,
     },
   },
 }
 
 const roleStaggerItem = {
-  hidden: { opacity: 0, y: 16, scale: 0.97 },
+  hidden: { opacity: 0, y: 8 },
   visible: {
     opacity: 1,
     y: 0,
-    scale: 1,
-    transition: { duration: 0.35, ease: 'easeOut' as const },
+    transition: { duration: 0.2, ease: 'easeOut' as const },
   },
 }
 
@@ -80,7 +77,7 @@ export function DashboardPage() {
   } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => dashboardService.getStats(),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   })
 
   return (
@@ -533,7 +530,7 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent>
             <motion.div
-              className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+              className="grid gap-4 md:grid-cols-3"
               variants={roleStaggerContainer}
               initial="hidden"
               whileInView="visible"
@@ -554,20 +551,32 @@ export function DashboardPage() {
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Voir les signalements</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <X className="h-3 w-3 text-red-500/50" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Voir les tickets support</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Staff Chat</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
                     <span className="text-muted-foreground">Traiter les signalements</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <X className="h-3 w-3 text-red-500/50" />
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
+                    <span className="text-muted-foreground">Repondre aux tickets</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
                     <span className="text-muted-foreground">Actions sur utilisateurs</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <X className="h-3 w-3 text-red-500/50" />
-                    <span className="text-muted-foreground">Masquer/supprimer du contenu</span>
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
+                    <span className="text-muted-foreground">Gestion du contenu</span>
                   </div>
                 </div>
               </motion.div>
@@ -582,33 +591,53 @@ export function DashboardPage() {
                   <h3 className="font-semibold text-emerald-400">Moderateur</h3>
                 </div>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Moderateur actif avec les outils essentiels de moderation au quotidien.
+                  Moderateur actif avec les outils de moderation, sanctions et escalade.
                 </p>
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Voir et traiter les signalements</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Voir et repondre aux tickets support</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Voir les utilisateurs</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Avertir les utilisateurs</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Masquer du contenu</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Staff Chat</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <X className="h-3 w-3 text-red-500/50" />
-                    <span className="text-muted-foreground">Suspendre / Bannir</span>
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Escalader les signalements</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Suspendre / Bannir</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
+                    <span className="text-muted-foreground">Supprimer / Editer du contenu</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
+                    <span className="text-muted-foreground">Audit logs / Statistiques</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
+                    <span className="text-muted-foreground">Modifier les roles</span>
                   </div>
                 </div>
               </motion.div>
@@ -623,66 +652,45 @@ export function DashboardPage() {
                   <h3 className="font-semibold text-amber-400">Administrateur</h3>
                 </div>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Acces etendu avec pouvoir de sanction et de gestion complete du contenu.
+                  Acces etendu avec pouvoir de sanction et de gestion complete de la plateforme.
                 </p>
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Toutes les permissions Moderateur</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Escalader les signalements</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
                     <span>Suspendre / Bannir / Debannir</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
-                    <span>Supprimer du contenu</span>
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Supprimer et editer du contenu</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
-                    <span>Voir les audit logs</span>
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Voir les audit logs et statistiques</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <X className="h-3 w-3 text-red-500/50" />
-                    <span className="text-muted-foreground">Modifier les roles</span>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Fondateur */}
-              <motion.div
-                variants={roleStaggerItem}
-                className="rounded-lg border border-purple-500/30 bg-purple-500/5 p-4 hover:border-purple-500/50 transition-colors duration-300"
-              >
-                <div className="mb-3 flex items-center gap-2">
-                  <Crown className="h-5 w-5 text-purple-400" />
-                  <h3 className="font-semibold text-purple-400">Fondateur</h3>
-                </div>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Acces total a la plateforme. Peut promouvoir et retrograder les membres du staff.
-                </p>
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Permissions :</p>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
-                    <span>Toutes les permissions Administrateur</span>
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Securite et surveillance</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
-                    <span>Modifier les roles du staff</span>
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    <span>Modifier les roles (grades inferieurs)</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
-                    <span>Exporter les audit logs</span>
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
+                    <span className="text-muted-foreground">Exporter les audit logs</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
-                    <span>Voir et modifier la configuration</span>
+                    <X className="h-3 w-3 text-red-500/50 shrink-0" />
+                    <span className="text-muted-foreground">Configuration systeme</span>
                   </div>
                 </div>
               </motion.div>

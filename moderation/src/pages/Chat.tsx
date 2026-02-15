@@ -26,6 +26,7 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { EmojiPicker } from '@/components/EmojiPicker'
 import type { StaffMessage, DMConversation, User } from '@/types'
 
 // ── Role config ──────────────────────────────────────────────
@@ -400,6 +401,26 @@ function ChatInput({
     }
   }
 
+  const handleEmojiSelect = (emoji: string) => {
+    const textarea = inputRef.current
+    if (!textarea) {
+      setValue((prev) => prev + emoji)
+      return
+    }
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const newValue = value.slice(0, start) + emoji + value.slice(end)
+    setValue(newValue)
+    requestAnimationFrame(() => {
+      const pos = start + emoji.length
+      textarea.selectionStart = pos
+      textarea.selectionEnd = pos
+      textarea.focus()
+      textarea.style.height = '42px'
+      textarea.style.height = Math.min(textarea.scrollHeight, 128) + 'px'
+    })
+  }
+
   return (
     <form onSubmit={handleSubmit} className="border-t p-4 flex-shrink-0">
       <div className="flex gap-2 items-end">
@@ -421,6 +442,7 @@ function ChatInput({
             }}
           />
         </div>
+        <EmojiPicker onSelect={handleEmojiSelect} disabled={isPending} />
         <Button
           type="submit"
           disabled={!value.trim() || isPending}
@@ -560,7 +582,7 @@ function DMThreadView({
   const { data, isLoading, error } = useQuery({
     queryKey: ['dm-messages', userId],
     queryFn: () => chatService.getDMMessages(userId, { limit: 100 }),
-    refetchInterval: 5000,
+    refetchInterval: 10000,
   })
 
   const sendMutation = useMutation({
@@ -678,14 +700,14 @@ export function ChatPage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['staff-chat'],
     queryFn: () => chatService.getMessages({ limit: 100 }),
-    refetchInterval: 5000,
+    refetchInterval: 10000,
   })
 
   // DM conversations
   const { data: dmConversations = [] } = useQuery({
     queryKey: ['dm-conversations'],
     queryFn: () => chatService.getDMConversations(),
-    refetchInterval: 10000,
+    refetchInterval: 15000,
   })
 
   // Staff members

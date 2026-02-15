@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/auth/AuthContext'
@@ -60,7 +60,6 @@ const navSections: NavSection[] = [
       { label: 'Utilisateurs', href: '/users', icon: <Users className="h-4 w-4" />, permission: 'users:view' },
       { label: 'Suspendus', href: '/suspended', icon: <UserX className="h-4 w-4" />, permission: 'users:view' },
       { label: 'Surveillance', href: '/surveillance', icon: <Eye className="h-4 w-4" />, permission: 'users:view' },
-      { label: 'Tickets Support', href: '/tickets', icon: <Headphones className="h-4 w-4" />, permission: 'tickets:view' },
     ],
   },
   {
@@ -79,6 +78,7 @@ const navSections: NavSection[] = [
     title: 'Système',
     items: [
       { label: 'Statistiques', href: '/statistics', icon: <BarChart3 className="h-4 w-4" />, permission: 'audit:view' },
+      { label: 'Tickets Support', href: '/tickets', icon: <Headphones className="h-4 w-4" />, permission: 'tickets:view' },
       { label: 'Cartographie', href: '/cartography', icon: <MapPin className="h-4 w-4" />, permission: 'content:hide' },
       { label: 'Notifications', href: '/notifications', icon: <Bell className="h-4 w-4" /> },
       { label: 'Sécurité', href: '/security', icon: <Shield className="h-4 w-4" />, permission: 'audit:view' },
@@ -112,13 +112,14 @@ function SidebarContent({
 }) {
   const { user, logout, hasPermission } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
 
   const { data: dashStats } = useQuery({
-    queryKey: ['dashboard-stats-sidebar'],
+    queryKey: ['dashboard-stats'],
     queryFn: () => dashboardService.getStats(),
-    refetchInterval: 30000,
-    staleTime: 15000,
+    refetchInterval: 60000,
+    staleTime: 30000,
   })
 
   const toggleSection = (title: string) => {
@@ -182,10 +183,8 @@ function SidebarContent({
                         return (
                           <li key={item.href} className="relative">
                             {active && (
-                              <motion.div
-                                layoutId="sidebar-active"
+                              <div
                                 className="absolute inset-0 rounded-lg bg-primary/10 border-l-2 border-primary"
-                                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                               />
                             )}
                             <Link
@@ -229,25 +228,31 @@ function SidebarContent({
           'flex items-center gap-3 rounded-lg border p-3 transition-colors',
           roleBorderColors[user?.role || 'user'] || 'border-border'
         )}>
-          {user?.avatar ? (
-            <img
-              src={user.avatar}
-              alt={`${user.prenom} ${user.nom}`}
-              className="h-9 w-9 rounded-full object-cover ring-2 ring-primary/20"
-            />
-          ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary ring-2 ring-primary/20">
-              {user?.prenom?.[0]}{user?.nom?.[0]}
+          <button
+            onClick={() => { navigate('/profile'); onNavClick?.() }}
+            className="flex items-center gap-3 flex-1 overflow-hidden text-left cursor-pointer hover:opacity-80 transition-opacity"
+            title="Mon profil"
+          >
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={`${user.prenom} ${user.nom}`}
+                className="h-9 w-9 rounded-full object-cover ring-2 ring-primary/20"
+              />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary ring-2 ring-primary/20">
+                {user?.prenom?.[0]}{user?.nom?.[0]}
+              </div>
+            )}
+            <div className="flex-1 overflow-hidden">
+              <p className="truncate text-sm font-medium leading-tight">
+                {user?.prenom} {user?.nom}
+              </p>
+              <Badge variant={user?.role as never} className="mt-0.5 text-[10px]">
+                {roleLabels[user?.role || 'user']}
+              </Badge>
             </div>
-          )}
-          <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium leading-tight">
-              {user?.prenom} {user?.nom}
-            </p>
-            <Badge variant={user?.role as never} className="mt-0.5 text-[10px]">
-              {roleLabels[user?.role || 'user']}
-            </Badge>
-          </div>
+          </button>
           <Button variant="ghost" size="icon" onClick={logout} title="Déconnexion" className="h-8 w-8 shrink-0">
             <LogOut className="h-4 w-4" />
           </Button>

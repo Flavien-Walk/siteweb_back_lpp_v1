@@ -7,7 +7,7 @@ interface AnimatedCounterProps {
   className?: string
 }
 
-export function AnimatedCounter({ value, duration = 800, className }: AnimatedCounterProps) {
+export function AnimatedCounter({ value, duration = 400, className }: AnimatedCounterProps) {
   const [displayValue, setDisplayValue] = useState(0)
   const ref = useRef<HTMLSpanElement>(null)
   const isInView = useInView(ref, { once: true })
