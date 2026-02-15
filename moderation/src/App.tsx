@@ -6,6 +6,7 @@ import { AuthProvider } from '@/auth/AuthContext'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/Login'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 // Lazy-loaded pages — each chunk loads only when navigated to
 const DashboardPage = lazy(() => import('@/pages/Dashboard'))
@@ -78,6 +79,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ErrorBoundary>
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -140,6 +142,7 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AuthProvider>
+        </ErrorBoundary>
         <Toaster
           theme="dark"
           position="bottom-right"
