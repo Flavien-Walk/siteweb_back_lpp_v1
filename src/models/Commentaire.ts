@@ -76,6 +76,7 @@ commentaireSchema.index({ publication: 1, dateCreation: -1 });
 commentaireSchema.index({ reponseA: 1 });
 // Index pour récupérer les commentaires d'un utilisateur
 commentaireSchema.index({ auteur: 1, dateCreation: -1 });
+commentaireSchema.index({ publication: 1, reponseA: 1, dateCreation: -1 }); // Commentaires imbriques
 
 const Commentaire = mongoose.model<ICommentaire>('Commentaire', commentaireSchema);
 

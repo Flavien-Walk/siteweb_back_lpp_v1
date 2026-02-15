@@ -99,6 +99,7 @@ publicationSchema.index({ dateCreation: -1 });
 publicationSchema.index({ projet: 1 });
 publicationSchema.index({ type: 1 });
 publicationSchema.index({ auteur: 1, dateCreation: -1 }); // Pour récupérer les publications d'un utilisateur
+publicationSchema.index({ isHidden: 1, dateCreation: -1 }); // Feed: filtrer masquees + tri date
 
 const Publication = mongoose.model<IPublication>('Publication', publicationSchema);
 
