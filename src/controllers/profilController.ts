@@ -482,32 +482,32 @@ export const modifierStatut = async (
     }
 
     let projetsSupprimes = 0;
-    let brouillonsSupprimes = 0;
+    let brouillonsConserves = 0;
 
     // Entrepreneur → Visiteur : vérifier et supprimer les projets
     if (utilisateur.statut === 'entrepreneur' && donnees.statut === 'visiteur') {
       const projets = await Projet.find({ porteur: userId });
       const projetsPublies = projets.filter((p) => p.statut === 'published');
-      brouillonsSupprimes = projets.filter((p) => p.statut === 'draft').length;
+      brouillonsConserves = projets.filter((p) => p.statut === 'draft').length;
 
-      if (projets.length > 0) {
-        // Raison obligatoire uniquement si projets publiés
-        if (projetsPublies.length > 0 && !donnees.raisonCloture) {
+      if (projetsPublies.length > 0) {
+        // Raison obligatoire si projets publiés
+        if (!donnees.raisonCloture) {
           throw new ErreurAPI(
             'Vous avez des projets publiés. Fournissez une raison de clôture pour passer en mode visiteur.',
             400,
             {
               code: 'RAISON_REQUISE',
               projetsPublies: String(projetsPublies.length),
-              brouillons: String(brouillonsSupprimes),
+              brouillons: String(brouillonsConserves),
             }
           );
         }
 
-        // Notifier les followers des projets publiés puis supprimer tous les projets
-        for (const projet of projets) {
-          // Créer les notifications pour chaque follower (projets publiés uniquement)
-          if (projet.statut === 'published' && projet.followers && projet.followers.length > 0) {
+        // Notifier les followers puis supprimer uniquement les projets publiés (brouillons conservés)
+        for (const projet of projetsPublies) {
+          // Créer les notifications pour chaque follower
+          if (projet.followers && projet.followers.length > 0) {
             const notifications = projet.followers.map((followerId) => ({
               destinataire: followerId,
               type: 'projet-update' as const,
@@ -525,14 +525,13 @@ export const modifierStatut = async (
             try {
               await Notification.insertMany(notifications, { ordered: false });
             } catch (err: any) {
-              // Ignorer les erreurs de doublon (code 11000)
               if (err.code !== 11000 && !err.writeErrors) {
                 console.error('Erreur envoi notifications clôture projet:', err);
               }
             }
           }
 
-          // Supprimer le projet + cascade (notifications existantes du projet, reports)
+          // Supprimer le projet publié + cascade
           await Promise.all([
             Projet.findByIdAndDelete(projet._id),
             Notification.deleteMany({ 'data.projetId': projet._id.toString() }),
@@ -582,7 +581,7 @@ export const modifierStatut = async (
           provider: utilisateur.provider,
         },
         projetsSupprimes,
-        brouillonsSupprimes,
+        brouillonsConserves,
       },
     });
   } catch (error) {
