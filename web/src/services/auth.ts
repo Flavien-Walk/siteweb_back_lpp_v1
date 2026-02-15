@@ -117,9 +117,12 @@ export const modifierAvatar = async (
 };
 
 export const modifierStatut = async (
-  statut: StatutUtilisateur
+  statut: StatutUtilisateur,
+  raisonCloture?: string
 ): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
-  const reponse = await api.patch<{ utilisateur: any }>('/profil/statut', { statut }, true);
+  const body: Record<string, string> = { statut };
+  if (raisonCloture) body.raisonCloture = raisonCloture;
+  const reponse = await api.patch<{ utilisateur: any }>('/profil/statut', body, true);
   if (reponse.succes && reponse.data) {
     reponse.data.utilisateur = normaliserUtilisateur(reponse.data.utilisateur);
     setUtilisateurLocal(reponse.data.utilisateur);

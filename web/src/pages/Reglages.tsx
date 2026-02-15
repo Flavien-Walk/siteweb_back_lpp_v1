@@ -4,19 +4,20 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, User, Image, Lock, ShieldAlert,
   Save, Upload, Trash2, Eye, EyeOff, AlertTriangle,
-  Globe, LockKeyhole, Shield, History,
+  Globe, LockKeyhole, Shield, History, Rocket, Compass,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   modifierProfil,
   modifierAvatar,
   modifierMotDePasse,
+  modifierStatut,
   getAvatarsDefaut,
   supprimerCompte,
   getMySanctions,
   getModerationStatus,
 } from '../services/auth';
-import type { SanctionItem, ModerationStatus } from '../services/auth';
+import type { SanctionItem, ModerationStatus, StatutUtilisateur } from '../services/auth';
 import { couleurs } from '../styles/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -78,6 +79,12 @@ export default function Reglages() {
   const [motDePasseSuppression, setMotDePasseSuppression] = useState('');
   const [suppressionLoading, setSuppressionLoading] = useState(false);
   const [suppressionMessage, setSuppressionMessage] = useState<{ type: 'succes' | 'erreur'; text: string } | null>(null);
+
+  // --- Statut state ---
+  const [showModalStatut, setShowModalStatut] = useState(false);
+  const [raisonCloture, setRaisonCloture] = useState('');
+  const [statutLoading, setStatutLoading] = useState(false);
+  const [statutMessage, setStatutMessage] = useState<{ type: 'succes' | 'erreur'; text: string } | null>(null);
 
   // Initialize profil fields from user
   useEffect(() => {
@@ -283,6 +290,54 @@ export default function Reglages() {
     }
   };
 
+  const handleChangerStatut = async (nouveauStatut: StatutUtilisateur) => {
+    if (utilisateur?.statut === 'entrepreneur' && nouveauStatut === 'visiteur') {
+      setShowModalStatut(true);
+      return;
+    }
+
+    setStatutLoading(true);
+    setStatutMessage(null);
+    try {
+      const res = await modifierStatut(nouveauStatut);
+      if (res.succes) {
+        await rafraichirUtilisateur();
+        setStatutMessage({ type: 'succes', text: 'Statut mis a jour !' });
+      } else {
+        setStatutMessage({ type: 'erreur', text: res.message || 'Erreur lors du changement.' });
+      }
+    } catch {
+      setStatutMessage({ type: 'erreur', text: 'Impossible de contacter le serveur.' });
+    } finally {
+      setStatutLoading(false);
+    }
+  };
+
+  const handleConfirmerSwitchVisiteur = async () => {
+    if (raisonCloture.trim().length < 10) {
+      setStatutMessage({ type: 'erreur', text: 'La raison doit contenir au moins 10 caracteres.' });
+      return;
+    }
+
+    setStatutLoading(true);
+    setStatutMessage(null);
+    try {
+      const res = await modifierStatut('visiteur', raisonCloture.trim());
+      if (res.succes) {
+        await rafraichirUtilisateur();
+        setShowModalStatut(false);
+        setRaisonCloture('');
+        setStatutMessage({ type: 'succes', text: res.message || 'Statut mis a jour !' });
+      } else {
+        setStatutMessage({ type: 'erreur', text: res.message || 'Erreur lors du changement.' });
+      }
+    } catch {
+      setStatutMessage({ type: 'erreur', text: 'Impossible de contacter le serveur.' });
+    } finally {
+      setStatutLoading(false);
+    }
+  };
+
   if (!utilisateur) return null;
 
   const initiale = utilisateur.prenom?.[0]?.toUpperCase() || '?';
@@ -353,6 +408,148 @@ export default function Reglages() {
         <Save size={16} />
         {profilLoading ? 'Sauvegarde...' : 'Sauvegarder'}
       </motion.button>
+
+      {/* Statut entrepreneur / visiteur */}
+      <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${couleurs.bordure}` }}>
+        <h3 style={{ ...styles.sectionTitle, fontSize: '1.125rem' }}>Statut</h3>
+        <p style={styles.sectionDesc}>Choisis ton profil sur la plateforme.</p>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => handleChangerStatut('visiteur')}
+            disabled={statutLoading}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              padding: '16px 20px',
+              borderRadius: 12,
+              border: `2px solid ${utilisateur.statut === 'visiteur' ? '#10B981' : couleurs.bordure}`,
+              backgroundColor: utilisateur.statut === 'visiteur' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+              cursor: statutLoading ? 'default' : 'pointer',
+              transition: 'all 150ms ease',
+            }}
+          >
+            <Compass size={20} color={utilisateur.statut === 'visiteur' ? '#10B981' : couleurs.texteSecondaire} />
+            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: utilisateur.statut === 'visiteur' ? '#10B981' : couleurs.texteSecondaire }}>
+              Visiteur
+            </span>
+          </button>
+          <button
+            onClick={() => handleChangerStatut('entrepreneur')}
+            disabled={statutLoading}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              padding: '16px 20px',
+              borderRadius: 12,
+              border: `2px solid ${utilisateur.statut === 'entrepreneur' ? '#F59E0B' : couleurs.bordure}`,
+              backgroundColor: utilisateur.statut === 'entrepreneur' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+              cursor: statutLoading ? 'default' : 'pointer',
+              transition: 'all 150ms ease',
+            }}
+          >
+            <Rocket size={20} color={utilisateur.statut === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire} />
+            <span style={{ fontSize: '0.9375rem', fontWeight: '600', color: utilisateur.statut === 'entrepreneur' ? '#F59E0B' : couleurs.texteSecondaire }}>
+              Entrepreneur
+            </span>
+          </button>
+        </div>
+
+        {statutMessage && (
+          <div style={{
+            ...styles.message,
+            marginTop: 12,
+            backgroundColor: statutMessage.type === 'succes' ? couleurs.succesLight : couleurs.dangerLight,
+            color: statutMessage.type === 'succes' ? couleurs.succes : couleurs.danger,
+          }}>
+            {statutMessage.text}
+          </div>
+        )}
+      </div>
+
+      {/* Modale confirmation switch entrepreneur → visiteur */}
+      {showModalStatut && (
+        <div style={styles.modalOverlay} onClick={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); }}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={styles.modalCard}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ ...styles.sectionTitle, marginBottom: 12 }}>Changer de statut</h3>
+
+            <div style={{
+              backgroundColor: couleurs.dangerLight,
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+              border: '1px solid rgba(255, 77, 109, 0.2)',
+            }}>
+              <p style={{ color: couleurs.danger, fontSize: '0.8125rem', margin: 0, lineHeight: 1.5 }}>
+                Passer en mode Visiteur supprimera tous tes projets et avertira tes abonnes.
+              </p>
+            </div>
+
+            <label style={styles.label}>Raison de la cloture (min. 10 caracteres)</label>
+            <textarea
+              value={raisonCloture}
+              onChange={(e) => { if (e.target.value.length <= 500) setRaisonCloture(e.target.value); }}
+              style={{ ...styles.textarea, marginTop: 6 }}
+              placeholder="Explique pourquoi tu clotures tes projets..."
+              rows={4}
+            />
+            <span style={styles.charCount}>{raisonCloture.length}/500</span>
+
+            <div style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              borderRadius: 12,
+              padding: 12,
+              marginTop: 12,
+              marginBottom: 16,
+              border: '1px solid rgba(245, 158, 11, 0.2)',
+            }}>
+              <p style={{ color: '#F59E0B', fontSize: '0.75rem', margin: 0, lineHeight: 1.5 }}>
+                Ce message sera visible par tous les abonnes de tes projets.
+              </p>
+            </div>
+
+            {statutMessage?.type === 'erreur' && (
+              <div style={{
+                ...styles.message,
+                backgroundColor: couleurs.dangerLight,
+                color: couleurs.danger,
+                marginBottom: 12,
+              }}>
+                {statutMessage.text}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); }}
+                style={{ ...styles.secondaryBtn, flex: 1, justifyContent: 'center' }}
+              >
+                Annuler
+              </button>
+              <motion.button
+                onClick={handleConfirmerSwitchVisiteur}
+                disabled={statutLoading}
+                style={{ ...styles.dangerBtn, flex: 1, width: 'auto', opacity: statutLoading ? 0.6 : 1 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {statutLoading ? 'Confirmation...' : 'Confirmer'}
+              </motion.button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 
@@ -1213,5 +1410,25 @@ const styles: Record<string, React.CSSProperties> = {
     color: couleurs.danger,
     lineHeight: 1.6,
     fontWeight: '500',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: couleurs.fondCard,
+    borderRadius: 16,
+    padding: 28,
+    border: `1px solid ${couleurs.bordure}`,
   },
 };
