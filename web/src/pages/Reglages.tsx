@@ -489,7 +489,7 @@ export default function Reglages() {
               border: '1px solid rgba(255, 77, 109, 0.2)',
             }}>
               <p style={{ color: couleurs.danger, fontSize: '0.8125rem', margin: 0, lineHeight: 1.5 }}>
-                Passer en mode Visiteur supprimera tous tes projets publies et avertira tes abonnes. Tes brouillons seront egalement supprimes.
+                Passer en mode Visiteur supprimera tous tes projets publies et avertira tes abonnes. Tes brouillons seront conserves et reapparaitront si tu repasses entrepreneur.
               </p>
             </div>
 
