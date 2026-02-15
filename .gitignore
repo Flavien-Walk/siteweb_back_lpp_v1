@@ -34,3 +34,11 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Dossiers hors-perimetre moderation (branches separees)
+mobile/
+web/
+/src/
+
+# Fichier Windows parasite
+nul
