@@ -336,22 +336,23 @@ export default function Profil() {
   }, []);
 
   // Charger mes projets suivis
-  useEffect(() => {
-    const chargerProjetsSuivis = async () => {
-      setChargementProjets(true);
-      try {
-        const reponse = await getMesProjets();
-        if (reponse.succes && reponse.data) {
-          setProjetsSuivis(reponse.data.projets);
-        }
-      } catch (error) {
-        console.error('Erreur chargement projets suivis:', error);
-      } finally {
-        setChargementProjets(false);
+  const chargerProjetsSuivis = useCallback(async () => {
+    setChargementProjets(true);
+    try {
+      const reponse = await getMesProjets();
+      if (reponse.succes && reponse.data) {
+        setProjetsSuivis(reponse.data.projets);
       }
-    };
-    chargerProjetsSuivis();
+    } catch (error) {
+      console.error('Erreur chargement projets suivis:', error);
+    } finally {
+      setChargementProjets(false);
+    }
   }, []);
+
+  useEffect(() => {
+    chargerProjetsSuivis();
+  }, [chargerProjetsSuivis]);
 
   // Animation lors du changement d'onglet
   useEffect(() => {
@@ -509,6 +510,7 @@ export default function Profil() {
         const reponseStatut = await modifierStatut(statutSelectionne);
         if (reponseStatut.succes && reponseStatut.data) {
           updateUser(reponseStatut.data.utilisateur);
+          chargerProjetsSuivis();
         } else {
           // Si erreur RAISON_REQUISE → ouvrir la modale
           if (reponseStatut.erreurs?.code === 'RAISON_REQUISE') {
@@ -1094,6 +1096,7 @@ export default function Profil() {
         setStatutSelectionne('visiteur');
         setShowModalStatut(false);
         setRaisonCloture('');
+        chargerProjetsSuivis();
         afficherMessage('succes', reponse.message || 'Statut mis a jour !');
       } else {
         setStatutMessage({ type: 'erreur', texte: reponse.message || 'Erreur lors du changement.' });
@@ -1192,55 +1195,64 @@ export default function Profil() {
         )}
       </Pressable>
 
-      {/* Modale confirmation switch entrepreneur → visiteur */}
+      {/* Modale confirmation switch entrepreneur → visiteur (bottom-sheet) */}
       <Modal
         visible={showModalStatut}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}
       >
         <KeyboardView style={styles.modalOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={[styles.modalContent, { backgroundColor: couleurs.fondCard, maxWidth: 420, alignSelf: 'center', width: '100%' }]}>
-              <Text style={[styles.parametresTitle, { marginBottom: 8 }]}>Changer de statut</Text>
+          <Pressable
+            style={styles.modalOverlayTouchable}
+            onPress={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}
+          />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Passer en mode Visiteur</Text>
+              <Pressable onPress={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}>
+                <Ionicons name="close" size={24} color={couleurs.texte} />
+              </Pressable>
+            </View>
 
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={{ maxHeight: 480 }}
+            >
               <View style={{
-                backgroundColor: 'rgba(255, 77, 109, 0.1)',
+                backgroundColor: 'rgba(255, 77, 109, 0.08)',
                 borderRadius: 12,
                 padding: 14,
                 marginBottom: 12,
                 borderWidth: 1,
-                borderColor: 'rgba(255, 77, 109, 0.2)',
+                borderColor: 'rgba(255, 77, 109, 0.15)',
               }}>
                 <Text style={{ color: couleurs.danger, fontSize: 13, fontWeight: '600', lineHeight: 20, marginBottom: 6 }}>
-                  Attention, cette action est irreversible pour tes projets publies :
+                  Cette action est irreversible pour tes projets publies :
                 </Text>
-                <Text style={{ color: couleurs.danger, fontSize: 12.5, lineHeight: 19 }}>
+                <Text style={{ color: couleurs.danger, fontSize: 12.5, lineHeight: 20 }}>
                   {'\u2022'} Tous tes projets publies seront definitivement supprimes{'\n'}
-                  {'\u2022'} Chaque abonne recevra une notification avec la raison que tu vas ecrire ci-dessous{'\n'}
-                  {'\u2022'} Tes brouillons seront conserves et reapparaitront si tu repasses entrepreneur
+                  {'\u2022'} Chaque abonne sera notifie avec la raison ci-dessous{'\n'}
+                  {'\u2022'} Tes brouillons seront conserves
                 </Text>
               </View>
 
               <View style={{
-                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                backgroundColor: 'rgba(245, 158, 11, 0.06)',
                 borderRadius: 12,
                 padding: 12,
                 marginBottom: 16,
                 borderWidth: 1,
-                borderColor: 'rgba(245, 158, 11, 0.25)',
+                borderColor: 'rgba(245, 158, 11, 0.2)',
               }}>
-                <Text style={{ color: '#F59E0B', fontSize: 12.5, fontWeight: '600', lineHeight: 18 }}>
-                  Le message que tu ecris sera envoye tel quel a tous les abonnes de tes projets. Il sera visible publiquement. Fais attention a ce que tu ecris et donne une vraie raison.
+                <Text style={{ color: '#D97706', fontSize: 12.5, fontWeight: '600', lineHeight: 18 }}>
+                  Le message que tu ecris sera envoye a tous les abonnes de tes projets et sera visible publiquement. Donne une vraie raison.
                 </Text>
               </View>
 
               <Text style={[styles.inputLabel, { marginBottom: 8 }]}>
-                Raison de la cloture (min. 10 caracteres)
+                Raison de la cloture
               </Text>
               <TextInput
                 style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]}
@@ -1251,37 +1263,42 @@ export default function Profil() {
                 multiline
                 maxLength={500}
               />
-              <Text style={{ fontSize: 11, color: couleurs.texteSecondaire, marginTop: 4, marginBottom: 4 }}>
-                {raisonCloture.length}/500
-              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 16 }}>
+                <Text style={{ fontSize: 11, color: raisonCloture.trim().length < 10 ? couleurs.texteSecondaire : '#10B981' }}>
+                  {raisonCloture.trim().length < 10 ? `Minimum 10 caracteres` : 'OK'}
+                </Text>
+                <Text style={{ fontSize: 11, color: couleurs.texteSecondaire }}>
+                  {raisonCloture.length}/500
+                </Text>
+              </View>
 
               {statutMessage?.type === 'erreur' && (
-                <Text style={{ color: couleurs.danger, fontSize: 13, marginBottom: 12 }}>
+                <Text style={{ color: couleurs.danger, fontSize: 13, marginBottom: 12, textAlign: 'center' }}>
                   {statutMessage.texte}
                 </Text>
               )}
+            </ScrollView>
 
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Pressable
-                  style={[styles.btnSecondary, { flex: 1 }]}
-                  onPress={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}
-                >
-                  <Text style={styles.btnSecondaryText}>Annuler</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btnDanger, { flex: 1 }, statutLoading && { opacity: 0.6 }]}
-                  onPress={handleConfirmerSwitchVisiteur}
-                  disabled={statutLoading}
-                >
-                  {statutLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.btnDangerText}>Confirmer</Text>
-                  )}
-                </Pressable>
-              </View>
+            <View style={{ flexDirection: 'row', gap: 12, paddingTop: 8 }}>
+              <Pressable
+                style={[styles.btnSecondary, { flex: 1 }]}
+                onPress={() => { setShowModalStatut(false); setRaisonCloture(''); setStatutMessage(null); setStatutSelectionne(utilisateur?.statut || 'visiteur'); }}
+              >
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.btnDanger, { flex: 1 }, (statutLoading || raisonCloture.trim().length < 10) && { opacity: 0.5 }]}
+                onPress={handleConfirmerSwitchVisiteur}
+                disabled={statutLoading || raisonCloture.trim().length < 10}
+              >
+                {statutLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.btnDangerText}>Confirmer la cloture</Text>
+                )}
+              </Pressable>
             </View>
-          </ScrollView>
+          </View>
         </KeyboardView>
       </Modal>
     </View>
