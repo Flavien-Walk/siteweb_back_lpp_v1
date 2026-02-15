@@ -510,9 +510,9 @@ export const modifierStatut = async (
           if (projet.followers && projet.followers.length > 0) {
             const notifications = projet.followers.map((followerId) => ({
               destinataire: followerId,
-              type: 'projet-update' as const,
-              titre: `Projet "${projet.nom}" clôturé`,
-              message: donnees.raisonCloture!,
+              type: 'projet_cloture' as const,
+              titre: `Projet « ${projet.nom} » clôturé`,
+              message: `${utilisateur.prenom} ${utilisateur.nom} a clôturé le projet « ${projet.nom} ». Raison : ${donnees.raisonCloture!}`,
               data: {
                 projetId: projet._id.toString(),
                 projetNom: projet.nom,
@@ -536,7 +536,7 @@ export const modifierStatut = async (
             Projet.findByIdAndDelete(projet._id),
             Notification.deleteMany({
               'data.projetId': projet._id.toString(),
-              type: { $ne: 'projet-update' },
+              type: { $ne: 'projet_cloture' },
             }),
             Report.deleteMany({ targetType: 'projet', targetId: projet._id }),
           ]);
