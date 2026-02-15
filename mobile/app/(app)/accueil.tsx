@@ -213,9 +213,6 @@ export default function Accueil() {
     unreadMessages: socketUnreadMessages,
     unreadNotifications: socketUnreadNotifications,
     unreadDemandesAmis: socketUnreadDemandesAmis,
-    onNewMessage,
-    onNewNotification,
-    onDemandeAmi,
   } = useSocket();
 
   // Navigation vers profil utilisateur (mon profil ou profil public)
@@ -1300,9 +1297,9 @@ export default function Accueil() {
     setMediasSelectionnes(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleProfil = () => {
+  const handleProfil = useCallback(() => {
     router.push('/(app)/profil');
-  };
+  }, [router]);
 
   const getInitiales = () => {
     if (!utilisateur) return 'U';
@@ -1835,11 +1832,11 @@ export default function Accueil() {
     chargerProjets(cat, rechercheProjetDebounced);
   };
 
-  const handleRechercheProjetSubmit = () => {
+  const handleRechercheProjetSubmit = useCallback(() => {
     // Bypass debounce — recherche immediate sur submit clavier
     setRechercheProjetDebounced(rechercheProjet);
     chargerProjets(categorieFiltre, rechercheProjet);
-  };
+  }, [rechercheProjet, categorieFiltre, chargerProjets]);
 
   const renderDecouvrirContent = () => (
     <>
@@ -2024,27 +2021,36 @@ export default function Accueil() {
     }
   };
 
-  const renderLiveContent = () => {
-    // Filtrer par recherche
-    const livesFiltres = rechercheLive.length >= 2
+  // Memoized live computations
+  const { livesFiltres, livesTries, totalViewers, featuredLive, autresLives } = useMemo(() => {
+    const filtres = rechercheLive.length >= 2
       ? lives.filter(l =>
           `${l.host?.prenom} ${l.host?.nom}`.toLowerCase().includes(rechercheLive.toLowerCase()) ||
           (l.title || '').toLowerCase().includes(rechercheLive.toLowerCase())
         )
       : lives;
-
-    // Trier
-    const livesTries = [...livesFiltres].sort((a, b) =>
+    const tries = [...filtres].sort((a, b) =>
       triLive === 'populaire'
         ? b.viewerCount - a.viewerCount
         : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     );
+    return {
+      livesFiltres: filtres,
+      livesTries: tries,
+      totalViewers: lives.reduce((sum, l) => sum + l.viewerCount, 0),
+      featuredLive: tries[0],
+      autresLives: tries.slice(1),
+    };
+  }, [lives, rechercheLive, triLive]);
 
-    // Stats reelles uniquement
-    const totalViewers = lives.reduce((sum, l) => sum + l.viewerCount, 0);
-    const featuredLive = livesTries[0];
-    const autresLives = livesTries.slice(1);
+  // Memoized conversations filtrees
+  const conversationsFiltreesAccueil = useMemo(() =>
+    conversations.filter(conv =>
+      rechercheMessage.length < 2 ||
+      (conv.participant && `${conv.participant.prenom} ${conv.participant.nom}`.toLowerCase().includes(rechercheMessage.toLowerCase()))
+    ), [conversations, rechercheMessage]);
 
+  const renderLiveContent = () => {
     return (
       <View style={styles.liveContainer}>
         {/* ====== HEADER ====== */}
@@ -2228,10 +2234,7 @@ export default function Accueil() {
   };
 
   const renderMessagesContent = () => {
-    const conversationsFiltrees = conversations.filter(conv =>
-      rechercheMessage.length < 2 ||
-      (conv.participant && `${conv.participant.prenom} ${conv.participant.nom}`.toLowerCase().includes(rechercheMessage.toLowerCase()))
-    );
+    const conversationsFiltrees = conversationsFiltreesAccueil;
 
     // Vue conversation active
     if (conversationActive) {
@@ -2766,7 +2769,7 @@ export default function Accueil() {
    * KILL-SWITCH: Stop ALL videos immediately when scroll begins
    * This prevents ghost audio by stopping everything before viewability recalculation
    */
-  const handleScrollBegin = () => {
+  const handleScrollBegin = useCallback(() => {
     // Clear any pending viewability timeout
     if (viewabilityTimeoutRef.current) {
       clearTimeout(viewabilityTimeoutRef.current);
@@ -2783,7 +2786,7 @@ export default function Accueil() {
 
     // THEN hard stop all videos via registry
     videoRegistry.stopAll().catch(() => {});
-  };
+  }, []);
 
   const scrollToTop = () => {
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
