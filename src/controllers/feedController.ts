@@ -34,7 +34,7 @@ export const getFeed = async (req: Request, res: Response): Promise<void> => {
 
     // Si l'utilisateur est connecté, montrer les publications de ses projets suivis + annonces
     if (req.utilisateur) {
-      const projetsSuivis = await Projet.find({ followers: req.utilisateur._id }).select('_id');
+      const projetsSuivis = await Projet.find({ followers: req.utilisateur._id }).select('_id').lean();
       const projetIds = projetsSuivis.map((p) => p._id);
 
       if (type === 'suivis') {
@@ -60,7 +60,8 @@ export const getFeed = async (req: Request, res: Response): Promise<void> => {
         .skip(skip)
         .limit(limitNum)
         .populate('auteur', 'prenom nom avatar')
-        .populate('projet', 'nom image'),
+        .populate('projet', 'nom image')
+        .lean(),
       Publication.countDocuments(filtre),
     ]);
 

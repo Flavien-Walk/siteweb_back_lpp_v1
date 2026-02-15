@@ -18,7 +18,8 @@ export const mesNotifications = async (req: Request, res: Response): Promise<voi
       Notification.find({ destinataire: userId })
         .sort({ dateCreation: -1 })
         .skip(skip)
-        .limit(limitNum),
+        .limit(limitNum)
+        .lean(),
       Notification.countDocuments({ destinataire: userId }),
       Notification.countDocuments({ destinataire: userId, lue: false }),
     ]);

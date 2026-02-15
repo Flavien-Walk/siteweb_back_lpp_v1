@@ -112,7 +112,8 @@ export const getPublications = async (
         .skip(skip)
         .limit(limitNum)
         .populate('auteur', 'prenom nom avatar')
-        .populate('projet', 'nom image'),
+        .populate('projet', 'nom image')
+        .lean(),
       Publication.countDocuments(filtre),
     ]);
 
@@ -536,7 +537,8 @@ export const getCommentaires = async (
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar'),
+        .populate('auteur', 'prenom nom avatar')
+        .lean(),
       Commentaire.countDocuments({ publication: id, reponseA: null }),
     ]);
 
@@ -545,19 +547,20 @@ export const getCommentaires = async (
       commentaires.map(async (commentaire) => {
         const reponses = await Commentaire.find({ reponseA: commentaire._id })
           .sort({ dateCreation: 1 })
-          .populate('auteur', 'prenom nom avatar');
+          .populate('auteur', 'prenom nom avatar')
+          .lean();
 
-        const commentaireObj = commentaire.toObject();
+        const commentaireObj = typeof commentaire.toObject === 'function' ? commentaire.toObject() : commentaire;
         return {
           ...commentaireObj,
           aLike: req.utilisateur
-            ? commentaire.likes.some((lid) => lid.toString() === req.utilisateur!._id.toString())
+            ? (commentaire.likes || []).some((lid: any) => lid.toString() === req.utilisateur!._id.toString())
             : false,
-          nbLikes: commentaire.likes.length,
-          reponses: reponses.map((rep) => ({
-            ...rep.toObject(),
+          nbLikes: (commentaire.likes || []).length,
+          reponses: reponses.map((rep: any) => ({
+            ...(typeof rep.toObject === 'function' ? rep.toObject() : rep),
             aLike: req.utilisateur
-              ? rep.likes.some((lid) => lid.toString() === req.utilisateur!._id.toString())
+              ? rep.likes.some((lid: any) => lid.toString() === req.utilisateur!._id.toString())
               : false,
             nbLikes: rep.likes.length,
           })),

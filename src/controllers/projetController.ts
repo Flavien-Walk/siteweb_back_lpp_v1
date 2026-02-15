@@ -75,16 +75,18 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
         .skip(skip)
         .limit(limitNum)
         .populate('porteur', 'prenom nom avatar')
-        .populate('equipe.utilisateur', 'prenom nom avatar'),
+        .populate('equipe.utilisateur', 'prenom nom avatar')
+        .lean(),
       Projet.countDocuments(filtre),
     ]);
 
     // Ajouter estSuivi et nbFollowers pour chaque projet
     const userId = req.utilisateur?._id;
-    const projetsAvecSuivi = projets.map((p) => {
-      const projetObj = p.toObject() as any;
-      projetObj.estSuivi = userId ? p.followers.some((f: any) => f.equals(userId)) : false;
-      projetObj.nbFollowers = p.followers.length;
+    const projetsAvecSuivi = projets.map((p: any) => {
+      const projetObj = typeof p.toObject === 'function' ? p.toObject() : { ...p };
+      const userIdStr = userId?.toString();
+      projetObj.estSuivi = userIdStr ? (p.followers || []).some((f: any) => f.toString() === userIdStr) : false;
+      projetObj.nbFollowers = (p.followers || []).length;
       // PENTEST-10: Ne pas exposer le tableau followers brut
       delete projetObj.followers;
       // PENTEST-05: Filtrer documents prives dans la liste publique
@@ -293,12 +295,13 @@ export const mesProjets = async (req: Request, res: Response): Promise<void> => 
     const userId = req.utilisateur!._id;
     const projets = await Projet.find({ followers: userId, statut: 'published' })
       .sort({ dateMiseAJour: -1 })
-      .populate('porteur', 'prenom nom avatar');
+      .populate('porteur', 'prenom nom avatar')
+      .lean();
 
     // Ajouter nbFollowers et estSuivi, retirer followers brut
-    const projetsAvecStats = projets.map((p) => {
-      const obj = p.toObject() as any;
-      obj.nbFollowers = p.followers.length;
+    const projetsAvecStats = projets.map((p: any) => {
+      const obj = { ...p };
+      obj.nbFollowers = (p.followers || []).length;
       obj.estSuivi = true;
       delete obj.followers;
       return obj;
