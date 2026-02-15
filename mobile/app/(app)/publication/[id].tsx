@@ -13,7 +13,6 @@ import {
   Image,
   TextInput,
   Dimensions,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   ActivityIndicator,
@@ -37,6 +36,7 @@ import {
   supprimerCommentaire,
   modifierCommentaire,
 } from '../../../src/services/publications';
+import KeyboardView from '../../../src/composants/KeyboardView';
 import Avatar from '../../../src/composants/Avatar';
 import LikeButton, { LikeButtonCompact } from '../../../src/composants/LikeButton';
 import AnimatedPressable from '../../../src/composants/AnimatedPressable';
@@ -452,11 +452,7 @@ export default function PublicationDetailPage() {
   const mediaIsVideo = publication.medias?.length ? publication.medias[0].type === 'video' : isVideo(publication.media);
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
-    >
+    <KeyboardView style={[styles.container, { paddingTop: insets.top }]} offset={insets.top}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
@@ -933,7 +929,7 @@ export default function PublicationDetailPage() {
         theme="light"
         initialCount={publication?.nbCommentaires || 0}
       />
-    </KeyboardAvoidingView>
+    </KeyboardView>
   );
 }
 

@@ -16,7 +16,6 @@ import {
   TextInput,
   Dimensions,
   Modal,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   Keyboard,
@@ -37,7 +36,7 @@ import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
 import { Utilisateur } from '../../src/services/auth';
 // useStaff importé uniquement dans PublicationCard extrait
-import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay } from '../../src/composants';
+import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay, KeyboardView } from '../../src/composants';
 import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
 import { videoRegistry } from '../../src/stores/videoRegistry';
 import {
@@ -2377,7 +2376,7 @@ export default function Accueil() {
             setMessageContenu('');
           }}
         >
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <KeyboardView style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Nouvelle conversation</Text>
@@ -2462,7 +2461,7 @@ export default function Accueil() {
                 </>
               )}
             </View>
-          </KeyboardAvoidingView>
+          </KeyboardView>
         </Modal>
       </View>
     );
@@ -3079,10 +3078,7 @@ export default function Accueil() {
           setNouveauPostContenu('');
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
+        <KeyboardView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nouvelle publication</Text>
@@ -3190,7 +3186,7 @@ export default function Accueil() {
               </Pressable>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardView>
       </Modal>
 
       {/* Recherche plein écran */}

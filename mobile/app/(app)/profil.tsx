@@ -14,7 +14,6 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Switch,
   Modal,
@@ -46,6 +45,7 @@ import { getPublicationsUtilisateur, Publication } from '../../src/services/publ
 import { getMesStories, Story } from '../../src/services/stories';
 import { getMesProjets, Projet } from '../../src/services/projets';
 import Avatar from '../../src/composants/Avatar';
+import KeyboardView from '../../src/composants/KeyboardView';
 import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
@@ -1383,7 +1383,7 @@ export default function Profil() {
   };
 
   const renderParametres = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
       {/* Carte d'avertissements si l'utilisateur a des warnings */}
       {moderationStatus && moderationStatus.warnCountSinceLastAutoSuspension > 0 && (
         <View style={[styles.warningCard, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFF8E1', borderColor: couleurs.attention }]}>
@@ -1483,10 +1483,7 @@ export default function Profil() {
         style={StyleSheet.absoluteFill}
       />
 
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardView style={styles.keyboardView}>
           {/* Header */}
           <View style={styles.header}>
             <Pressable style={styles.backButton} onPress={() => router.back()}>
@@ -1629,10 +1626,7 @@ export default function Profil() {
           transparent={true}
           onRequestClose={() => setModalBio(false)}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalOverlay}
-          >
+          <KeyboardView style={styles.modalOverlay}>
             <Pressable
               style={styles.modalOverlayTouchable}
               onPress={() => setModalBio(false)}
@@ -1676,7 +1670,7 @@ export default function Profil() {
                 )}
               </Pressable>
             </View>
-          </KeyboardAvoidingView>
+          </KeyboardView>
         </Modal>
 
         {/* Modal Visionneuse Image */}
@@ -1897,7 +1891,7 @@ export default function Profil() {
             }
           }}
         />
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </>
   );
 

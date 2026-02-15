@@ -10,12 +10,12 @@ import {
   Modal,
   Pressable,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { couleurs, espacements, rayons, typographie } from '../../../constantes/theme';
+import KeyboardView from '../../KeyboardView';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { WIDGET_COLORS, TEXT_FONT_SIZES } from '../../../types/storyWidgets';
 
@@ -101,10 +101,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
-      >
+      <KeyboardView style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
 
         <View style={[styles.sheet, { backgroundColor: themeColors.fond }]}>
@@ -319,7 +316,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </Modal>
   );
 };

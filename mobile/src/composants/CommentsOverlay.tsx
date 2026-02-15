@@ -13,7 +13,6 @@ import {
   Pressable,
   FlatList,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   Animated,
   Dimensions,
@@ -30,6 +29,7 @@ import {
   toggleLikeCommentaire,
 } from '../services/publications';
 import Avatar from './Avatar';
+import KeyboardView from './KeyboardView';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.65; // 65% de l'écran
@@ -328,10 +328,7 @@ export default function CommentsOverlay({
       statusBarTranslucent
       presentationStyle="overFullScreen"
     >
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardView style={styles.container}>
         {/* Backdrop - tap pour fermer */}
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
@@ -375,6 +372,7 @@ export default function CommentsOverlay({
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               windowSize={7}
               initialNumToRender={10}
               maxToRenderPerBatch={5}
@@ -422,7 +420,7 @@ export default function CommentsOverlay({
             </View>
           </View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </Modal>
   );
 }

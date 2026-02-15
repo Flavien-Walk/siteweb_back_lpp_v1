@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
   Dimensions,
@@ -18,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Bouton, ChampTexte } from '../../src/composants';
+import { Bouton, ChampTexte, KeyboardView } from '../../src/composants';
 import { couleurs, espacements, typographie, rayons } from '../../src/constantes/theme';
 import { connexion } from '../../src/services/auth';
 import { connexionGoogle, connexionApple } from '../../src/services/oauth';
@@ -102,14 +101,12 @@ export default function Connexion() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
+      <KeyboardView style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           {/* Header avec logo/titre */}
           <View style={styles.header}>
@@ -227,7 +224,7 @@ export default function Connexion() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </SafeAreaView>
   );
 }

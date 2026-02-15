@@ -33,7 +33,6 @@ import {
   ActivityIndicator,
   Keyboard,
   Platform,
-  KeyboardAvoidingView,
   Modal,
   LayoutAnimation,
   UIManager,
@@ -54,6 +53,7 @@ import {
   toggleLikeCommentaire,
 } from '../services/publications';
 import Avatar from './Avatar';
+import KeyboardView from './KeyboardView';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT_READ = SCREEN_HEIGHT * 0.7; // 70% - mode READ (lecture seule)
@@ -610,16 +610,12 @@ export default function UnifiedCommentsSheet({
   };
 
   // ============================================================
-  // INNER CONTENT - Structure avec KeyboardAvoidingView
+  // INNER CONTENT - Structure avec KeyboardView
   // Header (hauteur fixe) + Body (flex:1) + Composer
-  // KeyboardAvoidingView gère le clavier sur iOS et Android
+  // KeyboardView gère le clavier sur iOS et Android
   // ============================================================
   const sheetInnerContent = (
-    <KeyboardAvoidingView
-      style={styles.sheetInner}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
+    <KeyboardView style={styles.sheetInner}>
       {/* Header - Swipe down to close avec PanResponder */}
       <Animated.View
         {...panResponder.panHandlers}
@@ -734,7 +730,7 @@ export default function UnifiedCommentsSheet({
           </Pressable>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardView>
   );
 
   // ============================================================

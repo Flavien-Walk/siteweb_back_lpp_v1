@@ -47,3 +47,6 @@ export { FeedPreview, MessagesListPreview } from './SwipeBackPreviews';
 
 // Onglets intégrés
 export { default as MessagesTab } from './MessagesTab';
+
+// Keyboard
+export { default as KeyboardView } from './KeyboardView';

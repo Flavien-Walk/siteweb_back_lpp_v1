@@ -13,11 +13,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   FlatList,
   Keyboard,
 } from 'react-native';
+import KeyboardView from '../../src/composants/KeyboardView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -407,11 +407,7 @@ export default function SupportScreen() {
             </Pressable>
             <Text style={[styles.headerTitle, { color: colors.texte }]}>Nouveau ticket</Text>
           </View>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
-          >
+          <KeyboardView offset={insets.top}>
             <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
               <Text style={[styles.formLabel, { color: colors.texte, marginTop: 0 }]}>Sujet</Text>
               <TextInput
@@ -476,7 +472,7 @@ export default function SupportScreen() {
                 </Text>
               )}
             </ScrollView>
-          </KeyboardAvoidingView>
+          </KeyboardView>
         </SafeAreaView>
       </View>
     );
@@ -490,11 +486,7 @@ export default function SupportScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.fond, paddingTop: insets.top }]}>
         <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior="padding"
-          keyboardVerticalOffset={0}
-        >
+        <KeyboardView>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
             <Pressable style={styles.backButton} onPress={handleBack}>
@@ -602,7 +594,7 @@ export default function SupportScreen() {
               </Pressable>
             </View>
           )}
-        </KeyboardAvoidingView>
+        </KeyboardView>
       </View>
     );
   }

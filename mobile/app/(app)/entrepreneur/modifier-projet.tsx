@@ -12,7 +12,6 @@ import {
   TextInput,
   Pressable,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Image,
@@ -44,6 +43,7 @@ import {
   publierProjet as publierProjetAPI,
 } from '../../../src/services/projets';
 import * as DocumentPicker from 'expo-document-picker';
+import KeyboardView from '../../../src/composants/KeyboardView';
 
 // Types pour les etapes (numeriques)
 type Etape = '1' | '2' | '3' | '4' | '5' | '6';
@@ -1156,19 +1156,17 @@ export default function ModifierProjetScreen() {
       </View>
 
       {/* Content */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.contentContainer}
-      >
+      <KeyboardView style={styles.contentContainer}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           {renderEtapeContent()}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardView>
 
       {/* Footer navigation */}
       {etapeActive !== '6' && (

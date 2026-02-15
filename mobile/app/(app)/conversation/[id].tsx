@@ -14,7 +14,6 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   ActionSheetIOS,
@@ -31,6 +30,7 @@ import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
+import KeyboardView from '../../../src/composants/KeyboardView';
 import { useUser } from '../../../src/contexts/UserContext';
 import { useSocket, MessageSocketEvent, TypingSocketEvent } from '../../../src/contexts/SocketContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation, SwipeableScreen } from '../../../src/composants';
@@ -286,10 +286,6 @@ export default function ConversationScreen() {
 
   const inputContainerRef = useRef<View>(null);
 
-  // Android edge-to-edge: briefly disable KAV after keyboard dismiss
-  // to force it to reset its internal padding (fixes stuck layout)
-  const [kavEnabled, setKavEnabled] = useState(true);
-
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
     if (!id) return;
@@ -438,30 +434,18 @@ export default function ConversationScreen() {
     enabled: !!id && !chargement,
   });
 
-  // Keyboard handling: scroll to end + Android KAV reset on dismiss
+  // Keyboard handling: scroll to end when keyboard opens
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
 
     const keyboardShowListener = Keyboard.addListener(showEvent, () => {
-      // Scroll vers le bas pour voir les derniers messages
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, Platform.OS === 'ios' ? 50 : 150);
     });
 
-    // Android edge-to-edge fix: briefly disable KAV on keyboard dismiss
-    // to force it to clear its internal padding (prevents stuck layout)
-    let keyboardHideListener: ReturnType<typeof Keyboard.addListener> | undefined;
-    if (Platform.OS === 'android') {
-      keyboardHideListener = Keyboard.addListener('keyboardDidHide', () => {
-        setKavEnabled(false);
-        setTimeout(() => setKavEnabled(true), 50);
-      });
-    }
-
     return () => {
       keyboardShowListener.remove();
-      keyboardHideListener?.remove();
     };
   }, []);
 
@@ -1262,12 +1246,7 @@ export default function ConversationScreen() {
   // Contenu principal de la conversation
   const conversationContent = (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior="padding"
-        keyboardVerticalOffset={0}
-        enabled={kavEnabled}
-      >
+      <KeyboardView style={styles.keyboardContainer}>
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.headerBack}>
@@ -1568,7 +1547,7 @@ export default function ConversationScreen() {
           imageUrl={fullscreenImageUrl}
           onClose={() => setFullscreenImageUrl(null)}
         />
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </View>
   );
 

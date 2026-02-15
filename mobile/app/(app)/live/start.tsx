@@ -11,7 +11,6 @@ import {
   ScrollView,
   Pressable,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Animated,
   ImageBackground,
@@ -22,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme, type ThemeCouleurs } from '../../../src/contexts/ThemeContext';
+import KeyboardView from '../../../src/composants/KeyboardView';
 import { useUser } from '../../../src/contexts/UserContext';
 import { espacements, rayons } from '../../../src/constantes/theme';
 import { Avatar, Bouton, ChampTexte, SwipeableScreen } from '../../../src/composants';
@@ -116,15 +116,12 @@ export default function LiveStartScreen() {
         <View style={styles.headerBtn} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={insets.top + 56}
-      >
+      <KeyboardView offset={insets.top + 56}>
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
           {/* ====== PREVIEW CAMERA ====== */}
@@ -251,7 +248,7 @@ export default function LiveStartScreen() {
           {/* Spacer pour le bouton fixe */}
           <View style={{ height: 120 }} />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardView>
 
       {/* ====== CTA FIXE EN BAS ====== */}
       <View style={[styles.bottomCTA, { paddingBottom: insets.bottom + espacements.sm }]}>
