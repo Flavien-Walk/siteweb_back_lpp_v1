@@ -290,7 +290,8 @@ function MessageList({
 
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
-      setTimeout(scrollToBottom, 100)
+      const timer = setTimeout(scrollToBottom, 100)
+      return () => clearTimeout(timer)
     }
   }, [messages.length, isLoading, scrollToBottom])
 
