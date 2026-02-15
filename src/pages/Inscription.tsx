@@ -93,7 +93,11 @@ const Inscription = () => {
 
       if (reponse.succes && reponse.data) {
         setUtilisateur(reponse.data.utilisateur);
-        navigate('/espace');
+        if (!reponse.data.utilisateur.emailVerifie) {
+          navigate('/verification-email');
+        } else {
+          navigate('/espace');
+        }
       } else {
         if (reponse.erreurs) {
           setErreurs(reponse.erreurs);

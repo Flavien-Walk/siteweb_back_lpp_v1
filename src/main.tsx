@@ -6,6 +6,7 @@ import Accueil from './pages/Accueil';
 
 const Connexion = lazy(() => import('./pages/Connexion'));
 const Inscription = lazy(() => import('./pages/Inscription'));
+const VerificationEmail = lazy(() => import('./pages/VerificationEmail'));
 const Espace = lazy(() => import('./pages/Espace'));
 const CallbackOAuth = lazy(() => import('./pages/CallbackOAuth'));
 
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<Accueil />} />
             <Route path="/connexion" element={<Connexion />} />
             <Route path="/inscription" element={<Inscription />} />
+            <Route path="/verification-email" element={<VerificationEmail />} />
             <Route path="/espace" element={<Espace />} />
             <Route path="/auth/callback" element={<CallbackOAuth />} />
           </Routes>

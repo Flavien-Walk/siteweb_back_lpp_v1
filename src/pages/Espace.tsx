@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   HiGlobe,
@@ -34,6 +34,11 @@ const onglets: { id: Onglet; label: string; icon: React.ReactNode }[] = [
 const Espace = () => {
   const { utilisateur } = useAuth();
   const [ongletActif, setOngletActif] = useState<Onglet>('decouvrir');
+
+  // Rediriger vers la vérification email si pas encore vérifié
+  if (utilisateur && !utilisateur.emailVerifie) {
+    return <Navigate to="/verification-email" replace />;
+  }
 
   const renduOnglet = () => {
     switch (ongletActif) {

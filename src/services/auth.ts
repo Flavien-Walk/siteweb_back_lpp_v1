@@ -164,6 +164,33 @@ export const urlOAuth = {
   apple: `${API_BASE_URL}/auth/apple`,
 };
 
+/**
+ * Vérifier l'email avec un code 6 chiffres
+ */
+export const verifierEmail = async (
+  code: string
+): Promise<ReponseAPI<{ emailVerifie: boolean }>> => {
+  const reponse = await api.post<{ emailVerifie: boolean }>('/auth/verifier-email', { code }, true);
+
+  if (reponse.succes && reponse.data) {
+    // Mettre à jour l'utilisateur local
+    const user = getUtilisateurLocal();
+    if (user) {
+      user.emailVerifie = true;
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    }
+  }
+
+  return reponse;
+};
+
+/**
+ * Renvoyer le code de vérification email
+ */
+export const renvoyerCodeVerification = async (): Promise<ReponseAPI<void>> => {
+  return api.post<void>('/auth/renvoyer-code', {}, true);
+};
+
 export default {
   inscription,
   connexion,
@@ -174,4 +201,6 @@ export default {
   estConnecte,
   gererCallbackOAuth,
   urlOAuth,
+  verifierEmail,
+  renvoyerCodeVerification,
 };
