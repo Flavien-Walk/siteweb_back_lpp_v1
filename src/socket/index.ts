@@ -216,6 +216,42 @@ export function initializeSocket(httpServer: HttpServer): Server {
     const userId = socket.userId!;
     console.log(`[SOCKET] Utilisateur connecté: ${userId} (socket: ${socket.id})`);
 
+    // SEC-SOCKET-01: Re-verifier le statut utilisateur sur chaque event entrant
+    // (un user peut etre banni/suspendu APRES la connexion socket)
+    let lastStatusCheck = Date.now();
+    const STATUS_CHECK_INTERVAL = 30_000; // Re-verifier toutes les 30s max
+
+    socket.use(async ([event], next) => {
+      const now = Date.now();
+      if (now - lastStatusCheck < STATUS_CHECK_INTERVAL) return next();
+      lastStatusCheck = now;
+
+      try {
+        const user = await Utilisateur.findById(userId)
+          .select('bannedAt suspendedUntil')
+          .lean();
+
+        if (!user) {
+          socket.emit('force_disconnect', { reason: 'Compte introuvable' });
+          socket.disconnect(true);
+          return;
+        }
+        if (user.bannedAt) {
+          socket.emit('force_disconnect', { reason: 'Compte banni' });
+          socket.disconnect(true);
+          return;
+        }
+        if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
+          socket.emit('force_disconnect', { reason: 'Compte suspendu' });
+          socket.disconnect(true);
+          return;
+        }
+        next();
+      } catch {
+        next();
+      }
+    });
+
     // RED-15: Initialize room tracker
     socket._joinedRooms = new Set();
 

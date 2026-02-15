@@ -55,14 +55,15 @@ const getEncryptionKey = (): Buffer => {
 
   if (legacyKey) {
     if (!salt) {
-      console.warn(
-        '[CryptoMessage] ⚠️  MESSAGE_ENCRYPTION_KEY utilisé sans MESSAGE_ENCRYPTION_SALT. ' +
-        'Utilisation d\'un salt par défaut (NON RECOMMANDÉ). ' +
-        'Migrez vers MESSAGE_ENCRYPTION_KEY_BASE64.'
+      throw new Error(
+        'MESSAGE_ENCRYPTION_SALT obligatoire quand MESSAGE_ENCRYPTION_KEY est utilisé. ' +
+        'Définissez MESSAGE_ENCRYPTION_SALT ou migrez vers MESSAGE_ENCRYPTION_KEY_BASE64.'
       );
     }
-    // Utiliser scrypt avec un salt configurable (ou default pour compatibilité)
-    return crypto.scryptSync(legacyKey, salt || 'salt', 32);
+    console.warn(
+      '[CryptoMessage] MESSAGE_ENCRYPTION_KEY deprecated. Migrez vers MESSAGE_ENCRYPTION_KEY_BASE64.'
+    );
+    return crypto.scryptSync(legacyKey, salt, 32);
   }
 
   throw new Error(

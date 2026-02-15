@@ -990,8 +990,9 @@ export const deconnexion = async (
           const userId = req.utilisateur?._id?.toString() || decoded.id || '';
           await blacklistToken(token, userId, expiresAt);
         }
-      } catch {
-        // Si le token est invalide, pas grave - l'utilisateur est quand meme deconnecte
+      } catch (err) {
+        // Log l'echec du blacklist — le token reste valide jusqu'a expiration naturelle
+        console.error('[AUTH] Echec blacklist token lors de la deconnexion:', err instanceof Error ? err.message : err);
       }
     }
 
