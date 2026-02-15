@@ -49,7 +49,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
  * failOffsetX={15}    : echoue si swipe vers la droite → SwipeableScreen prend le relais
  * failOffsetY          : echoue si scroll vertical → FlatList scroll normalement
  */
-const SwipeLeftToDelete = ({ children, onDelete }: { children: React.ReactNode; onDelete: () => void }) => {
+const SwipeLeftToDelete = React.memo(({ children, onDelete }: { children: React.ReactNode; onDelete: () => void }) => {
   const translateX = useRef(new Animated.Value(0)).current;
 
   const gestureEvent = useMemo(
@@ -104,7 +104,7 @@ const SwipeLeftToDelete = ({ children, onDelete }: { children: React.ReactNode; 
       </PanGestureHandler>
     </View>
   );
-};
+});
 
 const swipeStyles = StyleSheet.create({
   deleteBg: {

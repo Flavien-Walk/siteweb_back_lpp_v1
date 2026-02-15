@@ -50,3 +50,6 @@ export { default as MessagesTab } from './MessagesTab';
 
 // Keyboard
 export { default as KeyboardView } from './KeyboardView';
+
+// Error handling
+export { default as ErrorBoundary } from './ErrorBoundary';

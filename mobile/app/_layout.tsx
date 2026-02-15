@@ -14,6 +14,7 @@ import { UserProvider, useUser } from '../src/contexts/UserContext';
 import { SocketProvider } from '../src/contexts/SocketContext';
 import SplashScreen from '../src/composants/SplashScreen';
 import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
+import ErrorBoundary from '../src/composants/ErrorBoundary';
 
 // Wrapper pour fournir le SocketProvider avec le userId
 function SocketWrapper({ children }: { children: React.ReactNode }) {
@@ -91,6 +92,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaProvider>
+        <ErrorBoundary>
         <ThemeProvider>
           {/* UserProvider est la source unique de vérité pour l'utilisateur */}
           {/* AuthProvider est un wrapper pour compatibilité avec l'API legacy */}
@@ -103,6 +105,7 @@ export default function RootLayout() {
             </AuthProvider>
           </UserProvider>
         </ThemeProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

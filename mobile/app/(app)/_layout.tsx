@@ -6,9 +6,11 @@
 import { Stack } from 'expo-router';
 import { Platform } from 'react-native';
 import { couleurs } from '../../src/constantes/theme';
+import ErrorBoundary from '../../src/composants/ErrorBoundary';
 
 export default function AppLayout() {
   return (
+    <ErrorBoundary>
     <Stack
       screenOptions={{
         headerShown: false,
@@ -92,5 +94,6 @@ export default function AppLayout() {
         }}
       />
     </Stack>
+    </ErrorBoundary>
   );
 }
