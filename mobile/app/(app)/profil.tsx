@@ -448,9 +448,6 @@ export default function Profil() {
   const handleSauvegarderBio = async () => {
     setChargement(true);
     const reponse = await modifierProfil({
-      prenom: utilisateur?.prenom || '',
-      nom: utilisateur?.nom || '',
-      email: utilisateur?.email || '',
       bio: bioTemp
     });
     setChargement(false);
@@ -496,7 +493,7 @@ export default function Profil() {
     }
 
     setChargement(true);
-    const reponse = await modifierProfil({ prenom, nom, email, bio });
+    const reponse = await modifierProfil({ prenom, nom, bio });
     setChargement(false);
 
     if (reponse.succes && reponse.data) {
