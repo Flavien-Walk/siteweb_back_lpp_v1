@@ -157,6 +157,7 @@ export const getMe = (
         prenom: user.prenom,
         nom: user.nom,
         email: user.email,
+        bio: user.bio || '',
         avatar: user.avatar,
         role: user.role,
         permissions: user.getEffectivePermissions(),
