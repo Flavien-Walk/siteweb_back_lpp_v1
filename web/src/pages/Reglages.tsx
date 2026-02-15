@@ -6,7 +6,7 @@ import {
   Save, Upload, Trash2, Eye, EyeOff, AlertTriangle,
   Globe, LockKeyhole, Shield, History, Rocket, Compass,
   Headset, Plus, Send, MessageCircle, Filter, CheckCircle2,
-  Clock, ArrowRight, ChevronLeft,
+  ChevronLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
