@@ -319,6 +319,8 @@ export default function Notifications() {
         return 'heart';
       case 'projet_update':
         return 'rocket';
+      case 'projet_cloture':
+        return 'close-circle';
       // Types de sanctions
       case 'sanction_ban':
         return 'ban';
@@ -372,6 +374,8 @@ export default function Notifications() {
         return '#8B5CF6';
       case 'projet_update':
         return '#F59E0B';
+      case 'projet_cloture':
+        return '#EF4444';
       // Types de sanctions
       case 'sanction_ban':
         return couleurs.danger;
@@ -458,6 +462,7 @@ export default function Notifications() {
     const estEnCours = actionsEnCours.has(item._id);
     const estDemandeAmi = item.type === 'demande_ami';
     const estBroadcast = item.type === 'broadcast';
+    const estCloture = item.type === 'projet_cloture';
     const broadcastColor = estBroadcast ? getBroadcastColor(item.data?.broadcastBadge) : getNotifColor(item.type);
     const broadcastIcon = estBroadcast ? getBroadcastIconForBadge(item.data?.broadcastBadge) : getNotifIcon(item.type);
 
@@ -474,7 +479,11 @@ export default function Notifications() {
         >
           {/* Avatar ou icône */}
           <View style={styles.notifIconContainer}>
-            {!estBroadcast && item.data?.userPrenom ? (
+            {estCloture ? (
+              <View style={[styles.notifIconBg, { backgroundColor: '#EF444420' }]}>
+                <Ionicons name="close-circle" size={24} color="#EF4444" />
+              </View>
+            ) : !estBroadcast && item.data?.userPrenom ? (
               <Avatar
                 uri={item.data.userAvatar}
                 prenom={item.data.userPrenom}
@@ -492,8 +501,8 @@ export default function Notifications() {
               </View>
             )}
             {/* Badge type */}
-            <View style={[styles.notifTypeBadge, { backgroundColor: broadcastColor }]}>
-              <Ionicons name={broadcastIcon} size={10} color={couleurs.blanc} />
+            <View style={[styles.notifTypeBadge, { backgroundColor: estCloture ? '#EF4444' : broadcastColor }]}>
+              <Ionicons name={estCloture ? 'close-circle' : broadcastIcon} size={10} color={couleurs.blanc} />
             </View>
           </View>
 
@@ -508,9 +517,29 @@ export default function Notifications() {
                 </Text>
               </View>
             )}
-            <Text style={[styles.notifMessage, !item.lue && styles.notifMessageNonLu]}>
-              {estBroadcast ? item.titre : item.message}
-            </Text>
+            {/* Badge + contenu enrichi pour clôture de projet */}
+            {estCloture && (
+              <View style={[styles.broadcastBadge, { backgroundColor: '#EF444415' }]}>
+                <Ionicons name="close-circle" size={10} color="#EF4444" />
+                <Text style={[styles.broadcastBadgeText, { color: '#EF4444' }]}>
+                  Projet clôturé
+                </Text>
+              </View>
+            )}
+            {estCloture ? (
+              <>
+                <Text style={[styles.notifMessage, !item.lue && styles.notifMessageNonLu]}>
+                  {item.titre}
+                </Text>
+                <Text style={styles.notifSubMessage} numberOfLines={3}>
+                  {item.message}
+                </Text>
+              </>
+            ) : (
+              <Text style={[styles.notifMessage, !item.lue && styles.notifMessageNonLu]}>
+                {estBroadcast ? item.titre : item.message}
+              </Text>
+            )}
             {estBroadcast && item.message && (
               <Text style={styles.notifSubMessage} numberOfLines={2}>
                 {item.message}

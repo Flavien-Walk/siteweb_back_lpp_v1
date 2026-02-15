@@ -14,6 +14,7 @@ export type TypeNotification =
   | 'nouveau_like'
   | 'like_commentaire'
   | 'projet_update'
+  | 'projet_cloture'
   | 'systeme'
   // Types de sanctions
   | 'sanction_ban'
@@ -43,6 +44,7 @@ export interface Notification {
     userAvatar?: string;
     conversationId?: string;
     projetId?: string;
+    projetNom?: string;
     publicationId?: string;
     commentaireId?: string;
     // Données de sanction
