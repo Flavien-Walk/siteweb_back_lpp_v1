@@ -79,6 +79,8 @@ const MAX_HISTORIQUE = 10;
 // LikeButton et getUserBadgeConfig importés dans PublicationCard
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
+import ParcoursBatisseur from '../../src/composants/ParcoursBatisseur';
+import { getMonParcours, enregistrerAction, ParcoursData, DefiActif, Quete } from '../../src/services/parcours';
 import StoriesRow from '../../src/composants/StoriesRow';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
@@ -99,19 +101,6 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 // Types
 type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages' | 'entrepreneur';
 
-interface TrendingStartup {
-  id: string;
-  nom: string;
-  secteur: string;
-  nouveauxAbonnes: number;
-}
-
-// Donnees mock pour Tendances (sera remplace par API plus tard)
-const TRENDING_STARTUPS: TrendingStartup[] = [
-  { id: '1', nom: 'GreenTech Lyon', secteur: 'CleanTech', nouveauxAbonnes: 124 },
-  { id: '2', nom: 'MedIA Diagnostics', secteur: 'HealthTech', nouveauxAbonnes: 98 },
-  { id: '3', nom: 'FinFlow Systems', secteur: 'FinTech', nouveauxAbonnes: 76 },
-];
 
 
 // Composant wrapper pour l'animation d'entrée des publications
@@ -490,6 +479,12 @@ export default function Accueil() {
   const [projets, setProjets] = useState<Projet[]>([]);
   const [projetsTendance, setProjetsTendance] = useState<Projet[]>([]);
   const [chargementProjets, setChargementProjets] = useState(false);
+
+  // Parcours du Batisseur (gamification)
+  const [parcours, setParcours] = useState<ParcoursData | null>(null);
+  const [defiActif, setDefiActif] = useState<DefiActif | null>(null);
+  const [quetesDisponibles, setQuetesDisponibles] = useState<Quete[]>([]);
+  const [chargementParcours, setChargementParcours] = useState(true);
   const [categorieFiltre, setCategorieFiltre] = useState<CategorieProjet | 'all'>('all');
   const [rechercheProjet, setRechercheProjet] = useState('');
   const [rechercheProjetDebounced, setRechercheProjetDebounced] = useState('');
@@ -819,6 +814,23 @@ export default function Accueil() {
     }
   };
 
+  // Charger le parcours gamification
+  const chargerParcours = async () => {
+    try {
+      setChargementParcours(true);
+      const reponse = await getMonParcours();
+      if (reponse.succes && reponse.data) {
+        setParcours(reponse.data.parcours);
+        setDefiActif(reponse.data.defiActif);
+        setQuetesDisponibles(reponse.data.quetesDisponibles);
+      }
+    } catch (error) {
+      if (__DEV__) console.error('Erreur chargement parcours:', error);
+    } finally {
+      setChargementParcours(false);
+    }
+  };
+
   const chargerDonnees = async () => {
     await Promise.all([
       chargerPublications(),
@@ -827,6 +839,7 @@ export default function Accueil() {
       chargerEvenements(),
       chargerNotifications(),
       chargerMesProjetsEntrepreneur(),
+      chargerParcours(),
     ]);
   };
 
@@ -1316,7 +1329,6 @@ export default function Accueil() {
 
   // ============ COMPOSANTS LOCAUX ============
   // PublicationCard extrait vers: src/composants/PublicationCard.tsx (optimisation P0)
-  // StartupCard et TrendingItem restent inline pour l'instant (Phase 2)
 
   const ProjetCard = ({ projet }: { projet: Projet }) => {
     // Verifier si c'est le propre projet de l'utilisateur
@@ -1522,22 +1534,6 @@ export default function Accueil() {
     );
   };
 
-  const TrendingItem = ({ item, rank }: { item: TrendingStartup; rank: number }) => (
-    <Pressable style={styles.trendingItem}>
-      <View style={[styles.trendingRank, rank <= 3 && styles.trendingRankTop]}>
-        <Text style={[styles.trendingRankText, rank <= 3 && styles.trendingRankTextTop]}>{rank}</Text>
-      </View>
-      <View style={styles.trendingInfo}>
-        <Text style={styles.trendingNom}>{item.nom}</Text>
-        <Text style={styles.trendingSecteur}>{item.secteur}</Text>
-      </View>
-      <View style={styles.trendingChange}>
-        <Ionicons name="trending-up" size={14} color={couleurs.succes} />
-        <Text style={styles.trendingChangeValue}>+{item.nouveauxAbonnes}</Text>
-      </View>
-    </Pressable>
-  );
-
   // ============ SECTIONS ============
 
   const renderHeader = () => (
@@ -1730,22 +1726,25 @@ export default function Accueil() {
     />
   );
 
-  const renderTrending = () => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View>
-          <Text style={styles.sectionTitle}>Tendances</Text>
-          <Text style={styles.sectionSubtitle}>Startups populaires cette semaine</Text>
-        </View>
-        <Pressable style={styles.sectionAction} onPress={() => pagerRef.current?.setPage(1)}>
-          <Text style={styles.sectionActionText}>Voir tout</Text>
-          <Ionicons name="arrow-forward" size={16} color={couleurs.texteSecondaire} />
-        </Pressable>
-      </View>
-      {TRENDING_STARTUPS.map((item, index) => (
-        <TrendingItem key={item.id} item={item} rank={index + 1} />
-      ))}
-    </View>
+  const handleQuetePress = useCallback((quete: Quete) => {
+    // Navigation contextuelle selon la quete
+    if (quete.id.includes('projet') || quete.id.includes('follow')) {
+      // Aller dans l'onglet decouvrir
+      pagerRef.current?.setPage(1);
+    } else if (quete.id.includes('message')) {
+      pagerRef.current?.setPage(3);
+    }
+  }, []);
+
+  const renderParcours = () => (
+    <ParcoursBatisseur
+      parcours={parcours}
+      defiActif={defiActif}
+      prochaineQuete={quetesDisponibles[0] || null}
+      statutUtilisateur={utilisateur?.statut || 'visiteur'}
+      chargement={chargementParcours}
+      onQuetePress={handleQuetePress}
+    />
   );
 
   const handleUpdatePublication = (updatedPub: Publication) => {
@@ -1759,7 +1758,7 @@ export default function Accueil() {
   const renderFeedContent = () => (
     <>
       {renderStories()}
-      {renderTrending()}
+      {renderParcours()}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Fil d'actualite</Text>
@@ -3676,59 +3675,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     color: couleurs.texteSecondaire,
   },
 
-  // Trending
-  trendingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: couleurs.fondSecondaire,
-    borderRadius: rayons.md,
-    padding: espacements.md,
-    marginBottom: espacements.sm,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-  },
-  trendingRank: {
-    width: 28,
-    height: 28,
-    borderRadius: rayons.sm,
-    backgroundColor: couleurs.fondTertiaire,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: espacements.md,
-  },
-  trendingRankTop: {
-    backgroundColor: couleurs.primaire,
-  },
-  trendingRankText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: couleurs.texteSecondaire,
-  },
-  trendingRankTextTop: {
-    color: couleurs.blanc,
-  },
-  trendingInfo: {
-    flex: 1,
-  },
-  trendingNom: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: couleurs.texte,
-  },
-  trendingSecteur: {
-    fontSize: 12,
-    color: couleurs.texteSecondaire,
-  },
-  trendingChange: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espacements.xs,
-  },
-  trendingChangeValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: couleurs.succes,
-  },
 
   // Post
   postCard: {

@@ -53,3 +53,6 @@ export { default as KeyboardView } from './KeyboardView';
 
 // Error handling
 export { default as ErrorBoundary } from './ErrorBoundary';
+
+// Gamification
+export { default as ParcoursBatisseur } from './ParcoursBatisseur';
