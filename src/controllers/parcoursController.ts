@@ -679,7 +679,8 @@ async function creerNotifGamification(
  */
 async function compterActionsReelles(
   userId: mongoose.Types.ObjectId,
-  action: string
+  action: string,
+  parcoursDoc?: any
 ): Promise<number> {
   switch (action) {
     case 'follow_projet':
@@ -698,14 +699,13 @@ async function compterActionsReelles(
     }
     case 'create_story':
       return Story.countDocuments({ auteur: userId });
-    case 'visit_projet': {
-      const parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId }).select('projetsVisites').lean();
-      return parcours?.projetsVisites?.length || 0;
-    }
-    case 'view_story': {
-      const parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId }).select('storiesVues').lean();
-      return parcours?.storiesVues?.length || 0;
-    }
+    case 'visit_projet':
+      // Lire depuis le doc en memoire (deja mis a jour) pour eviter race condition
+      if (parcoursDoc) return parcoursDoc.projetsVisites?.length || 0;
+      return (await ParcoursUtilisateur.findOne({ utilisateur: userId }).select('projetsVisites').lean())?.projetsVisites?.length || 0;
+    case 'view_story':
+      if (parcoursDoc) return parcoursDoc.storiesVues?.length || 0;
+      return (await ParcoursUtilisateur.findOne({ utilisateur: userId }).select('storiesVues').lean())?.storiesVues?.length || 0;
     default:
       return 1;
   }
@@ -1110,7 +1110,8 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
       }
 
       // Quete multi-count : compter via la vraie source de donnees
-      const actualCount = await compterActionsReelles(userId, action);
+      // On passe le parcours en memoire pour visit_projet/view_story (deja mis a jour avant)
+      const actualCount = await compterActionsReelles(userId, action, parcours);
       if (actualCount >= quete.countRequis) {
         parcours.quetesCompletees.push({
           queteId: quete.id,
