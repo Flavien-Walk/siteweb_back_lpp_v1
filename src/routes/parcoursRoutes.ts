@@ -3,6 +3,7 @@ import {
   getMonParcours,
   enregistrerAction,
   getQuetes,
+  getParcoursPublic,
 } from '../controllers/parcoursController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -30,5 +31,11 @@ router.post('/action', enregistrerAction);
  * Liste de toutes les quetes avec statut de completion
  */
 router.get('/quetes', getQuetes);
+
+/**
+ * GET /api/parcours/utilisateur/:id
+ * Parcours public d'un utilisateur (profil public ou amis)
+ */
+router.get('/utilisateur/:id', getParcoursPublic);
 
 export default router;

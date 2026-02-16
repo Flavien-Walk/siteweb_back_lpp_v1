@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import ParcoursUtilisateur, {
   NIVEAUX_VISITEUR,
   NIVEAUX_ENTREPRENEUR,
@@ -8,6 +9,11 @@ import ParcoursUtilisateur, {
 } from '../models/ParcoursUtilisateur.js';
 import DefiSemaine from '../models/DefiSemaine.js';
 import Utilisateur from '../models/Utilisateur.js';
+import Notification from '../models/Notification.js';
+import Projet from '../models/Projet.js';
+import Publication from '../models/Publication.js';
+import { Conversation } from '../models/Message.js';
+import Commentaire from '../models/Commentaire.js';
 
 // === CONFIGURATION XP PAR ACTION ===
 
@@ -254,6 +260,118 @@ async function getOuCreerDefiActif(): Promise<typeof DefiSemaine.prototype | nul
   return nouveauDefi.toObject();
 }
 
+/**
+ * Creer une notification gamification pour l'utilisateur
+ */
+async function creerNotifGamification(
+  userId: mongoose.Types.ObjectId,
+  titre: string,
+  message: string
+): Promise<void> {
+  try {
+    await Notification.create({
+      destinataire: userId,
+      type: 'interaction',
+      titre,
+      message,
+      lue: false,
+    });
+  } catch (err) {
+    console.error('[Parcours] Erreur creation notification:', err);
+  }
+}
+
+/**
+ * Calculer l'XP initial en scannant l'historique d'un utilisateur existant.
+ * Appele une seule fois lors de la premiere creation du parcours.
+ */
+async function calculerXpInitial(
+  userId: mongoose.Types.ObjectId,
+  statut: string
+): Promise<{ xp: number; quetesCompletees: { queteId: string; completedAt: Date; xpGagne: number }[] }> {
+  let xp = 0;
+  const quetesCompletees: { queteId: string; completedAt: Date; xpGagne: number }[] = [];
+  const now = new Date();
+
+  // Compter les projets suivis par cet utilisateur
+  const projetsSuivis = await Projet.countDocuments({ followers: userId });
+  xp += projetsSuivis * XP_PAR_ACTION.follow_projet;
+
+  // Quete premier_follow
+  if (projetsSuivis >= 1) {
+    quetesCompletees.push({ queteId: 'premier_follow', completedAt: now, xpGagne: 20 });
+    xp += 20;
+  }
+  // Quete suivre_5_projets
+  if (projetsSuivis >= 5) {
+    quetesCompletees.push({ queteId: 'suivre_5_projets', completedAt: now, xpGagne: 50 });
+    xp += 50;
+  }
+
+  // Compter les likes donnes
+  const likesCount = await Publication.countDocuments({ likes: userId });
+  xp += likesCount * XP_PAR_ACTION.like_publication;
+  if (likesCount >= 1) {
+    quetesCompletees.push({ queteId: 'premier_like', completedAt: now, xpGagne: 10 });
+    xp += 10;
+  }
+
+  // Compter les commentaires
+  const commentairesCount = await Commentaire.countDocuments({ auteur: userId });
+  xp += commentairesCount * XP_PAR_ACTION.comment_publication;
+  if (commentairesCount >= 1) {
+    quetesCompletees.push({ queteId: 'premier_commentaire', completedAt: now, xpGagne: 20 });
+    xp += 20;
+  }
+
+  // Compter les publications creees
+  const pubsCreees = await Publication.countDocuments({ auteur: userId });
+  xp += pubsCreees * XP_PAR_ACTION.create_publication;
+  if (pubsCreees >= 1 && statut === 'entrepreneur') {
+    quetesCompletees.push({ queteId: 'premiere_publication', completedAt: now, xpGagne: 30 });
+    xp += 30;
+  }
+
+  // Compter les amis
+  const user = await Utilisateur.findById(userId).select('amis avatar bio').lean();
+  const nbAmis = user?.amis?.length || 0;
+  xp += nbAmis * XP_PAR_ACTION.add_friend;
+  if (nbAmis >= 1) {
+    quetesCompletees.push({ queteId: 'premier_ami', completedAt: now, xpGagne: 15 });
+    xp += 15;
+  }
+
+  // Profil complet (avatar + bio)
+  if (user?.avatar && user?.bio) {
+    quetesCompletees.push({ queteId: 'profil_complet', completedAt: now, xpGagne: 30 });
+    xp += 30;
+  }
+
+  // Compter les projets crees (entrepreneur)
+  if (statut === 'entrepreneur') {
+    const projetsCreees = await Projet.countDocuments({ porteur: userId });
+    xp += projetsCreees * XP_PAR_ACTION.create_projet;
+    if (projetsCreees >= 1) {
+      quetesCompletees.push({ queteId: 'premier_projet', completedAt: now, xpGagne: 50 });
+      xp += 50;
+    }
+  }
+
+  // Conversations existantes (premier message)
+  const conversationsCount = await Conversation.countDocuments({
+    participants: userId,
+  });
+  if (conversationsCount >= 1) {
+    xp += XP_PAR_ACTION.first_message;
+    if (statut === 'entrepreneur') {
+      quetesCompletees.push({ queteId: 'premier_message', completedAt: now, xpGagne: 15 });
+      xp += 15;
+    }
+  }
+
+  return { xp, quetesCompletees };
+}
+
 // === ENDPOINTS ===
 
 /**
@@ -265,22 +383,36 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
     const userId = req.utilisateur!._id;
     const utilisateur = await Utilisateur.findById(userId).select('statut').lean();
     const statut = utilisateur?.statut || 'visiteur';
+    const niveaux = getNiveaux(statut);
 
     // Trouver ou creer le parcours
     let parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId });
     if (!parcours) {
+      // Premiere creation → scanner l'historique pour XP initial
+      const { xp: xpInitial, quetesCompletees } = await calculerXpInitial(userId, statut);
+      const niveauInitial = calculerNiveau(xpInitial, niveaux);
+
       parcours = await ParcoursUtilisateur.create({
         utilisateur: userId,
-        xp: 0,
-        niveau: 1,
-        quetesCompletees: [],
+        xp: xpInitial,
+        niveau: niveauInitial,
+        quetesCompletees,
         defis: [],
-        streak: 0,
-        lastActivityDate: null,
+        streak: 1,
+        lastActivityDate: new Date(),
       });
+
+      // Notifier si l'utilisateur demarre avec de l'XP
+      if (xpInitial > 0) {
+        const info = getNiveauInfo(xpInitial, niveaux);
+        await creerNotifGamification(
+          userId,
+          'Bienvenue dans le Parcours du Batisseur !',
+          `Ton historique te donne ${xpInitial} XP - tu es deja niveau ${info.niveauNom} !`
+        );
+      }
     }
 
-    const niveaux = getNiveaux(statut);
     const niveauInfo = getNiveauInfo(parcours.xp, niveaux);
 
     // Defi actif
@@ -354,27 +486,29 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const utilisateur = await Utilisateur.findById(userId).select('statut').lean();
+    const utilisateur = await Utilisateur.findById(userId).select('statut prenom').lean();
     const statut = utilisateur?.statut || 'visiteur';
     const niveaux = getNiveaux(statut);
 
     // Trouver ou creer le parcours
     let parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId });
     if (!parcours) {
+      const { xp: xpInitial, quetesCompletees } = await calculerXpInitial(userId, statut);
       parcours = await ParcoursUtilisateur.create({
         utilisateur: userId,
-        xp: 0,
-        niveau: 1,
-        quetesCompletees: [],
+        xp: xpInitial,
+        niveau: calculerNiveau(xpInitial, niveaux),
+        quetesCompletees,
         defis: [],
-        streak: 0,
-        lastActivityDate: null,
+        streak: 1,
+        lastActivityDate: new Date(),
       });
     }
 
     const ancienNiveau = parcours.niveau;
     let xpGagne = XP_PAR_ACTION[action];
     let queteCompletee: string | null = null;
+    let queteCompleteeInfo: QueteConfig | null = null;
 
     // Verifier les quetes
     const quetesCompleteesIds = new Set(parcours.quetesCompletees.map(q => q.queteId));
@@ -385,18 +519,13 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
     );
 
     for (const quete of quetesEligibles) {
-      // Compter combien de fois cette action a ete faite (quetes completees de meme action + 1 pour celle-ci)
+      // Compter combien de fois cette action a ete faite
       const countPrecedent = parcours.quetesCompletees.filter(
         qc => QUETES.find(q => q.id === qc.queteId)?.action === action
       ).length;
-      // +1 pour l'action actuelle
       const countTotal = countPrecedent + 1;
 
-      // Heuristique simplifiee : on compte le nombre d'actions de ce type deja enregistrees
-      // Pour les quetes multi-actions (follow 5 projets), on verifie via le nombre d'actions similaires completees
-      // Pour simplifier, on verifie juste si l'action courante est suffisante
       if (quete.countRequis <= 1 || countTotal >= quete.countRequis) {
-        // Quete completee !
         parcours.quetesCompletees.push({
           queteId: quete.id,
           completedAt: new Date(),
@@ -404,7 +533,8 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
         });
         xpGagne += quete.xp;
         queteCompletee = quete.id;
-        break; // Une seule quete completee par action
+        queteCompleteeInfo = quete;
+        break;
       }
     }
 
@@ -421,7 +551,6 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
       if (isYesterday(parcours.lastActivityDate)) {
         parcours.streak += 1;
       } else {
-        // Streak casse ou premier jour
         parcours.streak = 1;
       }
       parcours.lastActivityDate = new Date();
@@ -429,19 +558,18 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
 
     // Progression du defi actif
     let defiProgression = null;
+    let defiComplete = false;
     const defiActif = await getOuCreerDefiActif();
 
     if (defiActif) {
       const defiType = ACTION_TO_DEFI_TYPE[action];
 
       if (defiType && defiType === defiActif.type) {
-        // Cette action progresse dans le defi
         let progDefi = parcours.defis.find(
           d => d.defiId.toString() === defiActif._id.toString()
         );
 
         if (!progDefi) {
-          // Premier engagement dans ce defi
           parcours.defis.push({
             defiId: defiActif._id,
             progression: 0,
@@ -450,7 +578,6 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
           });
           progDefi = parcours.defis[parcours.defis.length - 1];
 
-          // Incrementer le compteur de participants (atomique)
           await DefiSemaine.updateOne(
             { _id: defiActif._id },
             { $inc: { participants: 1 } }
@@ -463,13 +590,11 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
           if (progDefi.progression >= progDefi.objectif) {
             progDefi.complete = true;
             progDefi.completedAt = new Date();
-            // Bonus XP pour le defi
+            defiComplete = true;
             parcours.xp += defiActif.xpRecompense;
             xpGagne += defiActif.xpRecompense;
-            // Recalculer le niveau avec le bonus
             parcours.niveau = calculerNiveau(parcours.xp, niveaux);
 
-            // Incrementer le compteur de completions
             await DefiSemaine.updateOne(
               { _id: defiActif._id },
               { $inc: { completions: 1 } }
@@ -488,6 +613,34 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
     await parcours.save();
 
     const niveauInfo = getNiveauInfo(parcours.xp, niveaux);
+
+    // === NOTIFICATIONS (fire & forget) ===
+    // Quete completee
+    if (queteCompleteeInfo) {
+      creerNotifGamification(
+        userId,
+        `Quete completee : ${queteCompleteeInfo.titre}`,
+        `Bravo ! Tu as gagne +${queteCompleteeInfo.xp} XP bonus. ${queteCompleteeInfo.description}`
+      );
+    }
+
+    // Level up
+    if (levelUp) {
+      creerNotifGamification(
+        userId,
+        `Niveau superieur : ${niveauInfo.niveauNom} !`,
+        `Felicitations ! Tu es passe au niveau ${nouveauNiveau} (${niveauInfo.niveauNom}). Continue comme ca !`
+      );
+    }
+
+    // Defi complete
+    if (defiComplete && defiActif) {
+      creerNotifGamification(
+        userId,
+        `Defi complete : ${defiActif.titre}`,
+        `Tu as termine le defi de la semaine et gagne +${defiActif.xpRecompense} XP bonus !`
+      );
+    }
 
     res.json({
       succes: true,
@@ -540,6 +693,79 @@ export const getQuetes = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error('Erreur getQuetes:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * GET /api/parcours/utilisateur/:id
+ * Retourne le parcours public d'un utilisateur (pour afficher sur le profil)
+ * Accessible par tout utilisateur connecte
+ */
+export const getParcoursPublic = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const targetUserId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
+      res.status(400).json({ succes: false, message: 'ID invalide.' });
+      return;
+    }
+
+    const utilisateur = await Utilisateur.findById(targetUserId)
+      .select('statut prenom nom profilPublic amis')
+      .lean();
+
+    if (!utilisateur) {
+      res.status(404).json({ succes: false, message: 'Utilisateur non trouve.' });
+      return;
+    }
+
+    // Verifier la visibilite : profil public OU ami du demandeur
+    const requesterId = req.utilisateur!._id.toString();
+    const isOwner = requesterId === targetUserId;
+    const isFriend = utilisateur.amis?.some(
+      (id: mongoose.Types.ObjectId) => id.toString() === requesterId
+    );
+
+    if (!isOwner && !utilisateur.profilPublic && !isFriend) {
+      res.status(403).json({ succes: false, message: 'Profil prive.' });
+      return;
+    }
+
+    const parcours = await ParcoursUtilisateur.findOne({
+      utilisateur: targetUserId,
+    }).lean();
+
+    if (!parcours) {
+      // Pas encore de parcours → retourner niveau 1 par defaut
+      const statut = utilisateur.statut || 'visiteur';
+      const niveaux = getNiveaux(statut);
+      const info = getNiveauInfo(0, niveaux);
+      res.json({
+        succes: true,
+        data: {
+          xp: 0,
+          ...info,
+          streak: 0,
+        },
+      });
+      return;
+    }
+
+    const statut = utilisateur.statut || 'visiteur';
+    const niveaux = getNiveaux(statut);
+    const niveauInfo = getNiveauInfo(parcours.xp, niveaux);
+
+    res.json({
+      succes: true,
+      data: {
+        xp: parcours.xp,
+        ...niveauInfo,
+        streak: parcours.streak,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur getParcoursPublic:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };
