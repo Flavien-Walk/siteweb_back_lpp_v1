@@ -95,7 +95,7 @@ import {
   formatViewerCount,
 } from '../../src/services/live';
 import { LiveCard } from '../../src/composants';
-import CoachMark from '../../src/composants/CoachMark';
+import OnboardingFlow from '../../src/composants/CoachMark';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -1798,34 +1798,17 @@ export default function Accueil() {
     }
   }, []);
 
-  const renderParcours = () => {
-    const prochaineQuete = quetesDisponibles[0] || null;
-    const chapitreCourant = prochaineQuete?.chapitre;
-    const quetesDuChapitre = chapitreCourant
-      ? quetesDisponibles.filter(q => q.chapitre === chapitreCourant)
-      : [];
-    const totalChapitre = quetesDuChapitre.length;
-    // quetesCompletees du parcours qui matchent ce chapitre
-    const completeesChapitre = parcours?.quetesCompletees?.filter(id =>
-      !quetesDisponibles.some(q => q.id === id)
-    ).length ?? 0;
-    // Approximation: total = quetes restantes + completees pour ce chapitre
-    // Comme quetesDisponibles ne contient que les non-completees, on sait que
-    // nbTotal = restantes + completees. On n'a pas l'info exacte par chapitre ici,
-    // mais on peut utiliser totalChapitre comme restantes dans ce chapitre.
-
-    return (
-      <ParcoursBatisseur
-        parcours={parcours}
-        defiActif={defiActif}
-        prochaineQuete={prochaineQuete}
-        statutUtilisateur={utilisateur?.statut || 'visiteur'}
-        chargement={chargementParcours}
-        onQuetePress={handleQuetePress}
-        onVoirToutesQuetes={() => router.push('/(app)/quetes')}
-      />
-    );
-  };
+  const renderParcours = () => (
+    <ParcoursBatisseur
+      parcours={parcours}
+      defiActif={defiActif}
+      prochaineQuete={quetesDisponibles[0] || null}
+      statutUtilisateur={utilisateur?.statut || 'visiteur'}
+      chargement={chargementParcours}
+      onQuetePress={handleQuetePress}
+      onVoirToutesQuetes={() => router.push('/(app)/quetes')}
+    />
+  );
 
   const handleUpdatePublication = (updatedPub: Publication) => {
     setPublications(prev => prev.map(p => p._id === updatedPub._id ? updatedPub : p));
@@ -3507,35 +3490,33 @@ export default function Accueil() {
         theme="light"
         initialCount={commentsSheetCount}
       />
-      {/* Coach marks onboarding premiere session */}
-      <CoachMark
-        id="onboarding_bienvenue"
-        message="Bienvenue sur La Premiere Pierre ! Decouvre les projets de la communaute en scrollant le fil d'actualite."
-        icon="home-outline"
-        buttonText="Suivant"
-        top={200}
-        position="bottom"
-        delay={1000}
-      />
-      <CoachMark
-        id="onboarding_parcours"
-        message="Ton Parcours du Batisseur te guide a travers des quetes pour decouvrir toutes les fonctionnalites. Gagne de l'XP a chaque action !"
-        icon="trophy-outline"
-        iconColor="#FFBD59"
-        buttonText="Suivant"
-        top={280}
-        position="bottom"
-        delay={800}
-      />
-      <CoachMark
-        id="onboarding_stories"
-        message="Glisse vers la droite pour creer une story, ou appuie sur les cercles en haut pour voir celles des autres."
-        icon="videocam-outline"
-        iconColor="#2DE2E6"
-        buttonText="C'est parti !"
-        top={160}
-        position="bottom"
-        delay={800}
+      {/* Onboarding premiere session - flow sequentiel */}
+      <OnboardingFlow
+        id="onboarding_v1"
+        delay={1200}
+        steps={[
+          {
+            message: 'Bienvenue sur La Premiere Pierre ! Decouvre les projets de la communaute en scrollant le fil.',
+            icon: 'rocket-outline',
+            iconColor: '#7C5CFF',
+          },
+          {
+            message: 'Ton Parcours du Batisseur te guide avec des quetes. Chaque action te rapporte de l\'XP et debloque de nouveaux niveaux !',
+            icon: 'trophy-outline',
+            iconColor: '#FFBD59',
+          },
+          {
+            message: 'Like, commente, suis des projets, ajoute des amis... chaque interaction compte pour ta progression.',
+            icon: 'heart-outline',
+            iconColor: '#FF4D6D',
+          },
+          {
+            message: 'Glisse vers la droite pour creer une story, ou appuie sur les cercles en haut pour voir celles des autres.',
+            icon: 'videocam-outline',
+            iconColor: '#2DE2E6',
+            buttonText: "C'est parti !",
+          },
+        ]}
       />
 
       {/* Toast XP Gamification */}

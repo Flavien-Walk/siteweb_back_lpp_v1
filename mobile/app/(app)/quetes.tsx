@@ -1,9 +1,9 @@
 /**
- * Ecran Quetes - Liste complete par chapitre
- * Affiche toutes les quetes organisees en chapitres avec progression.
+ * Ecran Quetes - Parcours interactif par chapitre
+ * Hero level display, chapitres expand/collapse animes, quetes avec XP.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -41,31 +41,96 @@ interface ChapitreData {
   debloque: boolean;
 }
 
-// Chapitres dans l'ordre
-const CHAPITRES_ORDRE = [
-  { nom: 'Decouverte', niveau: 1, icone: 'compass-outline', couleur: '#2DE2E6', description: 'Apprendre les bases' },
-  { nom: 'Engagement', niveau: 2, icone: 'flame-outline', couleur: '#FFBD59', description: 'Participer activement' },
-  { nom: 'Connexion', niveau: 3, icone: 'people-outline', couleur: '#7C5CFF', description: 'Tisser des liens' },
-  { nom: 'Contribution', niveau: 4, icone: 'trending-up-outline', couleur: '#00D68F', description: 'Laisser sa marque' },
-  { nom: 'Maitrise', niveau: 5, icone: 'diamond-outline', couleur: '#FF4D6D', description: 'Inspirer les autres' },
+// Config chapitres
+const CHAPITRES = [
+  { nom: 'Decouverte', niveau: 1, icone: 'compass-outline', couleur: '#2DE2E6', emoji: '1', description: 'Apprendre les bases' },
+  { nom: 'Engagement', niveau: 2, icone: 'flame-outline', couleur: '#FFBD59', emoji: '2', description: 'Participer activement' },
+  { nom: 'Connexion', niveau: 3, icone: 'people-outline', couleur: '#7C5CFF', emoji: '3', description: 'Tisser des liens' },
+  { nom: 'Contribution', niveau: 4, icone: 'trending-up-outline', couleur: '#00D68F', emoji: '4', description: 'Laisser sa marque' },
+  { nom: 'Maitrise', niveau: 5, icone: 'diamond-outline', couleur: '#FF4D6D', emoji: '5', description: 'Inspirer les autres' },
 ];
 
-// === COMPOSANT QUETE CARD ===
+// === NIVEAUX TIMELINE ===
 
-const QueteCard = React.memo(({ quete, debloque }: { quete: QueteAvecStatut; debloque: boolean }) => {
+const NiveauxTimeline = memo(({ niveauActuel, parcours }: { niveauActuel: number; parcours: ParcoursData | null }) => {
+  const niveaux = [
+    { n: 1, nom: 'Curieux', xp: 0, icone: 'eye-outline' },
+    { n: 2, nom: 'Explorateur', xp: 100, icone: 'compass-outline' },
+    { n: 3, nom: 'Batisseur', xp: 300, icone: 'hammer-outline' },
+    { n: 4, nom: 'Architecte', xp: 700, icone: 'construct-outline' },
+    { n: 5, nom: 'Legende', xp: 1500, icone: 'diamond-outline' },
+  ];
+
+  return (
+    <View style={st.timelineContainer}>
+      <View style={st.timelineLine} />
+      {niveaux.map((niv, i) => {
+        const isActive = niv.n === niveauActuel;
+        const isDone = niv.n < niveauActuel;
+        const isLocked = niv.n > niveauActuel;
+
+        return (
+          <View key={niv.n} style={st.timelineNode}>
+            <View style={[
+              st.timelineCircle,
+              isActive && st.timelineCircleActive,
+              isDone && st.timelineCircleDone,
+              isLocked && st.timelineCircleLocked,
+            ]}>
+              {isDone ? (
+                <Ionicons name="checkmark" size={14} color="#fff" />
+              ) : (
+                <Ionicons name={niv.icone as any} size={isActive ? 16 : 12} color={isActive ? '#fff' : couleurs.texteMuted} />
+              )}
+            </View>
+            <Text style={[
+              st.timelineLabel,
+              isActive && st.timelineLabelActive,
+              isDone && st.timelineLabelDone,
+            ]} numberOfLines={1}>
+              {niv.nom}
+            </Text>
+            <Text style={st.timelineXp}>{niv.xp} XP</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+});
+
+// === QUETE CARD ===
+
+const QueteCard = memo(({ quete, debloque, delay }: { quete: QueteAvecStatut; debloque: boolean; delay: number }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, []);
+
   const isCompleted = quete.completee;
   const isLocked = !debloque;
 
   return (
-    <View style={[styles.queteCard, isLocked && styles.queteCardLocked]}>
-      {/* Icone */}
+    <Animated.View style={[
+      st.queteCard,
+      isLocked && st.queteCardLocked,
+      { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+    ]}>
+      {/* Left: Status icon */}
       <View style={[
-        styles.queteIconContainer,
-        isCompleted && styles.queteIconCompleted,
-        isLocked && styles.queteIconLocked,
+        st.queteIcon,
+        isCompleted && { backgroundColor: couleurs.succes },
+        isLocked && { backgroundColor: couleurs.fondCard },
       ]}>
         {isCompleted ? (
-          <Ionicons name="checkmark" size={16} color="#fff" />
+          <Ionicons name="checkmark-circle" size={18} color="#fff" />
         ) : isLocked ? (
           <Ionicons name="lock-closed" size={14} color={couleurs.texteMuted} />
         ) : (
@@ -73,105 +138,123 @@ const QueteCard = React.memo(({ quete, debloque }: { quete: QueteAvecStatut; deb
         )}
       </View>
 
-      {/* Infos */}
-      <View style={styles.queteInfoContainer}>
-        <Text style={[styles.queteTitre, isLocked && styles.queteTextLocked]} numberOfLines={1}>
-          {quete.titre}
-        </Text>
-        <Text style={[styles.queteDesc, isLocked && styles.queteTextLocked]} numberOfLines={1}>
+      {/* Center: Info */}
+      <View style={st.queteInfo}>
+        <View style={st.queteTitleRow}>
+          <Text style={[st.queteTitre, isLocked && st.textMuted, isCompleted && st.textCompleted]} numberOfLines={1}>
+            {quete.titre}
+          </Text>
+          {quete.type === 'entrepreneur' && (
+            <View style={st.entrepreneurTag}>
+              <Ionicons name="briefcase" size={8} color={couleurs.accent} />
+            </View>
+          )}
+        </View>
+        <Text style={[st.queteDesc, isLocked && st.textMuted]} numberOfLines={1}>
           {quete.description}
         </Text>
       </View>
 
-      {/* XP Badge */}
-      <View style={[styles.queteXpBadge, isCompleted && styles.queteXpCompleted]}>
-        <Text style={[styles.queteXpText, isCompleted && styles.queteXpTextCompleted]}>
-          {isCompleted ? 'OK' : `+${quete.xp}`}
-        </Text>
+      {/* Right: XP badge */}
+      <View style={[st.xpBadge, isCompleted && st.xpBadgeDone]}>
+        {isCompleted ? (
+          <Ionicons name="checkmark" size={12} color={couleurs.succes} />
+        ) : (
+          <Text style={st.xpText}>+{quete.xp}</Text>
+        )}
       </View>
-
-      {/* Type badge (entrepreneur only) */}
-      {quete.type === 'entrepreneur' && (
-        <View style={styles.typeBadge}>
-          <Ionicons name="briefcase" size={8} color={couleurs.accent} />
-        </View>
-      )}
-    </View>
+    </Animated.View>
   );
 });
 
-// === COMPOSANT CHAPITRE SECTION ===
+// === CHAPITRE SECTION ===
 
-const ChapitreSection = React.memo(({
+const ChapitreSection = memo(({
   chapitre,
   config,
-  index,
+  niveauActuel,
 }: {
   chapitre: ChapitreData;
-  config: typeof CHAPITRES_ORDRE[0];
-  index: number;
+  config: typeof CHAPITRES[0];
+  niveauActuel: number;
 }) => {
   const [expanded, setExpanded] = useState(chapitre.debloque && chapitre.completees < chapitre.total);
-  const heightAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const rotateAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const contentHeight = useRef(new Animated.Value(expanded ? 1 : 0)).current;
 
   const toggleExpand = useCallback(() => {
     const next = !expanded;
     setExpanded(next);
-    Animated.spring(heightAnim, {
-      toValue: next ? 1 : 0,
-      friction: 12,
-      tension: 60,
-      useNativeDriver: false,
-    }).start();
+    Animated.parallel([
+      Animated.spring(rotateAnim, { toValue: next ? 1 : 0, friction: 10, useNativeDriver: true }),
+      Animated.spring(contentHeight, { toValue: next ? 1 : 0, friction: 10, useNativeDriver: false }),
+    ]).start();
   }, [expanded]);
 
   const progress = chapitre.total > 0 ? chapitre.completees / chapitre.total : 0;
-  const isFullyCompleted = chapitre.completees === chapitre.total && chapitre.total > 0;
+  const isFullyDone = chapitre.completees === chapitre.total && chapitre.total > 0;
+  const isNextToUnlock = !chapitre.debloque && config.niveau === niveauActuel + 1;
+
+  const chevronRotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
 
   return (
-    <View style={styles.chapitreContainer}>
-      {/* Header cliquable */}
-      <Pressable style={styles.chapitreHeader} onPress={toggleExpand}>
-        {/* Numero + Icone */}
+    <View style={[
+      st.chapSection,
+      isNextToUnlock && st.chapSectionNext,
+      isFullyDone && { borderColor: config.couleur + '40' },
+    ]}>
+      {/* Header */}
+      <Pressable style={st.chapHeader} onPress={chapitre.debloque ? toggleExpand : undefined}>
+        {/* Numero cercle */}
         <View style={[
-          styles.chapitreIconContainer,
-          { backgroundColor: chapitre.debloque ? config.couleur + '20' : couleurs.fondCard },
+          st.chapCircle,
+          chapitre.debloque
+            ? { backgroundColor: config.couleur + '20', borderColor: config.couleur + '40' }
+            : { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure },
         ]}>
-          {chapitre.debloque ? (
-            isFullyCompleted ? (
-              <Ionicons name="checkmark-circle" size={20} color={config.couleur} />
-            ) : (
-              <Ionicons name={config.icone as any} size={18} color={config.couleur} />
-            )
+          {isFullyDone ? (
+            <Ionicons name="checkmark-circle" size={22} color={config.couleur} />
+          ) : chapitre.debloque ? (
+            <Text style={[st.chapCircleNum, { color: config.couleur }]}>{config.niveau}</Text>
           ) : (
             <Ionicons name="lock-closed" size={16} color={couleurs.texteMuted} />
           )}
         </View>
 
-        {/* Infos chapitre */}
-        <View style={styles.chapitreInfo}>
-          <View style={styles.chapitreTitleRow}>
-            <Text style={[styles.chapitreNom, !chapitre.debloque && styles.chapitreNomLocked]}>
-              Ch.{config.niveau} · {config.nom}
+        {/* Infos */}
+        <View style={st.chapInfo}>
+          <View style={st.chapTitleRow}>
+            <Text style={[st.chapNom, !chapitre.debloque && st.textMuted]}>
+              {config.nom}
             </Text>
-            {isFullyCompleted && (
-              <View style={[styles.completeBadge, { backgroundColor: config.couleur + '20' }]}>
-                <Text style={[styles.completeBadgeText, { color: config.couleur }]}>Termine</Text>
+            {isFullyDone && (
+              <View style={[st.doneTag, { backgroundColor: config.couleur + '20' }]}>
+                <Ionicons name="checkmark" size={10} color={config.couleur} />
+                <Text style={[st.doneTagText, { color: config.couleur }]}>Termine</Text>
+              </View>
+            )}
+            {isNextToUnlock && (
+              <View style={[st.doneTag, { backgroundColor: couleurs.accentLight }]}>
+                <Ionicons name="lock-open-outline" size={10} color={couleurs.accent} />
+                <Text style={[st.doneTagText, { color: couleurs.accent }]}>Bientot</Text>
               </View>
             )}
           </View>
-          <Text style={styles.chapitreDesc}>{config.description}</Text>
+          <Text style={st.chapDesc}>{config.description}</Text>
 
-          {/* Mini barre de progression */}
+          {/* Progress bar */}
           {chapitre.debloque && (
-            <View style={styles.chapitreProgressRow}>
-              <View style={styles.chapitreProgressBg}>
-                <View style={[
-                  styles.chapitreProgressFill,
-                  { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: config.couleur },
-                ]} />
+            <View style={st.chapProgressRow}>
+              <View style={st.chapProgressBg}>
+                <Animated.View style={[st.chapProgressFill, {
+                  width: `${Math.min(progress * 100, 100)}%`,
+                  backgroundColor: config.couleur,
+                }]} />
               </View>
-              <Text style={[styles.chapitreProgressText, { color: config.couleur }]}>
+              <Text style={[st.chapProgressText, { color: config.couleur }]}>
                 {chapitre.completees}/{chapitre.total}
               </Text>
             </View>
@@ -179,19 +262,26 @@ const ChapitreSection = React.memo(({
         </View>
 
         {/* Chevron */}
-        <Ionicons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color={couleurs.texteSecondaire}
-        />
+        {chapitre.debloque && (
+          <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+            <Ionicons name="chevron-down" size={18} color={couleurs.texteSecondaire} />
+          </Animated.View>
+        )}
       </Pressable>
 
-      {/* Liste des quetes (collapsible) */}
+      {/* Quetes list */}
       {expanded && (
-        <View style={styles.quetesList}>
-          {chapitre.quetes.map((quete) => (
-            <QueteCard key={quete.id} quete={quete} debloque={chapitre.debloque} />
+        <View style={st.quetesList}>
+          {chapitre.quetes.map((quete, idx) => (
+            <QueteCard key={quete.id} quete={quete} debloque={chapitre.debloque} delay={idx * 50} />
           ))}
+          {/* XP total du chapitre */}
+          <View style={st.chapXpTotal}>
+            <Ionicons name="star" size={12} color={config.couleur} />
+            <Text style={[st.chapXpTotalText, { color: config.couleur }]}>
+              {chapitre.quetes.reduce((acc, q) => acc + q.xp, 0)} XP disponibles dans ce chapitre
+            </Text>
+          </View>
         </View>
       )}
     </View>
@@ -204,6 +294,7 @@ export default function QuetesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useUser();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [chapitres, setChapitres] = useState<ChapitreData[]>([]);
   const [parcours, setParcours] = useState<ParcoursData | null>(null);
@@ -222,19 +313,14 @@ export default function QuetesScreen() {
       }
 
       const niveauActuel = parcoursRes.data?.parcours?.niveau ?? 1;
-      const quetesCompletees = parcoursRes.data?.parcours?.quetesCompletees ?? [];
 
       if (quetesRes.succes && quetesRes.data) {
         const toutesQuetes = quetesRes.data.quetes;
 
-        // Grouper par chapitre
-        const chapitresMap: ChapitreData[] = CHAPITRES_ORDRE.map((config) => {
+        const chapitresMap: ChapitreData[] = CHAPITRES.map((config) => {
           const quetesChapitre = toutesQuetes
             .filter((q: QueteAvecStatut) => q.chapitre === config.nom)
-            .filter((q: QueteAvecStatut) => {
-              if (q.type === 'tous') return true;
-              return q.type === (user?.statut || 'visiteur');
-            });
+            .filter((q: QueteAvecStatut) => q.type === 'tous' || q.type === (user?.statut || 'visiteur'));
 
           const completees = quetesChapitre.filter((q: QueteAvecStatut) => q.completee).length;
 
@@ -262,361 +348,293 @@ export default function QuetesScreen() {
     chargerDonnees();
   }, []);
 
+  useEffect(() => {
+    if (!chargement) {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    }
+  }, [chargement]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     chargerDonnees();
   }, [chargerDonnees]);
 
-  // Stats globales
   const totalQuetes = chapitres.reduce((acc, c) => acc + c.total, 0);
   const totalCompletees = chapitres.reduce((acc, c) => acc + c.completees, 0);
-  const progressGlobal = totalQuetes > 0 ? totalCompletees / totalQuetes : 0;
+  const niveauActuel = parcours?.niveau ?? 1;
 
   const content = (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[st.container, { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+      <View style={st.header}>
+        <Pressable onPress={() => router.back()} style={st.backBtn}>
           <Ionicons name="arrow-back" size={22} color={couleurs.texte} />
         </Pressable>
-        <Text style={styles.headerTitle}>Quetes</Text>
-        <View style={styles.headerRight} />
+        <Text style={st.headerTitle}>Quetes</Text>
+        <View style={st.headerRight}>
+          {parcours && (
+            <View style={st.headerXp}>
+              <Ionicons name="star" size={14} color={couleurs.primaire} />
+              <Text style={st.headerXpText}>{parcours.xp}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {chargement ? (
-        <View style={styles.loadingContainer}>
+        <View style={st.loading}>
           <ActivityIndicator size="large" color={couleurs.primaire} />
         </View>
       ) : (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={couleurs.primaire}
-              colors={[couleurs.primaire]}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Resume global */}
-          <View style={styles.resumeCard}>
-            <LinearGradient
-              colors={['rgba(124, 92, 255, 0.12)', 'rgba(45, 226, 230, 0.06)', 'transparent']}
-              style={StyleSheet.absoluteFillObject}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <View style={styles.resumeHeader}>
-              <View>
-                <Text style={styles.resumeTitle}>Ta progression</Text>
-                <Text style={styles.resumeSubtitle}>
-                  {parcours ? `${parcours.niveauNom} · Niveau ${parcours.niveau}` : 'Chargement...'}
-                </Text>
+        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+          <ScrollView
+            style={st.scroll}
+            contentContainerStyle={st.scrollContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={couleurs.primaire}
+                colors={[couleurs.primaire]}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Hero card */}
+            <View style={st.heroCard}>
+              <LinearGradient
+                colors={['rgba(124, 92, 255, 0.15)', 'rgba(45, 226, 230, 0.05)', 'transparent']}
+                style={StyleSheet.absoluteFillObject}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              {/* Niveau actuel */}
+              <View style={st.heroRow}>
+                <View style={st.heroIconBg}>
+                  <Ionicons name={(parcours?.niveauIcone || 'eye-outline') as any} size={28} color={couleurs.primaire} />
+                </View>
+                <View style={st.heroInfo}>
+                  <Text style={st.heroNom}>{parcours?.niveauNom || 'Curieux'}</Text>
+                  <Text style={st.heroSub}>Niveau {niveauActuel} · {parcours?.xp ?? 0} XP</Text>
+                </View>
+                {parcours && parcours.streak > 0 && (
+                  <View style={st.heroStreak}>
+                    <Ionicons name="flame" size={16} color="#FF6B35" />
+                    <Text style={st.heroStreakText}>{parcours.streak}j</Text>
+                  </View>
+                )}
               </View>
-              <View style={styles.resumeXpBadge}>
-                <Text style={styles.resumeXpText}>{parcours?.xp ?? 0} XP</Text>
+
+              {/* Progression vers prochain niveau */}
+              {parcours && parcours.xpTotalNiveau > 0 && (
+                <View style={st.heroProgress}>
+                  <View style={st.heroProgressBg}>
+                    <View style={[st.heroProgressFill, {
+                      width: `${Math.min((parcours.xpDansNiveau / parcours.xpTotalNiveau) * 100, 100)}%`,
+                    }]} />
+                  </View>
+                  <Text style={st.heroProgressText}>
+                    {parcours.xpDansNiveau}/{parcours.xpTotalNiveau} XP vers {parcours.niveauSuivant}
+                  </Text>
+                </View>
+              )}
+
+              {/* Stats */}
+              <View style={st.heroStats}>
+                <View style={st.heroStat}>
+                  <Text style={st.heroStatNum}>{totalCompletees}</Text>
+                  <Text style={st.heroStatLabel}>Terminees</Text>
+                </View>
+                <View style={st.heroStatDivider} />
+                <View style={st.heroStat}>
+                  <Text style={st.heroStatNum}>{totalQuetes - totalCompletees}</Text>
+                  <Text style={st.heroStatLabel}>Restantes</Text>
+                </View>
+                <View style={st.heroStatDivider} />
+                <View style={st.heroStat}>
+                  <Text style={st.heroStatNum}>{Math.round((totalCompletees / Math.max(totalQuetes, 1)) * 100)}%</Text>
+                  <Text style={st.heroStatLabel}>Progression</Text>
+                </View>
               </View>
             </View>
 
-            {/* Barre de progression globale */}
-            <View style={styles.resumeProgressContainer}>
-              <View style={styles.resumeProgressBg}>
-                <View style={[styles.resumeProgressFill, { width: `${Math.min(progressGlobal * 100, 100)}%` }]} />
+            {/* Niveaux timeline */}
+            <NiveauxTimeline niveauActuel={niveauActuel} parcours={parcours} />
+
+            {/* Chapitres */}
+            {chapitres.map((chapitre, index) => (
+              <ChapitreSection
+                key={chapitre.nom}
+                chapitre={chapitre}
+                config={CHAPITRES[index]}
+                niveauActuel={niveauActuel}
+              />
+            ))}
+
+            {/* Footer legende */}
+            <View style={st.footer}>
+              <View style={st.legendeRow}>
+                <Ionicons name="briefcase" size={10} color={couleurs.accent} />
+                <Text style={st.legendeText}>Entrepreneur uniquement</Text>
               </View>
-              <Text style={styles.resumeProgressText}>
-                {totalCompletees}/{totalQuetes} quetes completees
-              </Text>
+              <View style={st.legendeRow}>
+                <View style={[st.legendeDot, { backgroundColor: couleurs.succes }]} />
+                <Text style={st.legendeText}>Quete terminee</Text>
+              </View>
+              <View style={st.legendeRow}>
+                <Ionicons name="lock-closed" size={10} color={couleurs.texteMuted} />
+                <Text style={st.legendeText}>Niveau requis non atteint</Text>
+              </View>
             </View>
-          </View>
 
-          {/* Chapitres */}
-          {chapitres.map((chapitre, index) => (
-            <ChapitreSection
-              key={chapitre.nom}
-              chapitre={chapitre}
-              config={CHAPITRES_ORDRE[index]}
-              index={index}
-            />
-          ))}
-
-          {/* Legende */}
-          <View style={styles.legende}>
-            <View style={styles.legendeItem}>
-              <Ionicons name="briefcase" size={10} color={couleurs.accent} />
-              <Text style={styles.legendeText}>= Quete entrepreneur uniquement</Text>
-            </View>
-          </View>
-
-          <View style={{ height: insets.bottom + 20 }} />
-        </ScrollView>
+            <View style={{ height: insets.bottom + 20 }} />
+          </ScrollView>
+        </Animated.View>
       )}
     </View>
   );
 
   return Platform.OS === 'android' ? (
     <SwipeableScreen>{content}</SwipeableScreen>
-  ) : (
-    content
-  );
+  ) : content;
 }
 
 // === STYLES ===
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: couleurs.fond,
-  },
+const st = StyleSheet.create({
+  container: { flex: 1, backgroundColor: couleurs.fond },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: espacements.lg,
-    paddingVertical: espacements.md,
-    borderBottomWidth: 1,
-    borderBottomColor: couleurs.bordure,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: espacements.lg, paddingVertical: espacements.md,
+    borderBottomWidth: 1, borderBottomColor: couleurs.bordure,
   },
-  backButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: couleurs.texte },
+  headerRight: { minWidth: 60, alignItems: 'flex-end' },
+  headerXp: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: couleurs.primaireLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: couleurs.texte,
-  },
-  headerRight: {
-    width: 36,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: espacements.lg,
-    gap: espacements.md,
-  },
+  headerXpText: { fontSize: 13, fontWeight: '700', color: couleurs.primaire },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scroll: { flex: 1 },
+  scrollContent: { padding: espacements.lg, gap: 14 },
 
-  // Resume global
-  resumeCard: {
-    backgroundColor: couleurs.fondElevated,
-    borderRadius: rayons.lg,
-    padding: espacements.lg,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    overflow: 'hidden',
+  // Hero
+  heroCard: {
+    backgroundColor: couleurs.fondElevated, borderRadius: 20, padding: 18,
+    borderWidth: 1, borderColor: couleurs.bordure, overflow: 'hidden',
   },
-  resumeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: espacements.md,
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  heroIconBg: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: couleurs.primaireLight, alignItems: 'center', justifyContent: 'center',
   },
-  resumeTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: couleurs.texte,
+  heroInfo: { flex: 1 },
+  heroNom: { fontSize: 20, fontWeight: '800', color: couleurs.texte },
+  heroSub: { fontSize: 12, color: couleurs.texteSecondaire, marginTop: 2 },
+  heroStreak: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(255, 107, 53, 0.12)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
   },
-  resumeSubtitle: {
-    fontSize: 13,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
+  heroStreakText: { fontSize: 13, fontWeight: '700', color: '#FF6B35' },
+  heroProgress: { marginBottom: 14 },
+  heroProgressBg: { height: 6, backgroundColor: couleurs.fondCard, borderRadius: 3, overflow: 'hidden' },
+  heroProgressFill: { height: '100%', borderRadius: 3, backgroundColor: couleurs.primaire },
+  heroProgressText: { fontSize: 10, color: couleurs.texteSecondaire, marginTop: 4 },
+  heroStats: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  heroStat: { alignItems: 'center' },
+  heroStatNum: { fontSize: 20, fontWeight: '800', color: couleurs.texte },
+  heroStatLabel: { fontSize: 10, color: couleurs.texteSecondaire, marginTop: 2 },
+  heroStatDivider: { width: 1, height: 24, backgroundColor: couleurs.bordure },
+
+  // Timeline
+  timelineContainer: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 12, position: 'relative',
   },
-  resumeXpBadge: {
-    backgroundColor: couleurs.primaireLight,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: rayons.md,
+  timelineLine: {
+    position: 'absolute', top: 26, left: 30, right: 30, height: 2,
+    backgroundColor: couleurs.bordure,
   },
-  resumeXpText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: couleurs.primaire,
+  timelineNode: { alignItems: 'center', width: 56 },
+  timelineCircle: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: couleurs.fondCard,
+    borderWidth: 2, borderColor: couleurs.bordure, zIndex: 1,
   },
-  resumeProgressContainer: {
-    gap: 6,
+  timelineCircleActive: {
+    backgroundColor: couleurs.primaire, borderColor: couleurs.primaire, width: 32, height: 32, borderRadius: 16,
   },
-  resumeProgressBg: {
-    height: 6,
-    backgroundColor: couleurs.fondCard,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  resumeProgressFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: couleurs.primaire,
-  },
-  resumeProgressText: {
-    fontSize: 11,
-    color: couleurs.texteSecondaire,
-  },
+  timelineCircleDone: { backgroundColor: couleurs.succes, borderColor: couleurs.succes },
+  timelineCircleLocked: { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure },
+  timelineLabel: { fontSize: 9, color: couleurs.texteMuted, marginTop: 4, textAlign: 'center' },
+  timelineLabelActive: { color: couleurs.primaire, fontWeight: '700', fontSize: 10 },
+  timelineLabelDone: { color: couleurs.succes, fontWeight: '600' },
+  timelineXp: { fontSize: 8, color: couleurs.texteMuted, marginTop: 1 },
 
   // Chapitre
-  chapitreContainer: {
-    backgroundColor: couleurs.fondElevated,
-    borderRadius: rayons.lg,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    overflow: 'hidden',
+  chapSection: {
+    backgroundColor: couleurs.fondElevated, borderRadius: 16,
+    borderWidth: 1, borderColor: couleurs.bordure, overflow: 'hidden',
   },
-  chapitreHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: espacements.md,
-    gap: espacements.md,
+  chapSectionNext: { borderColor: 'rgba(255, 189, 89, 0.3)', borderStyle: 'dashed' },
+  chapHeader: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
+  chapCircle: {
+    width: 42, height: 42, borderRadius: 12, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
   },
-  chapitreIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  chapCircleNum: { fontSize: 18, fontWeight: '800' },
+  chapInfo: { flex: 1 },
+  chapTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chapNom: { fontSize: 15, fontWeight: '700', color: couleurs.texte },
+  chapDesc: { fontSize: 11, color: couleurs.texteSecondaire, marginTop: 2 },
+  doneTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
   },
-  chapitreInfo: {
-    flex: 1,
-  },
-  chapitreTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  chapitreNom: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: couleurs.texte,
-  },
-  chapitreNomLocked: {
-    color: couleurs.texteMuted,
-  },
-  chapitreDesc: {
-    fontSize: 11,
-    color: couleurs.texteSecondaire,
-    marginTop: 1,
-  },
-  completeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  completeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  chapitreProgressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-  },
-  chapitreProgressBg: {
-    flex: 1,
-    height: 4,
-    backgroundColor: couleurs.fondCard,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  chapitreProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  chapitreProgressText: {
-    fontSize: 10,
-    fontWeight: '700',
-    minWidth: 24,
-  },
+  doneTagText: { fontSize: 9, fontWeight: '700' },
+  chapProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  chapProgressBg: { flex: 1, height: 4, backgroundColor: couleurs.fondCard, borderRadius: 2, overflow: 'hidden' },
+  chapProgressFill: { height: '100%', borderRadius: 2 },
+  chapProgressText: { fontSize: 10, fontWeight: '700', minWidth: 24 },
 
-  // Liste quetes
-  quetesList: {
-    paddingHorizontal: espacements.md,
-    paddingBottom: espacements.md,
-    gap: 6,
-  },
+  // Quetes
+  quetesList: { paddingHorizontal: 14, paddingBottom: 14, gap: 6 },
   queteCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: couleurs.fondCard,
-    borderRadius: rayons.md,
-    padding: espacements.sm,
-    gap: espacements.sm,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: couleurs.fondCard, borderRadius: 12, padding: 10, gap: 10,
   },
-  queteCardLocked: {
-    opacity: 0.5,
+  queteCardLocked: { opacity: 0.4 },
+  queteIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: couleurs.fondElevated, alignItems: 'center', justifyContent: 'center',
   },
-  queteIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: couleurs.fondElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
+  queteInfo: { flex: 1 },
+  queteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  queteTitre: { fontSize: 13, fontWeight: '600', color: couleurs.texte, flex: 1 },
+  queteDesc: { fontSize: 10, color: couleurs.texteSecondaire, marginTop: 1 },
+  textMuted: { color: couleurs.texteMuted },
+  textCompleted: { textDecorationLine: 'line-through', color: couleurs.texteSecondaire },
+  entrepreneurTag: {
+    backgroundColor: couleurs.accentLight, width: 16, height: 16, borderRadius: 4,
+    alignItems: 'center', justifyContent: 'center',
   },
-  queteIconCompleted: {
-    backgroundColor: couleurs.succes,
+  xpBadge: {
+    backgroundColor: couleurs.primaireLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+    minWidth: 36, alignItems: 'center',
   },
-  queteIconLocked: {
-    backgroundColor: couleurs.fondCard,
+  xpBadgeDone: { backgroundColor: couleurs.succesLight },
+  xpText: { fontSize: 11, fontWeight: '700', color: couleurs.primaire },
+  chapXpTotal: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingTop: 8, borderTopWidth: 1, borderTopColor: couleurs.bordure, marginTop: 4,
   },
-  queteInfoContainer: {
-    flex: 1,
-  },
-  queteTitre: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: couleurs.texte,
-  },
-  queteDesc: {
-    fontSize: 10,
-    color: couleurs.texteSecondaire,
-    marginTop: 1,
-  },
-  queteTextLocked: {
-    color: couleurs.texteMuted,
-  },
-  queteXpBadge: {
-    backgroundColor: couleurs.primaireLight,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  queteXpCompleted: {
-    backgroundColor: couleurs.succesLight,
-  },
-  queteXpText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: couleurs.primaire,
-  },
-  queteXpTextCompleted: {
-    color: couleurs.succes,
-  },
-  typeBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-  },
+  chapXpTotalText: { fontSize: 10, fontWeight: '600' },
 
-  // Legende
-  legende: {
-    paddingVertical: espacements.sm,
-    paddingHorizontal: espacements.xs,
-  },
-  legendeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  legendeText: {
-    fontSize: 10,
-    color: couleurs.texteMuted,
-  },
+  // Footer
+  footer: { gap: 6, paddingVertical: 8 },
+  legendeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendeDot: { width: 8, height: 8, borderRadius: 4 },
+  legendeText: { fontSize: 10, color: couleurs.texteMuted },
 });

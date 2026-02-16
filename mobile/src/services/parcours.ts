@@ -17,6 +17,8 @@ export interface ParcoursData {
   xpDansNiveau: number;
   xpTotalNiveau: number;
   streak: number;
+  streakEnDanger?: boolean;
+  streakMultiplier?: number;
   quetesCompletees: string[];
 }
 

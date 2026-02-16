@@ -1,7 +1,7 @@
 /**
  * ParcoursBatisseur - "Parcours du Batisseur"
- * Card hero gamifiee sur l'accueil : progression XP + defi de la semaine + prochaine quete.
- * Premier element visible par tous les utilisateurs (visiteurs + entrepreneurs).
+ * Card hero gamifiee sur l'accueil : progression XP, streak, defi de la semaine, prochaine quete.
+ * Design interactif avec animations, niveaux visuels, multiplicateur streak.
  */
 
 import React, { useEffect, useRef, useState, memo } from 'react';
@@ -16,6 +16,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { couleurs, espacements, rayons } from '../constantes/theme';
 import type { ParcoursData, DefiActif, Quete } from '../services/parcours';
+
+// === NIVEAUX CONFIG ===
+
+const NIVEAUX = [
+  { niveau: 1, nom: 'Curieux', icone: 'eye-outline' },
+  { niveau: 2, nom: 'Explorateur', icone: 'compass-outline' },
+  { niveau: 3, nom: 'Batisseur', icone: 'hammer-outline' },
+  { niveau: 4, nom: 'Leader', icone: 'flag-outline' },
+  { niveau: 5, nom: 'Legende', icone: 'diamond-outline' },
+];
 
 // === TYPES ===
 
@@ -49,7 +59,7 @@ function formatCountdown(dateFin: string): string {
   return `${minutes}m`;
 }
 
-// === SKELETON (chargement) ===
+// === SKELETON ===
 
 function ParcoursSkeleton() {
   const shimmer = useRef(new Animated.Value(0)).current;
@@ -81,6 +91,39 @@ function ParcoursSkeleton() {
   );
 }
 
+// === MINI NIVEAUX TIMELINE ===
+
+function NiveauxDots({ niveauActuel }: { niveauActuel: number }) {
+  return (
+    <View style={s.dotsRow}>
+      {NIVEAUX.map((niv, i) => {
+        const done = niv.niveau < niveauActuel;
+        const active = niv.niveau === niveauActuel;
+        return (
+          <View key={niv.niveau} style={s.dotItem}>
+            {i > 0 && (
+              <View style={[s.dotConnector, done && s.dotConnectorDone]} />
+            )}
+            <View
+              style={[
+                s.dotCircle,
+                done && s.dotCircleDone,
+                active && s.dotCircleActive,
+              ]}
+            >
+              <Ionicons
+                name={niv.icone as any}
+                size={10}
+                color={done ? '#fff' : active ? couleurs.primaire : couleurs.texteMuted}
+              />
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // === COMPOSANT PRINCIPAL ===
 
 function ParcoursBatisseurComponent({
@@ -89,8 +132,6 @@ function ParcoursBatisseurComponent({
   prochaineQuete,
   statutUtilisateur,
   chargement,
-  nbQuetesCompletees = 0,
-  nbQuetesTotalesChapitre = 0,
   onQuetePress,
   onVoirToutesQuetes,
 }: ParcoursBatisseurProps) {
@@ -99,6 +140,7 @@ function ParcoursBatisseurComponent({
   const progressAnim = useRef(new Animated.Value(0)).current;
   const defiProgressAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const streakPulse = useRef(new Animated.Value(1)).current;
   const [countdown, setCountdown] = useState('');
 
   // Animation d'entree
@@ -131,7 +173,6 @@ function ParcoursBatisseurComponent({
         useNativeDriver: false,
       }).start();
     } else if (parcours && parcours.xpTotalNiveau === 0) {
-      // Niveau max
       Animated.spring(progressAnim, {
         toValue: 1,
         friction: 8,
@@ -165,6 +206,18 @@ function ParcoursBatisseurComponent({
     ).start();
   }, []);
 
+  // Streak pulse animation
+  useEffect(() => {
+    if (parcours && parcours.streak >= 3) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(streakPulse, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+          Animated.timing(streakPulse, { toValue: 1, duration: 800, useNativeDriver: true }),
+        ])
+      ).start();
+    }
+  }, [parcours?.streak]);
+
   // Countdown defi
   useEffect(() => {
     if (!defiActif) return;
@@ -194,20 +247,23 @@ function ParcoursBatisseurComponent({
   });
 
   const isEntrepreneur = statutUtilisateur === 'entrepreneur';
+  const progressPercent = parcours.xpTotalNiveau > 0
+    ? Math.round((parcours.xpDansNiveau / parcours.xpTotalNiveau) * 100)
+    : 100;
 
   return (
     <Animated.View style={[s.wrapper, { opacity: fadeIn, transform: [{ scale: scaleIn }] }]}>
-      {/* Label */}
+      {/* Header label */}
       <View style={s.labelRow}>
         <View style={s.labelBadge}>
           <Ionicons name="trophy" size={14} color={couleurs.accent} />
           <Text style={s.labelText}>Parcours du Batisseur</Text>
         </View>
-        {parcours.streak > 0 && (
-          <View style={s.streakBadge}>
-            <Ionicons name="flame" size={12} color="#FF6B35" />
-            <Text style={s.streakText}>{parcours.streak}j</Text>
-          </View>
+        {onVoirToutesQuetes && (
+          <Pressable onPress={onVoirToutesQuetes} style={s.voirToutBtn}>
+            <Text style={s.voirToutText}>Voir tout</Text>
+            <Ionicons name="chevron-forward" size={12} color={couleurs.primaire} />
+          </Pressable>
         )}
       </View>
 
@@ -222,14 +278,16 @@ function ParcoursBatisseurComponent({
           style={s.cardGradient}
         />
         <View style={s.cardInner}>
+          {/* === NIVEAUX DOTS === */}
+          <NiveauxDots niveauActuel={parcours.niveau} />
+
           {/* === SECTION 1 : Progression === */}
           <View style={s.progressSection}>
-            {/* Niveau actuel */}
             <View style={s.niveauRow}>
               <View style={[s.niveauBadge, { backgroundColor: isEntrepreneur ? 'rgba(255, 189, 89, 0.15)' : couleurs.primaireLight }]}>
                 <Ionicons
                   name={(parcours.niveauIcone || 'eye-outline') as any}
-                  size={16}
+                  size={18}
                   color={isEntrepreneur ? couleurs.accent : couleurs.primaire}
                 />
               </View>
@@ -260,12 +318,51 @@ function ParcoursBatisseurComponent({
                 <Text style={s.progressText}>
                   {parcours.xpDansNiveau}/{parcours.xpTotalNiveau || '~'} XP
                 </Text>
+                <Text style={[s.progressPercent, { color: isEntrepreneur ? couleurs.accent : couleurs.primaire }]}>
+                  {progressPercent}%
+                </Text>
                 <Text style={s.progressNext}>
                   {parcours.niveauSuivant !== 'Max' ? `→ ${parcours.niveauSuivant}` : 'Niveau Max !'}
                 </Text>
               </View>
             </View>
           </View>
+
+          {/* === SECTION STREAK === */}
+          {parcours.streak > 0 && (
+            <View style={s.streakSection}>
+              <View style={s.defiSeparator} />
+              <View style={s.streakRow}>
+                <Animated.View style={[s.streakFireBadge, { transform: [{ scale: streakPulse }] }]}>
+                  <Ionicons name="flame" size={16} color="#FF6B35" />
+                </Animated.View>
+                <View style={s.streakInfo}>
+                  <Text style={s.streakDays}>
+                    {parcours.streak} jour{parcours.streak > 1 ? 's' : ''} de suite
+                  </Text>
+                  <Text style={s.streakSubtext}>
+                    {parcours.streak >= 30
+                      ? 'Inarretable !'
+                      : parcours.streak >= 7
+                      ? 'Belle serie ! Continue !'
+                      : 'Continue comme ca !'}
+                  </Text>
+                </View>
+                {parcours.streakMultiplier && parcours.streakMultiplier > 1 && (
+                  <View style={s.multiplierBadge}>
+                    <Text style={s.multiplierText}>x{parcours.streakMultiplier}</Text>
+                    <Text style={s.multiplierLabel}>XP</Text>
+                  </View>
+                )}
+                {parcours.streakEnDanger && (
+                  <View style={s.dangerBadge}>
+                    <Ionicons name="warning" size={12} color={couleurs.danger} />
+                    <Text style={s.dangerText}>Joue !</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
 
           {/* === SECTION 2 : Defi de la Semaine === */}
           {defiActif && (
@@ -277,7 +374,7 @@ function ParcoursBatisseurComponent({
                     <Ionicons name={(defiActif.icone || 'trophy-outline') as any} size={14} color={defiActif.couleur} />
                   </View>
                   <View style={s.defiTitleInfo}>
-                    <Text style={s.defiLabel}>Defi de la semaine</Text>
+                    <Text style={s.defiLabel}>DEFI DE LA SEMAINE</Text>
                     <Text style={s.defiTitre} numberOfLines={1}>{defiActif.titre}</Text>
                   </View>
                 </View>
@@ -297,7 +394,7 @@ function ParcoursBatisseurComponent({
                     ]}
                   />
                 </View>
-                <Text style={s.defiProgressText}>
+                <Text style={[s.defiProgressText, defiActif.complete && { color: couleurs.succes }]}>
                   {defiActif.complete ? '✓' : `${defiActif.progression}/${defiActif.objectif}`}
                 </Text>
               </View>
@@ -319,55 +416,39 @@ function ParcoursBatisseurComponent({
           {/* === SECTION 3 : Prochaine quete === */}
           {prochaineQuete && (
             <Pressable
-              style={s.queteSection}
+              style={({ pressed }) => [s.queteSection, pressed && s.queteSectionPressed]}
               onPress={() => onQuetePress?.(prochaineQuete)}
             >
               <View style={s.defiSeparator} />
-              {prochaineQuete.chapitre && (
-                <View style={s.chapitreRow}>
-                  <Text style={s.chapitreLabel}>
-                    Ch.{prochaineQuete.niveauRequis} · {prochaineQuete.chapitre}
+              <View style={s.queteLabelRow}>
+                <Text style={s.queteSectionLabel}>PROCHAINE MISSION</Text>
+                {prochaineQuete.chapitre && (
+                  <Text style={s.chapitreTag}>
+                    Ch.{prochaineQuete.niveauRequis}
                   </Text>
-                  {nbQuetesTotalesChapitre > 0 && (
-                    <Text style={s.chapitreCompteur}>
-                      {nbQuetesCompletees}/{nbQuetesTotalesChapitre}
-                    </Text>
-                  )}
-                </View>
-              )}
+                )}
+              </View>
               <View style={s.queteRow}>
-                <View style={s.queteIconBadge}>
-                  <Ionicons name={(prochaineQuete.icone || 'flag-outline') as any} size={13} color={couleurs.secondaire} />
+                <View style={[s.queteIconBadge, { backgroundColor: isEntrepreneur ? 'rgba(255, 189, 89, 0.15)' : couleurs.secondaireLight }]}>
+                  <Ionicons name={(prochaineQuete.icone || 'flag-outline') as any} size={14} color={isEntrepreneur ? couleurs.accent : couleurs.secondaire} />
                 </View>
                 <View style={s.queteInfo}>
                   <Text style={s.queteTitre} numberOfLines={1}>{prochaineQuete.titre}</Text>
                   <Text style={s.queteDescription} numberOfLines={1}>{prochaineQuete.description}</Text>
                 </View>
-                <View style={s.queteXpBadge}>
-                  <Text style={s.queteXpText}>+{prochaineQuete.xp}</Text>
+                <View style={s.queteRight}>
+                  <View style={s.queteXpBadge}>
+                    <Text style={s.queteXpText}>+{prochaineQuete.xp}</Text>
+                  </View>
+                  <View style={s.queteGoBtn}>
+                    <Ionicons name="arrow-forward" size={12} color="#fff" />
+                  </View>
                 </View>
-                <Ionicons name="chevron-forward" size={14} color={couleurs.texteSecondaire} />
               </View>
             </Pressable>
           )}
         </View>
       </Animated.View>
-
-      {/* Sous la card : message streak + lien quetes */}
-      <View style={s.footerRow}>
-        {parcours.streak >= 3 && (
-          <Text style={s.streakMessage}>
-            {parcours.streak >= 30 ? 'Inarretable !' : parcours.streak >= 7 ? 'Belle serie !' : 'Continue comme ca !'}
-            {' '}Reviens demain pour garder ton streak
-          </Text>
-        )}
-        {onVoirToutesQuetes && (
-          <Pressable onPress={onVoirToutesQuetes} style={s.voirQuetesBtn}>
-            <Text style={s.voirQuetesText}>Voir toutes les quetes</Text>
-            <Ionicons name="chevron-forward" size={12} color={couleurs.primaire} />
-          </Pressable>
-        )}
-      </View>
     </Animated.View>
   );
 }
@@ -395,19 +476,19 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: couleurs.texte,
   },
-  streakBadge: {
+  voirToutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(255, 107, 53, 0.12)',
+    gap: 2,
+    paddingVertical: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: couleurs.primaireLight,
     borderRadius: 12,
   },
-  streakText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FF6B35',
+  voirToutText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: couleurs.primaire,
   },
   card: {
     borderRadius: rayons.lg,
@@ -428,6 +509,47 @@ const s = StyleSheet.create({
     borderRadius: 4,
   },
 
+  // Niveaux dots
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    gap: 0,
+  },
+  dotItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dotConnector: {
+    width: 24,
+    height: 2,
+    backgroundColor: couleurs.fondCard,
+    marginHorizontal: 2,
+  },
+  dotConnectorDone: {
+    backgroundColor: couleurs.succes,
+  },
+  dotCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: couleurs.fondCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: couleurs.bordure,
+  },
+  dotCircleDone: {
+    backgroundColor: couleurs.succes,
+    borderColor: couleurs.succes,
+  },
+  dotCircleActive: {
+    backgroundColor: couleurs.primaireLight,
+    borderColor: couleurs.primaire,
+    borderWidth: 2,
+  },
+
   // Section 1: Progression
   progressSection: {},
   niveauRow: {
@@ -437,8 +559,8 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   niveauBadge: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -460,7 +582,7 @@ const s = StyleSheet.create({
     alignItems: 'flex-end',
   },
   xpCount: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: couleurs.texte,
   },
@@ -473,14 +595,14 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
   progressBarBg: {
-    height: 6,
+    height: 7,
     backgroundColor: couleurs.fondCard,
-    borderRadius: 3,
+    borderRadius: 4,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 4,
   },
   progressLabels: {
     flexDirection: 'row',
@@ -491,10 +613,80 @@ const s = StyleSheet.create({
     fontSize: 10,
     color: couleurs.texteSecondaire,
   },
+  progressPercent: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   progressNext: {
     fontSize: 10,
     color: couleurs.texteSecondaire,
     fontWeight: '600',
+  },
+
+  // Streak section
+  streakSection: {},
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 2,
+  },
+  streakFireBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 107, 53, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  streakInfo: {
+    flex: 1,
+  },
+  streakDays: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF6B35',
+  },
+  streakSubtext: {
+    fontSize: 10,
+    color: couleurs.texteSecondaire,
+    marginTop: 1,
+  },
+  multiplierBadge: {
+    backgroundColor: 'rgba(255, 189, 89, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 189, 89, 0.4)',
+  },
+  multiplierText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: couleurs.accent,
+  },
+  multiplierLabel: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: couleurs.accent,
+    marginTop: -1,
+  },
+  dangerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: couleurs.dangerLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 77, 109, 0.3)',
+  },
+  dangerText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: couleurs.danger,
   },
 
   // Section 2: Defi
@@ -526,11 +718,10 @@ const s = StyleSheet.create({
     flex: 1,
   },
   defiLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: couleurs.texteSecondaire,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
   defiTitre: {
     fontSize: 13,
@@ -591,63 +782,45 @@ const s = StyleSheet.create({
     color: couleurs.texteSecondaire,
   },
 
-  // Footer
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 6,
-    paddingHorizontal: 2,
-  },
-  streakMessage: {
-    fontSize: 10,
-    color: couleurs.texteSecondaire,
-    fontStyle: 'italic',
-    flex: 1,
-  },
-  voirQuetesBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  voirQuetesText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: couleurs.primaire,
-  },
-
   // Section 3: Quete
-  chapitreRow: {
+  queteSection: {
+    borderRadius: 8,
+  },
+  queteSectionPressed: {
+    backgroundColor: 'rgba(124, 92, 255, 0.05)',
+  },
+  queteLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
     paddingTop: 2,
   },
-  chapitreLabel: {
-    fontSize: 10,
-    fontWeight: '600',
+  queteSectionLabel: {
+    fontSize: 9,
+    fontWeight: '700',
     color: couleurs.texteSecondaire,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
-  chapitreCompteur: {
-    fontSize: 10,
+  chapitreTag: {
+    fontSize: 9,
     fontWeight: '700',
     color: couleurs.primaire,
+    backgroundColor: couleurs.primaireLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
-  queteSection: {},
   queteRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingTop: 2,
   },
   queteIconBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 7,
-    backgroundColor: couleurs.secondaireLight,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -655,7 +828,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
   queteTitre: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: couleurs.texte,
   },
@@ -663,6 +836,11 @@ const s = StyleSheet.create({
     fontSize: 10,
     color: couleurs.texteSecondaire,
     marginTop: 1,
+  },
+  queteRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   queteXpBadge: {
     backgroundColor: couleurs.primaireLight,
@@ -674,6 +852,14 @@ const s = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: couleurs.primaire,
+  },
+  queteGoBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: couleurs.primaire,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

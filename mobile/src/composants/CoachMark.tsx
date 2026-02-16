@@ -1,7 +1,7 @@
 /**
- * CoachMark - Tooltip contextuel pour onboarding
- * Affiche une bulle explicative pointant vers un element de l'UI.
- * Stocke dans AsyncStorage les marks deja vus pour ne les afficher qu'une fois.
+ * CoachMark - Systeme d'onboarding sequentiel
+ * Affiche des tooltips un par un avec progression.
+ * Stocke dans AsyncStorage les flows deja vus.
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -23,23 +23,20 @@ const STORAGE_PREFIX = '@lpp_coachmark_';
 
 // === TYPES ===
 
-interface CoachMarkProps {
-  /** Identifiant unique du coach mark (pour ne l'afficher qu'une fois) */
-  id: string;
-  /** Texte principal */
+export interface CoachStep {
   message: string;
-  /** Texte du bouton (defaut: "Compris") */
-  buttonText?: string;
-  /** Position verticale absolue du tooltip (top) */
-  top?: number;
-  /** Position : au-dessus ou en-dessous de la cible */
-  position?: 'top' | 'bottom';
-  /** Icone optionnelle */
   icon?: keyof typeof Ionicons.glyphMap;
-  /** Couleur de l'icone */
   iconColor?: string;
-  /** Callback quand l'utilisateur ferme */
-  onDismiss?: () => void;
+  buttonText?: string;
+}
+
+interface OnboardingFlowProps {
+  /** Identifiant unique du flow (pour ne l'afficher qu'une fois) */
+  id: string;
+  /** Les etapes du flow */
+  steps: CoachStep[];
+  /** Callback quand l'utilisateur termine */
+  onComplete?: () => void;
   /** Forcer l'affichage meme si deja vu (debug) */
   forceShow?: boolean;
   /** Delai avant apparition (ms) */
@@ -78,22 +75,19 @@ export async function resetAllCoachMarks() {
   }
 }
 
-// === COMPOSANT ===
+// === COMPOSANT FLOW ===
 
-const CoachMark: React.FC<CoachMarkProps> = ({
+const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   id,
-  message,
-  buttonText = 'Compris',
-  top,
-  position = 'bottom',
-  icon,
-  iconColor = couleurs.primaire,
-  onDismiss,
+  steps,
+  onComplete,
   forceShow = false,
-  delay = 500,
+  delay = 800,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [currentStep, setCurrentStep] = useState(0);
   const [show, setShow] = useState(false);
   const [alreadySeen, setAlreadySeen] = useState(false);
 
@@ -111,6 +105,7 @@ const CoachMark: React.FC<CoachMarkProps> = ({
     });
   }, [id, forceShow]);
 
+  // Animation d'entree
   useEffect(() => {
     if (!show) return;
     const timer = setTimeout(() => {
@@ -122,47 +117,100 @@ const CoachMark: React.FC<CoachMarkProps> = ({
     return () => clearTimeout(timer);
   }, [show, delay]);
 
-  const handleDismiss = useCallback(async () => {
+  // Animation slide entre steps
+  const animateToStep = useCallback((nextStep: number) => {
+    Animated.sequence([
+      Animated.timing(slideAnim, { toValue: -30, duration: 150, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 30, duration: 0, useNativeDriver: true }),
+    ]).start(() => {
+      setCurrentStep(nextStep);
+      Animated.spring(slideAnim, { toValue: 0, friction: 10, tension: 60, useNativeDriver: true }).start();
+    });
+  }, []);
+
+  const handleNext = useCallback(async () => {
+    if (currentStep < steps.length - 1) {
+      animateToStep(currentStep + 1);
+    } else {
+      // Dernier step : fermer
+      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(async () => {
+        setShow(false);
+        await AsyncStorage.setItem(`${STORAGE_PREFIX}${id}`, 'seen');
+        onComplete?.();
+      });
+    }
+  }, [currentStep, steps.length, id, onComplete, animateToStep]);
+
+  const handleSkip = useCallback(async () => {
     Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(async () => {
       setShow(false);
       await AsyncStorage.setItem(`${STORAGE_PREFIX}${id}`, 'seen');
-      onDismiss?.();
+      onComplete?.();
     });
-  }, [id, onDismiss]);
+  }, [id, onComplete]);
 
-  if (alreadySeen || !show) return null;
+  if (alreadySeen || !show || steps.length === 0) return null;
+
+  const step = steps[currentStep];
+  const isLast = currentStep === steps.length - 1;
+  const iconColor = step.iconColor || couleurs.primaire;
 
   return (
-    <Modal transparent visible={show} animationType="none" onRequestClose={handleDismiss}>
-      {/* Overlay sombre */}
-      <Pressable style={styles.overlay} onPress={handleDismiss}>
+    <Modal transparent visible={show} animationType="none" onRequestClose={handleSkip}>
+      <Pressable style={s.overlay} onPress={handleSkip}>
         <Animated.View
           style={[
-            styles.tooltipContainer,
+            s.container,
             {
               opacity: fadeAnim,
               transform: [{ scale: scaleAnim }],
-              ...(top !== undefined ? { top } : { top: '40%' }),
             },
           ]}
         >
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            {/* Triangle */}
-            {position === 'bottom' && <View style={styles.triangleUp} />}
+          <Pressable onPress={(e) => e.stopPropagation()} style={s.card}>
+            {/* Progress dots */}
+            {steps.length > 1 && (
+              <View style={s.dotsRow}>
+                {steps.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      s.dot,
+                      i === currentStep ? s.dotActive : s.dotInactive,
+                      i < currentStep && s.dotDone,
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
 
-            <View style={styles.tooltip}>
-              {icon && (
-                <View style={[styles.iconContainer, { backgroundColor: `${iconColor}15` }]}>
-                  <Ionicons name={icon} size={20} color={iconColor} />
+            {/* Content with slide animation */}
+            <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
+              {step.icon && (
+                <View style={[s.iconBg, { backgroundColor: `${iconColor}15` }]}>
+                  <Ionicons name={step.icon} size={28} color={iconColor} />
                 </View>
               )}
-              <Text style={styles.message}>{message}</Text>
-              <Pressable style={styles.button} onPress={handleDismiss}>
-                <Text style={styles.buttonText}>{buttonText}</Text>
+              <Text style={s.message}>{step.message}</Text>
+            </Animated.View>
+
+            {/* Actions */}
+            <View style={s.actions}>
+              {!isLast && (
+                <Pressable onPress={handleSkip} style={s.skipBtn}>
+                  <Text style={s.skipText}>Passer</Text>
+                </Pressable>
+              )}
+              <Pressable style={s.nextBtn} onPress={handleNext}>
+                <Text style={s.nextText}>
+                  {step.buttonText || (isLast ? "C'est parti !" : 'Suivant')}
+                </Text>
+                {!isLast && <Ionicons name="arrow-forward" size={16} color="#fff" />}
               </Pressable>
             </View>
 
-            {position === 'top' && <View style={styles.triangleDown} />}
+            {/* Step counter */}
+            <Text style={s.counter}>{currentStep + 1}/{steps.length}</Text>
           </Pressable>
         </Animated.View>
       </Pressable>
@@ -172,81 +220,101 @@ const CoachMark: React.FC<CoachMarkProps> = ({
 
 // === STYLES ===
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-start',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
-  tooltipContainer: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-  },
-  tooltip: {
-    backgroundColor: couleurs.fondElevated,
-    borderRadius: rayons.lg,
-    padding: espacements.lg,
+  container: {
     width: '100%',
-    maxWidth: SCREEN_WIDTH - 40,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    maxWidth: SCREEN_WIDTH - 48,
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  card: {
+    backgroundColor: couleurs.fondElevated,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 92, 255, 0.2)',
+    shadowColor: '#7C5CFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dotActive: {
+    backgroundColor: couleurs.primaire,
+    width: 24,
+  },
+  dotInactive: {
+    backgroundColor: couleurs.fondCard,
+  },
+  dotDone: {
+    backgroundColor: couleurs.succes,
+  },
+  iconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 16,
+    alignSelf: 'center',
   },
   message: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
     color: couleurs.texte,
-    marginBottom: 14,
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  button: {
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skipBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  skipText: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+  },
+  nextBtn: {
     backgroundColor: couleurs.primaire,
     borderRadius: rayons.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 'auto',
   },
-  buttonText: {
+  nextText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
-  triangleUp: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderBottomWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: couleurs.fondElevated,
-    alignSelf: 'center',
-    marginBottom: -1,
-  },
-  triangleDown: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: couleurs.fondElevated,
-    alignSelf: 'center',
-    marginTop: -1,
+  counter: {
+    fontSize: 11,
+    color: couleurs.texteMuted,
+    textAlign: 'center',
+    marginTop: 12,
   },
 });
 
-export default CoachMark;
+export default OnboardingFlow;
