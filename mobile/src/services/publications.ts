@@ -28,6 +28,12 @@ export interface MediaItem {
   thumbnailUrl?: string;
 }
 
+export interface Mention {
+  type: 'utilisateur' | 'projet';
+  id: string;
+  display: string;
+}
+
 export interface Publication {
   _id: string;
   auteur: Auteur;
@@ -36,6 +42,7 @@ export interface Publication {
   contenu: string;
   media?: string; // LEGACY - rétrocompatibilité
   medias: MediaItem[]; // Nouveau format multi-média
+  mentions?: Mention[];
   nbLikes: number;
   nbCommentaires: number;
   aLike: boolean;
@@ -105,13 +112,14 @@ export const getPublicationsUtilisateur = async (
 export const creerPublication = async (
   contenu: string,
   medias?: string[],
-  media?: string
+  media?: string,
+  mentions?: { type: 'utilisateur' | 'projet'; id: string }[]
 ): Promise<ReponseAPI<{ publication: Publication }>> => {
-  // Priorité: medias[] > media
-  if (medias && medias.length > 0) {
-    return api.post('/publications', { contenu, medias, type: 'post' }, true);
-  }
-  return api.post('/publications', { contenu, media, type: 'post' }, true);
+  const body: any = { contenu, type: 'post' };
+  if (medias && medias.length > 0) body.medias = medias;
+  else if (media) body.media = media;
+  if (mentions && mentions.length > 0) body.mentions = mentions;
+  return api.post('/publications', body, true);
 };
 
 /**
@@ -255,4 +263,30 @@ export const modifierAvatar = async (
   avatar: string | null
 ): Promise<ReponseAPI<{ utilisateur: Auteur }>> => {
   return api.patch('/profil/avatar', { avatar }, true);
+};
+
+// ============ MENTIONS ============
+
+export interface MentionUtilisateur {
+  _id: string;
+  prenom: string;
+  nom: string;
+  avatar?: string;
+}
+
+export interface MentionProjet {
+  _id: string;
+  nom: string;
+  logo?: string;
+  categorie?: string;
+}
+
+/**
+ * Rechercher des utilisateurs (amis) et projets pour autocomplete @mention
+ */
+export const rechercherMentions = async (
+  q: string,
+  type: 'utilisateur' | 'projet' | 'all' = 'all'
+): Promise<ReponseAPI<{ utilisateurs: MentionUtilisateur[]; projets: MentionProjet[] }>> => {
+  return api.get(`/publications/mentions/search?q=${encodeURIComponent(q)}&type=${type}`, true);
 };

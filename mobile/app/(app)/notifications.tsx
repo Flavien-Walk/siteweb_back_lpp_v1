@@ -213,7 +213,7 @@ export default function Notifications() {
         pathname: '/(app)/conversation/[id]',
         params: { id: notif.data.conversationId },
       });
-    } else if ((notif.type === 'nouveau_commentaire' || notif.type === 'like_commentaire' || notif.type === 'nouveau_like') && notif.data?.publicationId) {
+    } else if ((notif.type === 'nouveau_commentaire' || notif.type === 'like_commentaire' || notif.type === 'nouveau_like' || notif.type === 'mention') && notif.data?.publicationId) {
       // Naviguer vers le feed avec la publication concernée
       router.push({
         pathname: '/(app)/accueil',
@@ -317,6 +317,8 @@ export default function Notifications() {
         return 'heart';
       case 'like_commentaire':
         return 'heart';
+      case 'mention':
+        return 'at';
       case 'projet_update':
         return 'rocket';
       case 'projet_cloture':
@@ -372,6 +374,8 @@ export default function Notifications() {
         return couleurs.danger;
       case 'nouveau_commentaire':
         return '#8B5CF6';
+      case 'mention':
+        return '#2DE2E6'; // Cyan/secondaire
       case 'projet_update':
         return '#F59E0B';
       case 'projet_cloture':

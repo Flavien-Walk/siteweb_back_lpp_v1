@@ -13,6 +13,7 @@ export type TypeNotification =
   | 'nouveau_commentaire'
   | 'nouveau_like'
   | 'like_commentaire'
+  | 'mention'
   | 'projet_update'
   | 'projet_cloture'
   | 'systeme'

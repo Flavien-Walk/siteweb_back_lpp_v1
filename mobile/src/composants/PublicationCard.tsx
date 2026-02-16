@@ -39,10 +39,12 @@ import { sharePublication } from '../services/activity';
 import { formatRelativeDate } from '../utils/dateUtils';
 import { getVideoThumbnail, isVideoUrl } from '../utils/mediaUtils';
 import { getUserBadgeConfig } from '../utils/userDisplay';
+import { router } from 'expo-router';
 import Avatar from './Avatar';
 import LikeButton, { LikeButtonCompact } from './LikeButton';
 import AnimatedPressable from './AnimatedPressable';
 import { StaffActions, PostMediaCarousel } from './index';
+import { Mention } from '../services/publications';
 
 // ============ TYPES ============
 
@@ -78,6 +80,50 @@ export interface PublicationCardProps {
   mediaWidth: number;
   mediaHeight: number;
 }
+
+// ============ HELPERS ============
+
+/**
+ * Rend le contenu d'une publication avec les mentions @user/@projet cliquables
+ */
+const renderContenuAvecMentions = (
+  contenu: string,
+  mentions: Mention[] | undefined,
+  styles: any,
+  couleurs: any,
+  onNavigateToProfile: (userId: string) => void,
+): React.ReactNode => {
+  if (!mentions || mentions.length === 0) return contenu;
+
+  // Creer un map display → mention pour lookup rapide
+  const mentionMap = new Map<string, Mention>();
+  mentions.forEach(m => mentionMap.set(m.display, m));
+
+  // Regex pour trouver tous les @xxx_yyy dans le texte
+  const parts = contenu.split(/(@\w+(?:_\w+)*)/g);
+
+  return parts.map((part, i) => {
+    const mention = mentionMap.get(part.toLowerCase());
+    if (mention) {
+      return (
+        <Text
+          key={i}
+          style={{ color: mention.type === 'projet' ? '#F59E0B' : couleurs.primaire, fontWeight: '600' }}
+          onPress={() => {
+            if (mention.type === 'utilisateur') {
+              onNavigateToProfile(mention.id);
+            } else {
+              router.push({ pathname: '/(app)/projet/[id]', params: { id: mention.id } });
+            }
+          }}
+        >
+          {part}
+        </Text>
+      );
+    }
+    return part;
+  });
+};
 
 // ============ COMPOSANT ============
 
@@ -712,7 +758,9 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
           </View>
         </View>
       ) : (
-        <Text style={styles.postContenu}>{publication.contenu}</Text>
+        <Text style={styles.postContenu}>
+          {renderContenuAvecMentions(publication.contenu, publication.mentions, styles, couleurs, onNavigateToProfile)}
+        </Text>
       )}
 
       {/* Affichage des médias avec carrousel */}

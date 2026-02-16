@@ -41,8 +41,12 @@ import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
 import { videoRegistry } from '../../src/stores/videoRegistry';
 import {
   Publication,
+  Mention,
+  MentionUtilisateur,
+  MentionProjet,
   getPublications,
   creerPublication,
+  rechercherMentions,
   // Les autres imports (toggleLike, comments, etc.) sont dans PublicationCard
 } from '../../src/services/publications';
 import {
@@ -259,6 +263,22 @@ export default function Accueil() {
     mimeType?: string;
   }>>([]);
   const MAX_MEDIAS = 10;
+
+  // Mentions @ autocomplete
+  const [mentionsSuggestions, setMentionsSuggestions] = useState<Array<{
+    type: 'utilisateur' | 'projet';
+    id: string;
+    label: string;
+    avatar?: string;
+    sub?: string;
+  }>>([]);
+  const [mentionsSelectionnees, setMentionsSelectionnees] = useState<Array<{
+    type: 'utilisateur' | 'projet';
+    id: string;
+  }>>([]);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMentions, setShowMentions] = useState(false);
+  const mentionSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Video player modal
   const [videoModalVisible, setVideoModalVisible] = useState(false);
@@ -1203,6 +1223,74 @@ export default function Accueil() {
     setRafraichissement(false);
   };
 
+  // === Gestion des mentions @ ===
+  const handleTextChange = useCallback((text: string) => {
+    setNouveauPostContenu(text);
+
+    // Detecter si on est en train de taper une mention @
+    const cursorPos = text.length; // Approximation (pas de cursorPosition en RN)
+    const textBeforeCursor = text.slice(0, cursorPos);
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+
+    if (mentionMatch) {
+      const query = mentionMatch[1];
+      setMentionQuery(query);
+      setShowMentions(true);
+
+      if (mentionSearchTimeout.current) clearTimeout(mentionSearchTimeout.current);
+      if (query.length >= 1) {
+        mentionSearchTimeout.current = setTimeout(async () => {
+          try {
+            const res = await rechercherMentions(query);
+            if (res.succes && res.data) {
+              const suggestions: typeof mentionsSuggestions = [];
+              (res.data.utilisateurs || []).forEach((u: MentionUtilisateur) => {
+                suggestions.push({
+                  type: 'utilisateur',
+                  id: u._id,
+                  label: `${u.prenom} ${u.nom}`,
+                  avatar: u.avatar,
+                  sub: 'Ami',
+                });
+              });
+              (res.data.projets || []).forEach((p: MentionProjet) => {
+                suggestions.push({
+                  type: 'projet',
+                  id: p._id,
+                  label: p.nom,
+                  avatar: p.logo,
+                  sub: p.categorie || 'Projet',
+                });
+              });
+              setMentionsSuggestions(suggestions);
+            }
+          } catch { /* ignore */ }
+        }, 250);
+      } else {
+        setMentionsSuggestions([]);
+      }
+    } else {
+      setShowMentions(false);
+      setMentionsSuggestions([]);
+    }
+  }, []);
+
+  const handleSelectMention = useCallback((item: typeof mentionsSuggestions[0]) => {
+    // Remplacer @query par @label dans le texte
+    const textBeforeMention = nouveauPostContenu.replace(/@\w*$/, '');
+    const mentionTag = `@${item.label.replace(/\s+/g, '_')} `;
+    setNouveauPostContenu(textBeforeMention + mentionTag);
+
+    // Ajouter aux mentions selectionnees (eviter doublons)
+    setMentionsSelectionnees(prev => {
+      if (prev.some(m => m.id === item.id)) return prev;
+      return [...prev, { type: item.type, id: item.id }];
+    });
+
+    setShowMentions(false);
+    setMentionsSuggestions([]);
+  }, [nouveauPostContenu]);
+
   const handleCreerPost = async () => {
     if ((!nouveauPostContenu.trim() && mediasSelectionnes.length === 0) || creationEnCours) return;
 
@@ -1221,11 +1309,17 @@ export default function Accueil() {
         });
       }
 
-      const reponse = await creerPublication(nouveauPostContenu.trim(), mediasData);
+      const reponse = await creerPublication(
+        nouveauPostContenu.trim(),
+        mediasData,
+        undefined,
+        mentionsSelectionnees.length > 0 ? mentionsSelectionnees : undefined
+      );
       if (reponse.succes && reponse.data) {
         setPublications(prev => [reponse.data!.publication, ...prev]);
         setNouveauPostContenu('');
         setMediasSelectionnes([]);
+        setMentionsSelectionnees([]);
         setModalCreerPost(false);
         Alert.alert('Succes', 'Publication creee !');
       } else {
@@ -1788,21 +1882,90 @@ export default function Accueil() {
     />
   );
 
-  // === ACCUEIL HUB : Raccourcis + Tendances + Accroche ===
+  // === ACCUEIL HUB : Quick Actions + Prochaine Action ===
+
+  // Mapper une action de quete vers une navigation concrète
+  const ACTION_NAV: Record<string, { cta: string; onPress: () => void; color: string; icon: string }> = useMemo(() => ({
+    like_publication: {
+      cta: 'Liker un post',
+      onPress: () => { /* scroll vers les publications */ },
+      color: '#FF4D6D',
+      icon: 'heart-outline',
+    },
+    follow_projet: {
+      cta: 'Decouvrir un projet',
+      onPress: () => pagerRef.current?.setPage(1),
+      color: '#3B82F6',
+      icon: 'compass-outline',
+    },
+    visit_projet: {
+      cta: 'Explorer un projet',
+      onPress: () => pagerRef.current?.setPage(1),
+      color: '#8B5CF6',
+      icon: 'eye-outline',
+    },
+    complete_avatar: {
+      cta: 'Ajouter ma photo',
+      onPress: () => router.push('/(app)/profil'),
+      color: '#10B981',
+      icon: 'camera-outline',
+    },
+    complete_profil: {
+      cta: 'Completer mon profil',
+      onPress: () => router.push('/(app)/profil'),
+      color: '#10B981',
+      icon: 'person-circle-outline',
+    },
+    view_story: {
+      cta: 'Regarder une story',
+      onPress: () => { /* les stories sont en haut */ },
+      color: '#EC4899',
+      icon: 'play-circle-outline',
+    },
+    comment_publication: {
+      cta: 'Commenter un post',
+      onPress: () => { /* scroll vers les publications */ },
+      color: '#F59E0B',
+      icon: 'chatbubble-outline',
+    },
+    create_publication: {
+      cta: 'Publier un post',
+      onPress: () => setModalCreerPost(true),
+      color: '#6366F1',
+      icon: 'create-outline',
+    },
+    create_story: {
+      cta: 'Creer une story',
+      onPress: () => setStoryCreatorVisible(true),
+      color: '#10B981',
+      icon: 'camera-outline',
+    },
+    create_projet: {
+      cta: 'Creer mon projet',
+      onPress: () => router.push('/(app)/entrepreneur/nouveau-projet'),
+      color: '#F59E0B',
+      icon: 'rocket-outline',
+    },
+    add_friend: {
+      cta: 'Ajouter un ami',
+      onPress: () => pagerRef.current?.setPage(1),
+      color: '#2DE2E6',
+      icon: 'person-add-outline',
+    },
+    first_message: {
+      cta: 'Envoyer un message',
+      onPress: () => pagerRef.current?.setPage(3),
+      color: '#3B82F6',
+      icon: 'chatbubbles-outline',
+    },
+  }), []);
+
   const renderAccueilHub = () => {
-    const heure = new Date().getHours();
-    const salut = heure < 12 ? 'Bonjour' : heure < 18 ? 'Bon apres-midi' : 'Bonsoir';
+    const prochaine = quetesDisponibles[0];
+    const nav = prochaine ? ACTION_NAV[prochaine.action] || null : null;
 
     return (
       <View style={styles.hubWrapper}>
-        {/* Greeting */}
-        <View style={styles.hubGreeting}>
-          <Text style={styles.hubSalut}>{salut}{utilisateur?.prenom ? `, ${utilisateur.prenom}` : ''}</Text>
-          <Text style={styles.hubDate}>
-            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </Text>
-        </View>
-
         {/* Quick Actions Row */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hubActionsRow}>
           <Pressable
@@ -1852,47 +2015,29 @@ export default function Accueil() {
           </Pressable>
         </ScrollView>
 
-        {/* Trending mini-cards */}
-        {projetsTendance.length > 0 && (
-          <View style={styles.hubTrendSection}>
-            <View style={styles.hubTrendHeader}>
-              <Ionicons name="flame" size={15} color="#F59E0B" />
-              <Text style={styles.hubTrendTitle}>En ce moment</Text>
-              <Pressable onPress={() => pagerRef.current?.setPage(1)} hitSlop={8}>
-                <Text style={styles.hubTrendSeeAll}>Voir tout</Text>
-              </Pressable>
+        {/* Prochaine Action */}
+        {prochaine && nav && (
+          <Pressable
+            style={({ pressed }) => [styles.nextActionCard, pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
+            onPress={nav.onPress}
+          >
+            <View style={[styles.nextActionIconWrap, { backgroundColor: nav.color + '18' }]}>
+              <Ionicons name={nav.icon as any} size={22} color={nav.color} />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hubTrendScroll}>
-              {projetsTendance.slice(0, 5).map((projet, i) => (
-                <Pressable
-                  key={projet._id}
-                  style={({ pressed }) => [styles.hubTrendCard, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-                  onPress={() => router.push({ pathname: '/(app)/projet/[id]', params: { id: projet._id } })}
-                >
-                  {projet.image ? (
-                    <Image source={{ uri: projet.image }} style={styles.hubTrendImage} />
-                  ) : (
-                    <View style={[styles.hubTrendImage, { backgroundColor: couleurs.fondCard, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="business-outline" size={20} color={couleurs.texteMuted} />
-                    </View>
-                  )}
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.85)']}
-                    style={styles.hubTrendOverlay}
-                  >
-                    <View style={styles.hubTrendRank}>
-                      <Text style={styles.hubTrendRankText}>#{i + 1}</Text>
-                    </View>
-                    <Text style={styles.hubTrendNom} numberOfLines={1}>{projet.nom}</Text>
-                    <View style={styles.hubTrendMeta}>
-                      <Ionicons name="people" size={10} color="rgba(255,255,255,0.7)" />
-                      <Text style={styles.hubTrendFollowers}>{projet.nbFollowers}</Text>
-                    </View>
-                  </LinearGradient>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
+            <View style={styles.nextActionContent}>
+              <Text style={styles.nextActionLabel}>PROCHAINE ACTION</Text>
+              <Text style={styles.nextActionTitle}>{prochaine.titre}</Text>
+              <Text style={styles.nextActionDesc} numberOfLines={1}>{prochaine.description}</Text>
+            </View>
+            <View style={styles.nextActionRight}>
+              <View style={styles.nextActionXp}>
+                <Text style={styles.nextActionXpText}>+{prochaine.xp} XP</Text>
+              </View>
+              <View style={[styles.nextActionGoBtn, { backgroundColor: nav.color }]}>
+                <Ionicons name="arrow-forward" size={14} color="#fff" />
+              </View>
+            </View>
+          </Pressable>
         )}
       </View>
     );
@@ -3230,6 +3375,8 @@ export default function Accueil() {
           setModalCreerPost(false);
           setMediasSelectionnes([]);
           setNouveauPostContenu('');
+          setMentionsSelectionnees([]);
+          setShowMentions(false);
         }}
       >
         <KeyboardView style={styles.modalOverlay}>
@@ -3240,6 +3387,8 @@ export default function Accueil() {
                 setModalCreerPost(false);
                 setMediasSelectionnes([]);
                 setNouveauPostContenu('');
+                setMentionsSelectionnees([]);
+                setShowMentions(false);
               }} style={styles.modalCloseBtn}>
                 <Ionicons name="close" size={24} color={couleurs.texte} />
               </Pressable>
@@ -3261,14 +3410,44 @@ export default function Accueil() {
 
               <TextInput
                 style={styles.modalTextInput}
-                placeholder="Quoi de neuf ? Partagez vos idees..."
+                placeholder="Quoi de neuf ? Partagez vos idees... Tapez @ pour mentionner"
                 placeholderTextColor={couleurs.texteSecondaire}
                 value={nouveauPostContenu}
-                onChangeText={setNouveauPostContenu}
+                onChangeText={handleTextChange}
                 multiline
                 maxLength={5000}
                 autoFocus
               />
+
+              {/* Autocomplete mentions */}
+              {showMentions && mentionsSuggestions.length > 0 && (
+                <View style={styles.mentionDropdown}>
+                  {mentionsSuggestions.map((item) => (
+                    <Pressable
+                      key={`${item.type}-${item.id}`}
+                      style={({ pressed }) => [styles.mentionItem, pressed && { backgroundColor: couleurs.bordure }]}
+                      onPress={() => handleSelectMention(item)}
+                    >
+                      <View style={[styles.mentionItemAvatar, { backgroundColor: item.type === 'projet' ? 'rgba(245,158,11,0.15)' : couleurs.primaireLight }]}>
+                        {item.avatar ? (
+                          <Image source={{ uri: item.avatar }} style={styles.mentionItemAvatarImg} />
+                        ) : (
+                          <Ionicons
+                            name={item.type === 'projet' ? 'rocket-outline' : 'person-outline'}
+                            size={16}
+                            color={item.type === 'projet' ? '#F59E0B' : couleurs.primaire}
+                          />
+                        )}
+                      </View>
+                      <View style={styles.mentionItemInfo}>
+                        <Text style={styles.mentionItemName}>{item.label}</Text>
+                        <Text style={styles.mentionItemSub}>{item.sub}</Text>
+                      </View>
+                      <Ionicons name={item.type === 'projet' ? 'rocket' : 'person'} size={14} color={couleurs.texteSecondaire} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
 
               {/* Aperçu des médias sélectionnés (multi-média) */}
               {mediasSelectionnes.length > 0 && (
@@ -5785,6 +5964,49 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     textAlign: 'right',
     marginTop: espacements.sm,
   },
+  // Mentions autocomplete dropdown
+  mentionDropdown: {
+    backgroundColor: couleurs.fondElevated,
+    borderRadius: rayons.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    maxHeight: 200,
+    marginBottom: espacements.sm,
+  },
+  mentionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: couleurs.bordure,
+  },
+  mentionItemAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  mentionItemAvatarImg: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+  },
+  mentionItemInfo: {
+    flex: 1,
+  },
+  mentionItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: couleurs.texte,
+  },
+  mentionItemSub: {
+    fontSize: 11,
+    color: couleurs.texteSecondaire,
+  },
   modalFooter: {
     padding: espacements.lg,
     borderTopWidth: 1,
@@ -6306,20 +6528,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     paddingHorizontal: espacements.md,
     marginBottom: espacements.md,
   },
-  hubGreeting: {
-    marginBottom: 12,
-  },
-  hubSalut: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: couleurs.texte,
-  },
-  hubDate: {
-    fontSize: 13,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
-    textTransform: 'capitalize',
-  },
   hubActionsRow: {
     gap: 12,
     paddingBottom: 14,
@@ -6341,72 +6549,63 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontWeight: '600',
     color: couleurs.texteSecondaire,
   },
-  hubTrendSection: {
-    marginTop: 2,
-  },
-  hubTrendHeader: {
+  // === PROCHAINE ACTION ===
+  nextActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
+    backgroundColor: couleurs.fondCard,
+    borderRadius: rayons.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    gap: 12,
   },
-  hubTrendTitle: {
-    fontSize: 15,
+  nextActionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextActionContent: {
+    flex: 1,
+    gap: 2,
+  },
+  nextActionLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: couleurs.primaire,
+    letterSpacing: 1.2,
+  },
+  nextActionTitle: {
+    fontSize: 14,
     fontWeight: '700',
     color: couleurs.texte,
-    flex: 1,
   },
-  hubTrendSeeAll: {
+  nextActionDesc: {
     fontSize: 12,
-    fontWeight: '600',
-    color: couleurs.primaire,
+    color: couleurs.texteSecondaire,
   },
-  hubTrendScroll: {
-    gap: 10,
-  },
-  hubTrendCard: {
-    width: 140,
-    height: 100,
-    borderRadius: rayons.md,
-    overflow: 'hidden',
-    backgroundColor: couleurs.fondCard,
-  },
-  hubTrendImage: {
-    width: '100%',
-    height: '100%',
-  },
-  hubTrendOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    padding: 8,
-  },
-  hubTrendRank: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  hubTrendRankText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#F59E0B',
-  },
-  hubTrendNom: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  hubTrendMeta: {
-    flexDirection: 'row',
+  nextActionRight: {
     alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
+    gap: 6,
   },
-  hubTrendFollowers: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
+  nextActionXp: {
+    backgroundColor: 'rgba(0, 214, 143, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  nextActionXpText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#00D68F',
+  },
+  nextActionGoBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
