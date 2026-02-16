@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export type TypeDefi = 'follow' | 'like' | 'comment' | 'publish' | 'visit_projet' | 'custom';
+export type TypeDefi = 'follow' | 'like' | 'comment' | 'publish' | 'visit_projet' | 'create_story' | 'add_friend' | 'custom';
 
 export interface IDefiSemaine extends Document {
   _id: mongoose.Types.ObjectId;
@@ -36,7 +36,7 @@ const defiSemaineSchema = new Schema<IDefiSemaine>(
     },
     type: {
       type: String,
-      enum: ['follow', 'like', 'comment', 'publish', 'visit_projet', 'custom'],
+      enum: ['follow', 'like', 'comment', 'publish', 'visit_projet', 'create_story', 'add_friend', 'custom'],
       required: true,
     },
     objectif: {
