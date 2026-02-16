@@ -387,20 +387,33 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
 
     // Trouver ou creer le parcours
     let parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId });
-    if (!parcours) {
-      // Premiere creation → scanner l'historique pour XP initial
+
+    // Parcours inexistant OU obsolete (xp=0, aucune quete = jamais recalcule)
+    const doitRecalculer = !parcours || (parcours.xp === 0 && parcours.quetesCompletees.length === 0);
+
+    if (doitRecalculer) {
       const { xp: xpInitial, quetesCompletees } = await calculerXpInitial(userId, statut);
       const niveauInitial = calculerNiveau(xpInitial, niveaux);
 
-      parcours = await ParcoursUtilisateur.create({
-        utilisateur: userId,
-        xp: xpInitial,
-        niveau: niveauInitial,
-        quetesCompletees,
-        defis: [],
-        streak: 1,
-        lastActivityDate: new Date(),
-      });
+      if (parcours) {
+        // Parcours existant mais obsolete → mettre a jour
+        parcours.xp = xpInitial;
+        parcours.niveau = niveauInitial;
+        parcours.quetesCompletees = quetesCompletees;
+        parcours.lastActivityDate = new Date();
+        await parcours.save();
+      } else {
+        // Premiere creation
+        parcours = await ParcoursUtilisateur.create({
+          utilisateur: userId,
+          xp: xpInitial,
+          niveau: niveauInitial,
+          quetesCompletees,
+          defis: [],
+          streak: 1,
+          lastActivityDate: new Date(),
+        });
+      }
 
       // Notifier si l'utilisateur demarre avec de l'XP
       if (xpInitial > 0) {
@@ -413,14 +426,16 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
       }
     }
 
-    const niveauInfo = getNiveauInfo(parcours.xp, niveaux);
+    // A ce stade, parcours est garanti non-null (cree ou mis a jour ci-dessus)
+    const p = parcours!;
+    const niveauInfo = getNiveauInfo(p.xp, niveaux);
 
     // Defi actif
     const defiActif = await getOuCreerDefiActif();
     let defiProgression = null;
 
     if (defiActif) {
-      const progressionExistante = parcours.defis.find(
+      const progressionExistante = p.defis.find(
         d => d.defiId.toString() === defiActif._id.toString()
       );
       defiProgression = {
@@ -440,7 +455,7 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
     }
 
     // Quetes disponibles (non completees, filtrees par statut)
-    const quetesCompleteesIds = new Set(parcours.quetesCompletees.map(q => q.queteId));
+    const quetesCompleteesIds = new Set(p.quetesCompletees.map(q => q.queteId));
     const quetesDisponibles = QUETES
       .filter(q => q.type === 'tous' || q.type === statut)
       .filter(q => !quetesCompleteesIds.has(q.id))
@@ -457,10 +472,10 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
       succes: true,
       data: {
         parcours: {
-          xp: parcours.xp,
+          xp: p.xp,
           ...niveauInfo,
-          streak: parcours.streak,
-          quetesCompletees: parcours.quetesCompletees.map(q => q.queteId),
+          streak: p.streak,
+          quetesCompletees: p.quetesCompletees.map(q => q.queteId),
         },
         defiActif: defiProgression,
         quetesDisponibles,
