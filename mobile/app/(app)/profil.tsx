@@ -52,7 +52,7 @@ import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
 import { getUserBadgeConfig } from '../../src/utils/userDisplay';
-import { getParcoursPublic } from '../../src/services/parcours';
+import { getParcoursPublic, enregistrerAction } from '../../src/services/parcours';
 
 type Onglet = 'profil-public' | 'parametres';
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
@@ -409,6 +409,9 @@ export default function Profil() {
         updateUser(reponse.data.utilisateur);
         setModalAvatar(false);
         afficherMessage('succes', 'Avatar mis a jour !');
+        if (avatar) {
+          enregistrerAction('complete_avatar').catch(() => {});
+        }
       } else {
         afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
       }
@@ -460,6 +463,7 @@ export default function Profil() {
           updateUser(reponse.data.utilisateur);
           setModalAvatar(false);
           afficherMessage('succes', 'Photo de profil mise a jour !');
+          enregistrerAction('complete_avatar').catch(() => {});
         } else {
           afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
         }
@@ -561,6 +565,9 @@ export default function Profil() {
     if (reponse.succes && reponse.data) {
       afficherMessage('succes', 'Profil mis a jour avec succes');
       updateUser(reponse.data.utilisateur);
+      if (reponse.data.utilisateur.avatar && bio.trim()) {
+        enregistrerAction('complete_profil').catch(() => {});
+      }
     } else {
       afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
     }

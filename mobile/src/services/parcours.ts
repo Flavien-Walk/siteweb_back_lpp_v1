@@ -42,6 +42,8 @@ export interface Quete {
   xp: number;
   icone: string;
   type: 'visiteur' | 'entrepreneur' | 'tous';
+  chapitre: string;
+  niveauRequis: number;
 }
 
 export interface ActionResultat {

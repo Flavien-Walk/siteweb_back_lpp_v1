@@ -52,6 +52,7 @@ import {
   TypeReaction,
 } from '../../../src/services/messagerie';
 import { getVideoThumbnail } from '../../../src/utils/mediaUtils';
+import { enregistrerAction } from '../../../src/services/parcours';
 import * as FileSystem from 'expo-file-system/legacy';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -285,6 +286,7 @@ export default function ConversationScreen() {
   const lastTypingEmitRef = useRef<number>(0);
 
   const inputContainerRef = useRef<View>(null);
+  const firstMessageSentRef = useRef(false);
 
   // Charger les messages
   const chargerMessages = useCallback(async (silencieux = false) => {
@@ -499,6 +501,10 @@ export default function ConversationScreen() {
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
+        if (!firstMessageSentRef.current) {
+          firstMessageSentRef.current = true;
+          enregistrerAction('first_message').catch(() => {});
+        }
       }
     } catch (error) {
       Alert.alert('Erreur', "Impossible d'envoyer le message");

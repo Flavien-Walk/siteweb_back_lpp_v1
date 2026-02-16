@@ -317,6 +317,11 @@ function ParcoursBatisseurComponent({
               onPress={() => onQuetePress?.(prochaineQuete)}
             >
               <View style={s.defiSeparator} />
+              {prochaineQuete.chapitre && (
+                <Text style={s.chapitreLabel}>
+                  Ch.{prochaineQuete.niveauRequis} · {prochaineQuete.chapitre}
+                </Text>
+              )}
               <View style={s.queteRow}>
                 <View style={s.queteIconBadge}>
                   <Ionicons name={(prochaineQuete.icone || 'flag-outline') as any} size={13} color={couleurs.secondaire} />
@@ -558,6 +563,15 @@ const s = StyleSheet.create({
   },
 
   // Section 3: Quete
+  chapitreLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    paddingTop: 2,
+  },
   queteSection: {},
   queteRow: {
     flexDirection: 'row',

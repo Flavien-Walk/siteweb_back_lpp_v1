@@ -1713,6 +1713,9 @@ export default function Accueil() {
     setStoryUserAvatar(userAvatar);
     setStoryIsOwn(isOwnStory);
     setStoryViewerVisible(true);
+    if (!isOwnStory) {
+      enregistrerAction('view_story').catch(() => {});
+    }
   }, []);
 
   const handleAddStoryPress = useCallback(() => {
@@ -1722,7 +1725,8 @@ export default function Accueil() {
   const handleStoryCreated = useCallback(() => {
     // Rafraîchir les stories
     setStoriesRefreshKey(prev => prev + 1);
-  }, []);
+    enregistrerActionAvecFeedback('create_story');
+  }, [enregistrerActionAvecFeedback]);
 
   // Navigation vers le profil depuis une story (Bug #3: préserver l'état)
   const handleStoryNavigateToProfile = useCallback((userId: string, currentIndex: number) => {
@@ -1845,6 +1849,7 @@ export default function Accueil() {
                   onOpenImage={handleOpenImage}
                   onOpenVideo={handleOpenVideo}
                   onResetControlsTimeout={resetControlsTimeout}
+                  onGamificationAction={enregistrerActionAvecFeedback}
                   styles={styles}
                   mediaWidth={SCREEN_WIDTH - 32}
                   mediaHeight={SCREEN_WIDTH - 32}

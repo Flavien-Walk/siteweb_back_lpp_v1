@@ -44,6 +44,7 @@ import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
 import { getProjetsSuivisUtilisateur, Projet } from '../../../src/services/projets';
 import StoryViewer from '../../../src/composants/StoryViewer';
 import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
+import { enregistrerAction } from '../../../src/services/parcours';
 
 type OngletActivite = 'publications' | 'projets';
 
@@ -293,8 +294,8 @@ export default function ProfilUtilisateurPage() {
         const reponse = await accepterDemandeAmi(id);
         if (reponse.succes) {
           setProfil({ ...profil, estAmi: true, demandeRecue: false });
-          // Rafraîchir les données utilisateur pour mettre à jour nbAmis
           refreshUser();
+          enregistrerAction('add_friend', id).catch(() => {});
         } else {
           Alert.alert('Erreur', reponse.message || 'Erreur');
         }
@@ -302,6 +303,7 @@ export default function ProfilUtilisateurPage() {
         const reponse = await envoyerDemandeAmi(id);
         if (reponse.succes) {
           setProfil({ ...profil, demandeEnvoyee: true });
+          enregistrerAction('add_friend', id).catch(() => {});
         } else {
           Alert.alert('Erreur', reponse.message || 'Erreur');
         }
