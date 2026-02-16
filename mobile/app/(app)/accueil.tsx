@@ -1882,164 +1882,157 @@ export default function Accueil() {
     />
   );
 
-  // === ACCUEIL HUB : Quick Actions + Prochaine Action ===
+  // === ACCUEIL HUB : Prochaine Action (bloc unique, zero friction) ===
 
-  // Mapper une action de quete vers une navigation concrète
-  const ACTION_NAV: Record<string, { cta: string; onPress: () => void; color: string; icon: string }> = useMemo(() => ({
+  // Mapper chaque action de quete vers un CTA concret + navigation
+  const ACTION_NAV: Record<string, { cta: string; desc: string; onPress: () => void; color: string; icon: string }> = useMemo(() => ({
     like_publication: {
-      cta: 'Liker un post',
-      onPress: () => { /* scroll vers les publications */ },
+      cta: 'Likez un post',
+      desc: 'Encouragez un createur de la communaute',
+      onPress: () => { /* les publications sont juste en dessous */ },
       color: '#FF4D6D',
-      icon: 'heart-outline',
+      icon: 'heart',
     },
     follow_projet: {
-      cta: 'Decouvrir un projet',
+      cta: 'Decouvrez un projet',
+      desc: 'Explorez une startup et suivez son evolution',
       onPress: () => pagerRef.current?.setPage(1),
       color: '#3B82F6',
-      icon: 'compass-outline',
+      icon: 'compass',
     },
     visit_projet: {
-      cta: 'Explorer un projet',
+      cta: 'Explorez un projet',
+      desc: 'Visitez la page d\'une startup innovante',
       onPress: () => pagerRef.current?.setPage(1),
       color: '#8B5CF6',
-      icon: 'eye-outline',
+      icon: 'eye',
     },
     complete_avatar: {
-      cta: 'Ajouter ma photo',
+      cta: 'Ajoutez votre photo',
+      desc: 'Personnalisez votre profil pour vous demarquer',
       onPress: () => router.push('/(app)/profil'),
       color: '#10B981',
-      icon: 'camera-outline',
+      icon: 'camera',
     },
     complete_profil: {
-      cta: 'Completer mon profil',
+      cta: 'Completez votre profil',
+      desc: 'Un profil complet attire plus de connexions',
       onPress: () => router.push('/(app)/profil'),
       color: '#10B981',
-      icon: 'person-circle-outline',
+      icon: 'person-circle',
     },
     view_story: {
-      cta: 'Regarder une story',
+      cta: 'Regardez une story',
+      desc: 'Decouvrez l\'actualite de la communaute',
       onPress: () => { /* les stories sont en haut */ },
       color: '#EC4899',
-      icon: 'play-circle-outline',
+      icon: 'play-circle',
     },
     comment_publication: {
-      cta: 'Commenter un post',
-      onPress: () => { /* scroll vers les publications */ },
+      cta: 'Commentez un post',
+      desc: 'Partagez votre avis et engagez la discussion',
+      onPress: () => { /* les publications sont juste en dessous */ },
       color: '#F59E0B',
-      icon: 'chatbubble-outline',
+      icon: 'chatbubble',
     },
     create_publication: {
-      cta: 'Publier un post',
+      cta: 'Publiez un post',
+      desc: 'Partagez une idee, identifiez un projet avec @',
       onPress: () => setModalCreerPost(true),
       color: '#6366F1',
-      icon: 'create-outline',
+      icon: 'create',
     },
     create_story: {
-      cta: 'Creer une story',
+      cta: 'Creez une story',
+      desc: 'Montrez votre quotidien a la communaute',
       onPress: () => setStoryCreatorVisible(true),
       color: '#10B981',
-      icon: 'camera-outline',
+      icon: 'camera',
     },
     create_projet: {
-      cta: 'Creer mon projet',
+      cta: 'Creez votre startup',
+      desc: 'Lancez votre projet et trouvez vos premiers soutiens',
       onPress: () => router.push('/(app)/entrepreneur/nouveau-projet'),
       color: '#F59E0B',
-      icon: 'rocket-outline',
+      icon: 'rocket',
     },
     add_friend: {
-      cta: 'Ajouter un ami',
+      cta: 'Ajoutez un ami',
+      desc: 'Agrandissez votre reseau d\'entrepreneurs',
       onPress: () => pagerRef.current?.setPage(1),
       color: '#2DE2E6',
-      icon: 'person-add-outline',
+      icon: 'person-add',
     },
     first_message: {
-      cta: 'Envoyer un message',
+      cta: 'Envoyez un message',
+      desc: 'Faites le premier pas et connectez-vous',
       onPress: () => pagerRef.current?.setPage(3),
       color: '#3B82F6',
-      icon: 'chatbubbles-outline',
+      icon: 'chatbubbles',
     },
   }), []);
 
+  // Action par defaut si aucune quete disponible
+  const DEFAULT_ACTION = useMemo(() => ({
+    cta: 'Decouvrez la communaute',
+    desc: 'Explorez les projets et connectez-vous avec des entrepreneurs',
+    onPress: () => pagerRef.current?.setPage(1),
+    color: couleurs.primaire,
+    icon: 'compass' as const,
+  }), [couleurs.primaire]);
+
   const renderAccueilHub = () => {
-    const prochaine = quetesDisponibles[0];
-    const nav = prochaine ? ACTION_NAV[prochaine.action] || null : null;
+    const prochaine = quetesDisponibles[0] || null;
+    const nav = prochaine ? (ACTION_NAV[prochaine.action] || null) : null;
+
+    // Donnees d'affichage : quete reelle ou action par defaut
+    const actionCta = nav?.cta || DEFAULT_ACTION.cta;
+    const actionDesc = nav?.desc || DEFAULT_ACTION.desc;
+    const actionColor = nav?.color || DEFAULT_ACTION.color;
+    const actionIcon = nav?.icon || DEFAULT_ACTION.icon;
+    const actionOnPress = nav?.onPress || DEFAULT_ACTION.onPress;
+    const actionXp = prochaine?.xp || 0;
+    const actionChapitre = prochaine?.chapitre || '';
 
     return (
-      <View style={styles.hubWrapper}>
-        {/* Quick Actions Row */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hubActionsRow}>
-          <Pressable
-            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
-            onPress={() => setStoryCreatorVisible(true)}
-          >
-            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-              <Ionicons name="camera-outline" size={20} color="#10B981" />
-            </View>
-            <Text style={styles.hubActionLabel}>Story</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
-            onPress={() => pagerRef.current?.setPage(1)}
-          >
-            <View style={[styles.hubActionIcon, { backgroundColor: couleurs.primaireLight }]}>
-              <Ionicons name="compass-outline" size={20} color={couleurs.primaire} />
-            </View>
-            <Text style={styles.hubActionLabel}>Explorer</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push('/(app)/quetes')}
-          >
-            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(255, 189, 89, 0.15)' }]}>
-              <Ionicons name="trophy-outline" size={20} color={couleurs.accent} />
-            </View>
-            <Text style={styles.hubActionLabel}>Quetes</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push('/(app)/mes-startups')}
-          >
-            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-              <Ionicons name="rocket-outline" size={20} color="#F59E0B" />
-            </View>
-            <Text style={styles.hubActionLabel}>Startups</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
-            onPress={() => pagerRef.current?.setPage(2)}
-          >
-            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-              <Ionicons name="radio-outline" size={20} color="#EF4444" />
-            </View>
-            <Text style={styles.hubActionLabel}>Live</Text>
-          </Pressable>
-        </ScrollView>
-
-        {/* Prochaine Action */}
-        {prochaine && nav && (
-          <Pressable
-            style={({ pressed }) => [styles.nextActionCard, pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
-            onPress={nav.onPress}
-          >
-            <View style={[styles.nextActionIconWrap, { backgroundColor: nav.color + '18' }]}>
-              <Ionicons name={nav.icon as any} size={22} color={nav.color} />
-            </View>
-            <View style={styles.nextActionContent}>
-              <Text style={styles.nextActionLabel}>PROCHAINE ACTION</Text>
-              <Text style={styles.nextActionTitle}>{prochaine.titre}</Text>
-              <Text style={styles.nextActionDesc} numberOfLines={1}>{prochaine.description}</Text>
-            </View>
-            <View style={styles.nextActionRight}>
+      <Pressable
+        style={({ pressed }) => [styles.nextActionCard, pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] }]}
+        onPress={actionOnPress}
+      >
+        <LinearGradient
+          colors={[actionColor + '20', 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.nextActionGradient}
+        />
+        <View style={styles.nextActionTop}>
+          <View style={[styles.nextActionIconWrap, { backgroundColor: actionColor + '22' }]}>
+            <Ionicons name={actionIcon as any} size={24} color={actionColor} />
+          </View>
+          <View style={styles.nextActionBadges}>
+            {actionXp > 0 && (
               <View style={styles.nextActionXp}>
-                <Text style={styles.nextActionXpText}>+{prochaine.xp} XP</Text>
+                <Ionicons name="flash" size={11} color="#00D68F" />
+                <Text style={styles.nextActionXpText}>+{actionXp} XP</Text>
               </View>
-              <View style={[styles.nextActionGoBtn, { backgroundColor: nav.color }]}>
-                <Ionicons name="arrow-forward" size={14} color="#fff" />
+            )}
+            {actionChapitre ? (
+              <View style={[styles.nextActionChapter, { borderColor: actionColor + '40' }]}>
+                <Text style={[styles.nextActionChapterText, { color: actionColor }]}>{actionChapitre}</Text>
               </View>
-            </View>
-          </Pressable>
-        )}
-      </View>
+            ) : null}
+          </View>
+        </View>
+        <View style={styles.nextActionBody}>
+          <Text style={styles.nextActionLabel}>VOTRE PROCHAINE ACTION</Text>
+          <Text style={styles.nextActionTitle}>{actionCta}</Text>
+          <Text style={styles.nextActionDesc} numberOfLines={2}>{actionDesc}</Text>
+        </View>
+        <View style={[styles.nextActionBtn, { backgroundColor: actionColor }]}>
+          <Text style={styles.nextActionBtnText}>C'est parti</Text>
+          <Ionicons name="arrow-forward" size={16} color="#fff" />
+        </View>
+      </Pressable>
     );
   };
 
@@ -6523,89 +6516,95 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     color: couleurs.texte,
   },
 
-  // === ACCUEIL HUB ===
-  hubWrapper: {
-    paddingHorizontal: espacements.md,
-    marginBottom: espacements.md,
+  // === PROCHAINE ACTION (bloc hero) ===
+  nextActionCard: {
+    marginHorizontal: espacements.md,
+    marginBottom: espacements.lg,
+    backgroundColor: couleurs.fondCard,
+    borderRadius: rayons.xl,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    overflow: 'hidden',
   },
-  hubActionsRow: {
-    gap: 12,
-    paddingBottom: 14,
+  nextActionGradient: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: rayons.xl,
   },
-  hubAction: {
+  nextActionTop: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    width: 64,
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  hubActionIcon: {
+  nextActionIconWrap: {
     width: 48,
     height: 48,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hubActionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: couleurs.texteSecondaire,
-  },
-  // === PROCHAINE ACTION ===
-  nextActionCard: {
+  nextActionBadges: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: couleurs.fondCard,
-    borderRadius: rayons.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    gap: 12,
-  },
-  nextActionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextActionContent: {
-    flex: 1,
-    gap: 2,
-  },
-  nextActionLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: couleurs.primaire,
-    letterSpacing: 1.2,
-  },
-  nextActionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: couleurs.texte,
-  },
-  nextActionDesc: {
-    fontSize: 12,
-    color: couleurs.texteSecondaire,
-  },
-  nextActionRight: {
-    alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   nextActionXp: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'rgba(0, 214, 143, 0.15)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
+    gap: 3,
   },
   nextActionXpText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     color: '#00D68F',
   },
-  nextActionGoBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  nextActionChapter: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  nextActionChapterText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  nextActionBody: {
+    marginBottom: 16,
+    gap: 4,
+  },
+  nextActionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: couleurs.texteSecondaire,
+    letterSpacing: 1.5,
+    marginBottom: 2,
+  },
+  nextActionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: couleurs.texte,
+  },
+  nextActionDesc: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    lineHeight: 18,
+  },
+  nextActionBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: rayons.md,
+    gap: 8,
+  },
+  nextActionBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
   },
 });
