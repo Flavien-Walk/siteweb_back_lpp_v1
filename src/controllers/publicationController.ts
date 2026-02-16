@@ -3,6 +3,7 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import Publication from '../models/Publication.js';
 import { IMention, IMedia } from '../models/Publication.js';
+import { applyGamificationEvent } from '../services/gamificationEngine.js';
 import Commentaire from '../models/Commentaire.js';
 import Notification from '../models/Notification.js';
 import Utilisateur from '../models/Utilisateur.js';
@@ -117,7 +118,7 @@ export const getPublications = async (
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar niveauNom niveauIcone')
+        .populate('auteur', 'prenom nom avatar')
         .populate('projet', 'nom image')
         .lean(),
       Publication.countDocuments(filtre),
@@ -169,7 +170,7 @@ export const getPublication = async (
     }
 
     const publication = await Publication.findById(id)
-      .populate('auteur', 'prenom nom avatar niveauNom niveauIcone')
+      .populate('auteur', 'prenom nom avatar')
       .populate('projet', 'nom image');
 
     if (!publication) {
@@ -377,7 +378,10 @@ export const creerPublication = async (
 
     // Récupérer avec les infos de l'auteur
     const publicationComplete = await Publication.findById(publication._id)
-      .populate('auteur', 'prenom nom avatar niveauNom niveauIcone');
+      .populate('auteur', 'prenom nom avatar');
+
+    // Gamification: XP pour creation de post
+    const gamification = await applyGamificationEvent(userId.toString(), 'create_post', publication._id.toString()).catch(() => null);
 
     res.status(201).json({
       succes: true,
@@ -389,6 +393,7 @@ export const creerPublication = async (
           nbLikes: 0,
         },
       },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     next(error);
@@ -488,7 +493,7 @@ export const modifierPublication = async (
 
     // Récupérer avec les infos de l'auteur
     const publicationComplete = await Publication.findById(id)
-      .populate('auteur', 'prenom nom avatar niveauNom niveauIcone');
+      .populate('auteur', 'prenom nom avatar');
 
     res.json({
       succes: true,
@@ -590,12 +595,19 @@ export const toggleLikePublication = async (
       }
     }
 
+    // Gamification: XP pour le like (seulement si like, pas unlike)
+    let gamification = null;
+    if (!dejaLike) {
+      gamification = await applyGamificationEvent(userId.toString(), 'like_post', id).catch(() => null);
+    }
+
     res.json({
       succes: true,
       data: {
         aLike: !dejaLike,
         nbLikes: updateResult.likes.length,
       },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     next(error);
@@ -628,7 +640,7 @@ export const getCommentaires = async (
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar niveauNom niveauIcone')
+        .populate('auteur', 'prenom nom avatar')
         .lean(),
       Commentaire.countDocuments({ publication: id, reponseA: null }),
     ]);
@@ -638,7 +650,7 @@ export const getCommentaires = async (
       commentaires.map(async (commentaire) => {
         const reponses = await Commentaire.find({ reponseA: commentaire._id })
           .sort({ dateCreation: 1 })
-          .populate('auteur', 'prenom nom avatar niveauNom niveauIcone')
+          .populate('auteur', 'prenom nom avatar')
           .lean();
 
         const commentaireObj = typeof commentaire.toObject === 'function' ? commentaire.toObject() : commentaire;
@@ -730,7 +742,7 @@ export const ajouterCommentaire = async (
 
     // Récupérer avec les infos de l'auteur
     const commentaireComplet = await Commentaire.findById(commentaire._id)
-      .populate('auteur', 'prenom nom avatar niveauNom niveauIcone');
+      .populate('auteur', 'prenom nom avatar');
 
     // Créer une notification pour l'auteur de la publication (si ce n'est pas lui-même qui commente)
     const auteurPublicationId = publication.auteur.toString();
@@ -778,6 +790,9 @@ export const ajouterCommentaire = async (
       }
     }
 
+    // Gamification: XP pour commentaire
+    const gamification = await applyGamificationEvent(userId.toString(), 'comment_post', id).catch(() => null);
+
     res.status(201).json({
       succes: true,
       message: 'Commentaire ajouté avec succès.',
@@ -789,6 +804,7 @@ export const ajouterCommentaire = async (
           reponses: [],
         },
       },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     next(error);
@@ -846,7 +862,7 @@ export const modifierCommentaire = async (
 
     // Récupérer avec les infos de l'auteur
     const commentaireComplet = await Commentaire.findById(comId)
-      .populate('auteur', 'prenom nom avatar niveauNom niveauIcone');
+      .populate('auteur', 'prenom nom avatar');
 
     res.json({
       succes: true,

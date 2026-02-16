@@ -145,9 +145,6 @@ export interface IUtilisateur extends Document {
   emailVerifie: boolean;
   codeVerification?: string;
   codeVerificationExpire?: Date;
-  // Gamification (cache pour eviter les jointures sur le feed)
-  niveauNom?: string;
-  niveauIcone?: string;
   // Timestamps
   dateCreation: Date;
   dateMiseAJour: Date;
@@ -246,15 +243,6 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     profilPublic: {
       type: Boolean,
       default: true,
-    },
-    // Gamification (cache pour eviter les jointures sur le feed)
-    niveauNom: {
-      type: String,
-      default: null,
-    },
-    niveauIcone: {
-      type: String,
-      default: null,
     },
     // Verification email
     emailVerifie: {
