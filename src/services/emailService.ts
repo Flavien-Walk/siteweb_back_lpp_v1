@@ -20,9 +20,9 @@ export const envoyerEmailVerification = async (
   prenom: string,
   code: string
 ): Promise<void> => {
-  const digits = code.split('').join(' &nbsp; ');
+  console.log(`[EMAIL] Envoi vers ${email} (from: ${FROM_EMAIL}, API key: ${process.env.RESEND_API_KEY ? 'presente' : 'MANQUANTE'})`);
 
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: FROM_EMAIL,
     to: email,
     subject: `${code} - Verifie ton email`,
@@ -59,4 +59,6 @@ export const envoyerEmailVerification = async (
 </body>
 </html>`,
   });
+
+  console.log(`[EMAIL] Resultat:`, JSON.stringify(result));
 };
