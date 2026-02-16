@@ -26,6 +26,8 @@ export interface IParcoursUtilisateur extends Document {
   streak: number;
   lastActivityDate: Date | null;
   initialise: boolean;
+  projetsVisites: string[];
+  storiesVues: string[];
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -115,7 +117,6 @@ const parcoursUtilisateurSchema = new Schema<IParcoursUtilisateur>(
       ref: 'Utilisateur',
       required: true,
       unique: true,
-      index: true,
     },
     xp: { type: Number, default: 0, min: 0 },
     niveau: { type: Number, default: 1, min: 1, max: 5 },
@@ -124,6 +125,8 @@ const parcoursUtilisateurSchema = new Schema<IParcoursUtilisateur>(
     streak: { type: Number, default: 0, min: 0 },
     lastActivityDate: { type: Date, default: null },
     initialise: { type: Boolean, default: false },
+    projetsVisites: [{ type: String }],
+    storiesVues: [{ type: String }],
   },
   {
     timestamps: {
@@ -132,9 +135,6 @@ const parcoursUtilisateurSchema = new Schema<IParcoursUtilisateur>(
     },
   }
 );
-
-// Index pour les requetes courantes
-parcoursUtilisateurSchema.index({ utilisateur: 1 }, { unique: true });
 
 const ParcoursUtilisateur = mongoose.model<IParcoursUtilisateur>(
   'ParcoursUtilisateur',

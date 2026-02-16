@@ -698,8 +698,15 @@ async function compterActionsReelles(
     }
     case 'create_story':
       return Story.countDocuments({ auteur: userId });
+    case 'visit_projet': {
+      const parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId }).select('projetsVisites').lean();
+      return parcours?.projetsVisites?.length || 0;
+    }
+    case 'view_story': {
+      const parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId }).select('storiesVues').lean();
+      return parcours?.storiesVues?.length || 0;
+    }
     default:
-      // Pour visit_projet, view_story, etc. : pas de tracking direct, on retourne 1
       return 1;
   }
 }
@@ -1048,6 +1055,20 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
       parcours.lastActivityDate = new Date();
       parcours.initialise = true;
       await parcours.save();
+    }
+
+    // Tracker les visites/stories uniques
+    if (action === 'visit_projet' && targetId) {
+      if (!parcours.projetsVisites) parcours.projetsVisites = [];
+      if (!parcours.projetsVisites.includes(targetId)) {
+        parcours.projetsVisites.push(targetId);
+      }
+    }
+    if (action === 'view_story' && targetId) {
+      if (!parcours.storiesVues) parcours.storiesVues = [];
+      if (!parcours.storiesVues.includes(targetId)) {
+        parcours.storiesVues.push(targetId);
+      }
     }
 
     const ancienNiveau = parcours.niveau;
