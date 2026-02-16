@@ -59,7 +59,7 @@ export const getFeed = async (req: Request, res: Response): Promise<void> => {
         .sort({ dateCreation: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('auteur', 'prenom nom avatar')
+        .populate('auteur', 'prenom nom avatar niveauNom niveauIcone')
         .populate('projet', 'nom image')
         .lean(),
       Publication.countDocuments(filtre),

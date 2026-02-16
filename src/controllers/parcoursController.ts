@@ -892,12 +892,18 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
         initialise: true,
       });
 
+      // Cache niveau sur l'utilisateur
+      const infoInit = getNiveauInfo(xpInitial, niveaux);
+      Utilisateur.updateOne(
+        { _id: userId },
+        { niveauNom: infoInit.niveauNom, niveauIcone: infoInit.niveauIcone }
+      ).catch(() => {});
+
       if (xpInitial > 0) {
-        const info = getNiveauInfo(xpInitial, niveaux);
         await creerNotifGamification(
           userId,
           'Bienvenue dans le Parcours du Batisseur !',
-          `Ton historique te donne ${xpInitial} XP - tu es deja niveau ${info.niveauNom} !`
+          `Ton historique te donne ${xpInitial} XP - tu es deja niveau ${infoInit.niveauNom} !`
         );
       }
     } else if (!parcours.initialise) {
@@ -911,12 +917,18 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
       parcours.initialise = true;
       await parcours.save();
 
+      // Cache niveau sur l'utilisateur
+      const infoInit2 = getNiveauInfo(xpInitial, niveaux);
+      Utilisateur.updateOne(
+        { _id: userId },
+        { niveauNom: infoInit2.niveauNom, niveauIcone: infoInit2.niveauIcone }
+      ).catch(() => {});
+
       if (xpInitial > 0) {
-        const info = getNiveauInfo(xpInitial, niveaux);
         await creerNotifGamification(
           userId,
           'Bienvenue dans le Parcours du Batisseur !',
-          `Ton historique te donne ${xpInitial} XP - tu es deja niveau ${info.niveauNom} !`
+          `Ton historique te donne ${xpInitial} XP - tu es deja niveau ${infoInit2.niveauNom} !`
         );
       }
     }
@@ -965,6 +977,16 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
         niveauRequis: q.niveauRequis,
       }));
 
+    // Streak en danger : activite hier mais pas encore aujourd'hui, streak >= 3
+    const streakEnDanger = p.streak >= 3 &&
+      isYesterday(p.lastActivityDate) &&
+      !isToday(p.lastActivityDate);
+
+    // Multiplicateur streak actuel
+    let streakMultiplier = 1;
+    if (p.streak >= 30) streakMultiplier = 2;
+    else if (p.streak >= 7) streakMultiplier = 1.5;
+
     res.json({
       succes: true,
       data: {
@@ -972,6 +994,8 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
           xp: p.xp,
           ...niveauInfo,
           streak: p.streak,
+          streakEnDanger,
+          streakMultiplier: streakMultiplier > 1 ? streakMultiplier : undefined,
           quetesCompletees: p.quetesCompletees.map(q => q.queteId),
         },
         defiActif: defiProgression,
@@ -1027,7 +1051,17 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
     }
 
     const ancienNiveau = parcours.niveau;
-    let xpGagne = XP_PAR_ACTION[action];
+    let xpBase = XP_PAR_ACTION[action];
+
+    // Multiplicateur streak : x1.5 a 7j, x2 a 30j
+    let streakMultiplier = 1;
+    if (parcours.streak >= 30) {
+      streakMultiplier = 2;
+    } else if (parcours.streak >= 7) {
+      streakMultiplier = 1.5;
+    }
+    let xpGagne = Math.round(xpBase * streakMultiplier);
+
     let queteCompletee: string | null = null;
     let queteCompleteeInfo: QueteConfig | null = null;
 
@@ -1145,6 +1179,14 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
 
     const niveauInfo = getNiveauInfo(parcours.xp, niveaux);
 
+    // Mettre a jour le cache niveau sur l'utilisateur (fire & forget)
+    if (levelUp) {
+      Utilisateur.updateOne(
+        { _id: userId },
+        { niveauNom: niveauInfo.niveauNom, niveauIcone: niveauInfo.niveauIcone }
+      ).catch(() => {});
+    }
+
     // === NOTIFICATIONS (fire & forget) ===
     if (queteCompleteeInfo) {
       creerNotifGamification(
@@ -1180,6 +1222,7 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
         niveauNom: niveauInfo.niveauNom,
         queteCompletee,
         defiProgression,
+        streakMultiplier: streakMultiplier > 1 ? streakMultiplier : undefined,
       },
     });
   } catch (error) {
