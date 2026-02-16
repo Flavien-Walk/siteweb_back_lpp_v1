@@ -11,6 +11,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/contextes/AuthContexte';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { UserProvider, useUser } from '../src/contexts/UserContext';
+import { GamificationProvider } from '../src/contexts/GamificationContext';
 import { SocketProvider } from '../src/contexts/SocketContext';
 import SplashScreen from '../src/composants/SplashScreen';
 import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
@@ -97,12 +98,14 @@ export default function RootLayout() {
           {/* UserProvider est la source unique de vérité pour l'utilisateur */}
           {/* AuthProvider est un wrapper pour compatibilité avec l'API legacy */}
           <UserProvider>
-            <AuthProvider>
-              {/* SocketProvider pour le temps reel */}
-              <SocketWrapper>
-                <AppContent />
-              </SocketWrapper>
-            </AuthProvider>
+            <GamificationProvider>
+              <AuthProvider>
+                {/* SocketProvider pour le temps reel */}
+                <SocketWrapper>
+                  <AppContent />
+                </SocketWrapper>
+              </AuthProvider>
+            </GamificationProvider>
           </UserProvider>
         </ThemeProvider>
         </ErrorBoundary>
