@@ -3,6 +3,7 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import { Message, Conversation, chiffrerMessage, TypeMessage } from '../models/Message.js';
 import Utilisateur from '../models/Utilisateur.js';
+import { applyGamificationEvent } from '../services/gamificationEngine.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64DataUrl, isBase64VideoDataUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
 import { emitNewMessage, forceLeaveConversation } from '../socket/index.js';
@@ -451,6 +452,9 @@ export const envoyerMessage = async (
       lu: false,
     });
 
+    // Gamification: XP pour envoi de message
+    const gamification = await applyGamificationEvent(userId.toString(), 'send_message', conversation._id.toString()).catch(() => null);
+
     res.status(201).json({
       succes: true,
       message: 'Message envoyé avec succès.',
@@ -467,6 +471,7 @@ export const envoyerMessage = async (
         },
         conversationId: conversation._id,
       },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     next(error);

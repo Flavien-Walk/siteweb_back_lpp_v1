@@ -6,6 +6,7 @@ import Notification from '../models/Notification.js';
 import Report from '../models/Report.js';
 import { uploadPublicationMedias, uploadPublicationMedia, isBase64MediaDataUrl } from '../utils/cloudinary.js';
 import AuditLog from '../models/AuditLog.js';
+import { applyGamificationEvent } from '../services/gamificationEngine.js';
 
 // =====================================================
 // HELPERS
@@ -163,13 +164,22 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
     projetData.nbFollowers = projet.followers.length;
     delete projetData.followers;
 
+    const isOwner = userId ? projet.porteur._id.equals(userId) : false;
+
+    // Gamification: XP pour visite de projet (seulement si connecte et pas owner)
+    let gamification = null;
+    if (userId && !isOwner) {
+      gamification = await applyGamificationEvent(userId.toString(), 'view_project', req.params.id).catch(() => null);
+    }
+
     res.json({
       succes: true,
       data: {
         projet: projetData,
-        suivi: estSuivi, // Pour compatibilité
-        isOwner: userId ? projet.porteur._id.equals(userId) : false,
+        suivi: estSuivi,
+        isOwner,
       },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur detailProjet:', error);
@@ -269,16 +279,21 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
       }
     }
 
+    // Gamification: XP pour follow projet (seulement si nouveau follow, pas unfollow)
+    let gamification = null;
+    if (isNewFollow) {
+      gamification = await applyGamificationEvent(userId.toString(), 'follow_project', req.params.id).catch(() => null);
+    }
+
     res.json({
       succes: true,
       data: {
-        // Noms attendus par le mobile
         estSuivi: isNewFollow,
         nbFollowers,
-        // Anciens noms pour compatibilite
         suivi: isNewFollow,
         totalFollowers: nbFollowers,
       },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur toggleSuivreProjet:', error);
@@ -415,10 +430,14 @@ export const creerProjet = async (req: Request, res: Response): Promise<void> =>
     const projet = new Projet(projetData);
     await projet.save();
 
+    // Gamification: XP pour creation de projet
+    const gamification = await applyGamificationEvent(userId.toString(), 'create_project', projet._id.toString()).catch(() => null);
+
     res.status(201).json({
       succes: true,
       message: 'Projet créé en brouillon.',
       data: { projet },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur creerProjet:', error);
@@ -579,10 +598,14 @@ export const publierProjet = async (req: Request, res: Response): Promise<void> 
       console.error('Erreur audit log:', auditError);
     }
 
+    // Gamification: XP pour publication de projet
+    const gamification = await applyGamificationEvent(userId.toString(), 'publish_project', projet._id.toString()).catch(() => null);
+
     res.json({
       succes: true,
       message: 'Projet publié avec succès.',
       data: { projet },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur publierProjet:', error);

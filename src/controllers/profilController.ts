@@ -3,6 +3,7 @@ import { z } from 'zod';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 import Publication from '../models/Publication.js';
+import { applyGamificationEvent } from '../services/gamificationEngine.js';
 import Commentaire from '../models/Commentaire.js';
 import { Message, Conversation } from '../models/Message.js';
 import Projet from '../models/Projet.js';
@@ -133,6 +134,12 @@ export const modifierProfil = async (
       throw new ErreurAPI('Utilisateur non trouvé.', 404);
     }
 
+    // Gamification: XP pour completion de profil (si bio modifiee)
+    let gamification = null;
+    if (donnees.bio) {
+      gamification = await applyGamificationEvent(userId.toString(), 'complete_profile', userId.toString()).catch(() => null);
+    }
+
     res.json({
       succes: true,
       message: 'Profil mis à jour avec succès.',
@@ -148,6 +155,7 @@ export const modifierProfil = async (
           profilPublic: utilisateur.profilPublic ?? true,
         },
       },
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
     });
   } catch (error) {
     next(error);

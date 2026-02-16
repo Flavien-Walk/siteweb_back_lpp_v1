@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 import { emitDemandeAmi, emitNewNotification } from '../socket/index.js';
+import { applyGamificationEvent } from '../services/gamificationEngine.js';
 
 /**
  * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
@@ -305,7 +306,14 @@ export const envoyerDemandeAmi = async (
       });
     }
 
-    res.json({ succes: true, message: 'Demande d\'ami envoyée.' });
+    // Gamification: XP pour demande d'ami
+    const gamification = await applyGamificationEvent(utilisateur._id.toString(), 'add_friend', cibleId).catch(() => null);
+
+    res.json({
+      succes: true,
+      message: 'Demande d\'ami envoyée.',
+      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+    });
   } catch (error) {
     next(error);
   }
