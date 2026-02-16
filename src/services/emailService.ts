@@ -3,7 +3,7 @@ import { randomInt } from 'crypto';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = 'La Premiere Pierre <onboarding@resend.dev>';
+const FROM_EMAIL = 'La Premiere Pierre <noreply@lapremierepierre.org>';
 
 /**
  * Generer un code de verification 6 chiffres
