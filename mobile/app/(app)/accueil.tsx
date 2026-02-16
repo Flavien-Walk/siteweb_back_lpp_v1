@@ -79,7 +79,7 @@ const MAX_HISTORIQUE = 10;
 // LikeButton et getUserBadgeConfig importés dans PublicationCard
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
-import ParcoursBatisseur from '../../src/composants/ParcoursBatisseur';
+// ParcoursBatisseur deplace dans le FAB → ecran quetes
 import { getMonParcours, enregistrerAction, ParcoursData, DefiActif, Quete } from '../../src/services/parcours';
 import StoriesRow from '../../src/composants/StoriesRow';
 import StoryViewer from '../../src/composants/StoryViewer';
@@ -1788,27 +1788,115 @@ export default function Accueil() {
     />
   );
 
-  const handleQuetePress = useCallback((quete: Quete) => {
-    // Navigation contextuelle selon la quete
-    if (quete.id.includes('projet') || quete.id.includes('follow')) {
-      // Aller dans l'onglet decouvrir
-      pagerRef.current?.setPage(1);
-    } else if (quete.id.includes('message')) {
-      pagerRef.current?.setPage(3);
-    }
-  }, []);
+  // === ACCUEIL HUB : Raccourcis + Tendances + Accroche ===
+  const renderAccueilHub = () => {
+    const heure = new Date().getHours();
+    const salut = heure < 12 ? 'Bonjour' : heure < 18 ? 'Bon apres-midi' : 'Bonsoir';
 
-  const renderParcours = () => (
-    <ParcoursBatisseur
-      parcours={parcours}
-      defiActif={defiActif}
-      prochaineQuete={quetesDisponibles[0] || null}
-      statutUtilisateur={utilisateur?.statut || 'visiteur'}
-      chargement={chargementParcours}
-      onQuetePress={handleQuetePress}
-      onVoirToutesQuetes={() => router.push('/(app)/quetes')}
-    />
-  );
+    return (
+      <View style={styles.hubWrapper}>
+        {/* Greeting */}
+        <View style={styles.hubGreeting}>
+          <Text style={styles.hubSalut}>{salut}{utilisateur?.prenom ? `, ${utilisateur.prenom}` : ''}</Text>
+          <Text style={styles.hubDate}>
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </Text>
+        </View>
+
+        {/* Quick Actions Row */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hubActionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
+            onPress={() => setStoryCreatorVisible(true)}
+          >
+            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+              <Ionicons name="camera-outline" size={20} color="#10B981" />
+            </View>
+            <Text style={styles.hubActionLabel}>Story</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
+            onPress={() => pagerRef.current?.setPage(1)}
+          >
+            <View style={[styles.hubActionIcon, { backgroundColor: couleurs.primaireLight }]}>
+              <Ionicons name="compass-outline" size={20} color={couleurs.primaire} />
+            </View>
+            <Text style={styles.hubActionLabel}>Explorer</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/(app)/quetes')}
+          >
+            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(255, 189, 89, 0.15)' }]}>
+              <Ionicons name="trophy-outline" size={20} color={couleurs.accent} />
+            </View>
+            <Text style={styles.hubActionLabel}>Quetes</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/(app)/mes-startups')}
+          >
+            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+              <Ionicons name="rocket-outline" size={20} color="#F59E0B" />
+            </View>
+            <Text style={styles.hubActionLabel}>Startups</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.hubAction, pressed && { opacity: 0.7 }]}
+            onPress={() => pagerRef.current?.setPage(2)}
+          >
+            <View style={[styles.hubActionIcon, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+              <Ionicons name="radio-outline" size={20} color="#EF4444" />
+            </View>
+            <Text style={styles.hubActionLabel}>Live</Text>
+          </Pressable>
+        </ScrollView>
+
+        {/* Trending mini-cards */}
+        {projetsTendance.length > 0 && (
+          <View style={styles.hubTrendSection}>
+            <View style={styles.hubTrendHeader}>
+              <Ionicons name="flame" size={15} color="#F59E0B" />
+              <Text style={styles.hubTrendTitle}>En ce moment</Text>
+              <Pressable onPress={() => pagerRef.current?.setPage(1)} hitSlop={8}>
+                <Text style={styles.hubTrendSeeAll}>Voir tout</Text>
+              </Pressable>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hubTrendScroll}>
+              {projetsTendance.slice(0, 5).map((projet, i) => (
+                <Pressable
+                  key={projet._id}
+                  style={({ pressed }) => [styles.hubTrendCard, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
+                  onPress={() => router.push({ pathname: '/(app)/projet/[id]', params: { id: projet._id } })}
+                >
+                  {projet.image ? (
+                    <Image source={{ uri: projet.image }} style={styles.hubTrendImage} />
+                  ) : (
+                    <View style={[styles.hubTrendImage, { backgroundColor: couleurs.fondCard, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="business-outline" size={20} color={couleurs.texteMuted} />
+                    </View>
+                  )}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.85)']}
+                    style={styles.hubTrendOverlay}
+                  >
+                    <View style={styles.hubTrendRank}>
+                      <Text style={styles.hubTrendRankText}>#{i + 1}</Text>
+                    </View>
+                    <Text style={styles.hubTrendNom} numberOfLines={1}>{projet.nom}</Text>
+                    <View style={styles.hubTrendMeta}>
+                      <Ionicons name="people" size={10} color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.hubTrendFollowers}>{projet.nbFollowers}</Text>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const handleUpdatePublication = (updatedPub: Publication) => {
     setPublications(prev => prev.map(p => p._id === updatedPub._id ? updatedPub : p));
@@ -1821,7 +1909,7 @@ export default function Accueil() {
   const renderFeedContent = () => (
     <>
       {renderStories()}
-      {renderParcours()}
+      {renderAccueilHub()}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Fil d'actualite</Text>
@@ -2668,7 +2756,7 @@ export default function Accueil() {
   const FAB_ACTIONS = [
     { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
     { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => router.push('/live/start') },
-    { id: 3, icon: 'camera-outline' as const, label: 'Story', color: '#10B981', action: () => setStoryCreatorVisible(true) },
+    { id: 3, icon: 'trophy-outline' as const, label: 'Parcours', color: '#FFBD59', action: () => router.push('/(app)/quetes') },
     { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => router.push('/(app)/mes-startups') },
   ];
 
@@ -6211,5 +6299,114 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: couleurs.texte,
+  },
+
+  // === ACCUEIL HUB ===
+  hubWrapper: {
+    paddingHorizontal: espacements.md,
+    marginBottom: espacements.md,
+  },
+  hubGreeting: {
+    marginBottom: 12,
+  },
+  hubSalut: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: couleurs.texte,
+  },
+  hubDate: {
+    fontSize: 13,
+    color: couleurs.texteSecondaire,
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
+  hubActionsRow: {
+    gap: 12,
+    paddingBottom: 14,
+  },
+  hubAction: {
+    alignItems: 'center',
+    gap: 6,
+    width: 64,
+  },
+  hubActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hubActionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: couleurs.texteSecondaire,
+  },
+  hubTrendSection: {
+    marginTop: 2,
+  },
+  hubTrendHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  hubTrendTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: couleurs.texte,
+    flex: 1,
+  },
+  hubTrendSeeAll: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: couleurs.primaire,
+  },
+  hubTrendScroll: {
+    gap: 10,
+  },
+  hubTrendCard: {
+    width: 140,
+    height: 100,
+    borderRadius: rayons.md,
+    overflow: 'hidden',
+    backgroundColor: couleurs.fondCard,
+  },
+  hubTrendImage: {
+    width: '100%',
+    height: '100%',
+  },
+  hubTrendOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    padding: 8,
+  },
+  hubTrendRank: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  hubTrendRankText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F59E0B',
+  },
+  hubTrendNom: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  hubTrendMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  hubTrendFollowers: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.7)',
   },
 });
