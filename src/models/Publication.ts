@@ -11,6 +11,12 @@ export interface IMedia {
   thumbnailUrl?: string; // Thumbnail pour les vidéos
 }
 
+export interface IMention {
+  type: 'utilisateur' | 'projet';
+  id: mongoose.Types.ObjectId;
+  display: string; // @prenom_nom ou @nom_projet (pour le rendu)
+}
+
 export interface IPublication extends Document {
   _id: mongoose.Types.ObjectId;
   auteur: mongoose.Types.ObjectId;
@@ -19,6 +25,7 @@ export interface IPublication extends Document {
   contenu: string;
   media?: string; // LEGACY - conservé pour rétrocompatibilité
   medias: IMedia[]; // Nouveau champ multi-média
+  mentions: IMention[]; // Mentions @utilisateur et @projet
   projet?: mongoose.Types.ObjectId;
   likes: mongoose.Types.ObjectId[];
   nbCommentaires: number;
@@ -67,6 +74,21 @@ const publicationSchema = new Schema<IPublication>(
       thumbnailUrl: {
         type: String,
         validate: urlValidator,
+      },
+    }],
+    mentions: [{
+      type: {
+        type: String,
+        enum: ['utilisateur', 'projet'],
+        required: true,
+      },
+      id: {
+        type: Schema.Types.ObjectId,
+        required: true,
+      },
+      display: {
+        type: String,
+        required: true,
       },
     }],
     projet: {

@@ -11,6 +11,7 @@ import {
   modifierCommentaire,
   supprimerCommentaire,
   toggleLikeCommentaire,
+  rechercherMentions,
 } from '../controllers/publicationController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -22,6 +23,12 @@ const router = Router();
  * Liste des publications (accessible sans auth)
  */
 router.get('/', chargerUtilisateurOptionnel, getPublications);
+
+/**
+ * GET /api/publications/mentions/search
+ * Rechercher utilisateurs (amis) et projets pour autocomplete @mention
+ */
+router.get('/mentions/search', verifierJwt, checkUserStatus, rechercherMentions);
 
 /**
  * GET /api/publications/:id

@@ -10,6 +10,7 @@ export type TypeNotification =
   | 'nouveau_commentaire'
   | 'nouveau_like'
   | 'like_commentaire'
+  | 'mention'
   | 'sanction_ban'
   | 'sanction_suspend'
   | 'sanction_warn'
@@ -72,7 +73,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['projet_cloture', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow', 'broadcast', 'support_reponse'],
+      enum: ['projet_cloture', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'mention', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow', 'broadcast', 'support_reponse'],
       required: true,
     },
     titre: {

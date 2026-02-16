@@ -980,6 +980,7 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
         xp: q.xp,
         icone: q.icone,
         type: q.type,
+        action: q.action,
         chapitre: q.chapitre,
         niveauRequis: q.niveauRequis,
       }));
@@ -1279,6 +1280,7 @@ export const getQuetes = async (req: Request, res: Response): Promise<void> => {
         xp: q.xp,
         icone: q.icone,
         type: q.type,
+        action: q.action,
         chapitre: q.chapitre,
         niveauRequis: q.niveauRequis,
         completee: quetesCompleteesIds.has(q.id),

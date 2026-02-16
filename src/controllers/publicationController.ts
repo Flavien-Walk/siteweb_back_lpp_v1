@@ -2,13 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import Publication from '../models/Publication.js';
+import { IMention, IMedia } from '../models/Publication.js';
 import Commentaire from '../models/Commentaire.js';
 import Notification from '../models/Notification.js';
 import Utilisateur from '../models/Utilisateur.js';
+import Projet from '../models/Projet.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { emitNewNotification } from '../socket/index.js';
 import { isBase64MediaDataUrl, isHttpUrl, uploadPublicationMedia, uploadPublicationMedias, MediaUploadResult } from '../utils/cloudinary.js';
-import { IMedia } from '../models/Publication.js';
 
 // Schéma de validation pour créer une publication
 const schemaCreerPublication = z.object({
@@ -37,6 +38,11 @@ const schemaCreerPublication = z.object({
     .max(10, 'Maximum 10 médias par publication')
     .optional(),
   type: z.enum(['post', 'annonce', 'update', 'editorial', 'live-extrait']).default('post'),
+  // Mentions @utilisateur et @projet
+  mentions: z.array(z.object({
+    type: z.enum(['utilisateur', 'projet']),
+    id: z.string(),
+  })).max(20, 'Maximum 20 mentions par publication').optional(),
 }).refine(
   (data) => data.contenu?.trim() || data.media || (data.medias && data.medias.length > 0),
   { message: 'Le contenu ou un média est requis' }
@@ -273,16 +279,101 @@ export const creerPublication = async (
       }];
     }
 
+    // === Validation des mentions ===
+    let mentionsValidees: IMention[] = [];
+    if (donnees.mentions && donnees.mentions.length > 0) {
+      const auteur = await Utilisateur.findById(userId).select('amis prenom nom').lean();
+      const amisSet = new Set((auteur?.amis || []).map((id: mongoose.Types.ObjectId) => id.toString()));
+
+      const mentionUsers = donnees.mentions.filter(m => m.type === 'utilisateur');
+      const mentionProjets = donnees.mentions.filter(m => m.type === 'projet');
+
+      // Valider utilisateurs : uniquement des amis
+      if (mentionUsers.length > 0) {
+        const idsValides = mentionUsers
+          .filter(m => mongoose.Types.ObjectId.isValid(m.id) && amisSet.has(m.id))
+          .map(m => new mongoose.Types.ObjectId(m.id));
+        if (idsValides.length > 0) {
+          const users = await Utilisateur.find({ _id: { $in: idsValides } })
+            .select('_id prenom nom').lean();
+          for (const u of users) {
+            mentionsValidees.push({
+              type: 'utilisateur',
+              id: u._id,
+              display: `@${u.prenom}_${u.nom}`.toLowerCase().replace(/\s+/g, '_'),
+            });
+          }
+        }
+      }
+
+      // Valider projets : tout projet existant
+      if (mentionProjets.length > 0) {
+        const idsValides = mentionProjets
+          .filter(m => mongoose.Types.ObjectId.isValid(m.id))
+          .map(m => new mongoose.Types.ObjectId(m.id));
+        if (idsValides.length > 0) {
+          const projets = await Projet.find({ _id: { $in: idsValides } })
+            .select('_id nom').lean();
+          for (const p of projets) {
+            mentionsValidees.push({
+              type: 'projet',
+              id: p._id,
+              display: `@${p.nom}`.toLowerCase().replace(/\s+/g, '_'),
+            });
+          }
+        }
+      }
+    }
+
     const publication = await Publication.create({
       auteur: userId,
       auteurType: 'Utilisateur',
       contenu: donnees.contenu,
       media: legacyMediaUrl, // Legacy
       medias: mediasToSave,  // Nouveau format
+      mentions: mentionsValidees,
       type: donnees.type,
       likes: [],
       nbCommentaires: 0,
     });
+
+    // === Notifications de mention (fire-and-forget) ===
+    if (mentionsValidees.length > 0) {
+      const auteurInfo = await Utilisateur.findById(userId).select('prenom nom avatar').lean();
+
+      for (const mention of mentionsValidees) {
+        if (mention.type === 'utilisateur' && mention.id.toString() !== userId.toString()) {
+          Notification.create({
+            destinataire: mention.id,
+            type: 'mention',
+            titre: 'Vous avez ete mentionne',
+            message: `${auteurInfo?.prenom || ''} ${auteurInfo?.nom || ''} vous a mentionne dans une publication.`,
+            data: {
+              userId: userId.toString(),
+              userPrenom: auteurInfo?.prenom,
+              userNom: auteurInfo?.nom,
+              userAvatar: auteurInfo?.avatar,
+              publicationId: publication._id.toString(),
+            },
+          }).then(notif => {
+            emitNewNotification(mention.id.toString(), {
+              _id: notif._id.toString(),
+              type: notif.type,
+              titre: notif.titre,
+              message: notif.message,
+              lu: false,
+              dateCreation: notif.dateCreation.toISOString(),
+              expediteur: auteurInfo ? {
+                _id: userId.toString(),
+                prenom: auteurInfo.prenom,
+                nom: auteurInfo.nom,
+                avatar: auteurInfo.avatar,
+              } : undefined,
+            });
+          }).catch(err => console.error('Erreur notif mention:', err));
+        }
+      }
+    }
 
     // Récupérer avec les infos de l'auteur
     const publicationComplete = await Publication.findById(publication._id)
@@ -925,6 +1016,70 @@ export const toggleLikeCommentaire = async (
         aLike: !dejaLike,
         nbLikes: updateResult.likes.length,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/publications/mentions/search?q=xxx&type=utilisateur|projet
+ * Rechercher des utilisateurs (amis uniquement) et des projets pour l'autocomplete @mention
+ */
+export const rechercherMentions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.utilisateur!._id;
+    const q = ((req.query.q as string) || '').trim();
+    const type = (req.query.type as string) || 'all'; // 'utilisateur', 'projet', 'all'
+
+    if (q.length < 1) {
+      res.json({ succes: true, data: { utilisateurs: [], projets: [] } });
+      return;
+    }
+
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    let utilisateurs: any[] = [];
+    let projets: any[] = [];
+
+    if (type === 'utilisateur' || type === 'all') {
+      // Chercher uniquement parmi les amis bidirectionnels
+      const user = await Utilisateur.findById(userId).select('amis').lean();
+      const amisIds = (user?.amis || []).filter(
+        (id: mongoose.Types.ObjectId) => id && mongoose.Types.ObjectId.isValid(id.toString())
+      );
+
+      if (amisIds.length > 0) {
+        utilisateurs = await Utilisateur.find({
+          _id: { $in: amisIds },
+          amis: userId, // bidirectionnel
+          $or: [
+            { prenom: regex },
+            { nom: regex },
+          ],
+        })
+          .select('_id prenom nom avatar')
+          .limit(10)
+          .lean();
+      }
+    }
+
+    if (type === 'projet' || type === 'all') {
+      projets = await Projet.find({
+        nom: regex,
+        statut: { $ne: 'archive' },
+      })
+        .select('_id nom logo categorie')
+        .limit(10)
+        .lean();
+    }
+
+    res.json({
+      succes: true,
+      data: { utilisateurs, projets },
     });
   } catch (error) {
     next(error);
