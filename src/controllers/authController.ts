@@ -213,6 +213,16 @@ export const connexion = async (
       return;
     }
 
+    // Auto-verifier l'email pour les comptes existants (crees avant l'ajout de la verification)
+    // Si le compte a plus de 24h et n'est pas verifie, c'est un ancien compte → on le verifie
+    if (!utilisateur.emailVerifie && utilisateur.dateCreation) {
+      const ageCompte = Date.now() - new Date(utilisateur.dateCreation).getTime();
+      if (ageCompte > 24 * 60 * 60 * 1000) {
+        utilisateur.emailVerifie = true;
+        await utilisateur.save();
+      }
+    }
+
     // Generer le token JWT
     const token = genererToken(utilisateur);
 
