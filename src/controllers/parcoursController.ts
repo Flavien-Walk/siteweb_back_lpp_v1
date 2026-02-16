@@ -388,34 +388,42 @@ export const getMonParcours = async (req: Request, res: Response): Promise<void>
     // Trouver ou creer le parcours
     let parcours = await ParcoursUtilisateur.findOne({ utilisateur: userId });
 
-    // Parcours inexistant OU obsolete (xp=0, aucune quete = jamais recalcule)
-    const doitRecalculer = !parcours || (parcours.xp === 0 && parcours.quetesCompletees.length === 0);
-
-    if (doitRecalculer) {
+    if (!parcours) {
+      // Premiere creation → scanner l'historique pour XP initial
       const { xp: xpInitial, quetesCompletees } = await calculerXpInitial(userId, statut);
       const niveauInitial = calculerNiveau(xpInitial, niveaux);
 
-      if (parcours) {
-        // Parcours existant mais obsolete → mettre a jour
-        parcours.xp = xpInitial;
-        parcours.niveau = niveauInitial;
-        parcours.quetesCompletees = quetesCompletees;
-        parcours.lastActivityDate = new Date();
-        await parcours.save();
-      } else {
-        // Premiere creation
-        parcours = await ParcoursUtilisateur.create({
-          utilisateur: userId,
-          xp: xpInitial,
-          niveau: niveauInitial,
-          quetesCompletees,
-          defis: [],
-          streak: 1,
-          lastActivityDate: new Date(),
-        });
-      }
+      parcours = await ParcoursUtilisateur.create({
+        utilisateur: userId,
+        xp: xpInitial,
+        niveau: niveauInitial,
+        quetesCompletees,
+        defis: [],
+        streak: 1,
+        lastActivityDate: new Date(),
+        initialise: true,
+      });
 
-      // Notifier si l'utilisateur demarre avec de l'XP
+      if (xpInitial > 0) {
+        const info = getNiveauInfo(xpInitial, niveaux);
+        await creerNotifGamification(
+          userId,
+          'Bienvenue dans le Parcours du Batisseur !',
+          `Ton historique te donne ${xpInitial} XP - tu es deja niveau ${info.niveauNom} !`
+        );
+      }
+    } else if (!parcours.initialise) {
+      // Parcours cree avant le fix → recalculer une seule fois puis marquer initialise
+      const { xp: xpInitial, quetesCompletees } = await calculerXpInitial(userId, statut);
+      const niveauInitial = calculerNiveau(xpInitial, niveaux);
+
+      parcours.xp = xpInitial;
+      parcours.niveau = niveauInitial;
+      parcours.quetesCompletees = quetesCompletees;
+      parcours.lastActivityDate = new Date();
+      parcours.initialise = true;
+      await parcours.save();
+
       if (xpInitial > 0) {
         const info = getNiveauInfo(xpInitial, niveaux);
         await creerNotifGamification(
@@ -517,7 +525,16 @@ export const enregistrerAction = async (req: Request, res: Response): Promise<vo
         defis: [],
         streak: 1,
         lastActivityDate: new Date(),
+        initialise: true,
       });
+    } else if (!parcours.initialise) {
+      const { xp: xpInitial, quetesCompletees } = await calculerXpInitial(userId, statut);
+      parcours.xp = xpInitial;
+      parcours.niveau = calculerNiveau(xpInitial, niveaux);
+      parcours.quetesCompletees = quetesCompletees;
+      parcours.lastActivityDate = new Date();
+      parcours.initialise = true;
+      await parcours.save();
     }
 
     const ancienNiveau = parcours.niveau;

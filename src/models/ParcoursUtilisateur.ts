@@ -25,6 +25,7 @@ export interface IParcoursUtilisateur extends Document {
   defis: IDefiProgression[];
   streak: number;
   lastActivityDate: Date | null;
+  initialise: boolean;
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -122,6 +123,7 @@ const parcoursUtilisateurSchema = new Schema<IParcoursUtilisateur>(
     defis: [defiProgressionSchema],
     streak: { type: Number, default: 0, min: 0 },
     lastActivityDate: { type: Date, default: null },
+    initialise: { type: Boolean, default: false },
   },
   {
     timestamps: {
