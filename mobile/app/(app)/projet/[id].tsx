@@ -46,7 +46,6 @@ import {
   getRepresentantsProjet,
 } from '../../../src/services/projets';
 import { getOuCreerConversationPrivee } from '../../../src/services/messagerie';
-import { enregistrerAction } from '../../../src/services/parcours';
 
 // Types pour les onglets
 type TabKey = 'vision' | 'market' | 'docs';
@@ -216,9 +215,6 @@ export default function ProjetDetailPage() {
           setEstSuivi(reponse.data.projet.estSuivi);
           setNbFollowers(reponse.data.projet.nbFollowers);
         }
-        if (!estRefresh) {
-          enregistrerAction('visit_projet', id).catch(() => {});
-        }
       }
     } catch (error) {
       console.error('Erreur chargement projet:', error);
@@ -281,9 +277,6 @@ export default function ProjetDetailPage() {
 
         if (typeof apiEstSuivi === 'boolean') {
           setEstSuivi(apiEstSuivi);
-          if (apiEstSuivi) {
-            enregistrerAction('follow_projet', id).catch(() => {});
-          }
         }
         if (typeof apiNbFollowers === 'number') {
           setNbFollowers(apiNbFollowers);

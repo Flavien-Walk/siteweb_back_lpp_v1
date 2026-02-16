@@ -83,8 +83,11 @@ const MAX_HISTORIQUE = 10;
 // LikeButton et getUserBadgeConfig importés dans PublicationCard
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
-// ParcoursBatisseur deplace dans le FAB → ecran quetes
-import { getMonParcours, enregistrerAction, ParcoursData, DefiActif, Quete } from '../../src/services/parcours';
+// Nouveau systeme gamification
+import QuickQuests from '../../src/composants/QuickQuests';
+import OnboardingGuide from '../../src/composants/OnboardingGuide';
+import XpToast from '../../src/composants/XpToast';
+import { useGamification } from '../../src/contexts/GamificationContext';
 import StoriesRow from '../../src/composants/StoriesRow';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
@@ -198,6 +201,7 @@ const NavTab = memo(({ onglet, tabWidth, isActive, opacity, onPress, unreadCount
 export default function Accueil() {
   const { couleurs } = useTheme();
   const { utilisateur, needsStatut, refreshUser } = useUser();
+  const { applyDelta } = useGamification();
   const insets = useSafeAreaInsets();
   const styles = createStyles(couleurs);
 
@@ -501,18 +505,6 @@ export default function Accueil() {
   const [projetsTendance, setProjetsTendance] = useState<Projet[]>([]);
   const [chargementProjets, setChargementProjets] = useState(false);
 
-  // Parcours du Batisseur (gamification)
-  const [parcours, setParcours] = useState<ParcoursData | null>(null);
-  const [defiActif, setDefiActif] = useState<DefiActif | null>(null);
-  const [quetesDisponibles, setQuetesDisponibles] = useState<Quete[]>([]);
-  const [chargementParcours, setChargementParcours] = useState(true);
-  const [xpToast, setXpToast] = useState<{
-    xpGagne: number;
-    levelUp: boolean;
-    niveauNom?: string;
-    queteCompletee?: string | null;
-  } | null>(null);
-  const xpToastAnim = useRef(new Animated.Value(0)).current;
   const [categorieFiltre, setCategorieFiltre] = useState<CategorieProjet | 'all'>('all');
   const [rechercheProjet, setRechercheProjet] = useState('');
   const [rechercheProjetDebounced, setRechercheProjetDebounced] = useState('');
@@ -842,65 +834,6 @@ export default function Accueil() {
     }
   };
 
-  // Charger le parcours gamification
-  const chargerParcours = async () => {
-    try {
-      setChargementParcours(true);
-      const reponse = await getMonParcours();
-      if (reponse.succes && reponse.data) {
-        setParcours(reponse.data.parcours);
-        setDefiActif(reponse.data.defiActif);
-        setQuetesDisponibles(reponse.data.quetesDisponibles);
-      }
-    } catch (error) {
-      if (__DEV__) console.error('Erreur chargement parcours:', error);
-    } finally {
-      setChargementParcours(false);
-    }
-  };
-
-  // Afficher toast XP gagne
-  const showXpToast = useCallback((data: {
-    xpGagne: number;
-    levelUp: boolean;
-    niveauNom?: string;
-    queteCompletee?: string | null;
-  }) => {
-    if (data.xpGagne <= 0 && !data.levelUp && !data.queteCompletee) return;
-    setXpToast(data);
-    if (data.levelUp) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else if (data.queteCompletee) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    xpToastAnim.setValue(0);
-    Animated.sequence([
-      Animated.spring(xpToastAnim, { toValue: 1, friction: 8, tension: 50, useNativeDriver: true }),
-      Animated.delay(2500),
-      Animated.timing(xpToastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-    ]).start(() => setXpToast(null));
-  }, []);
-
-  // Wrapper pour enregistrer une action avec feedback visuel
-  const enregistrerActionAvecFeedback = useCallback(async (
-    action: string,
-    targetId?: string,
-    targetType?: string
-  ) => {
-    try {
-      const reponse = await enregistrerAction(action, targetId, targetType);
-      if (reponse.succes && reponse.data) {
-        showXpToast(reponse.data);
-        // Rafraichir le parcours en arriere-plan
-        chargerParcours();
-      }
-    } catch (error) {
-      if (__DEV__) console.log('[Gamification] Erreur:', error);
-    }
-  }, [showXpToast]);
-
   const chargerDonnees = async () => {
     await Promise.all([
       chargerPublications(),
@@ -909,7 +842,6 @@ export default function Accueil() {
       chargerEvenements(),
       chargerNotifications(),
       chargerMesProjetsEntrepreneur(),
-      chargerParcours(),
     ]);
   };
 
@@ -1143,9 +1075,9 @@ export default function Accueil() {
             ? { ...p, estSuivi: reponse.data!.estSuivi, nbFollowers: reponse.data!.nbFollowers }
             : p
         ));
-        // Gamification: enregistrer le follow
-        if (reponse.data.estSuivi) {
-          enregistrerActionAvecFeedback('follow_projet', projetId, 'projet');
+        // Gamification: le backend gere automatiquement via applyGamificationEvent
+        if (reponse.gamification) {
+          applyDelta(reponse.gamification);
         }
       }
     } catch (error) {
@@ -1550,9 +1482,9 @@ export default function Accueil() {
               p._id === projet._id ? { ...p, nbFollowers: apiNbFollowers } : p
             ));
           }
-          // Gamification: enregistrer le follow
-          if (apiEstSuivi !== false && newSuivi) {
-            enregistrerActionAvecFeedback('follow_projet', projet._id, 'projet');
+          // Gamification: le backend gere automatiquement via applyGamificationEvent
+          if (reponse.gamification) {
+            applyDelta(reponse.gamification);
           }
         } else if (!reponse.succes) {
           // Rollback si echec explicite
@@ -1815,9 +1747,6 @@ export default function Accueil() {
     setStoryUserAvatar(userAvatar);
     setStoryIsOwn(isOwnStory);
     setStoryViewerVisible(true);
-    if (!isOwnStory) {
-      enregistrerAction('view_story').catch(() => {});
-    }
   }, []);
 
   const handleAddStoryPress = useCallback(() => {
@@ -1825,10 +1754,9 @@ export default function Accueil() {
   }, []);
 
   const handleStoryCreated = useCallback(() => {
-    // Rafraîchir les stories
+    // Rafraichir les stories
     setStoriesRefreshKey(prev => prev + 1);
-    enregistrerActionAvecFeedback('create_story');
-  }, [enregistrerActionAvecFeedback]);
+  }, []);
 
   // Navigation vers le profil depuis une story (Bug #3: préserver l'état)
   const handleStoryNavigateToProfile = useCallback((userId: string, currentIndex: number) => {
@@ -1882,160 +1810,6 @@ export default function Accueil() {
     />
   );
 
-  // === ACCUEIL HUB : Prochaine Action (bloc unique, zero friction) ===
-
-  // Mapper chaque action de quete vers un CTA concret + navigation
-  const ACTION_NAV: Record<string, { cta: string; desc: string; onPress: () => void; color: string; icon: string }> = useMemo(() => ({
-    like_publication: {
-      cta: 'Likez un post',
-      desc: 'Encouragez un createur de la communaute',
-      onPress: () => { /* les publications sont juste en dessous */ },
-      color: '#FF4D6D',
-      icon: 'heart',
-    },
-    follow_projet: {
-      cta: 'Decouvrez un projet',
-      desc: 'Explorez une startup et suivez son evolution',
-      onPress: () => pagerRef.current?.setPage(1),
-      color: '#3B82F6',
-      icon: 'compass',
-    },
-    visit_projet: {
-      cta: 'Explorez un projet',
-      desc: 'Visitez la page d\'une startup innovante',
-      onPress: () => pagerRef.current?.setPage(1),
-      color: '#8B5CF6',
-      icon: 'eye',
-    },
-    complete_avatar: {
-      cta: 'Ajoutez votre photo',
-      desc: 'Personnalisez votre profil pour vous demarquer',
-      onPress: () => router.push('/(app)/profil'),
-      color: '#10B981',
-      icon: 'camera',
-    },
-    complete_profil: {
-      cta: 'Completez votre profil',
-      desc: 'Un profil complet attire plus de connexions',
-      onPress: () => router.push('/(app)/profil'),
-      color: '#10B981',
-      icon: 'person-circle',
-    },
-    view_story: {
-      cta: 'Regardez une story',
-      desc: 'Decouvrez l\'actualite de la communaute',
-      onPress: () => { /* les stories sont en haut */ },
-      color: '#EC4899',
-      icon: 'play-circle',
-    },
-    comment_publication: {
-      cta: 'Commentez un post',
-      desc: 'Partagez votre avis et engagez la discussion',
-      onPress: () => { /* les publications sont juste en dessous */ },
-      color: '#F59E0B',
-      icon: 'chatbubble',
-    },
-    create_publication: {
-      cta: 'Publiez un post',
-      desc: 'Partagez une idee, identifiez un projet avec @',
-      onPress: () => setModalCreerPost(true),
-      color: '#6366F1',
-      icon: 'create',
-    },
-    create_story: {
-      cta: 'Creez une story',
-      desc: 'Montrez votre quotidien a la communaute',
-      onPress: () => setStoryCreatorVisible(true),
-      color: '#10B981',
-      icon: 'camera',
-    },
-    create_projet: {
-      cta: 'Creez votre startup',
-      desc: 'Lancez votre projet et trouvez vos premiers soutiens',
-      onPress: () => router.push('/(app)/entrepreneur/nouveau-projet'),
-      color: '#F59E0B',
-      icon: 'rocket',
-    },
-    add_friend: {
-      cta: 'Ajoutez un ami',
-      desc: 'Agrandissez votre reseau d\'entrepreneurs',
-      onPress: () => pagerRef.current?.setPage(1),
-      color: '#2DE2E6',
-      icon: 'person-add',
-    },
-    first_message: {
-      cta: 'Envoyez un message',
-      desc: 'Faites le premier pas et connectez-vous',
-      onPress: () => pagerRef.current?.setPage(3),
-      color: '#3B82F6',
-      icon: 'chatbubbles',
-    },
-  }), []);
-
-  // Action par defaut si aucune quete disponible
-  const DEFAULT_ACTION = useMemo(() => ({
-    cta: 'Decouvrez la communaute',
-    desc: 'Explorez les projets et connectez-vous avec des entrepreneurs',
-    onPress: () => pagerRef.current?.setPage(1),
-    color: couleurs.primaire,
-    icon: 'compass' as const,
-  }), [couleurs.primaire]);
-
-  const renderAccueilHub = () => {
-    const prochaine = quetesDisponibles[0] || null;
-    const nav = prochaine ? (ACTION_NAV[prochaine.action] || null) : null;
-
-    // Donnees d'affichage : quete reelle ou action par defaut
-    const actionCta = nav?.cta || DEFAULT_ACTION.cta;
-    const actionDesc = nav?.desc || DEFAULT_ACTION.desc;
-    const actionColor = nav?.color || DEFAULT_ACTION.color;
-    const actionIcon = nav?.icon || DEFAULT_ACTION.icon;
-    const actionOnPress = nav?.onPress || DEFAULT_ACTION.onPress;
-    const actionXp = prochaine?.xp || 0;
-    const actionChapitre = prochaine?.chapitre || '';
-
-    return (
-      <Pressable
-        style={({ pressed }) => [styles.nextActionCard, pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] }]}
-        onPress={actionOnPress}
-      >
-        <LinearGradient
-          colors={[actionColor + '20', 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.nextActionGradient}
-        />
-        <View style={styles.nextActionTop}>
-          <View style={[styles.nextActionIconWrap, { backgroundColor: actionColor + '22' }]}>
-            <Ionicons name={actionIcon as any} size={24} color={actionColor} />
-          </View>
-          <View style={styles.nextActionBadges}>
-            {actionXp > 0 && (
-              <View style={styles.nextActionXp}>
-                <Ionicons name="flash" size={11} color="#00D68F" />
-                <Text style={styles.nextActionXpText}>+{actionXp} XP</Text>
-              </View>
-            )}
-            {actionChapitre ? (
-              <View style={[styles.nextActionChapter, { borderColor: actionColor + '40' }]}>
-                <Text style={[styles.nextActionChapterText, { color: actionColor }]}>{actionChapitre}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-        <View style={styles.nextActionBody}>
-          <Text style={styles.nextActionLabel}>VOTRE PROCHAINE ACTION</Text>
-          <Text style={styles.nextActionTitle}>{actionCta}</Text>
-          <Text style={styles.nextActionDesc} numberOfLines={2}>{actionDesc}</Text>
-        </View>
-        <View style={[styles.nextActionBtn, { backgroundColor: actionColor }]}>
-          <Text style={styles.nextActionBtnText}>C'est parti</Text>
-          <Ionicons name="arrow-forward" size={16} color="#fff" />
-        </View>
-      </Pressable>
-    );
-  };
-
   const handleUpdatePublication = (updatedPub: Publication) => {
     setPublications(prev => prev.map(p => p._id === updatedPub._id ? updatedPub : p));
   };
@@ -2047,7 +1821,8 @@ export default function Accueil() {
   const renderFeedContent = () => (
     <>
       {renderStories()}
-      {renderAccueilHub()}
+      <OnboardingGuide />
+      <QuickQuests />
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Fil d'actualite</Text>
@@ -2084,7 +1859,6 @@ export default function Accueil() {
                   onOpenImage={handleOpenImage}
                   onOpenVideo={handleOpenVideo}
                   onResetControlsTimeout={resetControlsTimeout}
-                  onGamificationAction={enregistrerActionAvecFeedback}
                   styles={styles}
                   mediaWidth={SCREEN_WIDTH - 32}
                   mediaHeight={SCREEN_WIDTH - 32}
@@ -2894,8 +2668,7 @@ export default function Accueil() {
   const FAB_ACTIONS = [
     { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
     { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => router.push('/live/start') },
-    { id: 3, icon: 'trophy-outline' as const, label: 'Parcours', color: '#FFBD59', action: () => router.push('/(app)/quetes') },
-    { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => router.push('/(app)/mes-startups') },
+    { id: 3, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => router.push('/(app)/mes-startups') },
   ];
 
   const toggleFab = () => {
@@ -3761,7 +3534,7 @@ export default function Accueil() {
             iconColor: '#7C5CFF',
           },
           {
-            message: 'Ton Parcours du Batisseur te guide avec des quetes. Chaque action te rapporte de l\'XP et debloque de nouveaux niveaux !',
+            message: 'Tes quetes te guident dans ta progression. Chaque action te rapporte de l\'XP et debloque de nouveaux niveaux !',
             icon: 'trophy-outline',
             iconColor: '#FFBD59',
           },
@@ -3779,47 +3552,8 @@ export default function Accueil() {
         ]}
       />
 
-      {/* Toast XP Gamification */}
-      {xpToast && (
-        <Animated.View
-          style={[
-            styles.xpToastContainer,
-            {
-              opacity: xpToastAnim,
-              transform: [{
-                translateY: xpToastAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-30, 0],
-                }),
-              }],
-            },
-          ]}
-          pointerEvents="none"
-        >
-          <View style={styles.xpToast}>
-            {xpToast.levelUp ? (
-              <>
-                <Ionicons name="arrow-up-circle" size={18} color="#FFBD59" />
-                <Text style={styles.xpToastText}>
-                  Level Up ! {xpToast.niveauNom} (+{xpToast.xpGagne} XP)
-                </Text>
-              </>
-            ) : xpToast.queteCompletee ? (
-              <>
-                <Ionicons name="checkmark-circle" size={18} color="#00D68F" />
-                <Text style={styles.xpToastText}>
-                  Quete terminee ! +{xpToast.xpGagne} XP
-                </Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="star" size={16} color="#7C5CFF" />
-                <Text style={styles.xpToastText}>+{xpToast.xpGagne} XP</Text>
-              </>
-            )}
-          </View>
-        </Animated.View>
-      )}
+      {/* Toast XP Gamification (nouveau systeme) */}
+      <XpToast />
     </SafeAreaView>
   );
 }
@@ -6485,126 +6219,5 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   entrepreneurProjectMetaText: {
     fontSize: 12,
-  },
-  xpToastContainer: {
-    position: 'absolute',
-    top: 100,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 9999,
-  },
-  xpToast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: couleurs.fondElevated,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  xpToastText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: couleurs.texte,
-  },
-
-  // === PROCHAINE ACTION (bloc hero) ===
-  nextActionCard: {
-    marginHorizontal: espacements.md,
-    marginBottom: espacements.lg,
-    backgroundColor: couleurs.fondCard,
-    borderRadius: rayons.xl,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    overflow: 'hidden',
-  },
-  nextActionGradient: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: rayons.xl,
-  },
-  nextActionTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  nextActionIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextActionBadges: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  nextActionXp: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 214, 143, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 3,
-  },
-  nextActionXpText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#00D68F',
-  },
-  nextActionChapter: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  nextActionChapterText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  nextActionBody: {
-    marginBottom: 16,
-    gap: 4,
-  },
-  nextActionLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: couleurs.texteSecondaire,
-    letterSpacing: 1.5,
-    marginBottom: 2,
-  },
-  nextActionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: couleurs.texte,
-  },
-  nextActionDesc: {
-    fontSize: 13,
-    color: couleurs.texteSecondaire,
-    lineHeight: 18,
-  },
-  nextActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: rayons.md,
-    gap: 8,
-  },
-  nextActionBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
   },
 });

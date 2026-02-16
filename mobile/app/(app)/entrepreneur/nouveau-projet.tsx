@@ -43,7 +43,6 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { getMesAmis, ProfilUtilisateur } from '../../../src/services/utilisateurs';
 import KeyboardView from '../../../src/composants/KeyboardView';
-import { enregistrerAction } from '../../../src/services/parcours';
 
 // Types pour les etapes (numeriques)
 type Etape = '1' | '2' | '3' | '4' | '5' | '6';
@@ -551,7 +550,6 @@ export default function NouveauProjetScreen() {
       const response = await publier(projetId) as any;
 
       if (response.succes) {
-        enregistrerAction('create_projet', projetId).catch(() => {});
         Alert.alert('Succes', 'Votre projet a ete publie !', [
           { text: 'OK', onPress: () => router.replace('/(app)/accueil') }
         ]);

@@ -71,8 +71,6 @@ export interface PublicationCardProps {
     onShare: () => void;
   }) => void;
   onResetControlsTimeout?: () => void;
-  // Callback gamification (like, comment)
-  onGamificationAction?: (action: string, targetId?: string) => void;
   // Styles passés du parent (pour éviter la duplication)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   styles: any;
@@ -136,7 +134,6 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
   onOpenImage,
   onOpenVideo,
   onResetControlsTimeout,
-  onGamificationAction,
   styles,
   mediaWidth,
   mediaHeight,
@@ -203,15 +200,12 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
         setLiked(reponse.data.aLike);
         setNbLikes(reponse.data.nbLikes);
         onUpdate({ ...publication, aLike: reponse.data.aLike, nbLikes: reponse.data.nbLikes, nbCommentaires: nbComments });
-        if (reponse.data.aLike) {
-          onGamificationAction?.('like_publication', publication._id);
-        }
       }
     } catch (error) {
       setLiked(!liked);
       setNbLikes(publication.nbLikes);
     }
-  }, [liked, publication, nbComments, onUpdate, onGamificationAction]);
+  }, [liked, publication, nbComments, onUpdate]);
 
   const handleToggleComments = useCallback(() => {
     onOpenCommentsSheet(publication._id, nbComments);
@@ -258,12 +252,11 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
         setNewComment('');
         setReplyingTo(null);
         setNbComments(prev => prev + 1);
-        onGamificationAction?.('comment_publication', publication._id);
       }
     } catch (error) {
       Alert.alert('Erreur', 'Impossible d\'ajouter le commentaire');
     }
-  }, [publication._id, newComment, replyingTo, onGamificationAction]);
+  }, [publication._id, newComment, replyingTo]);
 
   const handleLikeComment = useCallback(async (commentId: string) => {
     try {
@@ -522,12 +515,6 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
                 </View>
               );
             })()}
-            {publication.auteur.niveauNom && (
-              <View style={[styles.statutBadge, { backgroundColor: 'rgba(124, 92, 255, 0.85)' }]}>
-                <Ionicons name={(publication.auteur.niveauIcone || 'trophy-outline') as any} size={10} color="#fff" />
-                <Text style={styles.statutBadgeText}>{publication.auteur.niveauNom}</Text>
-              </View>
-            )}
             {publication.auteurType === 'Projet' && (
               <View style={styles.startupBadge}>
                 <Text style={styles.startupBadgeText}>Startup</Text>
@@ -953,11 +940,6 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
                                     </View>
                                   );
                                 })()}
-                                {comment.auteur.niveauNom && (
-                                  <View style={[styles.statutBadgeSmall, { backgroundColor: 'rgba(124, 92, 255, 0.85)' }]}>
-                                    <Text style={styles.statutBadgeSmallText}>{comment.auteur.niveauNom}</Text>
-                                  </View>
-                                )}
                               </View>
                               {canEditDeleteComment && (
                                 <View style={styles.commentActionsMenu}>

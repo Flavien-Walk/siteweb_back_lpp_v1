@@ -55,4 +55,6 @@ export { default as KeyboardView } from './KeyboardView';
 export { default as ErrorBoundary } from './ErrorBoundary';
 
 // Gamification
-export { default as ParcoursBatisseur } from './ParcoursBatisseur';
+export { default as QuickQuests } from './QuickQuests';
+export { default as OnboardingGuide } from './OnboardingGuide';
+export { default as XpToast } from './XpToast';

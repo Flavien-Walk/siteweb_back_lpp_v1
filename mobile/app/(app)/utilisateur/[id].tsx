@@ -44,7 +44,7 @@ import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
 import { getProjetsSuivisUtilisateur, Projet } from '../../../src/services/projets';
 import StoryViewer from '../../../src/composants/StoryViewer';
 import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
-import { enregistrerAction, getParcoursPublic } from '../../../src/services/parcours';
+import { getPublicGamification } from '../../../src/services/gamification';
 
 type OngletActivite = 'publications' | 'projets';
 
@@ -82,8 +82,8 @@ export default function ProfilUtilisateurPage() {
   const GRID_GAP = 1;
   const gridItemWidth = (SCREEN_WIDTH - (GRID_GAP * 2)) / 3;
 
-  // Parcours gamification
-  const [parcoursData, setParcoursData] = useState<{ niveau: number; niveauNom: string; niveauIcone: string; xp: number } | null>(null);
+  // Gamification publique
+  const [gamificationData, setGamificationData] = useState<{ level: number; levelName: string; levelIcon: string; xp: number } | null>(null);
 
   // Staff modération
   const staff = useStaff();
@@ -205,8 +205,8 @@ export default function ProfilUtilisateurPage() {
     if (!profilChargeRef.current && id) {
       profilChargeRef.current = true;
       chargerProfil();
-      getParcoursPublic(id).then(r => {
-        if (r.succes && r.data) setParcoursData(r.data.parcours);
+      getPublicGamification(id).then(r => {
+        if (r.succes && r.data) setGamificationData(r.data);
       }).catch(() => {});
     }
   }, [id, chargerProfil]);
@@ -301,7 +301,6 @@ export default function ProfilUtilisateurPage() {
         if (reponse.succes) {
           setProfil({ ...profil, estAmi: true, demandeRecue: false });
           refreshUser();
-          enregistrerAction('add_friend', id).catch(() => {});
         } else {
           Alert.alert('Erreur', reponse.message || 'Erreur');
         }
@@ -309,7 +308,6 @@ export default function ProfilUtilisateurPage() {
         const reponse = await envoyerDemandeAmi(id);
         if (reponse.succes) {
           setProfil({ ...profil, demandeEnvoyee: true });
-          enregistrerAction('add_friend', id).catch(() => {});
         } else {
           Alert.alert('Erreur', reponse.message || 'Erreur');
         }
@@ -534,11 +532,11 @@ export default function ProfilUtilisateurPage() {
                 {statutConfig.label}
               </Text>
             </View>
-            {parcoursData && (
+            {gamificationData && (
               <View style={[styles.statutBadge, { backgroundColor: 'rgba(124, 92, 255, 0.1)' }]}>
-                <Ionicons name={(parcoursData.niveauIcone || 'trophy-outline') as any} size={14} color="#7C5CFF" />
+                <Ionicons name={(gamificationData.levelIcon || 'trophy-outline') as any} size={14} color="#7C5CFF" />
                 <Text style={[styles.statutText, { color: '#7C5CFF' }]}>
-                  {parcoursData.niveauNom} · {parcoursData.xp} XP
+                  {gamificationData.levelName} · {gamificationData.xp} XP
                 </Text>
               </View>
             )}

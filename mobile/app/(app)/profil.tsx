@@ -52,7 +52,7 @@ import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
 import { getUserBadgeConfig } from '../../src/utils/userDisplay';
-import { getParcoursPublic, enregistrerAction } from '../../src/services/parcours';
+import { useGamification } from '../../src/contexts/GamificationContext';
 
 type Onglet = 'profil-public' | 'parametres';
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
@@ -127,14 +127,8 @@ export default function Profil() {
   // Statut de moderation (pour afficher les avertissements)
   const [moderationStatus, setModerationStatus] = useState<ModerationStatus | null>(null);
 
-  // Badge XP/niveau
-  const [parcoursData, setParcoursData] = useState<{
-    xp: number;
-    niveau: number;
-    niveauNom: string;
-    niveauIcone: string;
-    streak: number;
-  } | null>(null);
+  // Gamification (nouveau systeme)
+  const { state: gamification } = useGamification();
 
   // Switch statut entrepreneur/visiteur
   const [statutSelectionne, setStatutSelectionne] = useState<StatutUtilisateur>(utilisateur?.statut || 'visiteur');
@@ -195,21 +189,6 @@ export default function Profil() {
     fetchModerationStatus();
   }, []);
 
-  // Charger le parcours (badge XP/niveau)
-  useEffect(() => {
-    const fetchParcours = async () => {
-      if (!utilisateur?.id) return;
-      try {
-        const response = await getParcoursPublic(utilisateur.id);
-        if (response.succes && response.data) {
-          setParcoursData(response.data.parcours);
-        }
-      } catch (error) {
-        console.log('[Profil] Erreur chargement parcours:', error);
-      }
-    };
-    fetchParcours();
-  }, [utilisateur?.id]);
 
   // Helper: générer thumbnail Cloudinary pour vidéo
   const getVideoThumbnail = (videoUrl: string): string => {
@@ -409,9 +388,6 @@ export default function Profil() {
         updateUser(reponse.data.utilisateur);
         setModalAvatar(false);
         afficherMessage('succes', 'Avatar mis a jour !');
-        if (avatar) {
-          enregistrerAction('complete_avatar').catch(() => {});
-        }
       } else {
         afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
       }
@@ -463,7 +439,6 @@ export default function Profil() {
           updateUser(reponse.data.utilisateur);
           setModalAvatar(false);
           afficherMessage('succes', 'Photo de profil mise a jour !');
-          enregistrerAction('complete_avatar').catch(() => {});
         } else {
           afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
         }
@@ -565,9 +540,6 @@ export default function Profil() {
     if (reponse.succes && reponse.data) {
       afficherMessage('succes', 'Profil mis a jour avec succes');
       updateUser(reponse.data.utilisateur);
-      if (reponse.data.utilisateur.avatar && bio.trim()) {
-        enregistrerAction('complete_profil').catch(() => {});
-      }
     } else {
       afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
     }
@@ -645,15 +617,14 @@ export default function Profil() {
       // Rafraîchir les données utilisateur (dont nbAmis)
       await refreshUser();
 
-      // Charger publications, stories et parcours en parallèle
-      const [pubResponse, storiesResponse, parcoursResponse] = await Promise.all([
+      // Charger publications et stories en parallele
+      const [pubResponse, storiesResponse] = await Promise.all([
         utilisateur?.id ? getPublicationsUtilisateur(utilisateur.id) : Promise.resolve(null),
         getMesStories(),
-        utilisateur?.id ? getParcoursPublic(utilisateur.id) : Promise.resolve(null),
       ]);
 
       if (pubResponse?.succes && pubResponse.data) {
-        // Filtrage frontend de sécurité
+        // Filtrage frontend de securite
         const publicationsFiltrees = pubResponse.data.publications.filter(
           (pub) => pub.auteur._id === utilisateur?.id
         );
@@ -662,10 +633,6 @@ export default function Profil() {
 
       if (storiesResponse.succes && storiesResponse.data) {
         setMesStories(storiesResponse.data.stories);
-      }
-
-      if (parcoursResponse?.succes && parcoursResponse.data) {
-        setParcoursData(parcoursResponse.data.parcours);
       }
     } catch (error) {
       console.error('Erreur refresh:', error);
@@ -805,15 +772,15 @@ export default function Profil() {
               {statutConfig.label}
             </Text>
           </View>
-          {parcoursData && (
+          {gamification && (
             <View style={styles.xpBadge}>
               <Ionicons
-                name={(parcoursData.niveauIcone || 'trophy-outline') as any}
+                name={(gamification.levelIcon || 'trophy-outline') as any}
                 size={12}
                 color={couleurs.primaire}
               />
               <Text style={styles.xpBadgeText}>
-                Niv.{parcoursData.niveau} · {parcoursData.xp} XP
+                Niv.{gamification.level} · {gamification.xp} XP
               </Text>
             </View>
           )}
