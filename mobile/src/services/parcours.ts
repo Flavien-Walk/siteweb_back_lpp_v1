@@ -89,3 +89,20 @@ export const getQuetes = async (): Promise<
     quetes: (Quete & { completee: boolean })[];
   }>
 > => api.get('/parcours/quetes', true);
+
+/**
+ * Parcours public d'un utilisateur (pour badge profil)
+ */
+export const getParcoursPublic = async (
+  userId: string
+): Promise<
+  ReponseAPI<{
+    parcours: {
+      xp: number;
+      niveau: number;
+      niveauNom: string;
+      niveauIcone: string;
+      streak: number;
+    };
+  }>
+> => api.get(`/parcours/utilisateur/${userId}`, true);

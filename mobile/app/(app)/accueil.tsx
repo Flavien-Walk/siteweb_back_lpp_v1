@@ -485,6 +485,13 @@ export default function Accueil() {
   const [defiActif, setDefiActif] = useState<DefiActif | null>(null);
   const [quetesDisponibles, setQuetesDisponibles] = useState<Quete[]>([]);
   const [chargementParcours, setChargementParcours] = useState(true);
+  const [xpToast, setXpToast] = useState<{
+    xpGagne: number;
+    levelUp: boolean;
+    niveauNom?: string;
+    queteCompletee?: string | null;
+  } | null>(null);
+  const xpToastAnim = useRef(new Animated.Value(0)).current;
   const [categorieFiltre, setCategorieFiltre] = useState<CategorieProjet | 'all'>('all');
   const [rechercheProjet, setRechercheProjet] = useState('');
   const [rechercheProjetDebounced, setRechercheProjetDebounced] = useState('');
@@ -831,6 +838,41 @@ export default function Accueil() {
     }
   };
 
+  // Afficher toast XP gagne
+  const showXpToast = useCallback((data: {
+    xpGagne: number;
+    levelUp: boolean;
+    niveauNom?: string;
+    queteCompletee?: string | null;
+  }) => {
+    if (data.xpGagne <= 0 && !data.levelUp && !data.queteCompletee) return;
+    setXpToast(data);
+    xpToastAnim.setValue(0);
+    Animated.sequence([
+      Animated.spring(xpToastAnim, { toValue: 1, friction: 8, tension: 50, useNativeDriver: true }),
+      Animated.delay(2500),
+      Animated.timing(xpToastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start(() => setXpToast(null));
+  }, []);
+
+  // Wrapper pour enregistrer une action avec feedback visuel
+  const enregistrerActionAvecFeedback = useCallback(async (
+    action: string,
+    targetId?: string,
+    targetType?: string
+  ) => {
+    try {
+      const reponse = await enregistrerAction(action, targetId, targetType);
+      if (reponse.succes && reponse.data) {
+        showXpToast(reponse.data);
+        // Rafraichir le parcours en arriere-plan
+        chargerParcours();
+      }
+    } catch (error) {
+      if (__DEV__) console.log('[Gamification] Erreur:', error);
+    }
+  }, [showXpToast]);
+
   const chargerDonnees = async () => {
     await Promise.all([
       chargerPublications(),
@@ -1073,6 +1115,10 @@ export default function Accueil() {
             ? { ...p, estSuivi: reponse.data!.estSuivi, nbFollowers: reponse.data!.nbFollowers }
             : p
         ));
+        // Gamification: enregistrer le follow
+        if (reponse.data.estSuivi) {
+          enregistrerActionAvecFeedback('follow_projet', projetId, 'projet');
+        }
       }
     } catch (error) {
       console.error('Erreur suivre projet:', error);
@@ -1401,6 +1447,10 @@ export default function Accueil() {
             setProjets(prev => prev.map(p =>
               p._id === projet._id ? { ...p, nbFollowers: apiNbFollowers } : p
             ));
+          }
+          // Gamification: enregistrer le follow
+          if (apiEstSuivi !== false && newSuivi) {
+            enregistrerActionAvecFeedback('follow_projet', projet._id, 'projet');
           }
         } else if (!reponse.succes) {
           // Rollback si echec explicite
@@ -3426,6 +3476,47 @@ export default function Accueil() {
         theme="light"
         initialCount={commentsSheetCount}
       />
+      {/* Toast XP Gamification */}
+      {xpToast && (
+        <Animated.View
+          style={[
+            styles.xpToastContainer,
+            {
+              opacity: xpToastAnim,
+              transform: [{
+                translateY: xpToastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-30, 0],
+                }),
+              }],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={styles.xpToast}>
+            {xpToast.levelUp ? (
+              <>
+                <Ionicons name="arrow-up-circle" size={18} color="#FFBD59" />
+                <Text style={styles.xpToastText}>
+                  Level Up ! {xpToast.niveauNom} (+{xpToast.xpGagne} XP)
+                </Text>
+              </>
+            ) : xpToast.queteCompletee ? (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color="#00D68F" />
+                <Text style={styles.xpToastText}>
+                  Quete terminee ! +{xpToast.xpGagne} XP
+                </Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="star" size={16} color="#7C5CFF" />
+                <Text style={styles.xpToastText}>+{xpToast.xpGagne} XP</Text>
+              </>
+            )}
+          </View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -6048,5 +6139,34 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   entrepreneurProjectMetaText: {
     fontSize: 12,
+  },
+  xpToastContainer: {
+    position: 'absolute',
+    top: 100,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  xpToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: couleurs.fondElevated,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  xpToastText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: couleurs.texte,
   },
 });

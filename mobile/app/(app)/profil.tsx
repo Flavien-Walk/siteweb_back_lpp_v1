@@ -52,6 +52,7 @@ import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
 import { getUserBadgeConfig } from '../../src/utils/userDisplay';
+import { getParcoursPublic } from '../../src/services/parcours';
 
 type Onglet = 'profil-public' | 'parametres';
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
@@ -126,6 +127,15 @@ export default function Profil() {
   // Statut de moderation (pour afficher les avertissements)
   const [moderationStatus, setModerationStatus] = useState<ModerationStatus | null>(null);
 
+  // Badge XP/niveau
+  const [parcoursData, setParcoursData] = useState<{
+    xp: number;
+    niveau: number;
+    niveauNom: string;
+    niveauIcone: string;
+    streak: number;
+  } | null>(null);
+
   // Switch statut entrepreneur/visiteur
   const [statutSelectionne, setStatutSelectionne] = useState<StatutUtilisateur>(utilisateur?.statut || 'visiteur');
   const [showModalStatut, setShowModalStatut] = useState(false);
@@ -184,6 +194,22 @@ export default function Profil() {
     };
     fetchModerationStatus();
   }, []);
+
+  // Charger le parcours (badge XP/niveau)
+  useEffect(() => {
+    const fetchParcours = async () => {
+      if (!utilisateur?.id) return;
+      try {
+        const response = await getParcoursPublic(utilisateur.id);
+        if (response.succes && response.data) {
+          setParcoursData(response.data.parcours);
+        }
+      } catch (error) {
+        console.log('[Profil] Erreur chargement parcours:', error);
+      }
+    };
+    fetchParcours();
+  }, [utilisateur?.id]);
 
   // Helper: générer thumbnail Cloudinary pour vidéo
   const getVideoThumbnail = (videoUrl: string): string => {
@@ -612,10 +638,11 @@ export default function Profil() {
       // Rafraîchir les données utilisateur (dont nbAmis)
       await refreshUser();
 
-      // Charger publications et stories en parallèle
-      const [pubResponse, storiesResponse] = await Promise.all([
+      // Charger publications, stories et parcours en parallèle
+      const [pubResponse, storiesResponse, parcoursResponse] = await Promise.all([
         utilisateur?.id ? getPublicationsUtilisateur(utilisateur.id) : Promise.resolve(null),
         getMesStories(),
+        utilisateur?.id ? getParcoursPublic(utilisateur.id) : Promise.resolve(null),
       ]);
 
       if (pubResponse?.succes && pubResponse.data) {
@@ -628,6 +655,10 @@ export default function Profil() {
 
       if (storiesResponse.succes && storiesResponse.data) {
         setMesStories(storiesResponse.data.stories);
+      }
+
+      if (parcoursResponse?.succes && parcoursResponse.data) {
+        setParcoursData(parcoursResponse.data.parcours);
       }
     } catch (error) {
       console.error('Erreur refresh:', error);
@@ -767,6 +798,18 @@ export default function Profil() {
               {statutConfig.label}
             </Text>
           </View>
+          {parcoursData && (
+            <View style={styles.xpBadge}>
+              <Ionicons
+                name={(parcoursData.niveauIcone || 'trophy-outline') as any}
+                size={12}
+                color={couleurs.primaire}
+              />
+              <Text style={styles.xpBadgeText}>
+                Niv.{parcoursData.niveau} · {parcoursData.xp} XP
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Section Description */}
@@ -2331,6 +2374,20 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   statutText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  xpBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: couleurs.primaireLight,
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 3,
+    borderRadius: rayons.sm,
+  },
+  xpBadgeText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: couleurs.primaire,
   },
   // Section Description
   descriptionSection: {
