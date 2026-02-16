@@ -517,6 +517,11 @@ export default function UnifiedCommentsSheet({
         <View style={styles.commentContent}>
           <View style={styles.commentHeader}>
             <Text style={[styles.commentAuthor, { color: colors.text }]}>{item.auteur.nom}</Text>
+            {item.auteur.niveauNom && (
+              <View style={{ backgroundColor: 'rgba(124, 92, 255, 0.85)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                <Text style={{ fontSize: 8, fontWeight: '700', color: '#fff' }}>{item.auteur.niveauNom}</Text>
+              </View>
+            )}
             <Text style={[styles.commentDate, { color: colors.textSecondary }]}>
               {formatDate(item.dateCreation)}
             </Text>
@@ -577,6 +582,11 @@ export default function UnifiedCommentsSheet({
                   <View style={styles.replyContent}>
                     <View style={styles.commentHeader}>
                       <Text style={[styles.replyAuthor, { color: colors.text }]}>{reponse.auteur.nom}</Text>
+                      {reponse.auteur.niveauNom && (
+                        <View style={{ backgroundColor: 'rgba(124, 92, 255, 0.85)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 8, fontWeight: '700', color: '#fff' }}>{reponse.auteur.niveauNom}</Text>
+                        </View>
+                      )}
                       <Text style={[styles.commentDate, { color: colors.textSecondary }]}>
                         {formatDate(reponse.dateCreation)}
                       </Text>

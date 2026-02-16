@@ -16,6 +16,8 @@ export interface Auteur {
   avatar?: string;
   role?: Role;
   statut?: StatutUtilisateur;
+  niveauNom?: string;
+  niveauIcone?: string;
 }
 
 export type MediaType = 'image' | 'video';

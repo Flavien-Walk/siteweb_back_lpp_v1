@@ -44,7 +44,7 @@ import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
 import { getProjetsSuivisUtilisateur, Projet } from '../../../src/services/projets';
 import StoryViewer from '../../../src/composants/StoryViewer';
 import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
-import { enregistrerAction } from '../../../src/services/parcours';
+import { enregistrerAction, getParcoursPublic } from '../../../src/services/parcours';
 
 type OngletActivite = 'publications' | 'projets';
 
@@ -81,6 +81,9 @@ export default function ProfilUtilisateurPage() {
   // Calcul largeur item grille (3 colonnes avec gap de 1px)
   const GRID_GAP = 1;
   const gridItemWidth = (SCREEN_WIDTH - (GRID_GAP * 2)) / 3;
+
+  // Parcours gamification
+  const [parcoursData, setParcoursData] = useState<{ niveau: number; niveauNom: string; niveauIcone: string; xp: number } | null>(null);
 
   // Staff modération
   const staff = useStaff();
@@ -202,6 +205,9 @@ export default function ProfilUtilisateurPage() {
     if (!profilChargeRef.current && id) {
       profilChargeRef.current = true;
       chargerProfil();
+      getParcoursPublic(id).then(r => {
+        if (r.succes && r.data) setParcoursData(r.data.parcours);
+      }).catch(() => {});
     }
   }, [id, chargerProfil]);
 
@@ -521,11 +527,21 @@ export default function ProfilUtilisateurPage() {
           <Text style={styles.nomComplet}>{profil.prenom} {profil.nom}</Text>
 
           {/* Badge statut */}
-          <View style={[styles.statutBadge, { backgroundColor: `${statutConfig.color}15` }]}>
-            <Ionicons name={statutConfig.icon} size={14} color={statutConfig.color} />
-            <Text style={[styles.statutText, { color: statutConfig.color }]}>
-              {statutConfig.label}
-            </Text>
+          <View style={styles.badgesRow}>
+            <View style={[styles.statutBadge, { backgroundColor: `${statutConfig.color}15` }]}>
+              <Ionicons name={statutConfig.icon} size={14} color={statutConfig.color} />
+              <Text style={[styles.statutText, { color: statutConfig.color }]}>
+                {statutConfig.label}
+              </Text>
+            </View>
+            {parcoursData && (
+              <View style={[styles.statutBadge, { backgroundColor: 'rgba(124, 92, 255, 0.1)' }]}>
+                <Ionicons name={(parcoursData.niveauIcone || 'trophy-outline') as any} size={14} color="#7C5CFF" />
+                <Text style={[styles.statutText, { color: '#7C5CFF' }]}>
+                  {parcoursData.niveauNom} · {parcoursData.xp} XP
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Section Description */}
@@ -1032,15 +1048,20 @@ const styles = StyleSheet.create({
     color: couleurs.texte,
     marginBottom: espacements.xs,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: espacements.xs,
+  },
   statutBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     gap: espacements.xs,
     paddingHorizontal: espacements.sm,
     paddingVertical: 4,
     borderRadius: rayons.sm,
-    marginBottom: espacements.sm,
   },
   statutText: {
     fontSize: typographie.tailles.xs,

@@ -476,6 +476,12 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
                 </View>
               );
             })()}
+            {publication.auteur.niveauNom && (
+              <View style={[styles.statutBadge, { backgroundColor: 'rgba(124, 92, 255, 0.85)' }]}>
+                <Ionicons name={(publication.auteur.niveauIcone || 'trophy-outline') as any} size={10} color="#fff" />
+                <Text style={styles.statutBadgeText}>{publication.auteur.niveauNom}</Text>
+              </View>
+            )}
             {publication.auteurType === 'Projet' && (
               <View style={styles.startupBadge}>
                 <Text style={styles.startupBadgeText}>Startup</Text>
@@ -899,6 +905,11 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
                                     </View>
                                   );
                                 })()}
+                                {comment.auteur.niveauNom && (
+                                  <View style={[styles.statutBadgeSmall, { backgroundColor: 'rgba(124, 92, 255, 0.85)' }]}>
+                                    <Text style={styles.statutBadgeSmallText}>{comment.auteur.niveauNom}</Text>
+                                  </View>
+                                )}
                               </View>
                               {canEditDeleteComment && (
                                 <View style={styles.commentActionsMenu}>

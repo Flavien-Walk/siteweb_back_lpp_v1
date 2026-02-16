@@ -25,7 +25,10 @@ interface ParcoursBatisseurProps {
   prochaineQuete: Quete | null;
   statutUtilisateur: 'visiteur' | 'entrepreneur';
   chargement: boolean;
+  nbQuetesCompletees?: number;
+  nbQuetesTotalesChapitre?: number;
   onQuetePress?: (quete: Quete) => void;
+  onVoirToutesQuetes?: () => void;
 }
 
 // === HELPERS ===
@@ -86,7 +89,10 @@ function ParcoursBatisseurComponent({
   prochaineQuete,
   statutUtilisateur,
   chargement,
+  nbQuetesCompletees = 0,
+  nbQuetesTotalesChapitre = 0,
   onQuetePress,
+  onVoirToutesQuetes,
 }: ParcoursBatisseurProps) {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const scaleIn = useRef(new Animated.Value(0.95)).current;
@@ -318,9 +324,16 @@ function ParcoursBatisseurComponent({
             >
               <View style={s.defiSeparator} />
               {prochaineQuete.chapitre && (
-                <Text style={s.chapitreLabel}>
-                  Ch.{prochaineQuete.niveauRequis} · {prochaineQuete.chapitre}
-                </Text>
+                <View style={s.chapitreRow}>
+                  <Text style={s.chapitreLabel}>
+                    Ch.{prochaineQuete.niveauRequis} · {prochaineQuete.chapitre}
+                  </Text>
+                  {nbQuetesTotalesChapitre > 0 && (
+                    <Text style={s.chapitreCompteur}>
+                      {nbQuetesCompletees}/{nbQuetesTotalesChapitre}
+                    </Text>
+                  )}
+                </View>
               )}
               <View style={s.queteRow}>
                 <View style={s.queteIconBadge}>
@@ -339,6 +352,22 @@ function ParcoursBatisseurComponent({
           )}
         </View>
       </Animated.View>
+
+      {/* Sous la card : message streak + lien quetes */}
+      <View style={s.footerRow}>
+        {parcours.streak >= 3 && (
+          <Text style={s.streakMessage}>
+            {parcours.streak >= 30 ? 'Inarretable !' : parcours.streak >= 7 ? 'Belle serie !' : 'Continue comme ca !'}
+            {' '}Reviens demain pour garder ton streak
+          </Text>
+        )}
+        {onVoirToutesQuetes && (
+          <Pressable onPress={onVoirToutesQuetes} style={s.voirQuetesBtn}>
+            <Text style={s.voirQuetesText}>Voir toutes les quetes</Text>
+            <Ionicons name="chevron-forward" size={12} color={couleurs.primaire} />
+          </Pressable>
+        )}
+      </View>
     </Animated.View>
   );
 }
@@ -562,15 +591,50 @@ const s = StyleSheet.create({
     color: couleurs.texteSecondaire,
   },
 
+  // Footer
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingHorizontal: 2,
+  },
+  streakMessage: {
+    fontSize: 10,
+    color: couleurs.texteSecondaire,
+    fontStyle: 'italic',
+    flex: 1,
+  },
+  voirQuetesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  voirQuetesText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: couleurs.primaire,
+  },
+
   // Section 3: Quete
+  chapitreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingTop: 2,
+  },
   chapitreLabel: {
     fontSize: 10,
     fontWeight: '600',
     color: couleurs.texteSecondaire,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
-    paddingTop: 2,
+  },
+  chapitreCompteur: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: couleurs.primaire,
   },
   queteSection: {},
   queteRow: {
