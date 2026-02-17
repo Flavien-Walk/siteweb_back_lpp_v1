@@ -1,10 +1,11 @@
 /**
  * Ecran Parcours — Vue complete des quetes, niveau et progression.
+ * Deux onglets : "En cours" et "Realisees".
  * S'adapte automatiquement au profil de l'utilisateur (nouveau ou ancien)
  * grace au systeme de catch-up backend.
  */
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,11 +25,14 @@ import QuickQuests from '../../src/composants/QuickQuests';
 import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import type { QuestProgress } from '../../src/services/gamification';
 
+type TabId = 'en_cours' | 'realisees';
+
 export default function ParcoursScreen() {
   const { couleurs } = useTheme();
   const router = useRouter();
   const { state, isLoading, refresh } = useGamification();
   const styles = createStyles(couleurs);
+  const [activeTab, setActiveTab] = useState<TabId>('en_cours');
 
   useEffect(() => {
     refresh();
@@ -53,6 +57,11 @@ export default function ParcoursScreen() {
   const totalDone = allQuests.filter(q => q.isCompleted).length;
   const totalQuests = allQuests.length;
 
+  // Quetes completees
+  const completedQuick = (state.quickQuests || []).filter(q => q.isCompleted);
+  const completedChapter = (state.quests || []).filter(q => q.isCompleted);
+  const totalXpEarned = [...completedQuick, ...completedChapter].reduce((sum, q) => sum + q.xpReward, 0);
+
   // Regrouper les quetes de chapitre par chapitre
   const chapterMap: Record<string, QuestProgress[]> = {};
   for (const q of state.quests || []) {
@@ -60,6 +69,164 @@ export default function ParcoursScreen() {
     if (!chapterMap[chapter]) chapterMap[chapter] = [];
     chapterMap[chapter].push(q);
   }
+
+  // Regrouper les quetes completees par chapitre
+  const completedChapterMap: Record<string, QuestProgress[]> = {};
+  for (const q of completedChapter) {
+    const chapter = (q as any).chapter || 'Autre';
+    if (!completedChapterMap[chapter]) completedChapterMap[chapter] = [];
+    completedChapterMap[chapter].push(q);
+  }
+
+  const renderQuestCard = (quest: QuestProgress, isDone: boolean) => {
+    const progress = quest.target > 0 ? Math.min(quest.progress / quest.target, 1) : 0;
+    return (
+      <View
+        key={quest.questId}
+        style={[
+          styles.chapterQuest,
+          { backgroundColor: couleurs.fondCard, borderColor: isDone ? couleurs.succes + '25' : couleurs.bordure },
+        ]}
+      >
+        <View style={[styles.chapterIcon, { backgroundColor: isDone ? couleurs.succes + '15' : quest.color + '15' }]}>
+          {isDone ? (
+            <Ionicons name="checkmark-circle" size={18} color={couleurs.succes} />
+          ) : (
+            <Ionicons name={quest.icon as any} size={16} color={quest.color} />
+          )}
+        </View>
+        <View style={styles.chapterInfo}>
+          <Text
+            style={[
+              styles.chapterTitle,
+              { color: isDone ? couleurs.texteSecondaire : couleurs.texte },
+              isDone && styles.chapterTitleDone,
+            ]}
+            numberOfLines={1}
+          >
+            {quest.title}
+          </Text>
+          <View style={styles.chapterProgressRow}>
+            <View style={[styles.chapterProgressBg, { backgroundColor: couleurs.fondTertiaire }]}>
+              <View
+                style={[
+                  styles.chapterProgressFill,
+                  { width: `${progress * 100}%`, backgroundColor: isDone ? couleurs.succes : quest.color },
+                ]}
+              />
+            </View>
+            <Text style={[styles.chapterProgressText, { color: isDone ? couleurs.succes : couleurs.texteMuted }]}>
+              {quest.progress}/{quest.target}
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.chapterXp, { backgroundColor: isDone ? couleurs.succes + '12' : couleurs.primaire + '12' }]}>
+          {isDone ? (
+            <Text style={[styles.chapterXpText, { color: couleurs.succes }]}>+{quest.xpReward}</Text>
+          ) : (
+            <Text style={[styles.chapterXpText, { color: couleurs.primaire }]}>+{quest.xpReward}</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderEnCoursTab = () => (
+    <>
+      {/* Quetes rapides */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>Quetes rapides</Text>
+          <Text style={[styles.sectionCount, { color: couleurs.texteMuted }]}>
+            {state.quickQuests?.filter(q => q.isCompleted).length || 0}/{state.quickQuests?.length || 0}
+          </Text>
+        </View>
+        <QuickQuests />
+      </View>
+
+      {/* Quetes de chapitre */}
+      {Object.entries(chapterMap).map(([chapter, quests]) => {
+        const chapterDone = quests.filter(q => q.isCompleted).length;
+        const chapterTotal = quests.length;
+        const isChapterComplete = chapterDone === chapterTotal && chapterTotal > 0;
+
+        return (
+          <View key={chapter} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                {isChapterComplete && (
+                  <Ionicons name="checkmark-circle" size={16} color={couleurs.succes} style={{ marginRight: 6 }} />
+                )}
+                <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>{chapter}</Text>
+              </View>
+              <Text style={[styles.sectionCount, { color: isChapterComplete ? couleurs.succes : couleurs.texteMuted }]}>
+                {chapterDone}/{chapterTotal}
+              </Text>
+            </View>
+            {quests.map(quest => renderQuestCard(quest, quest.isCompleted))}
+          </View>
+        );
+      })}
+    </>
+  );
+
+  const renderRealiseesTab = () => {
+    const hasCompleted = completedQuick.length > 0 || completedChapter.length > 0;
+
+    if (!hasCompleted) {
+      return (
+        <View style={styles.emptyState}>
+          <View style={[styles.emptyIcon, { backgroundColor: couleurs.texteMuted + '15' }]}>
+            <Ionicons name="trophy-outline" size={32} color={couleurs.texteMuted} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: couleurs.texte }]}>Aucune quete realisee</Text>
+          <Text style={[styles.emptyDesc, { color: couleurs.texteSecondaire }]}>
+            Complete tes premieres quetes pour les voir apparaitre ici !
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <>
+        {/* Resume XP gagne */}
+        <View style={[styles.xpSummary, { backgroundColor: couleurs.succes + '10', borderColor: couleurs.succes + '25' }]}>
+          <Ionicons name="star" size={18} color={couleurs.accent} />
+          <Text style={[styles.xpSummaryText, { color: couleurs.texte }]}>
+            {totalXpEarned} XP gagnes
+          </Text>
+          <Text style={[styles.xpSummaryCount, { color: couleurs.texteSecondaire }]}>
+            {completedQuick.length + completedChapter.length} quete{(completedQuick.length + completedChapter.length) > 1 ? 's' : ''}
+          </Text>
+        </View>
+
+        {/* Quetes rapides completees */}
+        {completedQuick.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>Quetes rapides</Text>
+              <Text style={[styles.sectionCount, { color: couleurs.succes }]}>{completedQuick.length}</Text>
+            </View>
+            {completedQuick.map(quest => renderQuestCard(quest, true))}
+          </View>
+        )}
+
+        {/* Quetes chapitre completees regroupees */}
+        {Object.entries(completedChapterMap).map(([chapter, quests]) => (
+          <View key={chapter} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="checkmark-circle" size={16} color={couleurs.succes} style={{ marginRight: 6 }} />
+                <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>{chapter}</Text>
+              </View>
+              <Text style={[styles.sectionCount, { color: couleurs.succes }]}>{quests.length}</Text>
+            </View>
+            {quests.map(quest => renderQuestCard(quest, true))}
+          </View>
+        ))}
+      </>
+    );
+  };
 
   const screenContent = (
     <SafeAreaView style={[styles.container, { backgroundColor: couleurs.fond }]}>
@@ -121,92 +288,61 @@ export default function ParcoursScreen() {
           </View>
         </View>
 
-        {/* === Quetes rapides === */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>Quetes rapides</Text>
-            <Text style={[styles.sectionCount, { color: couleurs.texteMuted }]}>
-              {state.quickQuests?.filter(q => q.isCompleted).length || 0}/{state.quickQuests?.length || 0}
+        {/* === Onglets === */}
+        <View style={styles.tabBar}>
+          <Pressable
+            style={[
+              styles.tab,
+              activeTab === 'en_cours' && [styles.tabActive, { borderColor: couleurs.primaire }],
+            ]}
+            onPress={() => setActiveTab('en_cours')}
+          >
+            <Ionicons
+              name="rocket-outline"
+              size={14}
+              color={activeTab === 'en_cours' ? couleurs.primaire : couleurs.texteMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'en_cours' ? couleurs.primaire : couleurs.texteMuted },
+                activeTab === 'en_cours' && styles.tabTextActive,
+              ]}
+            >
+              En cours
             </Text>
-          </View>
-          <QuickQuests />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.tab,
+              activeTab === 'realisees' && [styles.tabActive, { borderColor: couleurs.succes }],
+            ]}
+            onPress={() => setActiveTab('realisees')}
+          >
+            <Ionicons
+              name="trophy-outline"
+              size={14}
+              color={activeTab === 'realisees' ? couleurs.succes : couleurs.texteMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'realisees' ? couleurs.succes : couleurs.texteMuted },
+                activeTab === 'realisees' && styles.tabTextActive,
+              ]}
+            >
+              Realisees
+            </Text>
+            {totalDone > 0 && (
+              <View style={[styles.tabBadge, { backgroundColor: activeTab === 'realisees' ? couleurs.succes : couleurs.texteMuted }]}>
+                <Text style={styles.tabBadgeText}>{totalDone}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
 
-        {/* === Quetes de chapitre === */}
-        {Object.entries(chapterMap).map(([chapter, quests]) => {
-          const chapterDone = quests.filter(q => q.isCompleted).length;
-          const chapterTotal = quests.length;
-          const isChapterComplete = chapterDone === chapterTotal && chapterTotal > 0;
-
-          return (
-            <View key={chapter} style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleRow}>
-                  {isChapterComplete && (
-                    <Ionicons name="checkmark-circle" size={16} color={couleurs.succes} style={{ marginRight: 6 }} />
-                  )}
-                  <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>{chapter}</Text>
-                </View>
-                <Text style={[styles.sectionCount, { color: isChapterComplete ? couleurs.succes : couleurs.texteMuted }]}>
-                  {chapterDone}/{chapterTotal}
-                </Text>
-              </View>
-              {quests.map(quest => {
-                const isDone = quest.isCompleted;
-                const progress = quest.target > 0 ? Math.min(quest.progress / quest.target, 1) : 0;
-                return (
-                  <View
-                    key={quest.questId}
-                    style={[
-                      styles.chapterQuest,
-                      { backgroundColor: couleurs.fondCard, borderColor: isDone ? couleurs.succes + '25' : couleurs.bordure },
-                    ]}
-                  >
-                    <View style={[styles.chapterIcon, { backgroundColor: isDone ? couleurs.succes + '15' : quest.color + '15' }]}>
-                      {isDone ? (
-                        <Ionicons name="checkmark-circle" size={18} color={couleurs.succes} />
-                      ) : (
-                        <Ionicons name={quest.icon as any} size={16} color={quest.color} />
-                      )}
-                    </View>
-                    <View style={styles.chapterInfo}>
-                      <Text
-                        style={[
-                          styles.chapterTitle,
-                          { color: isDone ? couleurs.texteSecondaire : couleurs.texte },
-                          isDone && styles.chapterTitleDone,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {quest.title}
-                      </Text>
-                      <View style={styles.chapterProgressRow}>
-                        <View style={[styles.chapterProgressBg, { backgroundColor: couleurs.fondTertiaire }]}>
-                          <View
-                            style={[
-                              styles.chapterProgressFill,
-                              { width: `${progress * 100}%`, backgroundColor: isDone ? couleurs.succes : quest.color },
-                            ]}
-                          />
-                        </View>
-                        <Text style={[styles.chapterProgressText, { color: isDone ? couleurs.succes : couleurs.texteMuted }]}>
-                          {quest.progress}/{quest.target}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[styles.chapterXp, { backgroundColor: isDone ? couleurs.succes + '12' : couleurs.primaire + '12' }]}>
-                      {isDone ? (
-                        <Ionicons name="checkmark" size={12} color={couleurs.succes} />
-                      ) : (
-                        <Text style={[styles.chapterXpText, { color: couleurs.primaire }]}>+{quest.xpReward}</Text>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          );
-        })}
+        {/* === Contenu de l'onglet === */}
+        {activeTab === 'en_cours' ? renderEnCoursTab() : renderRealiseesTab()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -273,6 +409,48 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   statValue: { fontSize: 14, fontWeight: '800' },
   statLabel: { fontSize: 10, fontWeight: '500' },
 
+  // Onglets
+  tabBar: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: espacements.lg,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: rayons.md,
+    borderWidth: 1.5,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.fondCard,
+  },
+  tabActive: {
+    borderWidth: 1.5,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tabTextActive: {
+    fontWeight: '700',
+  },
+  tabBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fff',
+  },
+
   // Sections
   section: { marginBottom: espacements.lg },
   sectionHeader: {
@@ -320,4 +498,48 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     alignItems: 'center',
   },
   chapterXpText: { fontSize: 11, fontWeight: '700' },
+
+  // Resume XP realisees
+  xpSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: rayons.md,
+    borderWidth: 1,
+    marginBottom: espacements.lg,
+  },
+  xpSummaryText: {
+    fontSize: 15,
+    fontWeight: '800',
+    flex: 1,
+  },
+  xpSummaryCount: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Empty state
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 10,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyDesc: {
+    fontSize: 13,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
 });
