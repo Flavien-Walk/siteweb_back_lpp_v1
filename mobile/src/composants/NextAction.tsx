@@ -1,7 +1,7 @@
 /**
  * Module "Prochaine Action" pour la Home
  * Affiche une seule carte hero avec la prochaine quete a realiser.
- * Meme style visuel que l'ancien bloc "Votre Prochaine Action".
+ * Couleurs 100% theme LPP (primaire, accent, succes).
  */
 
 import React, { memo, useCallback, useRef, useEffect } from 'react';
@@ -19,7 +19,14 @@ import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { espacements, rayons } from '../constantes/theme';
 import { useGamification } from '../contexts/GamificationContext';
 
-function NextAction() {
+interface NextActionProps {
+  /** Callback pour changer d'onglet dans accueil (discover, messages, etc.) */
+  onNavigateTab?: (tab: string) => void;
+  /** Callback pour ouvrir le modal de creation de post */
+  onCreatePost?: () => void;
+}
+
+function NextAction({ onNavigateTab, onCreatePost }: NextActionProps) {
   const { couleurs } = useTheme();
   const { state } = useGamification();
   const router = useRouter();
@@ -54,29 +61,27 @@ function NextAction() {
     if (!nextQuest) return;
     switch (nextQuest.mobileAction) {
       case 'discover':
-        // Onglet decouvrir
+        onNavigateTab?.('decouvrir');
         break;
       case 'feed':
-        // Deja sur le feed
+        onNavigateTab?.('feed');
         break;
       case 'entrepreneur':
         router.push('/(app)/mes-startups');
         break;
       case 'create_post':
-        // Gere par accueil.tsx via le context
+        onCreatePost?.();
         break;
       case 'profile':
         router.push('/(app)/profil');
         break;
       case 'messages':
-        // Onglet messages
+        onNavigateTab?.('messages');
         break;
     }
-  }, [nextQuest?.mobileAction, router]);
+  }, [nextQuest?.mobileAction, router, onNavigateTab, onCreatePost]);
 
   if (!state || !nextQuest) return null;
-
-  const progressPercent = nextQuest.target > 0 ? Math.min(nextQuest.progress / nextQuest.target, 1) : 0;
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -85,7 +90,7 @@ function NextAction() {
         onPress={handlePress}
       >
         <LinearGradient
-          colors={[nextQuest.color + '12', 'transparent']}
+          colors={[couleurs.primaire + '12', 'transparent']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradient}
@@ -93,16 +98,16 @@ function NextAction() {
 
         {/* Header : icone + badges */}
         <View style={styles.top}>
-          <View style={[styles.iconWrap, { backgroundColor: nextQuest.color + '20' }]}>
-            <Ionicons name={nextQuest.icon as any} size={22} color={nextQuest.color} />
+          <View style={[styles.iconWrap, { backgroundColor: couleurs.primaire + '20' }]}>
+            <Ionicons name={nextQuest.icon as any} size={22} color={couleurs.primaire} />
           </View>
           <View style={styles.badges}>
-            <View style={styles.xpBadge}>
-              <Ionicons name="star" size={11} color="#00D68F" />
-              <Text style={styles.xpBadgeText}>+{nextQuest.xpReward} XP</Text>
+            <View style={[styles.xpBadge, { backgroundColor: couleurs.accent + '20' }]}>
+              <Ionicons name="star" size={11} color={couleurs.accent} />
+              <Text style={[styles.xpBadgeText, { color: couleurs.accent }]}>+{nextQuest.xpReward} XP</Text>
             </View>
-            <View style={[styles.levelBadge, { borderColor: couleurs.bordure }]}>
-              <Text style={[styles.levelText, { color: couleurs.texteSecondaire }]}>
+            <View style={[styles.levelBadge, { backgroundColor: couleurs.primaire + '15', borderColor: couleurs.primaire + '30' }]}>
+              <Text style={[styles.levelText, { color: couleurs.primaire }]}>
                 Niv.{state.level}
               </Text>
             </View>
@@ -111,7 +116,7 @@ function NextAction() {
 
         {/* Body */}
         <View style={styles.body}>
-          <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>PROCHAINE ACTION</Text>
+          <Text style={[styles.label, { color: couleurs.texteMuted }]}>PROCHAINE ACTION</Text>
           <Text style={[styles.title, { color: couleurs.texte }]}>{nextQuest.title}</Text>
           <Text style={[styles.desc, { color: couleurs.texteSecondaire }]}>{nextQuest.description}</Text>
         </View>
@@ -119,12 +124,12 @@ function NextAction() {
         {/* Barre de progression */}
         {nextQuest.target > 1 && (
           <View style={styles.progressSection}>
-            <View style={[styles.progressBg, { backgroundColor: couleurs.fondCard }]}>
+            <View style={[styles.progressBg, { backgroundColor: couleurs.bordure }]}>
               <Animated.View
                 style={[
                   styles.progressFill,
                   {
-                    backgroundColor: nextQuest.color,
+                    backgroundColor: couleurs.primaire,
                     width: progressAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: ['0%', '100%'],
@@ -133,7 +138,7 @@ function NextAction() {
                 ]}
               />
             </View>
-            <Text style={[styles.progressText, { color: nextQuest.color }]}>
+            <Text style={[styles.progressText, { color: couleurs.primaire }]}>
               {nextQuest.progress}/{nextQuest.target}
             </Text>
           </View>
@@ -141,11 +146,18 @@ function NextAction() {
 
         {/* CTA */}
         <Pressable
-          style={[styles.ctaBtn, { backgroundColor: nextQuest.color }]}
+          style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.85 }]}
           onPress={handlePress}
         >
-          <Text style={styles.ctaBtnText}>C'est parti !</Text>
-          <Ionicons name="arrow-forward" size={16} color="#fff" />
+          <LinearGradient
+            colors={[couleurs.primaire, couleurs.primaireDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.ctaGradient}
+          >
+            <Text style={styles.ctaBtnText}>C'est parti !</Text>
+            <Ionicons name="arrow-forward" size={16} color={couleurs.blanc} />
+          </LinearGradient>
         </Pressable>
       </Pressable>
     </Animated.View>
@@ -192,7 +204,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   xpBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 214, 143, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -201,7 +212,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   xpBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#00D68F',
   },
   levelBadge: {
     paddingHorizontal: 8,
@@ -254,11 +264,14 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     textAlign: 'right',
   },
   ctaBtn: {
+    borderRadius: rayons.md,
+    overflow: 'hidden',
+  },
+  ctaGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: rayons.md,
     gap: 8,
   },
   ctaBtnText: {
