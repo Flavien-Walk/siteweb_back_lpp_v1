@@ -426,8 +426,9 @@ export async function applyGamificationEvent(
 }
 
 /**
- * Assigner les quetes rapides initiales a un utilisateur.
- * Appelé lors du premier GET /gamification/me ou a la creation du doc.
+ * Assigner les quetes rapides a un utilisateur.
+ * Appelé lors du GET /gamification/me et /quick-quests.
+ * Recycle les quetes completees quand le pool est epuise (nouveau cycle).
  */
 export function assignQuickQuests(
   role: 'visiteur' | 'entrepreneur',
@@ -436,18 +437,29 @@ export function assignQuickQuests(
   const completedIds = new Set(existingQuests.filter(q => q.completedAt).map(q => q.questId));
   const activeIds = new Set(existingQuests.filter(q => !q.completedAt).map(q => q.questId));
 
-  // Filtrer les quetes rapides disponibles pour ce role
-  const available = QUEST_DEFINITIONS
+  // Quetes rapides disponibles pour ce role
+  const allQuickDefs = QUEST_DEFINITIONS
     .filter(d => d.isQuick)
     .filter(d => d.audience === 'all' || d.audience === role)
-    .filter(d => !completedIds.has(d.questId) && !activeIds.has(d.questId))
     .sort((a, b) => a.order - b.order);
+
+  // D'abord les quetes jamais faites ou pas en cours
+  let available = allQuickDefs
+    .filter(d => !completedIds.has(d.questId) && !activeIds.has(d.questId));
 
   // Garder les quetes actives non completees
   const activeNonComplete = existingQuests.filter(q => !q.completedAt);
 
   // Completer a 3 quetes actives
   const needed = 3 - activeNonComplete.length;
+
+  // Si le pool est epuise, recycler les quetes completees (nouveau cycle)
+  if (available.length < needed && completedIds.size > 0) {
+    const recycled = allQuickDefs
+      .filter(d => completedIds.has(d.questId) && !activeIds.has(d.questId));
+    available = [...available, ...recycled];
+  }
+
   const newQuests: IQuestProgress[] = available.slice(0, Math.max(0, needed)).map(d => ({
     questId: d.questId,
     progress: 0,

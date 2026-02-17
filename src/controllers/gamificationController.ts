@@ -261,6 +261,14 @@ export const getQuickQuests = async (req: Request, res: Response): Promise<void>
       };
     };
 
+    // Reassigner si moins de 3 actives non completees (recycle si pool epuise)
+    const activeNonComplete = gamDoc.activeQuickQuests.filter(q => !q.completedAt);
+    if (activeNonComplete.length < 3) {
+      const refreshed = assignQuickQuests(gamDoc.roleContext, gamDoc.activeQuickQuests);
+      gamDoc.activeQuickQuests = refreshed as any;
+      await gamDoc.save();
+    }
+
     // Ne retourner que les non-completees (max 3)
     const activeQuests = gamDoc.activeQuickQuests
       .filter(q => !q.completedAt)
