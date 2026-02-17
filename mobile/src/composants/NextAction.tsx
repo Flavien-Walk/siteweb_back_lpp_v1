@@ -15,7 +15,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme, ThemeCouleurs, espacements, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
+import { espacements, rayons } from '../constantes/theme';
 import { useGamification } from '../contexts/GamificationContext';
 
 function NextAction() {

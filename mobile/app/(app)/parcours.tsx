@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme, ThemeCouleurs, espacements, rayons } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
+import { espacements, rayons } from '../../src/constantes/theme';
 import { useGamification } from '../../src/contexts/GamificationContext';
 import QuickQuests from '../../src/composants/QuickQuests';
 import type { QuestProgress } from '../../src/services/gamification';
