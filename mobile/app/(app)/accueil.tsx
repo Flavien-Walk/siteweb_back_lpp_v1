@@ -1822,7 +1822,7 @@ export default function Accueil() {
     <>
       {renderStories()}
       <NextAction
-        onNavigateTab={(tab) => setOngletActif(tab as OngletActif)}
+        onNavigateTab={(tab) => handleOngletPress(tab as OngletActif)}
         onCreatePost={() => setModalCreerPost(true)}
       />
       <View style={styles.section}>
