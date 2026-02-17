@@ -62,6 +62,9 @@ import {
   assignerTicket,
 } from '../controllers/supportTicketController.js';
 import {
+  getAdminGamification,
+} from '../controllers/gamificationController.js';
+import {
   listUsers,
   getUserModerationDetails,
   getUserAuditHistory,
@@ -383,6 +386,11 @@ router.get('/security/purge-history/:id', verifierJwt, requireMinRole('admin_mod
 
 // DELETE /api/admin/security/purge-history/:id - Supprimer definitivement une archive
 router.delete('/security/purge-history/:id', verifierJwt, requireMinRole('super_admin'), deletePurge);
+
+// ============ GAMIFICATION ============
+
+// GET /api/admin/gamification/:userId - Donnees gamification d'un utilisateur (lecture seule)
+router.get('/gamification/:userId', verifierJwt, requirePermission('users:view'), getAdminGamification);
 
 // ============ NOTIFICATIONS BROADCAST ============
 

@@ -381,6 +381,130 @@ export const resumeOnboarding = async (req: Request, res: Response): Promise<voi
  * GET /api/gamification/public/:userId
  * Badge public d'un utilisateur (pour affichage sur profil visiteur).
  */
+/**
+ * GET /api/admin/gamification/:userId
+ * Vue admin lecture seule — donnees completes d'un utilisateur.
+ */
+export const getAdminGamification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const gamDoc = await UserGamification.findOne({ userId }).lean();
+
+    if (!gamDoc) {
+      res.json({
+        succes: true,
+        data: {
+          level: 1,
+          levelName: 'Curieux',
+          levelIcon: 'eye-outline',
+          xp: 0,
+          xpInLevel: 0,
+          xpForNextLevel: 100,
+          streakDays: 0,
+          quickQuestCycle: 1,
+          roleContext: 'visiteur',
+          quickQuests: [],
+          quests: [],
+          onboarding: { version: 1, currentStep: 0, steps: [], isDismissed: false, isComplete: false },
+          recentEvents: [],
+          totalEventsCount: 0,
+        },
+      });
+      return;
+    }
+
+    const levelInfo = getLevelInfo(gamDoc.level, gamDoc.roleContext);
+    const xpInLevel = gamDoc.xp - getXpForLevel(gamDoc.level);
+    const xpForNext = getXpForNextLevel(gamDoc.level);
+
+    const enrichQuest = (q: any) => {
+      const def = QUEST_DEFINITIONS.find(d => d.questId === q.questId);
+      let title = def?.title || q.questId;
+      let description = def?.description || '';
+      if (def && q.target > def.targetCount && def.titleCycle) {
+        title = def.titleCycle.replace('{n}', String(q.target));
+      }
+      if (def && q.target > def.targetCount && def.descriptionCycle) {
+        description = def.descriptionCycle.replace('{n}', String(q.target));
+      }
+      const cycleScale = def && q.target > def.targetCount ? Math.ceil(q.target / def.targetCount) : 1;
+      return {
+        questId: q.questId,
+        title,
+        description,
+        icon: def?.icon || 'flag-outline',
+        color: def?.color || '#7C5CFF',
+        progress: q.progress,
+        target: q.target,
+        xpReward: (def?.xpReward || 0) * cycleScale,
+        isCompleted: !!q.completedAt,
+        completedAt: q.completedAt || null,
+        chapter: def?.chapter || null,
+      };
+    };
+
+    const relevantSteps = ONBOARDING_STEPS
+      .filter(s => s.audience === 'all' || s.audience === gamDoc.roleContext)
+      .sort((a, b) => a.order - b.order);
+
+    const onboardingSteps = relevantSteps.map(s => ({
+      stepId: s.stepId,
+      title: s.title,
+      description: s.description,
+      icon: s.icon,
+      isCompleted: gamDoc.onboarding.completedSteps.includes(s.stepId),
+    }));
+
+    // Evenements recents (20 derniers)
+    const [recentEvents, totalEventsCount] = await Promise.all([
+      GamificationEvent.find({ userId })
+        .sort({ dateCreation: -1 })
+        .limit(20)
+        .lean(),
+      GamificationEvent.countDocuments({ userId }),
+    ]);
+
+    res.json({
+      succes: true,
+      data: {
+        level: gamDoc.level,
+        levelName: levelInfo.name,
+        levelIcon: levelInfo.icon,
+        xp: gamDoc.xp,
+        xpInLevel,
+        xpForNextLevel: xpForNext,
+        nextLevelName: levelInfo.nextLevelName,
+        streakDays: gamDoc.streakDays,
+        quickQuestCycle: gamDoc.quickQuestCycle,
+        roleContext: gamDoc.roleContext,
+        quickQuests: gamDoc.activeQuickQuests.map(enrichQuest),
+        quests: gamDoc.activeQuests.map(enrichQuest),
+        onboarding: {
+          version: gamDoc.onboarding.version,
+          currentStep: gamDoc.onboarding.currentStep,
+          steps: onboardingSteps,
+          isDismissed: !!gamDoc.onboarding.dismissedAt,
+          isComplete: onboardingSteps.every(s => s.isCompleted),
+        },
+        recentEvents: recentEvents.map(e => ({
+          action: e.type,
+          xpGained: e.xpAwarded,
+          createdAt: e.dateCreation,
+          metadata: e.meta || {},
+        })),
+        totalEventsCount,
+      },
+    });
+  } catch (error) {
+    console.error('[Gamification] Erreur getAdminGamification:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * GET /api/gamification/public/:userId
+ * Badge public d'un utilisateur (pour affichage sur profil visiteur).
+ */
 export const getPublicGamification = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.params;
