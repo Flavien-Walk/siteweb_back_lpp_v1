@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { couleurs, espacements, rayons } from '../../src/constantes/theme';
+import { useGamification } from '../../src/contexts/GamificationContext';
 import { SwipeableScreen } from '../../src/composants';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
 import {
@@ -265,6 +266,7 @@ const ProjetCardCompact = memo(({
 export default function MesStartupsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { applyDelta } = useGamification();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [projets, setProjets] = useState<Projet[]>([]);
@@ -345,6 +347,8 @@ export default function MesStartupsScreen() {
       const res = await toggleSuivreProjet(projetId);
       if (!res.succes) {
         setProjets(prev);
+      } else if (res.gamification) {
+        applyDelta(res.gamification);
       }
     } catch {
       setProjets(prev);

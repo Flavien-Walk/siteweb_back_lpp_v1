@@ -34,6 +34,7 @@ const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 import { espacements, rayons, ombres } from '../../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../../src/contexts/ThemeContext';
 import { useUser } from '../../../src/contexts/UserContext';
+import { useGamification } from '../../../src/contexts/GamificationContext';
 import Avatar from '../../../src/composants/Avatar';
 import SwipeableScreen from '../../../src/composants/SwipeableScreen';
 import {
@@ -128,6 +129,7 @@ export default function ProjetDetailPage() {
   const insets = useSafeAreaInsets();
   const { couleurs } = useTheme();
   const { utilisateur } = useUser();
+  const { applyDelta } = useGamification();
   const styles = createStyles(couleurs);
 
   // États principaux
@@ -281,6 +283,7 @@ export default function ProjetDetailPage() {
         if (typeof apiNbFollowers === 'number') {
           setNbFollowers(apiNbFollowers);
         }
+        if (reponse.gamification) applyDelta(reponse.gamification);
       } else if (!reponse.succes) {
         setEstSuivi(previousEstSuivi);
         setNbFollowers(previousNbFollowers);

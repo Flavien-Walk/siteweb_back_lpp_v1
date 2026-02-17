@@ -52,6 +52,7 @@ import {
   ajouterCommentaire,
   toggleLikeCommentaire,
 } from '../services/publications';
+import { useGamification } from '../contexts/GamificationContext';
 import Avatar from './Avatar';
 import KeyboardView from './KeyboardView';
 
@@ -99,6 +100,7 @@ export default function UnifiedCommentsSheet({
   onEndTyping,
 }: UnifiedCommentsSheetProps) {
   const insets = useSafeAreaInsets();
+  const { applyDelta } = useGamification();
   const safeBottom = Math.max(insets.bottom, 12);
 
   // États
@@ -361,6 +363,7 @@ export default function UnifiedCommentsSheet({
       setReplyingTo(null);
       Keyboard.dismiss();
       onCommentAdded?.();
+      if (response.gamification) applyDelta(response.gamification);
     } catch (err) {
       setNewComment(texte);
     } finally {

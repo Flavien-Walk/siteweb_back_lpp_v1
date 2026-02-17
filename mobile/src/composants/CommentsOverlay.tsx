@@ -28,6 +28,7 @@ import {
   ajouterCommentaire,
   toggleLikeCommentaire,
 } from '../services/publications';
+import { useGamification } from '../contexts/GamificationContext';
 import Avatar from './Avatar';
 import KeyboardView from './KeyboardView';
 
@@ -52,6 +53,7 @@ export default function CommentsOverlay({
   onCommentAdded,
 }: CommentsOverlayProps) {
   const insets = useSafeAreaInsets();
+  const { applyDelta } = useGamification();
   const [commentaires, setCommentaires] = useState<Commentaire[]>([]);
   const [chargement, setChargement] = useState(false);
   const [newComment, setNewComment] = useState('');
@@ -153,6 +155,7 @@ export default function CommentsOverlay({
         setReplyingTo(null);
         Keyboard.dismiss();
         onCommentAdded?.();
+        if (reponse.gamification) applyDelta(reponse.gamification);
       }
     } catch (error) {
       console.error('[COMMENTS_OVERLAY] Error adding comment:', error);

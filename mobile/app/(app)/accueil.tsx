@@ -84,8 +84,7 @@ const MAX_HISTORIQUE = 10;
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
 // Nouveau systeme gamification
-import QuickQuests from '../../src/composants/QuickQuests';
-import OnboardingGuide from '../../src/composants/OnboardingGuide';
+import NextAction from '../../src/composants/NextAction';
 import XpToast from '../../src/composants/XpToast';
 import { useGamification } from '../../src/contexts/GamificationContext';
 import StoriesRow from '../../src/composants/StoriesRow';
@@ -1253,6 +1252,7 @@ export default function Accueil() {
         setMediasSelectionnes([]);
         setMentionsSelectionnees([]);
         setModalCreerPost(false);
+        if (reponse.gamification) applyDelta(reponse.gamification);
         Alert.alert('Succes', 'Publication creee !');
       } else {
         Alert.alert('Erreur', reponse.message || 'Impossible de creer la publication');
@@ -1821,8 +1821,7 @@ export default function Accueil() {
   const renderFeedContent = () => (
     <>
       {renderStories()}
-      <OnboardingGuide />
-      <QuickQuests />
+      <NextAction />
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Fil d'actualite</Text>
@@ -2668,7 +2667,8 @@ export default function Accueil() {
   const FAB_ACTIONS = [
     { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
     { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => router.push('/live/start') },
-    { id: 3, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => router.push('/(app)/mes-startups') },
+    { id: 3, icon: 'trophy-outline' as const, label: 'Parcours', color: '#FFBD59', action: () => router.push('/(app)/parcours') },
+    { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => router.push('/(app)/mes-startups') },
   ];
 
   const toggleFab = () => {

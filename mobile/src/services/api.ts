@@ -21,6 +21,8 @@ export interface ReponseAPI<T = unknown> {
   message?: string;
   data?: T;
   erreurs?: Record<string, string>;
+  /** Delta gamification renvoyé par le backend après une action trackée */
+  gamification?: any;
 }
 
 // Type pour les événements de restriction de compte

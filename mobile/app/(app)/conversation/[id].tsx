@@ -32,6 +32,7 @@ import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import KeyboardView from '../../../src/composants/KeyboardView';
 import { useUser } from '../../../src/contexts/UserContext';
+import { useGamification } from '../../../src/contexts/GamificationContext';
 import { useSocket, MessageSocketEvent, TypingSocketEvent } from '../../../src/contexts/SocketContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation, SwipeableScreen } from '../../../src/composants';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
@@ -238,6 +239,7 @@ export default function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { utilisateur } = useUser();
+  const { applyDelta } = useGamification();
   const flatListRef = useRef<FlatList>(null);
 
   // Socket pour temps réel
@@ -496,6 +498,7 @@ export default function ConversationScreen() {
           return [...prev, reponse.data!.message];
         });
         setReplyingTo(null);
+        if (reponse.gamification) applyDelta(reponse.gamification);
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
@@ -698,6 +701,7 @@ export default function ConversationScreen() {
         });
         setDraftMedia(null);
         setReplyingTo(null);
+        if (reponse.gamification) applyDelta(reponse.gamification);
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);

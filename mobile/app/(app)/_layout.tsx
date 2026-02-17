@@ -85,6 +85,15 @@ export default function AppLayout() {
           fullScreenGestureEnabled: Platform.OS === 'ios',
         }}
       />
+      {/* Parcours gamification - slide from right */}
+      <Stack.Screen
+        name="parcours"
+        options={{
+          animation: 'slide_from_right',
+          gestureEnabled: Platform.OS === 'ios',
+          fullScreenGestureEnabled: Platform.OS === 'ios',
+        }}
+      />
       {/* Mes Startups - slide from right */}
       <Stack.Screen
         name="mes-startups"

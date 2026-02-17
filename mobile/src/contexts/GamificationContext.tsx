@@ -96,7 +96,7 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
 
   // Appliquer un delta recu depuis une reponse API
   const applyDelta = useCallback((delta: GamificationDelta) => {
-    if (!delta || delta.xpGained === 0) return;
+    if (!delta) return;
 
     // Afficher le toast XP
     if (delta.xpGained > 0) {

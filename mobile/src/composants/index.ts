@@ -58,3 +58,4 @@ export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as QuickQuests } from './QuickQuests';
 export { default as OnboardingGuide } from './OnboardingGuide';
 export { default as XpToast } from './XpToast';
+export { default as NextAction } from './NextAction';

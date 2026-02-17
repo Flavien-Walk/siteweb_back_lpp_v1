@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { useTheme } from '../../../src/contexts/ThemeContext';
 import { useUser } from '../../../src/contexts/UserContext';
+import { useGamification } from '../../../src/contexts/GamificationContext';
 import {
   Publication,
   Commentaire,
@@ -56,6 +57,7 @@ export default function PublicationDetailPage() {
   const insets = useSafeAreaInsets();
   const { couleurs } = useTheme();
   const { utilisateur } = useUser();
+  const { applyDelta } = useGamification();
 
   // Etats
   const [publication, setPublication] = useState<Publication | null>(null);
@@ -194,6 +196,7 @@ export default function PublicationDetailPage() {
       if (reponse.succes && reponse.data) {
         setLiked(reponse.data.aLike);
         setNbLikes(reponse.data.nbLikes);
+        if (reponse.gamification) applyDelta(reponse.gamification);
       }
     } catch (error) {
       setLiked(!liked);
@@ -259,6 +262,7 @@ export default function PublicationDetailPage() {
         // Fermer le composer après envoi
         Keyboard.dismiss();
         setIsCommentComposerOpen(false);
+        if (reponse.gamification) applyDelta(reponse.gamification);
       }
     } catch (error) {
       Alert.alert('Erreur', "Impossible d'ajouter le commentaire");

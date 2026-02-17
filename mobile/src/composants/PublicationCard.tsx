@@ -20,6 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUser } from '../contexts/UserContext';
+import { useGamification } from '../contexts/GamificationContext';
 import { useStaff } from '../hooks/useStaff';
 import {
   Publication,
@@ -140,6 +141,7 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
 }) => {
   const { couleurs } = useTheme();
   const { utilisateur } = useUser();
+  const { applyDelta } = useGamification();
   const staff = useStaff();
 
   // ============ ÉTATS LOCAUX ============
@@ -200,6 +202,7 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
         setLiked(reponse.data.aLike);
         setNbLikes(reponse.data.nbLikes);
         onUpdate({ ...publication, aLike: reponse.data.aLike, nbLikes: reponse.data.nbLikes, nbCommentaires: nbComments });
+        if (reponse.gamification) applyDelta(reponse.gamification);
       }
     } catch (error) {
       setLiked(!liked);
@@ -252,6 +255,7 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
         setNewComment('');
         setReplyingTo(null);
         setNbComments(prev => prev + 1);
+        if (reponse.gamification) applyDelta(reponse.gamification);
       }
     } catch (error) {
       Alert.alert('Erreur', 'Impossible d\'ajouter le commentaire');

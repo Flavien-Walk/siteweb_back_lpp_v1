@@ -37,6 +37,7 @@ import {
   ajouterCommentaire,
   toggleLikeCommentaire,
 } from '../services/publications';
+import { useGamification } from '../contexts/GamificationContext';
 import Avatar from './Avatar';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -61,6 +62,7 @@ export default function FullscreenCommentsSheet({
   onCommentAdded,
 }: FullscreenCommentsSheetProps) {
   const insets = useSafeAreaInsets();
+  const { applyDelta } = useGamification();
   // Safe bottom : au moins 12px, sinon insets.bottom (pour Android navbar + iOS home indicator)
   const safeBottom = Math.max(insets.bottom, 12);
 
@@ -219,6 +221,7 @@ export default function FullscreenCommentsSheet({
       setReplyingTo(null);
       Keyboard.dismiss();
       onCommentAdded?.();
+      if (response.gamification) applyDelta(response.gamification);
     } catch (err) {
       console.error('[COMMENTS] Add error:', err);
       // Restore le texte si erreur
