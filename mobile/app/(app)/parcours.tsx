@@ -12,6 +12,7 @@ import {
   Pressable,
   SafeAreaView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { espacements, rayons } from '../../src/constantes/theme';
 import { useGamification } from '../../src/contexts/GamificationContext';
 import QuickQuests from '../../src/composants/QuickQuests';
+import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import type { QuestProgress } from '../../src/services/gamification';
 
 export default function ParcoursScreen() {
@@ -53,7 +55,7 @@ export default function ParcoursScreen() {
     chapterMap[chapter].push(q);
   }
 
-  return (
+  const screenContent = (
     <SafeAreaView style={[styles.container, { backgroundColor: couleurs.fond }]}>
       {/* Header */}
       <View style={styles.header}>
@@ -160,6 +162,10 @@ export default function ParcoursScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+
+  return Platform.OS === 'android' ? (
+    <SwipeableScreen>{screenContent}</SwipeableScreen>
+  ) : screenContent;
 }
 
 const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({

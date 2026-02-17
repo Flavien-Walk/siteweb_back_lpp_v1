@@ -19,6 +19,7 @@ import {
   Platform,
   Alert,
   Keyboard,
+  DeviceEventEmitter,
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import type { PagerViewOnPageSelectedEvent, PagerViewOnPageScrollEvent } from 'react-native-pager-view';
@@ -665,6 +666,14 @@ export default function Accueil() {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  // Ecouter les events de navigation inter-ecrans (ex: mes-startups → onglet decouvrir)
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('switchTab', (tab: string) => {
+      handleOngletPress(tab as OngletActif);
+    });
+    return () => sub.remove();
+  }, [handleOngletPress]);
 
   // Auto-refresh pour les notifications et messages (polling toutes les 15s)
   // Rafraîchit automatiquement quand l'écran reprend le focus ou l'app revient au premier plan

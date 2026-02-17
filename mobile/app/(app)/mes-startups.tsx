@@ -360,6 +360,9 @@ export default function MesStartupsScreen() {
   }, [router]);
 
   const handleDecouvrir = useCallback(() => {
+    // Emettre un event pour que accueil.tsx switch vers l'onglet Decouvrir
+    const { DeviceEventEmitter } = require('react-native');
+    DeviceEventEmitter.emit('switchTab', 'decouvrir');
     router.back();
   }, [router]);
 
