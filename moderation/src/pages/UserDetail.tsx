@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { usersService } from '@/services/users'
+import { gamificationService } from '@/services/gamification'
 import { PageTransition } from '@/components/PageTransition'
 import { activityService } from '@/services/activity'
 import { getActionLabel, getSanctionLabel, getReportStatusLabel, getReasonLabel, formatReason } from '@/lib/labels'
@@ -30,11 +31,15 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  Trophy,
+  Star,
+  Flame,
+  Zap,
 } from 'lucide-react'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { RiskBadge } from '@/components/RiskBadge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import type { User as UserType, TimelineEvent, AuditLog, UserReport } from '@/types'
+import type { User as UserType, TimelineEvent, AuditLog, UserReport, AdminGamificationData } from '@/types'
 
 const roleLabels: Record<string, string> = {
   user: 'Utilisateur',
@@ -64,7 +69,7 @@ const timelineEventIcons: Record<string, React.ReactNode> = {
   content_action: <FileText className="h-4 w-4 text-gray-500" />,
 }
 
-type HistoryTab = 'timeline' | 'reports' | 'audit' | 'activity'
+type HistoryTab = 'timeline' | 'reports' | 'audit' | 'activity' | 'gamification'
 
 const activityTypeLabels: Record<string, string> = {
   publication: 'Publication',
@@ -152,6 +157,12 @@ export function UserDetailPage() {
     queryKey: ['user-shares', id],
     queryFn: () => activityService.getUserActivity(id!, { action: 'share', limit: 50 }),
     enabled: !!id && historyTab === 'activity' && activityFilter === 'share',
+  })
+
+  const { data: gamificationData, isLoading: isLoadingGamification } = useQuery({
+    queryKey: ['user-gamification', id],
+    queryFn: () => gamificationService.getAdminGamification(id!),
+    enabled: !!id && historyTab === 'gamification',
   })
 
   // Warn mutation
@@ -465,6 +476,17 @@ export function UserDetailPage() {
                 >
                   <Activity className="h-4 w-4 inline mr-1" />
                   Activité complète
+                </button>
+                <button
+                  onClick={() => setHistoryTab('gamification')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    historyTab === 'gamification'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Trophy className="h-4 w-4 inline mr-1" />
+                  Gamification
                 </button>
               </div>
 
@@ -875,6 +897,221 @@ export function UserDetailPage() {
                         </p>
                       )}
                     </>
+                  )}
+                </div>
+              )}
+
+              {/* Gamification tab */}
+              {historyTab === 'gamification' && (
+                <div className="space-y-4">
+                  {isLoadingGamification ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+                      ))}
+                    </div>
+                  ) : gamificationData?.succes && gamificationData.data ? (
+                    (() => {
+                      const gam = gamificationData.data
+                      const xpProgress = gam.xpForNextLevel > 0
+                        ? Math.min(gam.xpInLevel / gam.xpForNextLevel, 1)
+                        : 0
+                      return (
+                        <>
+                          {/* Niveau + Stats */}
+                          <div className="grid grid-cols-4 gap-3">
+                            <div className="rounded-lg border p-3 text-center">
+                              <Trophy className="h-5 w-5 mx-auto mb-1 text-purple-500" />
+                              <p className="text-lg font-bold">{gam.level}</p>
+                              <p className="text-xs text-muted-foreground">{gam.levelName}</p>
+                            </div>
+                            <div className="rounded-lg border p-3 text-center">
+                              <Star className="h-5 w-5 mx-auto mb-1 text-amber-500" />
+                              <p className="text-lg font-bold">{gam.xp}</p>
+                              <p className="text-xs text-muted-foreground">XP total</p>
+                            </div>
+                            <div className="rounded-lg border p-3 text-center">
+                              <Flame className="h-5 w-5 mx-auto mb-1 text-red-500" />
+                              <p className="text-lg font-bold">{gam.streakDays}</p>
+                              <p className="text-xs text-muted-foreground">Streak (jours)</p>
+                            </div>
+                            <div className="rounded-lg border p-3 text-center">
+                              <Zap className="h-5 w-5 mx-auto mb-1 text-blue-500" />
+                              <p className="text-lg font-bold">{gam.quickQuestCycle}</p>
+                              <p className="text-xs text-muted-foreground">Cycle quetes</p>
+                            </div>
+                          </div>
+
+                          {/* Barre XP */}
+                          <div className="rounded-lg border p-3">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="font-medium">Progression XP</span>
+                              <span className="text-muted-foreground">{gam.xpInLevel}/{gam.xpForNextLevel} XP</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary transition-all"
+                                style={{ width: `${xpProgress * 100}%` }}
+                              />
+                            </div>
+                            {gam.nextLevelName && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Prochain niveau : {gam.nextLevelName}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Quetes rapides */}
+                          {gam.quickQuests.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2">Quetes rapides</h4>
+                              <div className="space-y-2">
+                                {gam.quickQuests.map((q) => {
+                                  const progress = q.target > 0 ? Math.min(q.progress / q.target, 1) : 0
+                                  return (
+                                    <div key={q.questId} className="flex items-center gap-3 rounded-lg border p-2">
+                                      <div
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-xs shrink-0"
+                                        style={{ backgroundColor: q.color + '18', color: q.color }}
+                                      >
+                                        {q.isCompleted ? <CheckCircle className="h-4 w-4 text-green-500" /> : '●'}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between">
+                                          <span className={`text-sm font-medium truncate ${q.isCompleted ? 'line-through text-muted-foreground' : ''}`}>
+                                            {q.title}
+                                          </span>
+                                          <Badge variant={q.isCompleted ? 'success' : 'secondary'} className="ml-2 shrink-0">
+                                            +{q.xpReward} XP
+                                          </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                                            <div
+                                              className="h-full rounded-full transition-all"
+                                              style={{ width: `${progress * 100}%`, backgroundColor: q.isCompleted ? '#22c55e' : q.color }}
+                                            />
+                                          </div>
+                                          <span className="text-xs text-muted-foreground">{q.progress}/{q.target}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Quetes de chapitre */}
+                          {gam.quests.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2">Quetes de chapitre</h4>
+                              <div className="space-y-2">
+                                {gam.quests.map((q) => {
+                                  const progress = q.target > 0 ? Math.min(q.progress / q.target, 1) : 0
+                                  return (
+                                    <div key={q.questId} className="flex items-center gap-3 rounded-lg border p-2">
+                                      <div
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-xs shrink-0"
+                                        style={{ backgroundColor: q.color + '18', color: q.color }}
+                                      >
+                                        {q.isCompleted ? <CheckCircle className="h-4 w-4 text-green-500" /> : '●'}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between">
+                                          <span className={`text-sm font-medium truncate ${q.isCompleted ? 'line-through text-muted-foreground' : ''}`}>
+                                            {q.title}
+                                          </span>
+                                          <Badge variant={q.isCompleted ? 'success' : 'secondary'} className="ml-2 shrink-0">
+                                            +{q.xpReward} XP
+                                          </Badge>
+                                        </div>
+                                        {q.chapter && (
+                                          <span className="text-xs text-muted-foreground">{q.chapter}</span>
+                                        )}
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                                            <div
+                                              className="h-full rounded-full transition-all"
+                                              style={{ width: `${progress * 100}%`, backgroundColor: q.isCompleted ? '#22c55e' : q.color }}
+                                            />
+                                          </div>
+                                          <span className="text-xs text-muted-foreground">{q.progress}/{q.target}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Onboarding */}
+                          <div>
+                            <h4 className="text-sm font-semibold mb-2">Onboarding</h4>
+                            <div className="rounded-lg border p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm">
+                                  {gam.onboarding.isComplete ? 'Termine' : gam.onboarding.isDismissed ? 'En pause' : 'En cours'}
+                                </span>
+                                <Badge variant={gam.onboarding.isComplete ? 'success' : gam.onboarding.isDismissed ? 'warning' : 'secondary'}>
+                                  {gam.onboarding.steps.filter(s => s.isCompleted).length}/{gam.onboarding.steps.length}
+                                </Badge>
+                              </div>
+                              {gam.onboarding.steps.map((step) => (
+                                <div key={step.stepId} className="flex items-center gap-2 py-1">
+                                  {step.isCompleted ? (
+                                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                                  ) : (
+                                    <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                                  )}
+                                  <span className={`text-sm ${step.isCompleted ? 'text-muted-foreground line-through' : ''}`}>
+                                    {step.title}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Evenements recents */}
+                          {gam.recentEvents.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2">
+                                Evenements recents ({gam.totalEventsCount} au total)
+                              </h4>
+                              <div className="rounded-lg border overflow-hidden">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b bg-muted/50">
+                                      <th className="text-left p-2 font-medium">Action</th>
+                                      <th className="text-right p-2 font-medium">XP</th>
+                                      <th className="text-right p-2 font-medium">Date</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {gam.recentEvents.map((event, i) => (
+                                      <tr key={i} className="border-b last:border-0">
+                                        <td className="p-2">{event.action.replace(/_/g, ' ')}</td>
+                                        <td className="p-2 text-right font-medium text-amber-500">+{event.xpGained}</td>
+                                        <td className="p-2 text-right text-muted-foreground">{formatRelativeTime(event.createdAt)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          <p className="text-xs text-muted-foreground text-center">
+                            Role : {gam.roleContext} — Lecture seule
+                          </p>
+                        </>
+                      )
+                    })()
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Aucune donnee de gamification
+                    </p>
                   )}
                 </div>
               )}

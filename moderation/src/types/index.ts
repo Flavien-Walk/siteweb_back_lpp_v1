@@ -650,6 +650,63 @@ export interface BroadcastNotification {
   dateCreation: string
 }
 
+// ============ GAMIFICATION ============
+
+export interface GamificationQuest {
+  questId: string
+  title: string
+  description: string
+  icon: string
+  color: string
+  progress: number
+  target: number
+  xpReward: number
+  isCompleted: boolean
+  completedAt?: string | null
+  chapter?: string | null
+}
+
+export interface GamificationOnboardingStep {
+  stepId: string
+  title: string
+  description: string
+  icon: string
+  isCompleted: boolean
+}
+
+export interface GamificationOnboarding {
+  version: number
+  currentStep: number
+  steps: GamificationOnboardingStep[]
+  isDismissed: boolean
+  isComplete: boolean
+}
+
+export interface GamificationEvent {
+  action: string
+  xpGained: number
+  createdAt: string
+  metadata: Record<string, unknown>
+}
+
+export interface AdminGamificationData {
+  level: number
+  levelName: string
+  levelIcon: string
+  xp: number
+  xpInLevel: number
+  xpForNextLevel: number
+  nextLevelName?: string | null
+  streakDays: number
+  quickQuestCycle: number
+  roleContext: 'visiteur' | 'entrepreneur'
+  quickQuests: GamificationQuest[]
+  quests: GamificationQuest[]
+  onboarding: GamificationOnboarding
+  recentEvents: GamificationEvent[]
+  totalEventsCount: number
+}
+
 // ============ API RESPONSES ============
 
 export interface ApiResponse<T> {
