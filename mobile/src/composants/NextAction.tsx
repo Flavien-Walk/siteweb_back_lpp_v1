@@ -1,10 +1,10 @@
 /**
- * Module "Prochaine Action" pour la Home
- * Affiche une seule carte hero avec la prochaine quete a realiser.
- * Couleurs 100% theme LPP (primaire, accent, succes).
+ * Widget "Mission en cours" pour la Home
+ * Compact : niveau + barre XP, quete active + progression.
+ * Tout le widget est cliquable → navigation vers l'ecran Parcours.
  */
 
-import React, { memo, useCallback, useRef, useEffect } from 'react';
+import React, { memo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,123 +14,90 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { espacements, rayons } from '../constantes/theme';
 import { useGamification } from '../contexts/GamificationContext';
 
-interface NextActionProps {
-  /** Callback pour changer d'onglet dans accueil (discover, messages, etc.) */
-  onNavigateTab?: (tab: string) => void;
-  /** Callback pour ouvrir le modal de creation de post */
-  onCreatePost?: () => void;
-}
-
-function NextAction({ onNavigateTab, onCreatePost }: NextActionProps) {
+function NextAction() {
   const { couleurs } = useTheme();
   const { state } = useGamification();
   const router = useRouter();
   const styles = createStyles(couleurs);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
+  const questProgressAnim = useRef(new Animated.Value(0)).current;
+  const xpBarAnim = useRef(new Animated.Value(0)).current;
 
-  // Trouver la prochaine quete non completee
   const nextQuest = state?.quickQuests?.find(q => !q.isCompleted) || null;
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 300,
+      duration: 400,
       useNativeDriver: true,
     }).start();
   }, []);
 
-  // Animer la barre de progression
+  // Animer la barre de progression de la quete
   useEffect(() => {
-    if (!nextQuest) return;
-    const target = nextQuest.target > 0 ? nextQuest.progress / nextQuest.target : 0;
-    Animated.spring(progressAnim, {
-      toValue: Math.min(target, 1),
+    if (!nextQuest) {
+      questProgressAnim.setValue(0);
+      return;
+    }
+    const ratio = nextQuest.target > 0 ? nextQuest.progress / nextQuest.target : 0;
+    Animated.spring(questProgressAnim, {
+      toValue: Math.min(ratio, 1),
       tension: 40,
       friction: 8,
       useNativeDriver: false,
     }).start();
-  }, [nextQuest?.progress, nextQuest?.target]);
+  }, [nextQuest?.progress, nextQuest?.target, nextQuest?.questId]);
 
-  const handlePress = useCallback(() => {
-    if (!nextQuest) return;
-    switch (nextQuest.mobileAction) {
-      case 'discover':
-        onNavigateTab?.('decouvrir');
-        break;
-      case 'feed':
-        onNavigateTab?.('feed');
-        break;
-      case 'entrepreneur':
-        router.push('/(app)/mes-startups');
-        break;
-      case 'create_post':
-        onCreatePost?.();
-        break;
-      case 'profile':
-        router.push('/(app)/profil');
-        break;
-      case 'messages':
-        onNavigateTab?.('messages');
-        break;
-    }
-  }, [nextQuest?.mobileAction, router, onNavigateTab, onCreatePost]);
+  // Animer la barre XP de niveau
+  useEffect(() => {
+    if (!state) return;
+    const xpForNext = state.xpForNextLevel || 100;
+    const xpIn = state.xpInLevel || 0;
+    Animated.spring(xpBarAnim, {
+      toValue: xpForNext > 0 ? Math.min(xpIn / xpForNext, 1) : 0,
+      tension: 40,
+      friction: 8,
+      useNativeDriver: false,
+    }).start();
+  }, [state?.xpInLevel, state?.xpForNextLevel]);
 
-  if (!state || !nextQuest) return null;
+  const goToParcours = () => router.push('/(app)/parcours');
+
+  if (!state) return null;
+
+  const doneQuests = state.quickQuests?.filter(q => q.isCompleted).length || 0;
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Pressable
-        style={({ pressed }) => [styles.card, pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
-        onPress={handlePress}
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+        onPress={goToParcours}
       >
-        <LinearGradient
-          colors={[couleurs.primaire + '12', 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradient}
-        />
-
-        {/* Header : icone + badges */}
-        <View style={styles.top}>
-          <View style={[styles.iconWrap, { backgroundColor: couleurs.primaire + '20' }]}>
-            <Ionicons name={nextQuest.icon as any} size={22} color={couleurs.primaire} />
+        {/* === Niveau + barre XP === */}
+        <View style={styles.header}>
+          <View style={[styles.levelIcon, { backgroundColor: couleurs.primaire + '18' }]}>
+            <Ionicons name={state.levelIcon as any} size={16} color={couleurs.primaire} />
           </View>
-          <View style={styles.badges}>
-            <View style={[styles.xpBadge, { backgroundColor: couleurs.accent + '20' }]}>
-              <Ionicons name="star" size={11} color={couleurs.accent} />
-              <Text style={[styles.xpBadgeText, { color: couleurs.accent }]}>+{nextQuest.xpReward} XP</Text>
-            </View>
-            <View style={[styles.levelBadge, { backgroundColor: couleurs.primaire + '15', borderColor: couleurs.primaire + '30' }]}>
-              <Text style={[styles.levelText, { color: couleurs.primaire }]}>
-                Niv.{state.level}
+          <View style={styles.headerInfo}>
+            <View style={styles.headerTopRow}>
+              <Text style={[styles.levelName, { color: couleurs.texte }]}>
+                Niv.{state.level} {state.levelName}
+              </Text>
+              <Text style={[styles.xpCounter, { color: couleurs.texteMuted }]}>
+                {state.xpInLevel || 0}/{state.xpForNextLevel || 100} XP
               </Text>
             </View>
-          </View>
-        </View>
-
-        {/* Body */}
-        <View style={styles.body}>
-          <Text style={[styles.label, { color: couleurs.texteMuted }]}>PROCHAINE ACTION</Text>
-          <Text style={[styles.title, { color: couleurs.texte }]}>{nextQuest.title}</Text>
-          <Text style={[styles.desc, { color: couleurs.texteSecondaire }]}>{nextQuest.description}</Text>
-        </View>
-
-        {/* Barre de progression */}
-        {nextQuest.target > 1 && (
-          <View style={styles.progressSection}>
-            <View style={[styles.progressBg, { backgroundColor: couleurs.bordure }]}>
+            <View style={[styles.xpBarBg, { backgroundColor: couleurs.fondTertiaire }]}>
               <Animated.View
                 style={[
-                  styles.progressFill,
+                  styles.xpBarFill,
                   {
                     backgroundColor: couleurs.primaire,
-                    width: progressAnim.interpolate({
+                    width: xpBarAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: ['0%', '100%'],
                     }),
@@ -138,27 +105,72 @@ function NextAction({ onNavigateTab, onCreatePost }: NextActionProps) {
                 ]}
               />
             </View>
-            <Text style={[styles.progressText, { color: couleurs.primaire }]}>
-              {nextQuest.progress}/{nextQuest.target}
+          </View>
+          {(state.streakDays || 0) > 0 && (
+            <View style={[styles.streakBadge, { backgroundColor: couleurs.erreur + '15' }]}>
+              <Ionicons name="flame" size={12} color={couleurs.erreur} />
+              <Text style={[styles.streakText, { color: couleurs.erreur }]}>{state.streakDays}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* === Separateur === */}
+        <View style={[styles.sep, { backgroundColor: couleurs.bordure }]} />
+
+        {/* === Quete active ou etat complete === */}
+        {nextQuest ? (
+          <View style={styles.questSection}>
+            <View style={styles.questRow}>
+              <View style={[styles.questIconWrap, { backgroundColor: nextQuest.color + '15' }]}>
+                <Ionicons name={nextQuest.icon as any} size={16} color={nextQuest.color} />
+              </View>
+              <View style={styles.questInfo}>
+                <Text style={[styles.questTitle, { color: couleurs.texte }]} numberOfLines={1}>
+                  {nextQuest.title}
+                </Text>
+                <Text style={[styles.questDesc, { color: couleurs.texteSecondaire }]} numberOfLines={1}>
+                  {nextQuest.description}
+                </Text>
+              </View>
+              <View style={[styles.xpChip, { backgroundColor: couleurs.accent + '15' }]}>
+                <Text style={[styles.xpChipText, { color: couleurs.accent }]}>+{nextQuest.xpReward}</Text>
+              </View>
+            </View>
+            {/* Barre de progression de la quete */}
+            <View style={styles.questProgressRow}>
+              <View style={[styles.questProgressBg, { backgroundColor: couleurs.fondTertiaire }]}>
+                <Animated.View
+                  style={[
+                    styles.questProgressFill,
+                    {
+                      backgroundColor: nextQuest.color,
+                      width: questProgressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.questProgressText, { color: couleurs.texteMuted }]}>
+                {nextQuest.progress}/{nextQuest.target}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.completedSection}>
+            <Ionicons name="checkmark-circle" size={18} color={couleurs.succes} />
+            <Text style={[styles.completedText, { color: couleurs.succes }]}>
+              {doneQuests} quete{doneQuests > 1 ? 's' : ''} completee{doneQuests > 1 ? 's' : ''} !
             </Text>
           </View>
         )}
 
-        {/* CTA */}
-        <Pressable
-          style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.85 }]}
-          onPress={handlePress}
-        >
-          <LinearGradient
-            colors={[couleurs.primaire, couleurs.primaireDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.ctaGradient}
-          >
-            <Text style={styles.ctaBtnText}>C'est parti !</Text>
-            <Ionicons name="arrow-forward" size={16} color={couleurs.blanc} />
-          </LinearGradient>
-        </Pressable>
+        {/* === Lien vers parcours === */}
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: couleurs.primaire }]}>Mon parcours</Text>
+          <Ionicons name="chevron-forward" size={14} color={couleurs.primaire} />
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -169,114 +181,159 @@ export default memo(NextAction);
 const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginHorizontal: espacements.md,
-    marginBottom: espacements.lg,
+    marginBottom: espacements.md,
   },
   card: {
     backgroundColor: couleurs.fondCard,
-    borderRadius: rayons.xl,
-    padding: 18,
+    borderRadius: rayons.lg,
+    padding: 14,
     borderWidth: 1,
     borderColor: couleurs.bordure,
-    overflow: 'hidden',
   },
-  gradient: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: rayons.xl,
+  cardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
   },
-  top: {
+
+  // Header — niveau + XP
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 10,
   },
-  iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+  levelIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badges: {
+  headerInfo: {
+    flex: 1,
+    gap: 5,
+  },
+  headerTopRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
   },
-  xpBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 3,
-  },
-  xpBadgeText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  levelBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  levelText: {
-    fontSize: 10,
+  levelName: {
+    fontSize: 13,
     fontWeight: '700',
   },
-  body: {
-    marginBottom: 16,
-    gap: 4,
+  xpCounter: {
+    fontSize: 11,
+    fontWeight: '600',
   },
-  label: {
-    fontSize: 10,
+  xpBarBg: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  xpBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  streakText: {
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 2,
   },
-  title: {
-    fontSize: 18,
+
+  // Separateur
+  sep: {
+    height: 1,
+    marginVertical: 12,
+  },
+
+  // Section quete
+  questSection: {
+    gap: 8,
+  },
+  questRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  questIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questInfo: {
+    flex: 1,
+  },
+  questTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  questDesc: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  xpChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  xpChipText: {
+    fontSize: 11,
     fontWeight: '800',
   },
-  desc: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  progressSection: {
+  questProgressRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 14,
+    paddingLeft: 42, // aligne avec le titre (icon 32 + gap 10)
   },
-  progressBg: {
+  questProgressBg: {
     flex: 1,
-    height: 6,
+    height: 5,
     borderRadius: 3,
     overflow: 'hidden',
   },
-  progressFill: {
+  questProgressFill: {
     height: '100%',
     borderRadius: 3,
   },
-  progressText: {
-    fontSize: 11,
+  questProgressText: {
+    fontSize: 10,
     fontWeight: '700',
-    minWidth: 30,
+    minWidth: 24,
     textAlign: 'right',
   },
-  ctaBtn: {
-    borderRadius: rayons.md,
-    overflow: 'hidden',
-  },
-  ctaGradient: {
+
+  // Etat tout complete
+  completedSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
     gap: 8,
+    paddingVertical: 4,
   },
-  ctaBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
+  completedText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Footer
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginTop: 10,
+  },
+  footerText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

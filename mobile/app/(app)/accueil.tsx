@@ -1830,10 +1830,7 @@ export default function Accueil() {
   const renderFeedContent = () => (
     <>
       {renderStories()}
-      <NextAction
-        onNavigateTab={(tab) => handleOngletPress(tab as OngletActif)}
-        onCreatePost={() => setModalCreerPost(true)}
-      />
+      <NextAction />
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Fil d'actualite</Text>

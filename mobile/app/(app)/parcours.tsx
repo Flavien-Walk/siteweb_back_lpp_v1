@@ -1,9 +1,10 @@
 /**
  * Ecran Parcours — Vue complete des quetes, niveau et progression.
- * Accessible via le bouton FAB "Parcours" sur la Home.
+ * S'adapte automatiquement au profil de l'utilisateur (nouveau ou ancien)
+ * grace au systeme de catch-up backend.
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -47,6 +48,11 @@ export default function ParcoursScreen() {
   const xpInLevel = state.xpInLevel || 0;
   const progressPercent = xpForNext > 0 ? Math.min(xpInLevel / xpForNext, 1) : 0;
 
+  // Stats globales
+  const allQuests = [...(state.quickQuests || []), ...(state.quests || [])];
+  const totalDone = allQuests.filter(q => q.isCompleted).length;
+  const totalQuests = allQuests.length;
+
   // Regrouper les quetes de chapitre par chapitre
   const chapterMap: Record<string, QuestProgress[]> = {};
   for (const q of state.quests || []) {
@@ -67,98 +73,140 @@ export default function ParcoursScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* Hero niveau */}
+        {/* === Carte niveau === */}
         <View style={[styles.levelCard, { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure }]}>
           <View style={styles.levelRow}>
-            <View style={[styles.levelIconWrap, { backgroundColor: couleurs.primaireLight }]}>
+            <View style={[styles.levelIconWrap, { backgroundColor: couleurs.primaire + '20' }]}>
               <Ionicons name={state.levelIcon as any} size={28} color={couleurs.primaire} />
             </View>
             <View style={styles.levelInfo}>
               <Text style={[styles.levelName, { color: couleurs.texte }]}>{state.levelName}</Text>
               <Text style={[styles.levelLabel, { color: couleurs.texteSecondaire }]}>Niveau {state.level}</Text>
             </View>
-            <View style={styles.xpBadge}>
-              <Ionicons name="star" size={14} color="#FFBD59" />
-              <Text style={styles.xpBadgeText}>{state.xp} XP</Text>
+            <View style={[styles.xpBadge, { backgroundColor: couleurs.accent + '15' }]}>
+              <Ionicons name="star" size={14} color={couleurs.accent} />
+              <Text style={[styles.xpBadgeText, { color: couleurs.accent }]}>{state.xp} XP</Text>
             </View>
           </View>
 
           {/* Barre XP */}
           <View style={styles.xpBarSection}>
-            <View style={[styles.xpBarBg, { backgroundColor: couleurs.fondCard }]}>
+            <View style={[styles.xpBarBg, { backgroundColor: couleurs.fondTertiaire }]}>
               <View style={[styles.xpBarFill, { width: `${progressPercent * 100}%`, backgroundColor: couleurs.primaire }]} />
             </View>
             {state.nextLevelName && (
               <Text style={[styles.xpBarLabel, { color: couleurs.texteSecondaire }]}>
-                {xpInLevel}/{xpForNext} XP → {state.nextLevelName}
+                {xpInLevel}/{xpForNext} XP pour {state.nextLevelName}
               </Text>
             )}
           </View>
 
           {/* Stats */}
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Ionicons name="flame-outline" size={16} color="#EF4444" />
-              <Text style={[styles.statValue, { color: couleurs.texte }]}>{state.streakDays || 0}</Text>
+            <View style={[styles.statChip, { backgroundColor: couleurs.erreur + '12' }]}>
+              <Ionicons name="flame" size={14} color={couleurs.erreur} />
+              <Text style={[styles.statValue, { color: couleurs.erreur }]}>{state.streakDays || 0}</Text>
               <Text style={[styles.statLabel, { color: couleurs.texteSecondaire }]}>jours</Text>
             </View>
-            <View style={styles.statItem}>
-              <Ionicons name="checkmark-circle-outline" size={16} color="#10B981" />
-              <Text style={[styles.statValue, { color: couleurs.texte }]}>
-                {(state.quickQuests?.filter(q => q.isCompleted).length || 0) + (state.quests?.filter(q => q.isCompleted).length || 0)}
-              </Text>
-              <Text style={[styles.statLabel, { color: couleurs.texteSecondaire }]}>quetes</Text>
+            <View style={[styles.statChip, { backgroundColor: couleurs.succes + '12' }]}>
+              <Ionicons name="checkmark-circle" size={14} color={couleurs.succes} />
+              <Text style={[styles.statValue, { color: couleurs.succes }]}>{totalDone}</Text>
+              <Text style={[styles.statLabel, { color: couleurs.texteSecondaire }]}>completees</Text>
+            </View>
+            <View style={[styles.statChip, { backgroundColor: couleurs.primaire + '12' }]}>
+              <Ionicons name="flag" size={14} color={couleurs.primaire} />
+              <Text style={[styles.statValue, { color: couleurs.primaire }]}>{totalQuests}</Text>
+              <Text style={[styles.statLabel, { color: couleurs.texteSecondaire }]}>total</Text>
             </View>
           </View>
         </View>
 
-        {/* Quetes rapides */}
+        {/* === Quetes rapides === */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>Quetes rapides</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>Quetes rapides</Text>
+            <Text style={[styles.sectionCount, { color: couleurs.texteMuted }]}>
+              {state.quickQuests?.filter(q => q.isCompleted).length || 0}/{state.quickQuests?.length || 0}
+            </Text>
+          </View>
           <QuickQuests />
         </View>
 
-        {/* Quetes de chapitre */}
-        {Object.entries(chapterMap).map(([chapter, quests]) => (
-          <View key={chapter} style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>{chapter}</Text>
-            {quests.map(quest => {
-              const isDone = quest.isCompleted;
-              const progress = quest.target > 0 ? Math.min(quest.progress / quest.target, 1) : 0;
-              return (
-                <View key={quest.questId} style={[styles.chapterQuest, { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure }]}>
-                  <View style={[styles.chapterIcon, { backgroundColor: quest.color + '15' }]}>
-                    {isDone ? (
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                    ) : (
-                      <Ionicons name={quest.icon as any} size={16} color={quest.color} />
-                    )}
-                  </View>
-                  <View style={styles.chapterInfo}>
-                    <Text style={[styles.chapterTitle, { color: isDone ? couleurs.texteSecondaire : couleurs.texte }, isDone && { textDecorationLine: 'line-through' }]} numberOfLines={1}>
-                      {quest.title}
-                    </Text>
-                    <View style={styles.chapterProgressRow}>
-                      <View style={[styles.chapterProgressBg, { backgroundColor: couleurs.fond }]}>
-                        <View style={[styles.chapterProgressFill, { width: `${progress * 100}%`, backgroundColor: isDone ? '#10B981' : quest.color }]} />
-                      </View>
-                      <Text style={[styles.chapterProgressText, { color: isDone ? '#10B981' : quest.color }]}>
-                        {quest.progress}/{quest.target}
+        {/* === Quetes de chapitre === */}
+        {Object.entries(chapterMap).map(([chapter, quests]) => {
+          const chapterDone = quests.filter(q => q.isCompleted).length;
+          const chapterTotal = quests.length;
+          const isChapterComplete = chapterDone === chapterTotal && chapterTotal > 0;
+
+          return (
+            <View key={chapter} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleRow}>
+                  {isChapterComplete && (
+                    <Ionicons name="checkmark-circle" size={16} color={couleurs.succes} style={{ marginRight: 6 }} />
+                  )}
+                  <Text style={[styles.sectionTitle, { color: couleurs.texte }]}>{chapter}</Text>
+                </View>
+                <Text style={[styles.sectionCount, { color: isChapterComplete ? couleurs.succes : couleurs.texteMuted }]}>
+                  {chapterDone}/{chapterTotal}
+                </Text>
+              </View>
+              {quests.map(quest => {
+                const isDone = quest.isCompleted;
+                const progress = quest.target > 0 ? Math.min(quest.progress / quest.target, 1) : 0;
+                return (
+                  <View
+                    key={quest.questId}
+                    style={[
+                      styles.chapterQuest,
+                      { backgroundColor: couleurs.fondCard, borderColor: isDone ? couleurs.succes + '25' : couleurs.bordure },
+                    ]}
+                  >
+                    <View style={[styles.chapterIcon, { backgroundColor: isDone ? couleurs.succes + '15' : quest.color + '15' }]}>
+                      {isDone ? (
+                        <Ionicons name="checkmark-circle" size={18} color={couleurs.succes} />
+                      ) : (
+                        <Ionicons name={quest.icon as any} size={16} color={quest.color} />
+                      )}
+                    </View>
+                    <View style={styles.chapterInfo}>
+                      <Text
+                        style={[
+                          styles.chapterTitle,
+                          { color: isDone ? couleurs.texteSecondaire : couleurs.texte },
+                          isDone && styles.chapterTitleDone,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {quest.title}
                       </Text>
+                      <View style={styles.chapterProgressRow}>
+                        <View style={[styles.chapterProgressBg, { backgroundColor: couleurs.fondTertiaire }]}>
+                          <View
+                            style={[
+                              styles.chapterProgressFill,
+                              { width: `${progress * 100}%`, backgroundColor: isDone ? couleurs.succes : quest.color },
+                            ]}
+                          />
+                        </View>
+                        <Text style={[styles.chapterProgressText, { color: isDone ? couleurs.succes : couleurs.texteMuted }]}>
+                          {quest.progress}/{quest.target}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.chapterXp, { backgroundColor: isDone ? couleurs.succes + '12' : couleurs.primaire + '12' }]}>
+                      {isDone ? (
+                        <Ionicons name="checkmark" size={12} color={couleurs.succes} />
+                      ) : (
+                        <Text style={[styles.chapterXpText, { color: couleurs.primaire }]}>+{quest.xpReward}</Text>
+                      )}
                     </View>
                   </View>
-                  <View style={[styles.chapterXp, isDone && { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                    {isDone ? (
-                      <Ionicons name="checkmark" size={12} color="#10B981" />
-                    ) : (
-                      <Text style={[styles.chapterXpText, { color: couleurs.primaire }]}>+{quest.xpReward}</Text>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        ))}
+                );
+              })}
+            </View>
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -180,6 +228,8 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
   content: { paddingHorizontal: espacements.md, paddingBottom: 40 },
+
+  // Carte niveau
   levelCard: {
     borderRadius: rayons.xl,
     padding: 18,
@@ -201,22 +251,43 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,189,89,0.15)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
   },
-  xpBadgeText: { fontSize: 14, fontWeight: '800', color: '#FFBD59' },
+  xpBadgeText: { fontSize: 14, fontWeight: '800' },
   xpBarSection: { marginBottom: 14 },
   xpBarBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
   xpBarFill: { height: '100%', borderRadius: 4 },
   xpBarLabel: { fontSize: 11, fontWeight: '500', marginTop: 4, textAlign: 'center' },
-  statsRow: { flexDirection: 'row', justifyContent: 'center', gap: 32 },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 16, fontWeight: '800' },
-  statLabel: { fontSize: 11, fontWeight: '500' },
+  statsRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
+  statChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  statValue: { fontSize: 14, fontWeight: '800' },
+  statLabel: { fontSize: 10, fontWeight: '500' },
+
+  // Sections
   section: { marginBottom: espacements.lg },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 10 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '700' },
+  sectionCount: { fontSize: 12, fontWeight: '600' },
+
+  // Quetes chapitre
   chapterQuest: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -235,12 +306,12 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   chapterInfo: { flex: 1 },
   chapterTitle: { fontSize: 13, fontWeight: '600', marginBottom: 4 },
+  chapterTitleDone: { textDecorationLine: 'line-through' },
   chapterProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   chapterProgressBg: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
   chapterProgressFill: { height: '100%', borderRadius: 2 },
   chapterProgressText: { fontSize: 10, fontWeight: '700', minWidth: 24, textAlign: 'right' },
   chapterXp: {
-    backgroundColor: couleurs.primaireLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
