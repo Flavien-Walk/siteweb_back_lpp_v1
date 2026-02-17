@@ -179,7 +179,7 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
         suivi: estSuivi,
         isOwner,
       },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur detailProjet:', error);
@@ -293,7 +293,7 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
         suivi: isNewFollow,
         totalFollowers: nbFollowers,
       },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur toggleSuivreProjet:', error);
@@ -437,7 +437,7 @@ export const creerProjet = async (req: Request, res: Response): Promise<void> =>
       succes: true,
       message: 'Projet créé en brouillon.',
       data: { projet },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur creerProjet:', error);
@@ -605,7 +605,7 @@ export const publierProjet = async (req: Request, res: Response): Promise<void> 
       succes: true,
       message: 'Projet publié avec succès.',
       data: { projet },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     console.error('Erreur publierProjet:', error);

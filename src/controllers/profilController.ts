@@ -155,7 +155,7 @@ export const modifierProfil = async (
           profilPublic: utilisateur.profilPublic ?? true,
         },
       },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     next(error);

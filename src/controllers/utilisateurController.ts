@@ -312,7 +312,7 @@ export const envoyerDemandeAmi = async (
     res.json({
       succes: true,
       message: 'Demande d\'ami envoyée.',
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     next(error);

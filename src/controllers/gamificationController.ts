@@ -5,6 +5,10 @@
 
 import { Request, Response } from 'express';
 import UserGamification from '../models/UserGamification.js';
+import Publication from '../models/Publication.js';
+import Projet from '../models/Projet.js';
+import Utilisateur from '../models/Utilisateur.js';
+import GamificationEvent from '../models/GamificationEvent.js';
 import {
   getLevelInfo,
   getXpForLevel,
@@ -13,7 +17,10 @@ import {
   ONBOARDING_STEPS,
   assignQuickQuests,
   assignChapterQuests,
+  computeLevel,
+  XP_CONFIG,
 } from '../services/gamificationEngine.js';
+import type { GamificationEventType } from '../models/GamificationEvent.js';
 
 /**
  * GET /api/gamification/me
@@ -25,13 +32,116 @@ export const getMyGamification = async (req: Request, res: Response): Promise<vo
 
     let gamDoc = await UserGamification.findOne({ userId });
 
-    // Creer le doc si inexistant
+    // Creer le doc si inexistant — avec catch-up pour comptes existants
+    let isNewDoc = false;
     if (!gamDoc) {
       const role = req.utilisateur!.statut === 'entrepreneur' ? 'entrepreneur' : 'visiteur';
       gamDoc = await UserGamification.create({
         userId,
         roleContext: role as 'visiteur' | 'entrepreneur',
       });
+      isNewDoc = true;
+    }
+
+    // Catch-up comptes existants : scanner les donnees deja presentes
+    if (isNewDoc) {
+      try {
+        const userIdStr = userId.toString();
+        const [likesCount, commentsCount, postsCount, friendsCount, followedProjects, userDoc] = await Promise.all([
+          Publication.countDocuments({ likes: userId }),
+          Publication.countDocuments({ 'commentaires.auteur': userId }),
+          Publication.countDocuments({ auteur: userId }),
+          Utilisateur.findById(userId).select('amis').lean().then((u: any) => u?.amis?.length || 0),
+          Projet.find({ followers: userId }).select('_id').lean(),
+          Utilisateur.findById(userId).select('bio avatar').lean(),
+        ]);
+
+        // Compter les actions existantes pour pre-remplir les quetes
+        const existingCounts: Partial<Record<GamificationEventType, number>> = {
+          like_post: likesCount,
+          comment_post: commentsCount,
+          create_post: postsCount,
+          add_friend: friendsCount,
+          follow_project: followedProjects.length,
+          view_project: followedProjects.length, // approximation: si follow, a vu
+        };
+
+        // Profil complet ?
+        if (userDoc && (userDoc as any).bio && (userDoc as any).avatar) {
+          existingCounts.complete_profile = 1;
+        }
+
+        // Projets crees (entrepreneur)
+        if (gamDoc.roleContext === 'entrepreneur') {
+          const projetsCount = await Projet.countDocuments({ porteur: userId });
+          const publishedCount = await Projet.countDocuments({ porteur: userId, estPublie: true });
+          existingCounts.create_project = projetsCount;
+          existingCounts.publish_project = publishedCount;
+        }
+
+        // Calculer XP retroactif et pre-remplir progression quetes
+        let catchUpXp = 0;
+        for (const [action, count] of Object.entries(existingCounts)) {
+          if (count && count > 0) {
+            const xpPerAction = XP_CONFIG[action as GamificationEventType] || 0;
+            // Limiter le catch-up XP pour ne pas donner trop (max 50 par type)
+            const cappedCount = Math.min(count, 50);
+            catchUpXp += xpPerAction * cappedCount;
+          }
+        }
+
+        if (catchUpXp > 0) {
+          const newLevel = computeLevel(catchUpXp);
+          await UserGamification.updateOne({ userId }, {
+            $set: { xp: catchUpXp, level: newLevel },
+          });
+          gamDoc.xp = catchUpXp;
+          gamDoc.level = newLevel;
+        }
+
+        // Pre-remplir progression des quetes rapides et chapitre
+        const prePopulateQuests = (quests: any[]) => {
+          for (const quest of quests) {
+            const def = QUEST_DEFINITIONS.find(d => d.questId === quest.questId);
+            if (!def) continue;
+            const existingCount = existingCounts[def.targetAction] || 0;
+            if (existingCount > 0) {
+              quest.progress = Math.min(existingCount, quest.target);
+              if (quest.progress >= quest.target) {
+                quest.completedAt = new Date();
+              }
+            }
+          }
+        };
+
+        // Assigner quetes puis pre-remplir
+        const quickQuests = assignQuickQuests(gamDoc.roleContext, []);
+        const chapterQuests = assignChapterQuests(gamDoc.roleContext, []);
+        prePopulateQuests(quickQuests);
+        prePopulateQuests(chapterQuests);
+
+        gamDoc.activeQuickQuests = quickQuests as any;
+        gamDoc.activeQuests = chapterQuests as any;
+
+        // Pre-remplir onboarding
+        const role = gamDoc.roleContext;
+        const relevantOnboarding = ONBOARDING_STEPS.filter(
+          s => s.audience === 'all' || s.audience === role
+        );
+        const completedOnboardingSteps: string[] = [];
+        for (const step of relevantOnboarding) {
+          const count = existingCounts[step.targetAction] || 0;
+          if (count > 0) {
+            completedOnboardingSteps.push(step.stepId);
+          }
+        }
+        gamDoc.onboarding.completedSteps = completedOnboardingSteps;
+        gamDoc.onboarding.currentStep = completedOnboardingSteps.length;
+
+        await gamDoc.save();
+      } catch (catchUpError) {
+        console.error('[Gamification] Erreur catch-up:', catchUpError);
+      }
     }
 
     // Synchroniser le role si change
@@ -41,7 +151,7 @@ export const getMyGamification = async (req: Request, res: Response): Promise<vo
       await gamDoc.save();
     }
 
-    // Assigner les quetes rapides si necessaire (< 3 actives)
+    // Assigner les quetes rapides si necessaire (< 3 actives non completees)
     const activeQuickNonComplete = gamDoc.activeQuickQuests.filter(q => !q.completedAt);
     if (activeQuickNonComplete.length < 3) {
       const newQuickQuests = assignQuickQuests(gamDoc.roleContext, gamDoc.activeQuickQuests);

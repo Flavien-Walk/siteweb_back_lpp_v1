@@ -393,7 +393,7 @@ export const creerPublication = async (
           nbLikes: 0,
         },
       },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     next(error);
@@ -607,7 +607,7 @@ export const toggleLikePublication = async (
         aLike: !dejaLike,
         nbLikes: updateResult.likes.length,
       },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     next(error);
@@ -804,7 +804,7 @@ export const ajouterCommentaire = async (
           reponses: [],
         },
       },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     next(error);

@@ -471,7 +471,7 @@ export const envoyerMessage = async (
         },
         conversationId: conversation._id,
       },
-      ...(gamification && gamification.xpGained > 0 ? { gamification } : {}),
+      ...(gamification ? { gamification } : {}),
     });
   } catch (error) {
     next(error);
