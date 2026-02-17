@@ -11,14 +11,18 @@ import {
   LogOut,
   Sparkles,
   Briefcase,
+  Trophy,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
+import { useGamification } from '../../contexts/GamificationContext';
+import LevelBadge from '../LevelBadge';
 import { couleurs } from '../../styles/theme';
 
 export default function Sidebar() {
   const { utilisateur, deconnexion } = useAuth();
   const { socket } = useSocket();
+  const { state: gamState } = useGamification();
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -91,6 +95,7 @@ export default function Sidebar() {
       ? [{ to: '/entrepreneur', icon: Briefcase, label: 'Mes Projets', badge: 0 }]
       : []),
     { to: '/profil', icon: User, label: 'Profil', badge: 0 },
+    { to: '/parcours', icon: Trophy, label: 'Mon Parcours', badge: 0 },
   ];
 
   return (
@@ -157,6 +162,20 @@ export default function Sidebar() {
       </nav>
 
       <div style={styles.bottomSection}>
+        {gamState && (
+          <motion.div
+            style={styles.gamBadge}
+            whileHover={{ backgroundColor: couleurs.primaireLight }}
+            onClick={() => navigate('/parcours')}
+          >
+            <LevelBadge
+              level={gamState.level}
+              levelName={gamState.levelName}
+              levelIcon={gamState.levelIcon}
+              size="sm"
+            />
+          </motion.div>
+        )}
         {utilisateur && (
           <motion.div
             style={styles.userInfo}
@@ -298,6 +317,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 12,
+  },
+  gamBadge: {
+    padding: '6px 12px',
+    borderRadius: 12,
+    cursor: 'pointer',
+    transition: 'background-color 150ms ease',
   },
   userInfo: {
     display: 'flex',

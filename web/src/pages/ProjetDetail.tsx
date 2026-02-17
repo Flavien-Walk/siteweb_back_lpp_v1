@@ -8,6 +8,7 @@ import {
   AlertCircle, CheckCircle, Tag,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useGamification } from '../contexts/GamificationContext';
 import { getProjet, toggleSuivreProjet } from '../services/projets';
 import type { Projet, TypeLien } from '../services/projets';
 import { getOuCreerConversationPrivee } from '../services/messagerie';
@@ -70,6 +71,7 @@ export default function ProjetDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { utilisateur } = useAuth();
+  const { applyDelta } = useGamification();
   const [projet, setProjet] = useState<Projet | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('vision');
@@ -100,6 +102,7 @@ export default function ProjetDetail() {
     if (res.succes && res.data) {
       setFollowing(res.data.estSuivi);
       setNbFollowers(res.data.nbFollowers);
+      if ((res.data as any).gamification) applyDelta((res.data as any).gamification);
     } else {
       setFollowing(prev);
       setNbFollowers(prevNb);

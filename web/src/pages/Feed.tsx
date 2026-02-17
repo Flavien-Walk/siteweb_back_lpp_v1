@@ -25,6 +25,7 @@ import {
   Film,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useGamification } from '../contexts/GamificationContext';
 import {
   getPublications,
   creerPublication,
@@ -398,6 +399,7 @@ function CommentRow({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(comment.contenu);
   const [savingEdit, setSavingEdit] = useState(false);
+  const { applyDelta: applyGamDelta } = useGamification();
 
   const handleLike = async () => {
     setLiked((p) => !p);
@@ -406,6 +408,7 @@ function CommentRow({
     if (res.succes && res.data) {
       setLiked(res.data.aLike);
       setLikes(res.data.nbLikes);
+      if ((res.data as any).gamification) applyGamDelta((res.data as any).gamification);
     }
   };
 
@@ -599,6 +602,7 @@ function CommentsPanel({
   const [replyingTo, setReplyingTo] = useState<{ id: string; nom: string } | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { applyDelta: applyGamDelta2 } = useGamification();
 
   const charger = useCallback(async () => {
     setLoading(true);
@@ -638,6 +642,7 @@ function CommentsPanel({
       setNewComment('');
       setReplyingTo(null);
       await charger();
+      if ((res.data as any)?.gamification) applyGamDelta2((res.data as any).gamification);
     }
     setSending(false);
   };
@@ -1646,6 +1651,7 @@ function PublicationCard({
 /* ─── Feed page ─── */
 export default function Feed() {
   const { utilisateur } = useAuth();
+  const { applyDelta } = useGamification();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -1790,6 +1796,7 @@ export default function Feed() {
           p._id === id ? { ...p, aLike: res.data!.aLike, nbLikes: res.data!.nbLikes } : p
         )
       );
+      if ((res.data as any).gamification) applyDelta((res.data as any).gamification);
     }
   };
 

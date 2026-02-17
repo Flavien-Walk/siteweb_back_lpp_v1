@@ -7,6 +7,8 @@ import {
   MapPin, FolderHeart, Clock, Star, Shield, Lock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import LevelBadge from '../components/LevelBadge';
+import { getPublicGamification, type PublicGamification } from '../services/gamification';
 import {
   getProfilUtilisateur, envoyerDemandeAmi, annulerDemandeAmi,
   accepterDemandeAmi, supprimerAmi,
@@ -51,6 +53,7 @@ export default function ProfilPublic() {
   const [activeTab, setActiveTab] = useState<Tab>('publications');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [gamData, setGamData] = useState<PublicGamification | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -61,10 +64,11 @@ export default function ProfilPublic() {
     }
     (async () => {
       setLoading(true);
-      const [profilRes, pubRes, projetsRes] = await Promise.all([
+      const [profilRes, pubRes, projetsRes, gamRes] = await Promise.all([
         getProfilUtilisateur(id),
         getPublicationsUtilisateur(id),
         getProjetsSuivisUtilisateur(id),
+        getPublicGamification(id),
       ]);
       if (profilRes.succes && profilRes.data) {
         setProfil(profilRes.data.utilisateur);
@@ -76,6 +80,9 @@ export default function ProfilPublic() {
       }
       if (projetsRes.succes && projetsRes.data) {
         setProjets(projetsRes.data.projets);
+      }
+      if (gamRes.succes && gamRes.data) {
+        setGamData(gamRes.data);
       }
       setLoading(false);
     })();
@@ -177,6 +184,14 @@ export default function ProfilPublic() {
                   </span>
                 );
               })()}
+              {gamData && (
+                <LevelBadge
+                  level={gamData.level}
+                  levelName={gamData.levelName}
+                  levelIcon={gamData.levelIcon}
+                  size="sm"
+                />
+              )}
             </div>
             {profil.bio && <p style={styles.bio}>{profil.bio}</p>}
             <div style={styles.metaRow}>

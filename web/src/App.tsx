@@ -23,6 +23,7 @@ const Entrepreneur = lazy(() => import('./pages/Entrepreneur'));
 const Reglages = lazy(() => import('./pages/Reglages'));
 const AmisUtilisateur = lazy(() => import('./pages/AmisUtilisateur'));
 const PublicationDetail = lazy(() => import('./pages/PublicationDetail'));
+const MonParcours = lazy(() => import('./pages/MonParcours'));
 const VerificationEmail = lazy(() => import('./pages/VerificationEmail'));
 
 function LoadingScreen() {
@@ -134,6 +135,7 @@ export default function App() {
         <Route path="utilisateur/:id/amis" element={<AmisUtilisateur />} />
         <Route path="publication/:id" element={<PublicationDetail />} />
         <Route path="entrepreneur" element={<Entrepreneur />} />
+        <Route path="parcours" element={<MonParcours />} />
         <Route path="reglages" element={<Reglages />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

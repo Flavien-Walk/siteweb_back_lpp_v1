@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
+import XpToast from '../XpToast';
 import { couleurs } from '../../styles/theme';
 import { Menu, X } from 'lucide-react';
 
@@ -61,6 +62,9 @@ export default function MainLayout() {
 
       {/* Mobile bottom nav */}
       {isMobile && <MobileNav />}
+
+      {/* XP Toast */}
+      <XpToast />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useGamification } from '../contexts/GamificationContext';
 import {
   getPublication,
   toggleLikePublication,
@@ -53,6 +54,7 @@ function CommentRow({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(comment.contenu);
   const [savingEdit, setSavingEdit] = useState(false);
+  const { applyDelta: applyGamDelta } = useGamification();
 
   const handleLike = async () => {
     setLiked((p) => !p);
@@ -61,6 +63,7 @@ function CommentRow({
     if (res.succes && res.data) {
       setLiked(res.data.aLike);
       setLikes(res.data.nbLikes);
+      if ((res.data as any).gamification) applyGamDelta((res.data as any).gamification);
     }
   };
 
@@ -189,6 +192,7 @@ export default function PublicationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { utilisateur } = useAuth();
+  const { applyDelta } = useGamification();
   const currentUserId = utilisateur?.id || (utilisateur as any)?._id || '';
 
   const [publication, setPublication] = useState<Publication | null>(null);
@@ -241,6 +245,7 @@ export default function PublicationDetail() {
     if (res.succes && res.data) {
       setLiked(res.data.aLike);
       setNbLikes(res.data.nbLikes);
+      if ((res.data as any).gamification) applyDelta((res.data as any).gamification);
     }
   };
 
@@ -252,6 +257,7 @@ export default function PublicationDetail() {
       setNewComment('');
       setReplyingTo(null);
       await chargerCommentaires();
+      if ((res.data as any)?.gamification) applyDelta((res.data as any).gamification);
     }
     setSending(false);
   };

@@ -7,6 +7,8 @@ import {
   Pencil, X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useGamification } from '../contexts/GamificationContext';
+import LevelBadge from '../components/LevelBadge';
 import { getPublicationsUtilisateur } from '../services/publications';
 import type { Publication } from '../services/publications';
 import { getMesAmis } from '../services/utilisateurs';
@@ -42,6 +44,7 @@ function getUserBadge(role?: string, statut?: string) {
 
 export default function Profil() {
   const { utilisateur, setUtilisateur } = useAuth();
+  const { state: gamState } = useGamification();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('publications');
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -140,6 +143,14 @@ export default function Profil() {
                   </span>
                 );
               })()}
+              {gamState && (
+                <LevelBadge
+                  level={gamState.level}
+                  levelName={gamState.levelName}
+                  levelIcon={gamState.levelIcon}
+                  size="sm"
+                />
+              )}
             </div>
 
             {/* Bio with pencil edit button */}
