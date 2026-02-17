@@ -223,7 +223,7 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: espacements.md,
-    paddingTop: 20,
+    paddingTop: 36,
     paddingBottom: 12,
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
