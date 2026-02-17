@@ -181,6 +181,7 @@ export default memo(NextAction);
 const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginHorizontal: espacements.md,
+    marginTop: 14,
     marginBottom: espacements.md,
   },
   card: {
