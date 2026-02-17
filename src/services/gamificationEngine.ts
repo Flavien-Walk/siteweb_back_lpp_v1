@@ -93,7 +93,11 @@ export function getLevelInfo(level: number, role: 'visiteur' | 'entrepreneur') {
 export interface QuestDefinition {
   questId: string;
   title: string;
+  /** Titre pour les cycles suivants avec {n} comme placeholder (ex: "Explorer {n} projets") */
+  titleCycle?: string;
   description: string;
+  /** Description pour les cycles suivants */
+  descriptionCycle?: string;
   targetAction: GamificationEventType;
   targetCount: number;
   xpReward: number;
@@ -110,13 +114,13 @@ export interface QuestDefinition {
 export const QUEST_DEFINITIONS: QuestDefinition[] = [
   // === QUETES RAPIDES (affichees sur la Home, rotent selon progression) ===
   // Visiteur
-  { questId: 'quick_view_project', title: 'Decouvrir un projet', description: 'Visitez la fiche d\'un projet', targetAction: 'view_project', targetCount: 1, xpReward: 5, audience: 'all', isQuick: true, order: 1, icon: 'eye-outline', color: '#3B82F6', mobileAction: 'discover' },
-  { questId: 'quick_follow_project', title: 'Suivre un projet', description: 'Suivez un projet qui vous inspire', targetAction: 'follow_project', targetCount: 1, xpReward: 8, audience: 'all', isQuick: true, order: 2, icon: 'heart-outline', color: '#EF4444', mobileAction: 'discover' },
-  { questId: 'quick_like_post', title: 'Aimer un post', description: 'Likez une publication dans le feed', targetAction: 'like_post', targetCount: 1, xpReward: 4, audience: 'all', isQuick: true, order: 3, icon: 'thumbs-up-outline', color: '#F59E0B', mobileAction: 'feed' },
-  { questId: 'quick_comment', title: 'Commenter un post', description: 'Partagez votre avis sur un post', targetAction: 'comment_post', targetCount: 1, xpReward: 8, audience: 'all', isQuick: true, order: 4, icon: 'chatbubble-outline', color: '#8B5CF6', mobileAction: 'feed' },
-  { questId: 'quick_follow_user', title: 'Se faire un ami', description: 'Envoyez une demande d\'ami', targetAction: 'add_friend', targetCount: 1, xpReward: 6, audience: 'all', isQuick: true, order: 5, icon: 'person-add-outline', color: '#10B981', mobileAction: 'discover' },
-  { questId: 'quick_view_3_projects', title: 'Explorer 3 projets', description: 'Visitez 3 fiches projets differentes', targetAction: 'view_project', targetCount: 3, xpReward: 15, audience: 'all', isQuick: true, order: 6, icon: 'rocket-outline', color: '#7C5CFF', mobileAction: 'discover' },
-  { questId: 'quick_create_post', title: 'Publier un post', description: 'Partagez quelque chose avec la communaute', targetAction: 'create_post', targetCount: 1, xpReward: 10, audience: 'all', isQuick: true, order: 7, icon: 'create-outline', color: '#2DE2E6', mobileAction: 'create_post' },
+  { questId: 'quick_view_project', title: 'Decouvrir un projet', titleCycle: 'Explorer {n} projets', description: 'Visitez la fiche d\'un projet', descriptionCycle: 'Visitez {n} fiches projets differentes', targetAction: 'view_project', targetCount: 1, xpReward: 5, audience: 'all', isQuick: true, order: 1, icon: 'eye-outline', color: '#3B82F6', mobileAction: 'discover' },
+  { questId: 'quick_follow_project', title: 'Suivre un projet', titleCycle: 'Suivre {n} projets', description: 'Suivez un projet qui vous inspire', descriptionCycle: 'Suivez {n} projets qui vous inspirent', targetAction: 'follow_project', targetCount: 1, xpReward: 8, audience: 'all', isQuick: true, order: 2, icon: 'heart-outline', color: '#EF4444', mobileAction: 'discover' },
+  { questId: 'quick_like_post', title: 'Aimer un post', titleCycle: 'Aimer {n} posts', description: 'Likez une publication dans le feed', descriptionCycle: 'Likez {n} publications dans le feed', targetAction: 'like_post', targetCount: 1, xpReward: 4, audience: 'all', isQuick: true, order: 3, icon: 'thumbs-up-outline', color: '#F59E0B', mobileAction: 'feed' },
+  { questId: 'quick_comment', title: 'Commenter un post', titleCycle: 'Commenter {n} posts', description: 'Partagez votre avis sur un post', descriptionCycle: 'Partagez votre avis sur {n} posts', targetAction: 'comment_post', targetCount: 1, xpReward: 8, audience: 'all', isQuick: true, order: 4, icon: 'chatbubble-outline', color: '#8B5CF6', mobileAction: 'feed' },
+  { questId: 'quick_follow_user', title: 'Se faire un ami', titleCycle: 'Se faire {n} amis', description: 'Envoyez une demande d\'ami', descriptionCycle: 'Envoyez {n} demandes d\'ami', targetAction: 'add_friend', targetCount: 1, xpReward: 6, audience: 'all', isQuick: true, order: 5, icon: 'person-add-outline', color: '#10B981', mobileAction: 'discover' },
+  { questId: 'quick_view_3_projects', title: 'Explorer 3 projets', titleCycle: 'Explorer {n} projets', description: 'Visitez 3 fiches projets differentes', descriptionCycle: 'Visitez {n} fiches projets differentes', targetAction: 'view_project', targetCount: 3, xpReward: 15, audience: 'all', isQuick: true, order: 6, icon: 'rocket-outline', color: '#7C5CFF', mobileAction: 'discover' },
+  { questId: 'quick_create_post', title: 'Publier un post', titleCycle: 'Publier {n} posts', description: 'Partagez quelque chose avec la communaute', descriptionCycle: 'Partagez {n} publications avec la communaute', targetAction: 'create_post', targetCount: 1, xpReward: 10, audience: 'all', isQuick: true, order: 7, icon: 'create-outline', color: '#2DE2E6', mobileAction: 'create_post' },
   // Entrepreneur specifique
   { questId: 'quick_create_project', title: 'Creer votre projet', description: 'Lancez votre startup sur la plateforme', targetAction: 'create_project', targetCount: 1, xpReward: 25, audience: 'entrepreneur', isQuick: true, order: 8, icon: 'business-outline', color: '#F59E0B', mobileAction: 'entrepreneur' },
   { questId: 'quick_publish_project', title: 'Publier votre projet', description: 'Rendez votre projet visible a tous', targetAction: 'publish_project', targetCount: 1, xpReward: 35, audience: 'entrepreneur', isQuick: true, order: 9, icon: 'megaphone-outline', color: '#10B981', mobileAction: 'entrepreneur' },
@@ -339,12 +343,15 @@ export async function applyGamificationEvent(
       }
     }
 
-    // 9. Calculer XP bonus pour quetes completees
+    // 9. Calculer XP bonus pour quetes completees (proportionnel au cycle)
     let questXpBonus = 0;
     for (const q of questsUpdated) {
       if (q.completedAt) {
         const def = QUEST_DEFINITIONS.find(d => d.questId === q.questId);
-        if (def) questXpBonus += def.xpReward;
+        if (def) {
+          const cycleScale = q.target > def.targetCount ? Math.ceil(q.target / def.targetCount) : 1;
+          questXpBonus += def.xpReward * cycleScale;
+        }
       }
     }
 
@@ -428,12 +435,14 @@ export async function applyGamificationEvent(
 /**
  * Assigner les quetes rapides a un utilisateur.
  * Appelé lors du GET /gamification/me et /quick-quests.
- * Recycle les quetes completees quand le pool est epuise (nouveau cycle).
+ * Quand le pool du cycle courant est epuise, demarre un nouveau cycle
+ * avec des objectifs multiplies (cycle 2 = x2, cycle 3 = x3, etc.).
  */
 export function assignQuickQuests(
   role: 'visiteur' | 'entrepreneur',
   existingQuests: IQuestProgress[],
-): IQuestProgress[] {
+  cycle: number = 1,
+): { quests: IQuestProgress[], newCycleStarted: boolean } {
   const completedIds = new Set(existingQuests.filter(q => q.completedAt).map(q => q.questId));
   const activeIds = new Set(existingQuests.filter(q => !q.completedAt).map(q => q.questId));
 
@@ -443,30 +452,43 @@ export function assignQuickQuests(
     .filter(d => d.audience === 'all' || d.audience === role)
     .sort((a, b) => a.order - b.order);
 
-  // D'abord les quetes jamais faites ou pas en cours
-  let available = allQuickDefs
-    .filter(d => !completedIds.has(d.questId) && !activeIds.has(d.questId));
-
   // Garder les quetes actives non completees
   const activeNonComplete = existingQuests.filter(q => !q.completedAt);
-
-  // Completer a 3 quetes actives
   const needed = 3 - activeNonComplete.length;
 
-  // Si le pool est epuise, recycler les quetes completees (nouveau cycle)
-  if (available.length < needed && completedIds.size > 0) {
-    const recycled = allQuickDefs
-      .filter(d => completedIds.has(d.questId) && !activeIds.has(d.questId));
-    available = [...available, ...recycled];
+  if (needed <= 0) {
+    return { quests: activeNonComplete.slice(0, 3), newCycleStarted: false };
   }
 
-  const newQuests: IQuestProgress[] = available.slice(0, Math.max(0, needed)).map(d => ({
+  // Quetes pas encore faites ni en cours dans le cycle courant
+  const available = allQuickDefs
+    .filter(d => !completedIds.has(d.questId) && !activeIds.has(d.questId));
+
+  if (available.length > 0) {
+    // Encore des quetes dans le pool courant
+    const newQuests: IQuestProgress[] = available.slice(0, needed).map(d => ({
+      questId: d.questId,
+      progress: 0,
+      target: d.targetCount * cycle,
+    }));
+    return { quests: [...activeNonComplete, ...newQuests], newCycleStarted: false };
+  }
+
+  // Pool epuise → nouveau cycle avec objectifs multiplies
+  // Seules les quetes avec titleCycle sont recyclables (pas les one-shot entrepreneur)
+  const recyclable = allQuickDefs.filter(d => d.titleCycle);
+  if (recyclable.length === 0) {
+    return { quests: activeNonComplete, newCycleStarted: false };
+  }
+
+  const nextCycle = cycle + 1;
+  const newQuests: IQuestProgress[] = recyclable.slice(0, 3).map(d => ({
     questId: d.questId,
     progress: 0,
-    target: d.targetCount,
+    target: d.targetCount * nextCycle,
   }));
 
-  return [...activeNonComplete, ...newQuests];
+  return { quests: newQuests, newCycleStarted: true };
 }
 
 /**

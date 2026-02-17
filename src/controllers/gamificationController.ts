@@ -115,7 +115,7 @@ export const getMyGamification = async (req: Request, res: Response): Promise<vo
         };
 
         // Assigner quetes puis pre-remplir
-        const quickQuests = assignQuickQuests(gamDoc.roleContext, []);
+        const { quests: quickQuests } = assignQuickQuests(gamDoc.roleContext, [], 1);
         const chapterQuests = assignChapterQuests(gamDoc.roleContext, []);
         prePopulateQuests(quickQuests);
         prePopulateQuests(chapterQuests);
@@ -154,8 +154,13 @@ export const getMyGamification = async (req: Request, res: Response): Promise<vo
     // Assigner les quetes rapides si necessaire (< 3 actives non completees)
     const activeQuickNonComplete = gamDoc.activeQuickQuests.filter(q => !q.completedAt);
     if (activeQuickNonComplete.length < 3) {
-      const newQuickQuests = assignQuickQuests(gamDoc.roleContext, gamDoc.activeQuickQuests);
+      const { quests: newQuickQuests, newCycleStarted } = assignQuickQuests(
+        gamDoc.roleContext, gamDoc.activeQuickQuests, gamDoc.quickQuestCycle
+      );
       gamDoc.activeQuickQuests = newQuickQuests as any;
+      if (newCycleStarted) {
+        gamDoc.quickQuestCycle += 1;
+      }
       await gamDoc.save();
     }
 
@@ -170,18 +175,32 @@ export const getMyGamification = async (req: Request, res: Response): Promise<vo
     const xpInLevel = gamDoc.xp - getXpForLevel(gamDoc.level);
     const xpForNext = getXpForNextLevel(gamDoc.level);
 
-    // Enrichir les quetes avec les definitions
+    // Enrichir les quetes avec les definitions (titres dynamiques selon cycle)
     const enrichQuest = (q: any) => {
       const def = QUEST_DEFINITIONS.find(d => d.questId === q.questId);
+
+      // Utiliser les titres de cycle si target > base (quete recyclee)
+      let title = def?.title || q.questId;
+      let description = def?.description || '';
+      if (def && q.target > def.targetCount && def.titleCycle) {
+        title = def.titleCycle.replace('{n}', String(q.target));
+      }
+      if (def && q.target > def.targetCount && def.descriptionCycle) {
+        description = def.descriptionCycle.replace('{n}', String(q.target));
+      }
+
+      // XP proportionnel au cycle
+      const cycleScale = def && q.target > def.targetCount ? Math.ceil(q.target / def.targetCount) : 1;
+
       return {
         questId: q.questId,
-        title: def?.title || q.questId,
-        description: def?.description || '',
+        title,
+        description,
         icon: def?.icon || 'flag-outline',
         color: def?.color || '#7C5CFF',
         progress: q.progress,
         target: q.target,
-        xpReward: def?.xpReward || 0,
+        xpReward: (def?.xpReward || 0) * cycleScale,
         isCompleted: !!q.completedAt,
         mobileAction: def?.mobileAction || null,
         chapter: def?.chapter || null,
@@ -247,25 +266,42 @@ export const getQuickQuests = async (req: Request, res: Response): Promise<void>
 
     const enrichQuest = (q: any) => {
       const def = QUEST_DEFINITIONS.find(d => d.questId === q.questId);
+
+      let title = def?.title || q.questId;
+      let description = def?.description || '';
+      if (def && q.target > def.targetCount && def.titleCycle) {
+        title = def.titleCycle.replace('{n}', String(q.target));
+      }
+      if (def && q.target > def.targetCount && def.descriptionCycle) {
+        description = def.descriptionCycle.replace('{n}', String(q.target));
+      }
+
+      const cycleScale = def && q.target > def.targetCount ? Math.ceil(q.target / def.targetCount) : 1;
+
       return {
         questId: q.questId,
-        title: def?.title || q.questId,
-        description: def?.description || '',
+        title,
+        description,
         icon: def?.icon || 'flag-outline',
         color: def?.color || '#7C5CFF',
         progress: q.progress,
         target: q.target,
-        xpReward: def?.xpReward || 0,
+        xpReward: (def?.xpReward || 0) * cycleScale,
         isCompleted: !!q.completedAt,
         mobileAction: def?.mobileAction || null,
       };
     };
 
-    // Reassigner si moins de 3 actives non completees (recycle si pool epuise)
+    // Reassigner si moins de 3 actives non completees (cycle progressif)
     const activeNonComplete = gamDoc.activeQuickQuests.filter(q => !q.completedAt);
     if (activeNonComplete.length < 3) {
-      const refreshed = assignQuickQuests(gamDoc.roleContext, gamDoc.activeQuickQuests);
+      const { quests: refreshed, newCycleStarted } = assignQuickQuests(
+        gamDoc.roleContext, gamDoc.activeQuickQuests, gamDoc.quickQuestCycle
+      );
       gamDoc.activeQuickQuests = refreshed as any;
+      if (newCycleStarted) {
+        gamDoc.quickQuestCycle += 1;
+      }
       await gamDoc.save();
     }
 

@@ -35,6 +35,7 @@ export interface IUserGamification extends Document {
   lastActiveDate?: Date;
   onboarding: IOnboardingState;
   activeQuickQuests: IQuestProgress[];
+  quickQuestCycle: number;
   activeQuests: IQuestProgress[];
   lastEventsDedup: IDedupEntry[];
   dateCreation: Date;
@@ -118,6 +119,11 @@ const userGamificationSchema = new Schema<IUserGamification>(
     activeQuickQuests: {
       type: [questProgressSchema],
       default: [],
+    },
+    quickQuestCycle: {
+      type: Number,
+      default: 1,
+      min: 1,
     },
     activeQuests: {
       type: [questProgressSchema],
