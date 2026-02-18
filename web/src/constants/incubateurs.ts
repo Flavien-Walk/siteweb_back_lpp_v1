@@ -13,7 +13,7 @@ export const INCUBATEURS_FR: IncubateurInfo[] = [
   { nom: 'Agoranov', image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop&q=80' },
   { nom: 'Belle de Mai', image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=400&h=300&fit=crop&q=80' },
   { nom: 'Bpifrance Le Hub', image: 'https://images.unsplash.com/photo-1553877522-43269d4ea984?w=400&h=300&fit=crop&q=80' },
-  { nom: 'Centre d'Entrepreneuriat Lyon Saint-Etienne', image: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&h=300&fit=crop&q=80' },
+  { nom: "Centre d'Entrepreneuriat Lyon Saint-Etienne", image: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&h=300&fit=crop&q=80' },
   { nom: 'Creative Valley', image: 'https://images.unsplash.com/photo-1531973576160-7125cd663d86?w=400&h=300&fit=crop&q=80' },
   { nom: 'Dauphine Incubateur', image: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=400&h=300&fit=crop&q=80' },
   { nom: 'ESSEC Ventures', image: 'https://images.unsplash.com/photo-1523050854058-8df90110c476?w=400&h=300&fit=crop&q=80' },
