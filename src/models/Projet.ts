@@ -70,6 +70,7 @@ export interface IProjet extends Document {
     lat: number;
     lng: number;
   };
+  incubateur?: string;
 
   // --- Étape B: Porteur(s) de projet ---
   porteur: mongoose.Types.ObjectId; // Propriétaire principal
@@ -307,6 +308,11 @@ const projetSchema = new Schema<IProjet>(
       lat: { type: Number, default: 0, validate: latitudeValidator },
       lng: { type: Number, default: 0, validate: longitudeValidator },
     },
+    incubateur: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
 
     // --- Étape B: Porteur(s) de projet ---
     porteur: {
@@ -437,6 +443,7 @@ projetSchema.index({ 'localisation.ville': 1 });
 projetSchema.index({ nom: 'text', description: 'text', pitch: 'text' });
 projetSchema.index({ porteur: 1 }); // Pour récupérer les projets d'un utilisateur
 projetSchema.index({ porteur: 1, statut: 1 }); // Projets d'un entrepreneur par statut
+projetSchema.index({ incubateur: 1 }); // Pour filtrer par incubateur
 
 const Projet = mongoose.model<IProjet>('Projet', projetSchema);
 

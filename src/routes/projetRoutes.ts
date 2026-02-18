@@ -14,6 +14,7 @@ import {
   uploadMediaProjet,
   uploadDocumentProjet,
   getRepresentantsProjet,
+  getIncubateursActifs,
 } from '../controllers/projetController.js';
 import { verifierJwt, chargerUtilisateurOptionnel } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -88,6 +89,12 @@ router.post('/entrepreneur/:id/upload-document', verifierJwt, checkUserStatus, c
  * Mes projets suivis
  */
 router.get('/suivis', verifierJwt, checkUserStatus, mesProjets);
+
+/**
+ * GET /api/projets/incubateurs
+ * Liste des incubateurs actifs (avec au moins un projet publié)
+ */
+router.get('/incubateurs', getIncubateursActifs);
 
 /**
  * GET /api/projets

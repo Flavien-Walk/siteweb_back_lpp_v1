@@ -7,6 +7,7 @@ import Report from '../models/Report.js';
 import { uploadPublicationMedias, uploadPublicationMedia, isBase64MediaDataUrl } from '../utils/cloudinary.js';
 import AuditLog from '../models/AuditLog.js';
 import { applyGamificationEvent } from '../services/gamificationEngine.js';
+import { INCUBATEURS_FR } from '../constants/incubateurs.js';
 
 // =====================================================
 // HELPERS
@@ -56,6 +57,8 @@ export const listerProjets = async (req: Request, res: Response): Promise<void> 
     if (typeof categorie === 'string') filtre.categorie = categorie;
     if (typeof secteur === 'string') filtre.secteur = secteur;
     if (typeof maturite === 'string') filtre.maturite = maturite;
+    const incubateur = req.query.incubateur;
+    if (typeof incubateur === 'string') filtre.incubateur = incubateur;
     if (typeof q === 'string' && q.trim()) {
       const searchRegex = new RegExp(escapeRegex(q.trim().slice(0, 100)), 'i');
       filtre.$or = [
@@ -427,6 +430,14 @@ export const creerProjet = async (req: Request, res: Response): Promise<void> =>
       progression: 0,
     };
 
+    // Incubateur optionnel — valider contre la liste
+    if (req.body.incubateur) {
+      const inc = String(req.body.incubateur).trim();
+      if (INCUBATEURS_FR.includes(inc)) {
+        projetData.incubateur = inc;
+      }
+    }
+
     const projet = new Projet(projetData);
     await projet.save();
 
@@ -478,7 +489,7 @@ export const modifierProjet = async (req: Request, res: Response): Promise<void>
     // Owner: tous les champs
     const champsOwner = [
       // Étape A - Identité
-      'nom', 'description', 'pitch', 'logo', 'categorie', 'secteur', 'tags', 'localisation',
+      'nom', 'description', 'pitch', 'logo', 'categorie', 'secteur', 'tags', 'localisation', 'incubateur',
       // Étape C - Proposition de valeur
       'probleme', 'solution', 'avantageConcurrentiel', 'cible',
       // Étape D - Traction & business
@@ -1039,6 +1050,26 @@ export const getRepresentantsProjet = async (req: Request, res: Response): Promi
     });
   } catch (error) {
     console.error('Erreur getRepresentantsProjet:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * GET /api/projets/incubateurs
+ * Liste des incubateurs ayant au moins un projet publié, avec le nombre de projets
+ */
+export const getIncubateursActifs = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const resultats = await Projet.aggregate([
+      { $match: { statut: 'published', incubateur: { $exists: true, $nin: [null, ''] } } },
+      { $group: { _id: '$incubateur', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $project: { _id: 0, nom: '$_id', count: 1 } },
+    ]);
+
+    res.json({ succes: true, data: { incubateurs: resultats } });
+  } catch (error) {
+    console.error('Erreur getIncubateursActifs:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };
