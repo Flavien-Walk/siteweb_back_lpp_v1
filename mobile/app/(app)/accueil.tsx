@@ -1993,53 +1993,6 @@ export default function Accueil() {
         </View>
       )}
 
-      {/* Section Incubateurs */}
-      {categorieFiltre === 'all' && !rechercheProjet && !incubateurFiltre && (
-        <View style={styles.decouvrirSection}>
-          <View style={styles.decouvrirSectionHeader}>
-            <Ionicons name="business" size={18} color="#8B5CF6" />
-            <Text style={styles.decouvrirSectionTitle}>Incubateurs</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.decouvrirTrendingScroll}>
-            {INCUBATEURS_FR.map((inc) => {
-              const actif = incubateursActifs.find(a => a.nom === inc.nom);
-              const count = actif?.count || 0;
-              return (
-                <Pressable
-                  key={inc.nom}
-                  style={styles.decouvrirTrendingCard}
-                  onPress={() => {
-                    setIncubateurFiltre(inc.nom);
-                    chargerProjets(categorieFiltre, rechercheProjetDebounced, inc.nom);
-                  }}
-                >
-                  {inc.image ? (
-                    <Image source={{ uri: inc.image }} style={styles.decouvrirTrendingImage} resizeMode="cover" />
-                  ) : (
-                    <LinearGradient
-                      colors={['#8B5CF6', '#6D28D9']}
-                      style={styles.decouvrirTrendingImagePlaceholder}
-                    >
-                      <Ionicons name="business" size={28} color="rgba(255,255,255,0.6)" />
-                    </LinearGradient>
-                  )}
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.85)']}
-                    style={styles.decouvrirTrendingOverlay}
-                  >
-                    <Text style={styles.decouvrirTrendingNom} numberOfLines={2}>{inc.nom}</Text>
-                    <View style={styles.decouvrirTrendingStat}>
-                      <Ionicons name="rocket" size={11} color="rgba(255,255,255,0.7)" />
-                      <Text style={styles.decouvrirTrendingStatText}>{count} projet{count > 1 ? 's' : ''}</Text>
-                    </View>
-                  </LinearGradient>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
       {/* Section Trending */}
       {projetsTendance.length > 0 && categorieFiltre === 'all' && !rechercheProjet && (
         <View style={styles.decouvrirSection}>
@@ -2084,6 +2037,44 @@ export default function Accueil() {
                         <Ionicons name="people" size={11} color="rgba(255,255,255,0.7)" />
                         <Text style={styles.decouvrirTrendingStatText}>{projet.nbFollowers}</Text>
                       </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Section Incubateurs */}
+      {categorieFiltre === 'all' && !rechercheProjet && !incubateurFiltre && (
+        <View style={styles.decouvrirSection}>
+          <View style={styles.decouvrirSectionHeader}>
+            <Ionicons name="business" size={18} color="#8B5CF6" />
+            <Text style={styles.decouvrirSectionTitle}>Incubateurs</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.decouvrirTrendingScroll}>
+            {INCUBATEURS_FR.map((inc) => {
+              const actif = incubateursActifs.find(a => a.nom === inc.nom);
+              const count = actif?.count || 0;
+              return (
+                <Pressable
+                  key={inc.nom}
+                  style={styles.decouvrirTrendingCard}
+                  onPress={() => {
+                    setIncubateurFiltre(inc.nom);
+                    chargerProjets(categorieFiltre, rechercheProjetDebounced, inc.nom);
+                  }}
+                >
+                  <Image source={{ uri: inc.image }} style={styles.decouvrirTrendingImage} />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.85)']}
+                    style={styles.decouvrirTrendingOverlay}
+                  >
+                    <Text style={styles.decouvrirTrendingNom} numberOfLines={2}>{inc.nom}</Text>
+                    <View style={styles.decouvrirTrendingStat}>
+                      <Ionicons name="rocket" size={11} color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.decouvrirTrendingStatText}>{count} projet{count > 1 ? 's' : ''}</Text>
                     </View>
                   </LinearGradient>
                 </Pressable>

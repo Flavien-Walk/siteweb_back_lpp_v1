@@ -6,36 +6,36 @@
 
 export interface IncubateurInfo {
   nom: string;
-  image: string; // URL image/logo — vide = gradient fallback
+  image: string; // URL Unsplash cadree 400x300
 }
 
 export const INCUBATEURS_FR: IncubateurInfo[] = [
-  { nom: 'Agoranov', image: 'https://cdn.prod.website-files.com/5d1395ae389a340b0cc7a0d6/5d1395ae389a346b5ec7a1c5_Agoranov_Logo_Miniature_CMJN_BLANC.png' },
-  { nom: 'Belle de Mai', image: 'https://belledemai.org/wp-content/uploads/2023/06/cropped-logo-bdm-512.png' },
-  { nom: 'Bpifrance Le Hub', image: 'https://lehub.bpifrance.fr/wp-content/uploads/2023/01/lehub-logo.png' },
-  { nom: 'CELSE Lyon Saint-Etienne', image: 'https://centre-entrepreneuriat.universite-lyon.fr/uas/CENTREENT/LOGO/centre_entrepreneuriat_lse_quadri.png' },
-  { nom: 'Creative Valley', image: 'https://www.creativevalley.fr/wp-content/uploads/2021/06/logo-creative-valley.png' },
-  { nom: 'Dauphine Incubateur', image: 'https://dauphine.psl.eu/themes/custom/flavor/images/logo-dauphine.svg' },
-  { nom: 'ESSEC Ventures', image: 'https://www.essec.edu/media/essec-logo-share.jpg' },
-  { nom: 'Euratechnologies', image: 'https://bo.euratechnologies.com/assets/e74594b3-ad38-4f6d-abd4-7d070f291e51' },
-  { nom: 'Founders Future', image: 'https://cdn.prod.website-files.com/675b0f49e8a9aae0e5259468/6762e6fe970b3fb488872db1_illu.avif' },
-  { nom: 'HEC Incubateur', image: 'https://hec-prod-drupalfiles.oos.cloudgouv-eu-west-1.outscale.com/s3fs-public/inline-images/Logo%20Incubateur%20HEC%20Paris%20Blue.png' },
-  { nom: 'IMT Starter', image: 'https://www.imt.fr/wp-content/themes/starter-developer/assets/images/imt-logo.svg' },
-  { nom: 'IncubAlliance', image: 'https://www.incuballiance.fr/wp-content/themes/ikadia-theme-child/assets/images/logo.svg' },
-  { nom: 'Kanopee', image: '' },
-  { nom: 'La French Tech', image: 'https://lafrenchtech.com/wp-content/uploads/2020/11/LFT-share.png' },
-  { nom: 'Le Village by CA', image: 'https://levillagebyca.com/app/uploads/2023/06/Design-sans-titre-8-1024x726.png' },
-  { nom: 'Le Wagon', image: 'https://www.lewagon.com/assets/logo_lewagon-b1014bba2adfc0c30ddef2b93b24d4f73a5fd83e032f0755c4b3ecaabe9e3a04.png' },
-  { nom: 'NUMA', image: 'https://numa.co/images/logo-numa.svg' },
-  { nom: 'Paris Biotech Sante', image: '' },
-  { nom: 'Paris&Co', image: 'https://www.parisandco.paris/content/uploads/2023/02/logo-paris-co.svg' },
-  { nom: 'Plug and Play France', image: 'https://www.plugandplaytechcenter.com/images/logo-pnp.svg' },
-  { nom: 'Polytechnique X-UP', image: 'https://programmes.polytechnique.edu/sites/default/files/logo_polytechnique.png' },
-  { nom: 'Schoolab', image: 'https://www.theschoolab.com/wp-content/themes/developer-developer/assets/images/logo-schoolab.svg' },
-  { nom: 'Station F', image: 'https://s3.eu-west-3.amazonaws.com/stationf.co.prod/newsroom/covers/77bf0558-bf1a-423e-bd08-c7f9b2fdd92e.png' },
-  { nom: 'Techstars Paris', image: 'https://brand.techstars.com/img/logo/techstars-logo-primary.svg' },
-  { nom: 'The Family', image: '' },
-  { nom: 'Wilco', image: '' },
+  { nom: 'Agoranov', image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Belle de Mai', image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Bpifrance Le Hub', image: 'https://images.unsplash.com/photo-1553877522-43269d4ea984?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Centre d'Entrepreneuriat Lyon Saint-Etienne', image: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Creative Valley', image: 'https://images.unsplash.com/photo-1531973576160-7125cd663d86?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Dauphine Incubateur', image: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=400&h=300&fit=crop&q=80' },
+  { nom: 'ESSEC Ventures', image: 'https://images.unsplash.com/photo-1523050854058-8df90110c476?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Euratechnologies', image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Founders Future', image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=400&h=300&fit=crop&q=80' },
+  { nom: 'HEC Incubateur', image: 'https://images.unsplash.com/photo-1562774053-701939374585?w=400&h=300&fit=crop&q=80' },
+  { nom: 'IMT Starter', image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=400&h=300&fit=crop&q=80' },
+  { nom: 'IncubAlliance', image: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Kanopee', image: 'https://images.unsplash.com/photo-1473830394358-91588751b241?w=400&h=300&fit=crop&q=80' },
+  { nom: 'La French Tech', image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Le Village by CA', image: 'https://images.unsplash.com/photo-1577412647305-991150c7d163?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Le Wagon', image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&h=300&fit=crop&q=80' },
+  { nom: 'NUMA', image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Paris Biotech Sante', image: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Paris&Co', image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Plug and Play France', image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Polytechnique X-UP', image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Schoolab', image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Station F', image: 'https://images.unsplash.com/photo-1497215842964-222b430dc094?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Techstars Paris', image: 'https://images.unsplash.com/photo-1553028826-f4804a6dba3b?w=400&h=300&fit=crop&q=80' },
+  { nom: 'The Family', image: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=400&h=300&fit=crop&q=80' },
+  { nom: 'Wilco', image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop&q=80' },
 ];
 
 /** Liste des noms uniquement (pour validation) */
