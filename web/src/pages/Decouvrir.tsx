@@ -281,17 +281,11 @@ export default function Decouvrir() {
                   whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}
                   onClick={() => setIncubateurFiltre(inc.nom)}
                 >
-                  {inc.image ? (
-                    <img
-                      src={inc.image}
-                      alt={inc.nom}
-                      style={styles.tendanceImg}
-                    />
-                  ) : (
-                    <div style={{ ...styles.tendanceImg, background: 'linear-gradient(135deg, #8B5CF6, #6D28D9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Building2 size={28} color="rgba(255,255,255,0.6)" />
-                    </div>
-                  )}
+                  <img
+                    src={inc.image}
+                    alt={inc.nom}
+                    style={styles.tendanceImg}
+                  />
                   <div style={styles.tendanceBody}>
                     <span style={styles.tendanceName}>{inc.nom}</span>
                     <span style={styles.tendanceFollowers}>
