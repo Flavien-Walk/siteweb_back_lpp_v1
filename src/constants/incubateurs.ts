@@ -7,7 +7,7 @@ export const INCUBATEURS_FR: string[] = [
   'Agoranov',
   'Belle de Mai',
   'Bpifrance Le Hub',
-  'CELSE Lyon Saint-Etienne',
+  'Centre d\'Entrepreneuriat Lyon Saint-Etienne',
   'Creative Valley',
   'Dauphine Incubateur',
   'ESSEC Ventures',
