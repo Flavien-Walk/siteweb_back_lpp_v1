@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Users, TrendingUp, Filter, X, Heart, MessageCircle, Eye } from 'lucide-react';
+import { Search, MapPin, Users, TrendingUp, Filter, X, Heart, MessageCircle, Eye, Building2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getProjets, getProjetsTendance, toggleSuivreProjet } from '../services/projets';
-import type { Projet, CategorieProjet, MaturiteProjet } from '../services/projets';
+import { getProjets, getProjetsTendance, toggleSuivreProjet, getIncubateursActifs } from '../services/projets';
+import type { Projet, CategorieProjet, MaturiteProjet, IncubateurActif } from '../services/projets';
 import { couleurs } from '../styles/theme';
 
 const CATEGORIES: { value: CategorieProjet; label: string; emoji: string }[] = [
@@ -158,12 +158,19 @@ export default function Decouvrir() {
   const [categorie, setCategorie] = useState<CategorieProjet | ''>('');
   const [maturite, setMaturite] = useState<MaturiteProjet | ''>('');
   const [showFilters, setShowFilters] = useState(false);
+  const [incubateursActifs, setIncubateursActifs] = useState<IncubateurActif[]>([]);
+  const [incubateurFiltre, setIncubateurFiltre] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     getProjetsTendance(8).then((res) => {
       if (res.succes && res.data) {
         setTendances(res.data.projets);
+      }
+    });
+    getIncubateursActifs().then((res) => {
+      if (res.succes && res.data) {
+        setIncubateursActifs(res.data.incubateurs);
       }
     });
   }, []);
@@ -174,13 +181,14 @@ export default function Decouvrir() {
       q: search || undefined,
       categorie: categorie || undefined,
       maturite: maturite || undefined,
+      incubateur: incubateurFiltre || undefined,
       limit: 30,
     });
     if (res.succes && res.data) {
       setProjets(res.data.projets);
     }
     setLoading(false);
-  }, [search, categorie, maturite]);
+  }, [search, categorie, maturite, incubateurFiltre]);
 
   useEffect(() => {
     const timer = setTimeout(chargerProjets, 300);
@@ -191,9 +199,10 @@ export default function Decouvrir() {
     setCategorie('');
     setMaturite('');
     setSearch('');
+    setIncubateurFiltre('');
   };
 
-  const hasFilters = categorie || maturite || search;
+  const hasFilters = categorie || maturite || search || incubateurFiltre;
 
   const handleFollowChange = (id: string, estSuivi: boolean, nbFollowers: number) => {
     setProjets((prev) => prev.map((p) => p._id === id ? { ...p, estSuivi, nbFollowers } : p));
@@ -247,6 +256,56 @@ export default function Decouvrir() {
               </motion.div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Incubateurs */}
+      {incubateursActifs.length > 0 && !incubateurFiltre && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Building2 size={18} color="#8B5CF6" />
+            <span style={{ fontSize: 16, fontWeight: 600, color: couleurs.texte }}>Incubateurs</span>
+          </div>
+          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+            {incubateursActifs.map((inc) => (
+              <motion.div
+                key={inc.nom}
+                style={{
+                  minWidth: 140, padding: '14px 16px', borderRadius: 12,
+                  background: couleurs.fondCard, border: `1px solid ${couleurs.bordure}`,
+                  cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                }}
+                whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
+                onClick={() => setIncubateurFiltre(inc.nom)}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: 18,
+                  background: '#8B5CF620', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Building2 size={18} color="#8B5CF6" />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: couleurs.texte, whiteSpace: 'nowrap' }}>{inc.nom}</span>
+                <span style={{ fontSize: 11, color: couleurs.texteSecondaire }}>{inc.count} projet{inc.count > 1 ? 's' : ''}</span>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filtre incubateur actif */}
+      {incubateurFiltre && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+          background: '#8B5CF615', borderRadius: 8, marginBottom: 16,
+        }}>
+          <Building2 size={16} color="#8B5CF6" />
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#8B5CF6' }}>{incubateurFiltre}</span>
+          <button
+            onClick={() => setIncubateurFiltre('')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}
+          >
+            <X size={16} color="#8B5CF6" />
+          </button>
         </div>
       )}
 

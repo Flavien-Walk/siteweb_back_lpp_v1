@@ -64,6 +64,7 @@ export interface Projet {
   secteur: string;
   tags: string[];
   localisation: { ville: string; lat: number; lng: number };
+  incubateur?: string;
   porteur?: Porteur;
   equipe: MembreEquipe[];
   probleme?: string;
@@ -103,9 +104,15 @@ export interface FiltresProjets {
   categorie?: CategorieProjet;
   secteur?: string;
   maturite?: MaturiteProjet;
+  incubateur?: string;
   q?: string;
   page?: number;
   limit?: number;
+}
+
+export interface IncubateurActif {
+  nom: string;
+  count: number;
 }
 
 export const getProjets = async (filtres: FiltresProjets = {}): Promise<ReponseAPI<{ projets: Projet[]; pagination: PaginationData }>> => {
@@ -113,6 +120,7 @@ export const getProjets = async (filtres: FiltresProjets = {}): Promise<ReponseA
   if (filtres.categorie) params.append('categorie', filtres.categorie);
   if (filtres.secteur) params.append('secteur', filtres.secteur);
   if (filtres.maturite) params.append('maturite', filtres.maturite);
+  if (filtres.incubateur) params.append('incubateur', filtres.incubateur);
   if (filtres.q) params.append('q', filtres.q);
   if (filtres.page) params.append('page', filtres.page.toString());
   if (filtres.limit) params.append('limit', filtres.limit.toString());
@@ -152,6 +160,7 @@ export interface ProjetFormData {
   secteur?: string;
   tags?: string[];
   localisation?: { ville: string };
+  incubateur?: string;
   probleme?: string;
   solution?: string;
   avantageConcurrentiel?: string;
@@ -203,4 +212,8 @@ export const uploadDocumentProjet = async (id: string, document: { nom: string; 
 
 export const getRepresentantsProjet = async (id: string): Promise<ReponseAPI<{ representants: Porteur[] }>> => {
   return api.get(`/projets/${id}/representants`, false);
+};
+
+export const getIncubateursActifs = async (): Promise<ReponseAPI<{ incubateurs: IncubateurActif[] }>> => {
+  return api.get('/projets/incubateurs', true);
 };

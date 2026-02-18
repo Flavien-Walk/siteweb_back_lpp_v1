@@ -29,6 +29,7 @@ import type {
 import { getMesAmis } from '../services/utilisateurs';
 import type { ProfilUtilisateur } from '../services/utilisateurs';
 import { couleurs } from '../styles/theme';
+import { INCUBATEURS_FR } from '../constants/incubateurs';
 
 // ─── Constants ───
 
@@ -109,6 +110,8 @@ interface WizardData {
   metriques: Metrique[];
   liens: LienProjet[];
   pitchVideo: string;
+  estIncube: boolean;
+  incubateur: string;
   coverPreview: string;
   galeriePreview: string[];
 }
@@ -132,6 +135,8 @@ const emptyWizard: WizardData = {
   metriques: [],
   liens: [],
   pitchVideo: '',
+  estIncube: false,
+  incubateur: '',
   coverPreview: '',
   galeriePreview: [],
 };
@@ -254,6 +259,8 @@ export default function Entrepreneur() {
       metriques: projet.metriques || [],
       liens: projet.liens || [],
       pitchVideo: projet.pitchVideo || '',
+      estIncube: !!projet.incubateur,
+      incubateur: projet.incubateur || '',
       coverPreview: projet.image || '',
       galeriePreview: (projet.galerie || []).map((g) => g.url),
     });
@@ -319,6 +326,7 @@ export default function Entrepreneur() {
     if (wizardData.secteur.trim()) data.secteur = wizardData.secteur.trim();
     if (wizardData.tags.length > 0) data.tags = wizardData.tags;
     if (wizardData.ville.trim()) data.localisation = { ville: wizardData.ville.trim() };
+    if (wizardData.estIncube && wizardData.incubateur) data.incubateur = wizardData.incubateur;
     if (wizardData.probleme.trim()) data.probleme = wizardData.probleme.trim();
     if (wizardData.solution.trim()) data.solution = wizardData.solution.trim();
     if (wizardData.avantageConcurrentiel.trim()) data.avantageConcurrentiel = wizardData.avantageConcurrentiel.trim();
@@ -707,6 +715,39 @@ export default function Entrepreneur() {
         placeholder="Ville du projet"
         style={styles.input}
       />
+
+      {/* Incubateur */}
+      <div style={{ marginTop: 16 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 500, color: couleurs.texte }}>
+          <input
+            type="checkbox"
+            checked={wizardData.estIncube}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setWizardData({ ...wizardData, estIncube: checked, incubateur: checked ? wizardData.incubateur : '' });
+            }}
+            style={{ width: 18, height: 18, accentColor: couleurs.primaire }}
+          />
+          Ton projet est-il incube ?
+        </label>
+        {wizardData.estIncube && (
+          <div style={{ marginTop: 8 }}>
+            <input
+              type="text"
+              list="incubateurs-list"
+              value={wizardData.incubateur}
+              onChange={(e) => setWizardData({ ...wizardData, incubateur: e.target.value })}
+              placeholder="Selectionner un incubateur..."
+              style={styles.input}
+            />
+            <datalist id="incubateurs-list">
+              {INCUBATEURS_FR.map((inc) => (
+                <option key={inc} value={inc} />
+              ))}
+            </datalist>
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -1017,6 +1058,9 @@ export default function Entrepreneur() {
           <div style={styles.recapRow}><span style={styles.recapLabel}>Categorie:</span> <span style={styles.recapValue}>{catLabel || '-'}</span></div>
           <div style={styles.recapRow}><span style={styles.recapLabel}>Secteur:</span> <span style={styles.recapValue}>{wizardData.secteur || '-'}</span></div>
           <div style={styles.recapRow}><span style={styles.recapLabel}>Ville:</span> <span style={styles.recapValue}>{wizardData.ville || '-'}</span></div>
+          {wizardData.estIncube && wizardData.incubateur && (
+            <div style={styles.recapRow}><span style={styles.recapLabel}>Incubateur:</span> <span style={styles.recapValue}>{wizardData.incubateur}</span></div>
+          )}
           {wizardData.tags.length > 0 && (
             <div style={styles.recapRow}>
               <span style={styles.recapLabel}>Tags:</span>
