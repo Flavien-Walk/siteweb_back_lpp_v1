@@ -705,31 +705,31 @@ export default function NouveauProjetScreen() {
             />
             <View style={styles.categoriesGrid}>
               {INCUBATEURS_FR
-                .filter(inc => !incubateurRecherche || inc.toLowerCase().includes(incubateurRecherche.toLowerCase()))
+                .filter(inc => !incubateurRecherche || inc.nom.toLowerCase().includes(incubateurRecherche.toLowerCase()))
                 .map((inc) => (
                   <Pressable
-                    key={inc}
+                    key={inc.nom}
                     style={[
                       styles.categoryChip,
-                      formData.incubateur === inc && styles.categoryChipActive,
+                      formData.incubateur === inc.nom && styles.categoryChipActive,
                     ]}
                     onPress={() => {
-                      setFormData({ ...formData, incubateur: formData.incubateur === inc ? undefined : inc });
+                      setFormData({ ...formData, incubateur: formData.incubateur === inc.nom ? undefined : inc.nom });
                     }}
                   >
                     <Ionicons
                       name="business-outline"
                       size={16}
-                      color={formData.incubateur === inc ? '#FFFFFF' : couleurs.texte}
+                      color={formData.incubateur === inc.nom ? '#FFFFFF' : couleurs.texte}
                     />
                     <Text
                       style={[
                         styles.categoryChipText,
-                        formData.incubateur === inc && styles.categoryChipTextActive,
+                        formData.incubateur === inc.nom && styles.categoryChipTextActive,
                       ]}
                       numberOfLines={1}
                     >
-                      {inc}
+                      {inc.nom}
                     </Text>
                   </Pressable>
                 ))}
