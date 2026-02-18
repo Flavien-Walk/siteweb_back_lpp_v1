@@ -76,6 +76,7 @@ export interface Projet {
     lat: number;
     lng: number;
   };
+  incubateur?: string;
   // Étape B - Équipe
   porteur?: Porteur;
   equipe: MembreEquipe[];
@@ -126,6 +127,7 @@ export interface ProjetFormData {
     lat?: number;
     lng?: number;
   };
+  incubateur?: string;
   // Étape B
   equipe?: Omit<MembreEquipe, 'utilisateur'>[];
   // Étape C
@@ -158,9 +160,15 @@ export interface FiltresProjets {
   categorie?: CategorieProjet;
   secteur?: string;
   maturite?: MaturiteProjet;
+  incubateur?: string;
   q?: string;
   page?: number;
   limit?: number;
+}
+
+export interface IncubateurActif {
+  nom: string;
+  count: number;
 }
 
 export interface PaginationData {
@@ -182,6 +190,7 @@ export const getProjets = async (
   if (filtres.categorie) params.append('categorie', filtres.categorie);
   if (filtres.secteur) params.append('secteur', filtres.secteur);
   if (filtres.maturite) params.append('maturite', filtres.maturite);
+  if (filtres.incubateur) params.append('incubateur', filtres.incubateur);
   if (filtres.q) params.append('q', filtres.q);
   if (filtres.page) params.append('page', filtres.page.toString());
   if (filtres.limit) params.append('limit', filtres.limit.toString());
@@ -344,4 +353,11 @@ export const getRepresentantsProjet = async (
   id: string
 ): Promise<ReponseAPI<{ representants: Porteur[] }>> => {
   return api.get(`/projets/${id}/representants`, true);
+};
+
+/**
+ * Recuperer les incubateurs actifs (ayant au moins un projet publie)
+ */
+export const getIncubateursActifs = async (): Promise<ReponseAPI<{ incubateurs: IncubateurActif[] }>> => {
+  return api.get('/projets/incubateurs', true);
 };

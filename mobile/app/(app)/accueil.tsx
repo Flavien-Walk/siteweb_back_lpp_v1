@@ -67,6 +67,8 @@ import {
   toggleSuivreProjet,
   getMesProjetsEntrepreneur,
   StatsEntrepreneur,
+  getIncubateursActifs,
+  IncubateurActif,
 } from '../../src/services/projets';
 import {
   Evenement,
@@ -508,6 +510,8 @@ export default function Accueil() {
   const [categorieFiltre, setCategorieFiltre] = useState<CategorieProjet | 'all'>('all');
   const [rechercheProjet, setRechercheProjet] = useState('');
   const [rechercheProjetDebounced, setRechercheProjetDebounced] = useState('');
+  const [incubateursActifs, setIncubateursActifs] = useState<IncubateurActif[]>([]);
+  const [incubateurFiltre, setIncubateurFiltre] = useState<string | null>(null);
 
   // Debounce recherche projet (400ms)
   useEffect(() => {
@@ -937,24 +941,30 @@ export default function Accueil() {
     }
   };
 
-  const chargerProjets = async (filtreCategorie?: CategorieProjet | 'all', filtreRecherche?: string) => {
+  const chargerProjets = async (filtreCategorie?: CategorieProjet | 'all', filtreRecherche?: string, filtreIncubateur?: string | null) => {
     try {
       setChargementProjets(true);
       const cat = filtreCategorie ?? categorieFiltre;
       const q = filtreRecherche ?? rechercheProjet;
+      const inc = filtreIncubateur !== undefined ? filtreIncubateur : incubateurFiltre;
       const filtres: Record<string, any> = { limit: 20 };
       if (cat !== 'all') filtres.categorie = cat;
       if (q.trim()) filtres.q = q.trim();
+      if (inc) filtres.incubateur = inc;
 
-      const [projetsRes, tendanceRes] = await Promise.all([
+      const [projetsRes, tendanceRes, incubateursRes] = await Promise.all([
         getProjets(filtres),
         getProjetsTendance(5),
+        getIncubateursActifs(),
       ]);
       if (projetsRes.succes && projetsRes.data) {
         setProjets(projetsRes.data.projets);
       }
       if (tendanceRes.succes && tendanceRes.data) {
         setProjetsTendance(tendanceRes.data.projets);
+      }
+      if (incubateursRes.succes && incubateursRes.data) {
+        setIncubateursActifs(incubateursRes.data.incubateurs);
       }
     } catch (error) {
       if (__DEV__) console.error('Erreur chargement projets:', error);
@@ -1900,7 +1910,8 @@ export default function Accueil() {
 
   const handleCategorieChange = (cat: CategorieProjet | 'all') => {
     setCategorieFiltre(cat);
-    chargerProjets(cat, rechercheProjetDebounced);
+    setIncubateurFiltre(null);
+    chargerProjets(cat, rechercheProjetDebounced, null);
   };
 
   const handleRechercheProjetSubmit = useCallback(() => {
@@ -1963,6 +1974,65 @@ export default function Accueil() {
           );
         })}
       </ScrollView>
+
+      {/* Filtre incubateur actif */}
+      {incubateurFiltre && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: espacements.md, paddingVertical: espacements.xs, backgroundColor: couleurs.primaire + '15', gap: espacements.sm }}>
+          <Ionicons name="business" size={16} color={couleurs.primaire} />
+          <Text style={{ flex: 1, color: couleurs.primaire, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>{incubateurFiltre}</Text>
+          <Pressable
+            onPress={() => {
+              setIncubateurFiltre(null);
+              chargerProjets(categorieFiltre, rechercheProjetDebounced, null);
+            }}
+            hitSlop={8}
+          >
+            <Ionicons name="close-circle" size={20} color={couleurs.primaire} />
+          </Pressable>
+        </View>
+      )}
+
+      {/* Section Incubateurs */}
+      {incubateursActifs.length > 0 && categorieFiltre === 'all' && !rechercheProjet && !incubateurFiltre && (
+        <View style={styles.decouvrirSection}>
+          <View style={styles.decouvrirSectionHeader}>
+            <Ionicons name="business" size={18} color="#8B5CF6" />
+            <Text style={styles.decouvrirSectionTitle}>Incubateurs</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.decouvrirTrendingScroll}>
+            {incubateursActifs.map((inc) => (
+              <Pressable
+                key={inc.nom}
+                style={{
+                  backgroundColor: couleurs.fondCard,
+                  borderRadius: rayons.lg,
+                  padding: espacements.md,
+                  marginRight: espacements.sm,
+                  width: 150,
+                  borderWidth: 1,
+                  borderColor: couleurs.bordure,
+                  alignItems: 'center',
+                  gap: espacements.xs,
+                }}
+                onPress={() => {
+                  setIncubateurFiltre(inc.nom);
+                  chargerProjets(categorieFiltre, rechercheProjetDebounced, inc.nom);
+                }}
+              >
+                <View style={{
+                  width: 40, height: 40, borderRadius: 20,
+                  backgroundColor: '#8B5CF6' + '20',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Ionicons name="business" size={20} color="#8B5CF6" />
+                </View>
+                <Text style={{ color: couleurs.texte, fontWeight: '600', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>{inc.nom}</Text>
+                <Text style={{ color: couleurs.texteSecondaire, fontSize: 11 }}>{inc.count} projet{inc.count > 1 ? 's' : ''}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Section Trending */}
       {projetsTendance.length > 0 && categorieFiltre === 'all' && !rechercheProjet && (

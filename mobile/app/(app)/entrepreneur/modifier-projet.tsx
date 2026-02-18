@@ -44,6 +44,7 @@ import {
 } from '../../../src/services/projets';
 import * as DocumentPicker from 'expo-document-picker';
 import KeyboardView from '../../../src/composants/KeyboardView';
+import { INCUBATEURS_FR } from '../../../src/constantes/incubateurs';
 
 // Types pour les etapes (numeriques)
 type Etape = '1' | '2' | '3' | '4' | '5' | '6';
@@ -111,6 +112,10 @@ export default function ModifierProjetScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [projet, setProjet] = useState<Projet | null>(null);
+
+  // Incubateur
+  const [estIncube, setEstIncube] = useState(false);
+  const [incubateurRecherche, setIncubateurRecherche] = useState('');
 
   // Donnees du formulaire
   const [formData, setFormData] = useState<ProjetFormData>({
@@ -194,7 +199,9 @@ export default function ModifierProjetScreen() {
           objectif: p.objectif || '',
           metriques: p.metriques || [],
           liens: p.liens || [],
+          incubateur: p.incubateur || undefined,
         });
+        if (p.incubateur) setEstIncube(true);
         // Image existante
         if (p.image) {
           setCoverImage(p.image);
@@ -601,6 +608,74 @@ export default function ModifierProjetScreen() {
           placeholder="Ex: Lyon, Paris, Marseille..."
           placeholderTextColor={couleurs.texteSecondaire}
         />
+      </View>
+
+      {/* Incubateur */}
+      <View style={styles.inputGroup}>
+        <Pressable
+          style={{ flexDirection: 'row', alignItems: 'center', gap: espacements.sm }}
+          onPress={() => {
+            const next = !estIncube;
+            setEstIncube(next);
+            if (!next) {
+              setFormData({ ...formData, incubateur: undefined });
+              setIncubateurRecherche('');
+            }
+          }}
+        >
+          <View style={{
+            width: 22, height: 22, borderRadius: 4,
+            borderWidth: 2, borderColor: estIncube ? couleurs.primaire : couleurs.bordure,
+            backgroundColor: estIncube ? couleurs.primaire : 'transparent',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            {estIncube && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+          </View>
+          <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Ton projet est-il incube ?</Text>
+        </Pressable>
+
+        {estIncube && (
+          <View style={{ marginTop: espacements.sm }}>
+            <TextInput
+              style={styles.input}
+              value={incubateurRecherche}
+              onChangeText={setIncubateurRecherche}
+              placeholder="Rechercher un incubateur..."
+              placeholderTextColor={couleurs.texteSecondaire}
+            />
+            <View style={styles.categoriesGrid}>
+              {INCUBATEURS_FR
+                .filter(inc => !incubateurRecherche || inc.toLowerCase().includes(incubateurRecherche.toLowerCase()))
+                .map((inc) => (
+                  <Pressable
+                    key={inc}
+                    style={[
+                      styles.categoryChip,
+                      formData.incubateur === inc && styles.categoryChipActive,
+                    ]}
+                    onPress={() => {
+                      setFormData({ ...formData, incubateur: formData.incubateur === inc ? undefined : inc });
+                    }}
+                  >
+                    <Ionicons
+                      name="business-outline"
+                      size={16}
+                      color={formData.incubateur === inc ? '#FFFFFF' : couleurs.texte}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        formData.incubateur === inc && styles.categoryChipTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {inc}
+                    </Text>
+                  </Pressable>
+                ))}
+            </View>
+          </View>
+        )}
       </View>
 
       <View style={styles.inputGroup}>
@@ -1022,6 +1097,12 @@ export default function ModifierProjetScreen() {
             {MATURITES.find(m => m.value === formData.maturite)?.label || 'Idee'}
           </Text>
         </View>
+        {formData.incubateur && (
+          <View style={styles.recapRow}>
+            <Ionicons name="business-outline" size={16} color={couleurs.texteSecondaire} />
+            <Text style={styles.recapText}>{formData.incubateur}</Text>
+          </View>
+        )}
         <View style={styles.recapRow}>
           <Ionicons name="link-outline" size={16} color={couleurs.texteSecondaire} />
           <Text style={styles.recapText}>
