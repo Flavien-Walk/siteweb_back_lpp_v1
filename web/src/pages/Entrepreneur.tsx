@@ -742,7 +742,7 @@ export default function Entrepreneur() {
             />
             <datalist id="incubateurs-list">
               {INCUBATEURS_FR.map((inc) => (
-                <option key={inc} value={inc} />
+                <option key={inc.nom} value={inc.nom} />
               ))}
             </datalist>
           </div>

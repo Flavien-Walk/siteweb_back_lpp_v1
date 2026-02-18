@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Users, TrendingUp, Filter, X, Heart, MessageCircle, Eye, Building2 } from 'lucide-react';
+import { Search, MapPin, Users, TrendingUp, Filter, X, Heart, MessageCircle, Eye, Building2, Rocket } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getProjets, getProjetsTendance, toggleSuivreProjet, getIncubateursActifs } from '../services/projets';
 import type { Projet, CategorieProjet, MaturiteProjet, IncubateurActif } from '../services/projets';
 import { couleurs } from '../styles/theme';
+import { INCUBATEURS_FR } from '../constants/incubateurs';
 
 const CATEGORIES: { value: CategorieProjet; label: string; emoji: string }[] = [
   { value: 'tech', label: 'Tech', emoji: '💻' },
@@ -260,34 +261,46 @@ export default function Decouvrir() {
       )}
 
       {/* Incubateurs */}
-      {incubateursActifs.length > 0 && !incubateurFiltre && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      {!incubateurFiltre && (
+        <div style={styles.tendancesSection}>
+          <div style={styles.tendancesHeader}>
             <Building2 size={18} color="#8B5CF6" />
-            <span style={{ fontSize: 16, fontWeight: 600, color: couleurs.texte }}>Incubateurs</span>
+            <span style={styles.tendancesTitle}>Incubateurs</span>
           </div>
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
-            {incubateursActifs.map((inc) => (
-              <motion.div
-                key={inc.nom}
-                style={{
-                  minWidth: 140, padding: '14px 16px', borderRadius: 12,
-                  background: couleurs.fondCard, border: `1px solid ${couleurs.bordure}`,
-                  cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                }}
-                whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
-                onClick={() => setIncubateurFiltre(inc.nom)}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 18,
-                  background: '#8B5CF620', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Building2 size={18} color="#8B5CF6" />
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: couleurs.texte, whiteSpace: 'nowrap' }}>{inc.nom}</span>
-                <span style={{ fontSize: 11, color: couleurs.texteSecondaire }}>{inc.count} projet{inc.count > 1 ? 's' : ''}</span>
-              </motion.div>
-            ))}
+          <div style={styles.tendancesScroll}>
+            {INCUBATEURS_FR.map((inc, i) => {
+              const actif = incubateursActifs.find(a => a.nom === inc.nom);
+              const count = actif?.count || 0;
+              return (
+                <motion.div
+                  key={inc.nom}
+                  style={styles.tendanceCard}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}
+                  onClick={() => setIncubateurFiltre(inc.nom)}
+                >
+                  {inc.image ? (
+                    <img
+                      src={inc.image}
+                      alt={inc.nom}
+                      style={styles.tendanceImg}
+                    />
+                  ) : (
+                    <div style={{ ...styles.tendanceImg, background: 'linear-gradient(135deg, #8B5CF6, #6D28D9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Building2 size={28} color="rgba(255,255,255,0.6)" />
+                    </div>
+                  )}
+                  <div style={styles.tendanceBody}>
+                    <span style={styles.tendanceName}>{inc.nom}</span>
+                    <span style={styles.tendanceFollowers}>
+                      <Rocket size={12} /> {count} projet{count > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       )}
