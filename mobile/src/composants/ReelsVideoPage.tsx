@@ -271,7 +271,6 @@ export default function ReelsVideoPage({
         style={styles.video}
         resizeMode={ResizeMode.COVER}
         isLooping
-        shouldPlay={false}
         isMuted={isMuted}
         posterSource={posterUrl ? { uri: posterUrl } : undefined}
         posterStyle={styles.poster}

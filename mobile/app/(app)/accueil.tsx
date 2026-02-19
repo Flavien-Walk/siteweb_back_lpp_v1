@@ -2884,27 +2884,10 @@ export default function Accueil() {
     }
   };
 
-  /**
-   * KILL-SWITCH: Stop ALL videos immediately when scroll begins
-   * This prevents ghost audio by stopping everything before viewability recalculation
-   */
+  // Scroll begin: no kill-switch — videos keep playing until another post becomes dominant
+  // The debounced viewability tracking in handleScroll handles transitions cleanly
   const handleScrollBegin = useCallback(() => {
-    // Clear any pending viewability timeout
-    if (viewabilityTimeoutRef.current) {
-      clearTimeout(viewabilityTimeoutRef.current);
-      viewabilityTimeoutRef.current = null;
-    }
-
-    // Clear active post tracking
-    activePostIdRef.current = null;
-    pendingActivePostRef.current = null;
-
-    // Clear global active post ID (SOURCE OF TRUTH) and video URL FIRST
-    videoPlaybackStore.setActivePostId(null);
-    videoPlaybackStore.setActiveVideo(null);
-
-    // THEN hard stop all videos via registry
-    videoRegistry.stopAll().catch(() => {});
+    // No-op: let viewability tracking handle video switching
   }, []);
 
   const scrollToTop = () => {

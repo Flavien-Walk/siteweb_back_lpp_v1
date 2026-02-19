@@ -187,6 +187,39 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     }
   }, [onDoubleTapLike]);
 
+  // Handler pour ouvrir plein écran
+  // Capture position exacte via getStatusAsync pour fiabilité
+  const handleFullscreenPress = useCallback(async () => {
+    if (onVideoPress && videoRef.current) {
+      try {
+        const status = await videoRef.current.getStatusAsync();
+        if (status.isLoaded) {
+          await videoRef.current.pauseAsync();
+          onVideoPress({
+            videoUrl: item.url,
+            thumbnailUrl: item.thumbnailUrl,
+            positionMillis: status.positionMillis || 0,
+            isPlaying: status.isPlaying,
+          });
+        } else {
+          onVideoPress({
+            videoUrl: item.url,
+            thumbnailUrl: item.thumbnailUrl,
+            positionMillis: 0,
+            isPlaying: false,
+          });
+        }
+      } catch {
+        onVideoPress({
+          videoUrl: item.url,
+          thumbnailUrl: item.thumbnailUrl,
+          positionMillis: currentPositionRef.current,
+          isPlaying: isPlaying,
+        });
+      }
+    }
+  }, [onVideoPress, item.url, item.thumbnailUrl, isPlaying]);
+
   // Long press: pause while held, resume on release
   const handleLongPress = useCallback(() => {
     if (videoRef.current && isPlaying) {
@@ -208,44 +241,6 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     onSingleTap: onVideoPress ? handleFullscreenPress : togglePlayPause,
     delayMs: 250,
   });
-
-  // Handler pour ouvrir plein écran (UNIQUEMENT via bouton expand)
-  // Capture position exacte via getStatusAsync pour fiabilité
-  const handleFullscreenPress = useCallback(async () => {
-    if (onVideoPress && videoRef.current) {
-      try {
-        // Get fresh status just before opening fullscreen
-        const status = await videoRef.current.getStatusAsync();
-        if (status.isLoaded) {
-          // Pause preview video before opening fullscreen
-          await videoRef.current.pauseAsync();
-
-          onVideoPress({
-            videoUrl: item.url,
-            thumbnailUrl: item.thumbnailUrl,
-            positionMillis: status.positionMillis || 0,
-            isPlaying: status.isPlaying,
-          });
-        } else {
-          // Fallback if not loaded yet
-          onVideoPress({
-            videoUrl: item.url,
-            thumbnailUrl: item.thumbnailUrl,
-            positionMillis: 0,
-            isPlaying: false,
-          });
-        }
-      } catch {
-        // Fallback on error
-        onVideoPress({
-          videoUrl: item.url,
-          thumbnailUrl: item.thumbnailUrl,
-          positionMillis: currentPositionRef.current,
-          isPlaying: isPlaying,
-        });
-      }
-    }
-  }, [onVideoPress, item.url, item.thumbnailUrl, isPlaying]);
 
   // AUTO-RESYNC: Listen to store session changes (when fullscreen closes)
   useEffect(() => {
@@ -295,21 +290,13 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     }
   }, [syncPositionMillis, isLoaded]);
 
-  // CRITICAL: Hard stop video when not globally active OR not in view
-  // This prevents audio from playing when user scrolls away (ghost audio fix)
+  // Pause video when not globally active OR not in view
+  // Uses pauseAsync (preserves position) instead of stopAsync (resets to 0)
   useEffect(() => {
     const shouldBePlaying = isActive && isGloballyActive;
 
     if (!shouldBePlaying && videoRef.current && isPlaying) {
-      // Video is playing but shouldn't be - HARD STOP it immediately
-      (async () => {
-        try {
-          await videoRef.current?.setStatusAsync({ shouldPlay: false });
-          await videoRef.current?.stopAsync();
-        } catch {
-          // Ignore errors
-        }
-      })();
+      videoRef.current.pauseAsync().catch(() => {});
     }
 
     // Auto-play only if both locally active (in carousel) AND globally active
@@ -319,17 +306,10 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     }
   }, [isActive, isGloballyActive, autoPlayVideos, isPlaying]);
 
-  // Additional safety: hard stop immediately when losing global active status
+  // Safety: pause immediately when losing global active status
   useEffect(() => {
     if (!isGloballyActive && videoRef.current && isLoaded) {
-      (async () => {
-        try {
-          await videoRef.current?.setStatusAsync({ shouldPlay: false });
-          await videoRef.current?.stopAsync();
-        } catch {
-          // Ignore errors
-        }
-      })();
+      videoRef.current.pauseAsync().catch(() => {});
     }
   }, [isGloballyActive, isLoaded]);
 
