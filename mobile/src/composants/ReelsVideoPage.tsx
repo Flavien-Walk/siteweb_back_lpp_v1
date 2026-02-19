@@ -83,6 +83,8 @@ export default function ReelsVideoPage({
   // Refs pour acceder aux etats depuis les worklets
   const isPlayingRef = useRef(false);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  const isMutedRef = useRef(false);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
   const holdPausedRef = useRef(false);
 
   // Auto-hide mute icon after 800ms
@@ -176,13 +178,17 @@ export default function ReelsVideoPage({
   }, [liked, handleToggleLike]);
 
   const doToggleMute = useCallback(() => {
-    setIsMuted(prev => !prev);
+    const newMuted = !isMutedRef.current;
+    setIsMuted(newMuted);
     setShowMuteIcon(true);
+    // Imperative call — expo-av prop isMuted is not reliably reactive
+    videoRef.current?.setStatusAsync({ isMuted: newMuted }).catch(() => {});
   }, []);
 
   const doPauseForHold = useCallback(() => {
-    if (videoRef.current && isPlayingRef.current) {
-      videoRef.current.pauseAsync();
+    if (videoRef.current) {
+      // Always pause, regardless of isPlaying state (avoids buffering guard skip)
+      videoRef.current.setStatusAsync({ shouldPlay: false }).catch(() => {});
       holdPausedRef.current = true;
       setHoldPaused(true);
     }
@@ -190,7 +196,7 @@ export default function ReelsVideoPage({
 
   const doResumeAfterHold = useCallback(() => {
     if (videoRef.current && holdPausedRef.current) {
-      videoRef.current.playAsync();
+      videoRef.current.setStatusAsync({ shouldPlay: true }).catch(() => {});
       holdPausedRef.current = false;
       setHoldPaused(false);
     }
