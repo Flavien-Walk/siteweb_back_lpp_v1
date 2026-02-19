@@ -348,7 +348,6 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
             style={styles.media}
             resizeMode={ResizeMode.COVER}
             isLooping
-            isMuted
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
             posterSource={item.thumbnailUrl ? { uri: item.thumbnailUrl } : undefined}
             usePoster={!!item.thumbnailUrl}
