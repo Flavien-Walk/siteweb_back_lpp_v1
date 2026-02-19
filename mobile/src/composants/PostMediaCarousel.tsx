@@ -3,7 +3,7 @@
  * Affiche images et vidéos avec pagination dots et indicateur "1/5"
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -96,8 +96,9 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   const pendingSessionRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
   // Track registration status
   const isRegisteredRef = useRef(false);
-  // Track long-press-to-pause state (prevents autoplay from restarting)
+  // Track long-press-to-pause state
   const holdPausedRef = useRef(false);
+  const [holdPaused, setHoldPaused] = useState(false);
   // Unique ID for this video in the registry
   const videoId = `${postId}-${item.url}`;
 
@@ -220,18 +221,16 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     }
   }, [onVideoPress, item.url, item.thumbnailUrl, isPlaying]);
 
-  // Long press: pause while held, resume on release
+  // Long press: pause while held, resume on release (declarative via shouldPlay)
   const handleLongPress = useCallback(() => {
-    if (videoRef.current && isPlaying) {
-      videoRef.current.pauseAsync();
-      holdPausedRef.current = true;
-    }
-  }, [isPlaying]);
+    holdPausedRef.current = true;
+    setHoldPaused(true);
+  }, []);
 
   const handlePressOut = useCallback(() => {
-    if (holdPausedRef.current && videoRef.current) {
-      videoRef.current.playAsync();
+    if (holdPausedRef.current) {
       holdPausedRef.current = false;
+      setHoldPaused(false);
     }
   }, []);
 
@@ -290,46 +289,18 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     }
   }, [syncPositionMillis, isLoaded]);
 
-  // Pause video when not globally active OR not in view
-  // Uses pauseAsync (preserves position) instead of stopAsync (resets to 0)
-  useEffect(() => {
-    const shouldBePlaying = isActive && isGloballyActive;
+  // No imperative play/pause effects — shouldPlay prop on <Video> handles everything.
+  // This eliminates race conditions between effects and user gestures.
 
-    if (!shouldBePlaying && videoRef.current && isPlaying) {
-      videoRef.current.pauseAsync().catch(() => {});
-    }
+  // Memoize source objects to prevent expo-av from reloading on every render
+  const videoSource = useMemo(() => ({ uri: item.url }), [item.url]);
+  const videoPosterSource = useMemo(
+    () => item.thumbnailUrl ? { uri: item.thumbnailUrl } : undefined,
+    [item.thumbnailUrl]
+  );
 
-    // Auto-play only if both locally active (in carousel) AND globally active
-    // Skip if user is long-pressing to pause (holdPausedRef)
-    if (shouldBePlaying && autoPlayVideos && videoRef.current && !isPlaying && !holdPausedRef.current) {
-      videoRef.current.playAsync().catch(() => {});
-    }
-  }, [isActive, isGloballyActive, autoPlayVideos, isPlaying]);
-
-  // Safety: pause immediately when losing global active status
-  useEffect(() => {
-    if (!isGloballyActive && videoRef.current && isLoaded) {
-      videoRef.current.pauseAsync().catch(() => {});
-    }
-  }, [isGloballyActive, isLoaded]);
-
-  // Cleanup: hard stop on unmount (handled by registry registration effect above)
-  // This is a fallback in case registry cleanup fails
-  useEffect(() => {
-    return () => {
-      if (videoRef.current) {
-        // Hard stop: setStatusAsync + stopAsync
-        (async () => {
-          try {
-            await videoRef.current?.setStatusAsync({ shouldPlay: false });
-            await videoRef.current?.stopAsync();
-          } catch {
-            // Ignore errors on unmount
-          }
-        })();
-      }
-    };
-  }, []);
+  // Declarative shouldPlay — single source of truth, no race conditions
+  const feedShouldPlay = isActive && isGloballyActive && autoPlayVideos && !holdPaused;
 
   if (item.type === 'video') {
     return (
@@ -344,12 +315,13 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
         >
           <Video
             ref={videoRef}
-            source={{ uri: item.url }}
+            source={videoSource}
             style={styles.media}
             resizeMode={ResizeMode.COVER}
             isLooping
+            shouldPlay={feedShouldPlay}
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-            posterSource={item.thumbnailUrl ? { uri: item.thumbnailUrl } : undefined}
+            posterSource={videoPosterSource}
             usePoster={!!item.thumbnailUrl}
           />
           {showPlayButton && !autoPlayVideos && (

@@ -16,7 +16,7 @@
  * Cela elimine les race conditions entre useEffect et gestes utilisateur.
  */
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -90,6 +90,13 @@ export default function ReelsVideoPage({
   // ========= DECLARATIVE VIDEO CONTROL =========
   // Single source of truth: shouldPlay is computed from state, no imperative calls
   const shouldPlay = isActive && !holdPaused && !commentsVisible;
+
+  // Memoize source objects to prevent expo-av from reloading video on every re-render
+  const videoSource = useMemo(() => ({ uri: videoUrl }), [videoUrl]);
+  const videoPosterSource = useMemo(
+    () => posterUrl ? { uri: posterUrl } : undefined,
+    [posterUrl]
+  );
 
   // Auto-hide mute icon after 800ms
   useEffect(() => {
@@ -256,14 +263,14 @@ export default function ReelsVideoPage({
       {/* Couche 1 : Video — 100% declaratif, zero appel imperatif */}
       <Video
         ref={videoRef}
-        source={{ uri: videoUrl }}
+        source={videoSource}
         style={styles.video}
         resizeMode={ResizeMode.COVER}
         isLooping
         shouldPlay={shouldPlay}
         isMuted={isMuted}
         volume={isMuted ? 0.0 : 1.0}
-        posterSource={posterUrl ? { uri: posterUrl } : undefined}
+        posterSource={videoPosterSource}
         posterStyle={styles.poster}
         usePoster={!!posterUrl}
         onPlaybackStatusUpdate={handlePlaybackStatus}
