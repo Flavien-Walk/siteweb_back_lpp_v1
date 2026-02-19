@@ -2944,7 +2944,7 @@ export default function Accueil() {
       let hasVideo: boolean;
 
       if (isAdItem(item)) {
-        layoutKey = `ad:${item._id}`;
+        layoutKey = getFeedItemKey(item);
         videoPostId = `ad:${item._id}`;
         hasVideo = true; // ads are always video
       } else {
@@ -4589,107 +4589,6 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   },
   notificationTextErreur: {
     color: '#ef4444',
-  },
-
-  // Bottom Sheet Menu
-  bottomSheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  bottomSheetContainer: {
-    backgroundColor: couleurs.fondCard,
-    borderTopLeftRadius: rayons.xl,
-    borderTopRightRadius: rayons.xl,
-    paddingTop: espacements.sm,
-    paddingBottom: espacements.xl,
-    paddingHorizontal: espacements.lg,
-    maxHeight: '85%',
-  },
-  bottomSheetScroll: {
-    maxHeight: 400,
-  },
-  bottomSheetHandle: {
-    width: 36,
-    height: 4,
-    backgroundColor: couleurs.bordure,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: espacements.lg,
-  },
-  bottomSheetTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: couleurs.texte,
-    marginBottom: espacements.xs,
-  },
-  bottomSheetSubtitle: {
-    fontSize: 14,
-    color: couleurs.texteSecondaire,
-    marginBottom: espacements.lg,
-  },
-  staffBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    marginBottom: espacements.md,
-  },
-  staffBadgeText: {
-    color: '#6366f1',
-    fontSize: 11,
-    fontWeight: '700',
-    marginLeft: 6,
-    letterSpacing: 0.5,
-  },
-  bottomSheetItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: espacements.md,
-    gap: espacements.md,
-  },
-  bottomSheetItemPressed: {
-    opacity: 0.7,
-  },
-  bottomSheetIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: rayons.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bottomSheetTextContainer: {
-    flex: 1,
-  },
-  bottomSheetItemText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: couleurs.texte,
-  },
-  bottomSheetItemSubtext: {
-    fontSize: 13,
-    color: couleurs.texteSecondaire,
-    marginTop: 2,
-  },
-  bottomSheetSeparator: {
-    height: 1,
-    backgroundColor: couleurs.bordure,
-    marginVertical: espacements.sm,
-  },
-  bottomSheetCancelBtn: {
-    marginTop: espacements.lg,
-    paddingVertical: espacements.md,
-    backgroundColor: couleurs.fond,
-    borderRadius: rayons.md,
-    alignItems: 'center',
-  },
-  bottomSheetCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: couleurs.texteSecondaire,
   },
 
   // Edit post

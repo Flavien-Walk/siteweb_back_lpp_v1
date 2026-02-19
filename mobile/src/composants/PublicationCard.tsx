@@ -11,10 +11,8 @@ import {
   View,
   Text,
   Pressable,
-  ScrollView,
   Image,
   TextInput,
-  Modal,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,8 +31,6 @@ import {
   modifierCommentaire,
   supprimerPublication,
   modifierPublication,
-  signalerPublication,
-  RaisonSignalement,
 } from '../services/publications';
 import { sharePublication } from '../services/activity';
 import { formatRelativeDate } from '../utils/dateUtils';
@@ -45,6 +41,7 @@ import Avatar from './Avatar';
 import LikeButton, { LikeButtonCompact } from './LikeButton';
 import AnimatedPressable from './AnimatedPressable';
 import { StaffActions, PostMediaCarousel } from './index';
+import MoreActionsSheet from './MoreActionsSheet';
 import { Mention } from '../services/publications';
 
 // ============ TYPES ============
@@ -406,19 +403,6 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
     );
   }, [publication._id, onDelete, showNotification]);
 
-  const handleReportPost = useCallback(async (raison: RaisonSignalement) => {
-    setShowPostMenu(false);
-    try {
-      const reponse = await signalerPublication(publication._id, raison);
-      if (reponse.succes) {
-        showNotification('succes', 'Merci, signalement envoyé');
-      } else {
-        showNotification('erreur', reponse.message || 'Erreur lors du signalement');
-      }
-    } catch (error) {
-      showNotification('erreur', 'Impossible de signaler ce contenu');
-    }
-  }, [publication._id, showNotification]);
 
   // Handler pour ouvrir une vidéo en fullscreen
   const handleVideoPress = useCallback((params: { videoUrl: string; positionMillis: number; isPlaying: boolean }) => {
@@ -466,15 +450,6 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
       });
     }
   }, [publication, liked, nbLikes, nbComments, onOpenVideo, onOpenImage, onResetControlsTimeout, handleLike, handleToggleComments, handleShare]);
-
-  // ============ CONSTANTES ============
-  const raisonsSignalement: { value: RaisonSignalement; label: string; icon: string }[] = [
-    { value: 'spam', label: 'Spam', icon: 'mail-unread-outline' },
-    { value: 'harcelement', label: 'Harcèlement', icon: 'warning-outline' },
-    { value: 'contenu_inapproprie', label: 'Contenu inapproprié', icon: 'eye-off-outline' },
-    { value: 'fausse_info', label: 'Fausse information', icon: 'information-circle-outline' },
-    { value: 'autre', label: 'Autre', icon: 'flag-outline' },
-  ];
 
   // ============ RENDER ============
   return (
@@ -533,182 +508,18 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
       </View>
 
       {/* Bottom Sheet Menu */}
-      <Modal
+      <MoreActionsSheet
         visible={showPostMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPostMenu(false)}
-      >
-        <Pressable
-          style={styles.bottomSheetOverlay}
-          onPress={() => setShowPostMenu(false)}
-        >
-          <Pressable
-            style={styles.bottomSheetContainer}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {/* Poignée */}
-            <View style={styles.bottomSheetHandle} />
-
-            <ScrollView
-              style={styles.bottomSheetScroll}
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-            >
-              {/* Titre selon contexte */}
-              <Text style={styles.bottomSheetTitle}>
-                {isMyPost() ? 'Options du post' : staff.isStaff ? 'Actions disponibles' : 'Signaler ce post'}
-              </Text>
-
-              {/* Options propriétaire */}
-              {isMyPost() && (
-                <>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.bottomSheetItem,
-                      pressed && styles.bottomSheetItemPressed,
-                    ]}
-                    onPress={() => {
-                      setShowPostMenu(false);
-                      setEditingPost(true);
-                    }}
-                  >
-                    <View style={[styles.bottomSheetIconContainer, { backgroundColor: couleurs.primaireLight }]}>
-                      <Ionicons name="pencil" size={20} color={couleurs.primaire} />
-                    </View>
-                    <View style={styles.bottomSheetTextContainer}>
-                      <Text style={styles.bottomSheetItemText}>Modifier</Text>
-                      <Text style={styles.bottomSheetItemSubtext}>Éditer le contenu de votre publication</Text>
-                    </View>
-                  </Pressable>
-
-                  <View style={styles.bottomSheetSeparator} />
-
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.bottomSheetItem,
-                      pressed && styles.bottomSheetItemPressed,
-                    ]}
-                    onPress={handleDeletePost}
-                  >
-                    <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(255, 77, 109, 0.15)' }]}>
-                      <Ionicons name="trash-outline" size={20} color={couleurs.danger} />
-                    </View>
-                    <View style={styles.bottomSheetTextContainer}>
-                      <Text style={[styles.bottomSheetItemText, { color: couleurs.danger }]}>Supprimer</Text>
-                      <Text style={styles.bottomSheetItemSubtext}>Cette action est irréversible</Text>
-                    </View>
-                  </Pressable>
-                </>
-              )}
-
-              {/* Options STAFF (modération) - affichées si staff et pas son propre post */}
-              {staff.isStaff && !isMyPost() && (
-                <>
-                  {/* Badge staff */}
-                  <View style={styles.staffBadge}>
-                    <Ionicons name="shield" size={14} color="#6366f1" />
-                    <Text style={styles.staffBadgeText}>MODÉRATION</Text>
-                  </View>
-
-                  {/* Actions sur le contenu */}
-                  {(staff.canHideContent || staff.canDeleteContent) && (
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.bottomSheetItem,
-                        pressed && styles.bottomSheetItemPressed,
-                      ]}
-                      onPress={() => {
-                        setShowPostMenu(false);
-                        setStaffActionTarget('publication');
-                        setShowStaffActions(true);
-                      }}
-                    >
-                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
-                        <Ionicons name="document-text-outline" size={20} color="#6366f1" />
-                      </View>
-                      <View style={styles.bottomSheetTextContainer}>
-                        <Text style={styles.bottomSheetItemText}>Modérer ce contenu</Text>
-                        <Text style={styles.bottomSheetItemSubtext}>Masquer ou supprimer la publication</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  )}
-
-                  {/* Actions sur l'utilisateur */}
-                  {(staff.canWarnUsers || staff.canSuspendUsers || staff.canBanUsers) && (
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.bottomSheetItem,
-                        pressed && styles.bottomSheetItemPressed,
-                      ]}
-                      onPress={() => {
-                        setShowPostMenu(false);
-                        setStaffActionTarget('user');
-                        setShowStaffActions(true);
-                      }}
-                    >
-                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-                        <Ionicons name="person-outline" size={20} color="#ef4444" />
-                      </View>
-                      <View style={styles.bottomSheetTextContainer}>
-                        <Text style={styles.bottomSheetItemText}>Sanctionner l'auteur</Text>
-                        <Text style={styles.bottomSheetItemSubtext}>Avertir, suspendre ou bannir</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  )}
-
-                  <View style={styles.bottomSheetSeparator} />
-                </>
-              )}
-
-              {/* Options signalement (pour tout le monde sauf propriétaire) */}
-              {!isMyPost() && (
-                <>
-                  {!staff.isStaff && (
-                    <Text style={styles.bottomSheetSubtitle}>Pourquoi signalez-vous cette publication ?</Text>
-                  )}
-                  {staff.isStaff && (
-                    <Text style={[styles.bottomSheetSubtitle, { marginTop: 8 }]}>Ou signaler manuellement :</Text>
-                  )}
-
-                  {raisonsSignalement.map((raison, index) => (
-                    <Pressable
-                      key={raison.value}
-                      style={({ pressed }) => [
-                        styles.bottomSheetItem,
-                        pressed && styles.bottomSheetItemPressed,
-                        index === raisonsSignalement.length - 1 && { borderBottomWidth: 0 },
-                      ]}
-                      onPress={() => handleReportPost(raison.value)}
-                    >
-                      <View style={[styles.bottomSheetIconContainer, { backgroundColor: 'rgba(255, 189, 89, 0.15)' }]}>
-                        <Ionicons name={raison.icon as any} size={20} color={couleurs.accent} />
-                      </View>
-                      <View style={styles.bottomSheetTextContainer}>
-                        <Text style={styles.bottomSheetItemText}>{raison.label}</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  ))}
-                </>
-              )}
-            </ScrollView>
-
-            {/* Bouton Annuler */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.bottomSheetCancelBtn,
-                pressed && styles.bottomSheetItemPressed,
-              ]}
-              onPress={() => setShowPostMenu(false)}
-            >
-              <Text style={styles.bottomSheetCancelText}>Annuler</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onClose={() => setShowPostMenu(false)}
+        contentType="post"
+        contentId={publication._id}
+        isOwnPost={isMyPost()}
+        onEditPost={() => { setShowPostMenu(false); setEditingPost(true); }}
+        onDeletePost={handleDeletePost}
+        onStaffModerate={() => { setShowPostMenu(false); setStaffActionTarget('publication'); setShowStaffActions(true); }}
+        onStaffSanction={() => { setShowPostMenu(false); setStaffActionTarget('user'); setShowStaffActions(true); }}
+        onReport={(success, msg) => showNotification(success ? 'succes' : 'erreur', msg)}
+      />
 
       {/* Modal Staff Actions */}
       <StaffActions

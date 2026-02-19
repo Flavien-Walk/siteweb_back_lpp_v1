@@ -23,6 +23,7 @@ export { default as VideoPlayerModal, type VideoOrigin } from './VideoPlayerModa
 
 // Composants Modération
 export { default as StaffActions } from './StaffActions';
+export { default as MoreActionsSheet } from './MoreActionsSheet';
 
 // Composants Publications
 export { default as PostMediaCarousel, type VideoFullscreenParams } from './PostMediaCarousel';
@@ -36,6 +37,7 @@ export { default as ImageViewerModal } from './ImageViewerModal';
 
 // Reels (feed video vertical)
 export { default as ReelsVideoPage } from './ReelsVideoPage';
+export { default as ReelsAdPage } from './ReelsAdPage';
 
 // Composants Commentaires
 // UnifiedCommentsSheet = composant unique pour tous les contextes (feed, profil, fullscreen)

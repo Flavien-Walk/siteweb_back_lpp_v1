@@ -30,6 +30,8 @@ interface VideoActionsOverlayProps {
   onComments: () => void;
   /** Callback pour partager */
   onShare: () => void;
+  /** Callback pour ouvrir le menu "plus" (signalement, etc.) */
+  onMore?: () => void;
   /** Overlay visible (défaut: true - toujours visible pour meilleure UX) */
   visible?: boolean;
 }
@@ -55,6 +57,7 @@ export default function VideoActionsOverlay({
   onLike,
   onComments,
   onShare,
+  onMore,
   visible = true,
 }: VideoActionsOverlayProps) {
   if (!visible) return null;
@@ -122,6 +125,25 @@ export default function VideoActionsOverlay({
           </Text>
         )}
       </Pressable>
+
+      {/* More Button (signalement, etc.) */}
+      {onMore && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionButton,
+            pressed && styles.actionButtonPressed,
+          ]}
+          onPress={onMore}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={26}
+            color={couleurs.blanc}
+            style={styles.iconShadow}
+          />
+        </Pressable>
+      )}
     </View>
   );
 }

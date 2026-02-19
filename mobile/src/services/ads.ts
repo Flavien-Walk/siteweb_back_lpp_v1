@@ -30,6 +30,7 @@ export interface AdItem {
   tags: string[];
   weight: number; // 1-10, higher = more likely
   contenu: string;
+  _feedIndex?: number; // index d'insertion unique dans le feed (evite les cles dupliquees)
 }
 
 /** Union discriminee par itemType — le feed manipule FeedItem[] */
@@ -150,6 +151,7 @@ export function buildFeedWithAds(
   const feed: FeedItem[] = [];
   let postsSinceLastAd = 0;
   let lastAdId: string | null = null;
+  let adInsertionCount = 0;
 
   for (let i = 0; i < publications.length; i++) {
     feed.push({ ...publications[i], itemType: 'publication' as const });
@@ -158,7 +160,7 @@ export function buildFeedWithAds(
     // Apres les premiers posts, inserer une pub tous les AD_INTERVAL posts
     if (i + 1 >= INITIAL_SKIP && postsSinceLastAd >= AD_INTERVAL) {
       const ad = selectAd(ads, lastAdId);
-      feed.push(ad);
+      feed.push({ ...ad, _feedIndex: adInsertionCount++ });
       lastAdId = ad._id;
       postsSinceLastAd = 0;
     }
@@ -226,7 +228,65 @@ export function isPublication(item: FeedItem): item is (Publication & { itemType
   return item.itemType === 'publication';
 }
 
-/** Cle de layout pour publicationLayoutsRef (ad:xxx ou publication._id) */
+/** Cle de layout pour publicationLayoutsRef (ad:xxx-N ou publication._id) */
 export function getFeedItemKey(item: FeedItem): string {
-  return isAdItem(item) ? `ad:${item._id}` : item._id;
+  if (isAdItem(item)) {
+    const suffix = item._feedIndex != null ? `-${item._feedIndex}` : '';
+    return `ad:${item._id}${suffix}`;
+  }
+  return item._id;
+}
+
+// ============ REELS ADS ============
+
+/** Item dans la FlatList Reels : publication video ou pub video */
+export type ReelsItem =
+  | { type: 'post'; publication: Publication }
+  | { type: 'ad'; ad: AdItem; insertionIndex: number };
+
+const REELS_AD_INTERVAL = 5; // 1 pub toutes les 5 videos
+
+/**
+ * Injecte des pubs dans la liste Reels a intervalles reguliers.
+ * Selection deterministe pour stabilite (pas de Math.random).
+ */
+export function buildReelsWithAds(
+  publications: Publication[],
+  ads: AdItem[] = MOCK_ADS,
+): ReelsItem[] {
+  if (ads.length === 0 || publications.length === 0) {
+    return publications.map(p => ({ type: 'post' as const, publication: p }));
+  }
+
+  const items: ReelsItem[] = [];
+  let adInsertionCount = 0;
+
+  for (let i = 0; i < publications.length; i++) {
+    items.push({ type: 'post', publication: publications[i] });
+
+    // Apres chaque REELS_AD_INTERVAL posts, inserer une pub
+    if ((i + 1) % REELS_AD_INTERVAL === 0) {
+      const ad = ads[adInsertionCount % ads.length];
+      items.push({ type: 'ad', ad, insertionIndex: adInsertionCount });
+      adInsertionCount++;
+    }
+  }
+
+  return items;
+}
+
+/** Trouver l'index d'un post dans reelsItems apres injection d'ads */
+export function findReelsPostIndex(items: ReelsItem[], postId: string): number {
+  return items.findIndex(item => item.type === 'post' && item.publication._id === postId);
+}
+
+/** Type guard pour ReelsItem */
+export function isReelsAd(item: ReelsItem): item is ReelsItem & { type: 'ad' } {
+  return item.type === 'ad';
+}
+
+/** Cle unique pour un ReelsItem */
+export function getReelsItemKey(item: ReelsItem): string {
+  if (item.type === 'ad') return `reels:ad:${item.ad._id}-${item.insertionIndex}`;
+  return item.publication._id;
 }

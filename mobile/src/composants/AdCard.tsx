@@ -5,19 +5,20 @@
  * avec le prefix 'ad:' pour le postId (pattern identique a 'reels:')
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  Image,
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { espacements, rayons } from '../constantes/theme';
 import PostMediaCarousel from './PostMediaCarousel';
+import MoreActionsSheet from './MoreActionsSheet';
+import Avatar from './Avatar';
 import { AdItem, trackAdEvent } from '../services/ads';
 
 interface AdCardProps {
@@ -37,6 +38,9 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
 }) => {
   const { couleurs } = useTheme();
   const adPostId = `ad:${ad._id}`;
+
+  // Menu state
+  const [showMenu, setShowMenu] = useState(false);
 
   // Tracking refs
   const hasTrackedImpression = useRef(false);
@@ -81,38 +85,44 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
 
   return (
     <View style={parentStyles.postCard}>
-      {/* Header : marque + badge Sponsorise */}
+      {/* Header : marque + badge Sponsorise + menu ... */}
       <View style={parentStyles.postHeader}>
-        <Image
-          source={{ uri: ad.brand.avatar }}
-          style={adStyles.brandAvatar}
-          defaultSource={require('../../assets/icon.png')}
+        <Avatar
+          uri={ad.brand.avatar}
+          prenom={ad.brand.name.split(' ')[0]}
+          nom={ad.brand.name.split(' ')[1] || ''}
+          taille={44}
         />
         <View style={parentStyles.postAuteurContainer}>
           <View style={parentStyles.postAuteurRow}>
             <Text style={parentStyles.postAuteur}>{ad.brand.name}</Text>
             <View style={[adStyles.sponsoriseBadge, { backgroundColor: couleurs.primaire }]}>
               <Ionicons name="megaphone" size={10} color="#fff" />
-              <Text style={adStyles.sponsoriseText}>Sponsorise</Text>
+              <Text style={adStyles.sponsoriseText}>Sponsorisé</Text>
             </View>
           </View>
           {ad.brand.tagline ? (
             <Text style={parentStyles.postTimestamp}>{ad.brand.tagline}</Text>
           ) : null}
         </View>
+        <Pressable style={adStyles.moreButton} onPress={() => setShowMenu(true)}>
+          <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
+        </Pressable>
       </View>
 
       {/* Texte publicitaire */}
       <Text style={parentStyles.postContenu}>{ad.contenu}</Text>
 
-      {/* Video via PostMediaCarousel — meme systeme que les publications */}
-      <PostMediaCarousel
-        medias={medias}
-        postId={adPostId}
-        width={mediaWidth}
-        height={mediaHeight}
-        autoPlayVideos={true}
-      />
+      {/* Video via PostMediaCarousel — coins arrondis */}
+      <View style={adStyles.mediaWrapper}>
+        <PostMediaCarousel
+          medias={medias}
+          postId={adPostId}
+          width={mediaWidth}
+          height={mediaHeight}
+          autoPlayVideos={true}
+        />
+      </View>
 
       {/* Tags */}
       {ad.tags.length > 0 && (
@@ -133,6 +143,14 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
         <Text style={adStyles.ctaText}>{ad.ctaLabel}</Text>
         <Ionicons name="arrow-forward" size={16} color="#fff" />
       </Pressable>
+
+      {/* Bottom Sheet Signalement */}
+      <MoreActionsSheet
+        visible={showMenu}
+        onClose={() => setShowMenu(false)}
+        contentType="ad"
+        contentId={ad._id}
+      />
     </View>
   );
 });
@@ -140,12 +158,6 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
 AdCard.displayName = 'AdCard';
 
 const adStyles = StyleSheet.create({
-  brandAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1A1A24',
-  },
   sponsoriseBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -153,11 +165,20 @@ const adStyles = StyleSheet.create({
     paddingHorizontal: espacements.sm,
     paddingVertical: 2,
     gap: 4,
+    marginLeft: espacements.sm,
   },
   sponsoriseText: {
     color: '#fff',
     fontSize: 10,
     fontWeight: '600',
+  },
+  moreButton: {
+    padding: espacements.sm,
+    marginLeft: 'auto',
+  },
+  mediaWrapper: {
+    borderRadius: rayons.md,
+    overflow: 'hidden',
   },
   tagsRow: {
     flexDirection: 'row',
@@ -179,12 +200,13 @@ const adStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: rayons.md,
-    paddingVertical: espacements.md,
+    borderRadius: rayons.lg,
+    paddingVertical: espacements.sm + 2,
     marginHorizontal: espacements.md,
     marginTop: espacements.md,
     marginBottom: espacements.sm,
     gap: espacements.sm,
+    overflow: 'hidden',
   },
   ctaText: {
     color: '#fff',

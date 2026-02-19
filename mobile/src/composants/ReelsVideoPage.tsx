@@ -46,6 +46,7 @@ import VideoActionsOverlay from './VideoActionsOverlay';
 import HeartAnimation from './HeartAnimation';
 import Avatar from './Avatar';
 import UnifiedCommentsSheet from './UnifiedCommentsSheet';
+import MoreActionsSheet from './MoreActionsSheet';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -94,6 +95,7 @@ export default function ReelsVideoPage({
   const [commentsCount, setCommentsCount] = useState(publication.nbCommentaires);
   const [showHeart, setShowHeart] = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   // Ref for holdPaused (needed in worklet callbacks with [] deps)
@@ -385,6 +387,9 @@ export default function ReelsVideoPage({
     } catch {}
   }, [publication.contenu]);
 
+  // Open more/report menu
+  const handleOpenMore = useCallback(() => setShowMoreMenu(true), []);
+
   // Navigate to author profile
   const handleNavigateToProfile = useCallback(() => {
     router.push({
@@ -479,6 +484,7 @@ export default function ReelsVideoPage({
         onLike={handleToggleLike}
         onComments={handleOpenComments}
         onShare={handleShare}
+        onMore={handleOpenMore}
       />
 
       <View style={[styles.authorContainer, { bottom: insets.bottom + 60 }]} pointerEvents="box-none">
@@ -580,6 +586,14 @@ export default function ReelsVideoPage({
         mode="embedded"
         theme="dark"
         initialCount={commentsCount}
+      />
+
+      {/* Report / More actions sheet */}
+      <MoreActionsSheet
+        visible={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        contentType="post"
+        contentId={publication._id}
       />
     </View>
   );

@@ -42,6 +42,13 @@ import { isVideoUrl } from '../../src/utils/mediaUtils';
 import { videoRegistry } from '../../src/stores/videoRegistry';
 import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
 import ReelsVideoPage from '../../src/composants/ReelsVideoPage';
+import ReelsAdPage from '../../src/composants/ReelsAdPage';
+import {
+  ReelsItem,
+  buildReelsWithAds,
+  findReelsPostIndex,
+  getReelsItemKey,
+} from '../../src/services/ads';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DISMISS_THRESHOLD = SCREEN_WIDTH * 0.3;
@@ -49,7 +56,7 @@ const DISMISS_THRESHOLD = SCREEN_WIDTH * 0.3;
 export default function ReelsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ initialIndex?: string; videoPublicationIds?: string; initialPositionMillis?: string }>();
-  const flatListRef = useRef<FlatList<Publication>>(null);
+  const flatListRef = useRef<FlatList<ReelsItem>>(null);
 
   const initialIndex = parseInt(params.initialIndex || '0', 10);
   const initialPositionMillis = parseInt(params.initialPositionMillis || '0', 10);
@@ -62,6 +69,21 @@ export default function ReelsScreen() {
   currentIndexRef.current = currentIndex;
   const publicationsRef = useRef(publications);
   publicationsRef.current = publications;
+
+  // Build mixed list: publications + ads injected at regular intervals
+  const reelsItems = useMemo(() => buildReelsWithAds(publications), [publications]);
+  const reelsItemsRef = useRef(reelsItems);
+  reelsItemsRef.current = reelsItems;
+
+  // Recalculate initialScrollIndex after ad injection
+  const adjustedInitialIndex = useMemo(() => {
+    if (publications.length === 0) return 0;
+    const targetPub = publications[initialIndex];
+    if (!targetPub) return 0;
+    const idx = findReelsPostIndex(reelsItems, targetPub._id);
+    return idx >= 0 ? idx : 0;
+  }, [reelsItems, publications, initialIndex]);
+
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -151,10 +173,10 @@ export default function ReelsScreen() {
 
   // Trigger pagination quand on approche de la fin
   useEffect(() => {
-    if (publications.length > 0 && currentIndex >= publications.length - 3) {
+    if (reelsItems.length > 0 && currentIndex >= reelsItems.length - 3) {
       loadMorePublications();
     }
-  }, [currentIndex, publications.length, loadMorePublications]);
+  }, [currentIndex, reelsItems.length, loadMorePublications]);
 
   // Viewability tracking (remplace PagerView onPageSelected)
   const viewabilityConfig = useRef({
@@ -172,12 +194,13 @@ export default function ReelsScreen() {
   useEffect(() => {
     return () => {
       // Update feedContext with current video's postId (safety net)
-      const currentPub = publicationsRef.current[currentIndexRef.current];
-      if (currentPub) {
+      // Only if current item is a post (not an ad)
+      const currentItem = reelsItemsRef.current[currentIndexRef.current];
+      if (currentItem && currentItem.type === 'post') {
         const existing = videoPlaybackStore.getFeedContext();
         if (existing) {
           videoPlaybackStore.setFeedContext({
-            postId: currentPub._id,
+            postId: currentItem.publication._id,
             scrollY: existing.scrollY,
           });
         }
@@ -195,12 +218,12 @@ export default function ReelsScreen() {
       return () => {
         // Screen unfocused — update feedContext with current video's postId
         // (covers system back gesture, Android back button, etc.)
-        const currentPub = publicationsRef.current[currentIndexRef.current];
-        if (currentPub) {
+        const currentItem = reelsItemsRef.current[currentIndexRef.current];
+        if (currentItem && currentItem.type === 'post') {
           const existing = videoPlaybackStore.getFeedContext();
           if (existing) {
             videoPlaybackStore.setFeedContext({
-              postId: currentPub._id,
+              postId: currentItem.publication._id,
               scrollY: existing.scrollY,
             });
           }
@@ -214,11 +237,11 @@ export default function ReelsScreen() {
 
   // Close handler — update feedContext with the CURRENT video's postId before navigating back
   const handleClose = useCallback(() => {
-    const currentPub = publicationsRef.current[currentIndexRef.current];
-    if (currentPub) {
+    const currentItem = reelsItemsRef.current[currentIndexRef.current];
+    if (currentItem && currentItem.type === 'post') {
       const existing = videoPlaybackStore.getFeedContext();
       videoPlaybackStore.setFeedContext({
-        postId: currentPub._id,
+        postId: currentItem.publication._id,
         scrollY: existing?.scrollY ?? 0,
       });
     }
@@ -310,21 +333,34 @@ export default function ReelsScreen() {
     index,
   }), []);
 
-  // Render item
-  const renderItem = useCallback(({ item: pub, index }: { item: Publication; index: number }) => (
-    <View style={styles.page}>
-      <ReelsVideoPage
-        publication={pub}
-        videoUrl={getVideoUrl(pub)}
-        posterUrl={getPosterUrl(pub)}
-        isActive={index === currentIndex}
-        onClose={handleClose}
-        initialPositionMillis={index === initialIndex ? initialPositionMillis : 0}
-        onOverlayToggle={handleOverlayToggle}
-        closeOverlayRef={closeOverlayRef}
-      />
-    </View>
-  ), [currentIndex, getVideoUrl, getPosterUrl, handleClose, initialIndex, initialPositionMillis, handleOverlayToggle]);
+  // Render item — post or ad
+  const renderItem = useCallback(({ item, index }: { item: ReelsItem; index: number }) => {
+    if (item.type === 'ad') {
+      return (
+        <View style={styles.page}>
+          <ReelsAdPage
+            ad={item.ad}
+            isActive={index === currentIndex}
+            onClose={handleClose}
+          />
+        </View>
+      );
+    }
+    return (
+      <View style={styles.page}>
+        <ReelsVideoPage
+          publication={item.publication}
+          videoUrl={getVideoUrl(item.publication)}
+          posterUrl={getPosterUrl(item.publication)}
+          isActive={index === currentIndex}
+          onClose={handleClose}
+          initialPositionMillis={index === adjustedInitialIndex ? initialPositionMillis : 0}
+          onOverlayToggle={handleOverlayToggle}
+          closeOverlayRef={closeOverlayRef}
+        />
+      </View>
+    );
+  }, [currentIndex, getVideoUrl, getPosterUrl, handleClose, adjustedInitialIndex, initialPositionMillis, handleOverlayToggle]);
 
   // Loading state
   if (loading) {
@@ -352,13 +388,13 @@ export default function ReelsScreen() {
         <StatusBar barStyle="light-content" backgroundColor="#000" />
         <FlatList
           ref={flatListRef}
-          data={publications}
+          data={reelsItems}
           renderItem={renderItem}
-          keyExtractor={(item) => item._id}
+          keyExtractor={getReelsItemKey}
           pagingEnabled
           showsVerticalScrollIndicator={false}
           getItemLayout={getItemLayout}
-          initialScrollIndex={initialIndex}
+          initialScrollIndex={adjustedInitialIndex}
           onViewableItemsChanged={handleViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
           windowSize={3}

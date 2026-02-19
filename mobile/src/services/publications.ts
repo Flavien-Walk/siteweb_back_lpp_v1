@@ -225,24 +225,31 @@ export type RaisonSignalement =
   | 'autre';
 
 /**
- * Signaler une publication
+ * Signaler un contenu (publication ou publicite)
  * POST /api/reports
+ */
+export const signalerContenu = async (
+  targetType: 'post' | 'ad',
+  targetId: string,
+  raison: RaisonSignalement,
+  details?: string
+): Promise<ReponseAPI<{ message: string }>> => {
+  return api.post<{ message: string }>(
+    '/reports',
+    { targetType, targetId, reason: raison, details },
+    true
+  );
+};
+
+/**
+ * Signaler une publication (wrapper retro-compatible)
  */
 export const signalerPublication = async (
   publicationId: string,
   raison: RaisonSignalement,
   details?: string
 ): Promise<ReponseAPI<{ message: string }>> => {
-  return api.post<{ message: string }>(
-    '/reports',
-    {
-      targetType: 'post',
-      targetId: publicationId,
-      reason: raison,
-      details,
-    },
-    true
-  );
+  return signalerContenu('post', publicationId, raison, details);
 };
 
 // ============ AVATARS ============
