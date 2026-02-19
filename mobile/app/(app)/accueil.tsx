@@ -358,6 +358,17 @@ export default function Accueil() {
     );
     const tappedIndex = videoPubs.findIndex(p => p._id === publication._id);
 
+    // Stopper la video du feed AVANT de naviguer (evite le double son)
+    if (viewabilityTimeoutRef.current) {
+      clearTimeout(viewabilityTimeoutRef.current);
+      viewabilityTimeoutRef.current = null;
+    }
+    activePostIdRef.current = null;
+    pendingActivePostRef.current = null;
+    videoRegistry.stopAll().catch(() => {});
+    videoPlaybackStore.setActivePostId(null);
+    videoPlaybackStore.setActiveVideo(null);
+
     // Naviguer vers l'ecran Reels (feed video vertical)
     router.push({
       pathname: '/(app)/reels',
