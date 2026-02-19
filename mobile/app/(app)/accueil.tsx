@@ -3316,11 +3316,11 @@ export default function Accueil() {
       )}
       </Animated.View>
 
-      {/* Modal creer publication */}
+      {/* Modal creer publication — plein ecran opaque */}
       <Modal
         visible={modalCreerPost}
         animationType="slide"
-        transparent={true}
+        transparent={false}
         onRequestClose={() => {
           setModalCreerPost(false);
           setMediasSelectionnes([]);
@@ -3330,10 +3330,10 @@ export default function Accueil() {
         }}
       >
         <KeyboardAvoidingView
-          style={styles.modalOverlay}
+          style={{ flex: 1, backgroundColor: couleurs.fond }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.modalContent}>
+          <SafeAreaView style={{ flex: 1 }}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nouvelle publication</Text>
               <Pressable onPress={() => {
@@ -3347,7 +3347,7 @@ export default function Accueil() {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView style={[styles.modalBody, { flex: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalAuthor}>
                 <Avatar
                   uri={utilisateur?.avatar}
@@ -3452,7 +3452,7 @@ export default function Accueil() {
               </Pressable>
             </View>
 
-            <View style={[styles.modalFooter, { paddingBottom: Math.max(espacements.lg, insets.bottom) }]}>
+            <View style={styles.modalFooter}>
               <Pressable
                 style={[
                   styles.modalPublishBtn,
@@ -3471,7 +3471,7 @@ export default function Accueil() {
                 )}
               </Pressable>
             </View>
-          </View>
+          </SafeAreaView>
         </KeyboardAvoidingView>
       </Modal>
 
