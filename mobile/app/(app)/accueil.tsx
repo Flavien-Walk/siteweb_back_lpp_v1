@@ -1194,16 +1194,6 @@ export default function Accueil() {
     setRafraichissement(false);
   };
 
-  // Focus le TextInput apres l'animation d'ouverture du modal (evite le saut clavier)
-  useEffect(() => {
-    if (modalCreerPost) {
-      const timer = setTimeout(() => {
-        nouveauPostInputRef.current?.focus();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [modalCreerPost]);
-
   // === Gestion des mentions @ ===
   const handleTextChange = useCallback((text: string) => {
     setNouveauPostContenu(text);
