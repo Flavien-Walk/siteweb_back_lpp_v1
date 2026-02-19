@@ -10,6 +10,10 @@
  * 3. Gradients (pointerEvents="none")
  * 4. UI overlays (close, actions, auteur, progress)
  * 5. Description expandee (overlay semi-transparent, zIndex: 25)
+ *
+ * IMPORTANT: Toute la lecture est DECLARATIVE (props shouldPlay/isMuted/volume).
+ * Aucun appel imperatif playAsync/pauseAsync/setStatusAsync pour play/pause/mute.
+ * Cela elimine les race conditions entre useEffect et gestes utilisateur.
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
@@ -69,8 +73,8 @@ export default function ReelsVideoPage({
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const [showMuteIcon, setShowMuteIcon] = useState(false);
   const [holdPaused, setHoldPaused] = useState(false);
+  const [showMuteIcon, setShowMuteIcon] = useState(false);
 
   // Etats interactions
   const [liked, setLiked] = useState(publication.aLike);
@@ -80,12 +84,12 @@ export default function ReelsVideoPage({
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
-  // Refs pour acceder aux etats depuis les worklets
-  const isPlayingRef = useRef(false);
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
-  const isMutedRef = useRef(false);
-  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  // Ref for holdPaused (needed in worklet callbacks with [] deps)
   const holdPausedRef = useRef(false);
+
+  // ========= DECLARATIVE VIDEO CONTROL =========
+  // Single source of truth: shouldPlay is computed from state, no imperative calls
+  const shouldPlay = isActive && !holdPaused && !commentsVisible;
 
   // Auto-hide mute icon after 800ms
   useEffect(() => {
@@ -106,32 +110,17 @@ export default function ReelsVideoPage({
     };
   }, [publication._id, videoUrl]);
 
-  // Play/pause based on isActive
+  // Stop other videos + update store when this page becomes active
   useEffect(() => {
-    if (!videoRef.current) return;
-
     if (isActive) {
-      videoRegistry.stopAllExcept(publication._id).then(() => {
-        videoRef.current?.playAsync().catch(() => {});
-      });
+      videoRegistry.stopAllExcept(publication._id).catch(() => {});
       videoPlaybackStore.setActivePostId(publication._id);
       videoPlaybackStore.setActiveVideo(videoUrl);
-    } else {
-      videoRef.current.pauseAsync().catch(() => {});
     }
+    // No imperative pause on !isActive — shouldPlay prop handles it
   }, [isActive, publication._id, videoUrl]);
 
-  // Pause video when comments are open
-  useEffect(() => {
-    if (!videoRef.current || !isActive) return;
-    if (commentsVisible) {
-      videoRef.current.pauseAsync().catch(() => {});
-    } else {
-      videoRef.current.playAsync().catch(() => {});
-    }
-  }, [commentsVisible, isActive]);
-
-  // Playback status update
+  // Playback status update (read-only, no side effects)
   const handlePlaybackStatus = useCallback((status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
       if (status.error) {
@@ -177,26 +166,20 @@ export default function ReelsVideoPage({
     setShowHeart(true);
   }, [liked, handleToggleLike]);
 
+  // Mute: just toggle state — the isMuted + volume props on Video handle the rest
   const doToggleMute = useCallback(() => {
-    const newMuted = !isMutedRef.current;
-    setIsMuted(newMuted);
+    setIsMuted(prev => !prev);
     setShowMuteIcon(true);
-    // Imperative call — expo-av prop isMuted is not reliably reactive
-    videoRef.current?.setStatusAsync({ isMuted: newMuted }).catch(() => {});
   }, []);
 
+  // Long press pause: just toggle state — shouldPlay prop handles play/pause
   const doPauseForHold = useCallback(() => {
-    if (videoRef.current) {
-      // Always pause, regardless of isPlaying state (avoids buffering guard skip)
-      videoRef.current.setStatusAsync({ shouldPlay: false }).catch(() => {});
-      holdPausedRef.current = true;
-      setHoldPaused(true);
-    }
+    holdPausedRef.current = true;
+    setHoldPaused(true);
   }, []);
 
   const doResumeAfterHold = useCallback(() => {
-    if (videoRef.current && holdPausedRef.current) {
-      videoRef.current.setStatusAsync({ shouldPlay: true }).catch(() => {});
+    if (holdPausedRef.current) {
       holdPausedRef.current = false;
       setHoldPaused(false);
     }
@@ -270,14 +253,16 @@ export default function ReelsVideoPage({
 
   return (
     <View style={styles.container}>
-      {/* Couche 1 : Video (fond, ne recoit pas de touches) */}
+      {/* Couche 1 : Video — 100% declaratif, zero appel imperatif */}
       <Video
         ref={videoRef}
         source={{ uri: videoUrl }}
         style={styles.video}
         resizeMode={ResizeMode.COVER}
         isLooping
+        shouldPlay={shouldPlay}
         isMuted={isMuted}
+        volume={isMuted ? 0.0 : 1.0}
         posterSource={posterUrl ? { uri: posterUrl } : undefined}
         posterStyle={styles.poster}
         usePoster={!!posterUrl}
