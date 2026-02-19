@@ -405,7 +405,7 @@ export default function ReelsVideoPage({
         ref={videoRef}
         source={videoSource}
         style={styles.video}
-        resizeMode={ResizeMode.COVER}
+        resizeMode={ResizeMode.CONTAIN}
         isLooping
         shouldPlay={shouldPlay}
         isMuted={isMuted}
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
   poster: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
   // Couche transparente par-dessus la video qui capture tous les gestes
   gestureLayer: {
