@@ -48,10 +48,11 @@ const DISMISS_THRESHOLD = SCREEN_WIDTH * 0.3;
 
 export default function ReelsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ initialIndex?: string; videoPublicationIds?: string }>();
+  const params = useLocalSearchParams<{ initialIndex?: string; videoPublicationIds?: string; initialPositionMillis?: string }>();
   const flatListRef = useRef<FlatList<Publication>>(null);
 
   const initialIndex = parseInt(params.initialIndex || '0', 10);
+  const initialPositionMillis = parseInt(params.initialPositionMillis || '0', 10);
 
   // State
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -260,9 +261,10 @@ export default function ReelsScreen() {
         posterUrl={getPosterUrl(pub)}
         isActive={index === currentIndex}
         onClose={handleClose}
+        initialPositionMillis={index === initialIndex ? initialPositionMillis : 0}
       />
     </View>
-  ), [currentIndex, getVideoUrl, getPosterUrl, handleClose]);
+  ), [currentIndex, getVideoUrl, getPosterUrl, handleClose, initialIndex, initialPositionMillis]);
 
   // Loading state
   if (loading) {

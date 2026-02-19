@@ -9,6 +9,12 @@ export interface VideoPlaybackSession {
   updatedAt: number;
 }
 
+/** Snapshot du contexte feed pour restauration au retour du plein écran */
+export interface FeedContext {
+  postId: string;
+  scrollY: number;
+}
+
 type PlaybackListener = (videoUrl: string, session: VideoPlaybackSession) => void;
 type ActiveVideoListener = (activeUrl: string | null) => void;
 type ActivePostListener = (activePostId: string | null) => void;
@@ -25,6 +31,9 @@ class VideoPlaybackStore {
   // This is the primary mechanism for determining which video should play
   private activePostId: string | null = null;
   private activePostIdListeners: Set<ActivePostListener> = new Set();
+
+  // Feed context snapshot — saved before navigating to fullscreen, consumed on return
+  private feedContext: FeedContext | null = null;
 
   /**
    * Sauvegarder l'état de lecture d'une vidéo
@@ -155,6 +164,16 @@ class VideoPlaybackStore {
   subscribeToActivePostId(listener: ActivePostListener): () => void {
     this.activePostIdListeners.add(listener);
     return () => this.activePostIdListeners.delete(listener);
+  }
+
+  // ========== FEED CONTEXT (for fullscreen → feed restore) ==========
+
+  setFeedContext(ctx: FeedContext | null): void {
+    this.feedContext = ctx;
+  }
+
+  getFeedContext(): FeedContext | null {
+    return this.feedContext;
   }
 }
 

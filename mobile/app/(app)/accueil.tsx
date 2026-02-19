@@ -265,6 +265,7 @@ export default function Accueil() {
   const activePostIdRef = useRef<string | null>(null);
   const pendingActivePostRef = useRef<string | null>(null);
   const viewabilityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoringContextRef = useRef(false);
   const lastScrollYRef = useRef<number>(0);
   const sectionOffsetRef = useRef<number>(0);
   const START_THRESHOLD = 0.5;    // 50% visible to START playing
@@ -358,7 +359,16 @@ export default function Accueil() {
     );
     const tappedIndex = videoPubs.findIndex(p => p._id === publication._id);
 
-    // Stopper la video du feed AVANT de naviguer (evite le double son)
+    // 1. Sauver le contexte feed pour restauration au retour
+    videoPlaybackStore.setFeedContext({
+      postId: publication._id,
+      scrollY: lastScrollYRef.current,
+    });
+
+    // 2. Sauver la position vidéo dans la session store
+    videoPlaybackStore.saveSession(params.videoUrl, params.positionMillis, false);
+
+    // 3. Stopper la video du feed AVANT de naviguer (evite le double son)
     if (viewabilityTimeoutRef.current) {
       clearTimeout(viewabilityTimeoutRef.current);
       viewabilityTimeoutRef.current = null;
@@ -369,12 +379,13 @@ export default function Accueil() {
     videoPlaybackStore.setActivePostId(null);
     videoPlaybackStore.setActiveVideo(null);
 
-    // Naviguer vers l'ecran Reels (feed video vertical)
+    // 4. Naviguer vers Reels avec position initiale
     router.push({
       pathname: '/(app)/reels',
       params: {
         initialIndex: String(Math.max(0, tappedIndex)),
         videoPublicationIds: JSON.stringify(videoPubs.map(p => p._id)),
+        initialPositionMillis: String(params.positionMillis || 0),
       },
     });
   }, [publications]);
@@ -1811,28 +1822,67 @@ export default function Accueil() {
   const computeViewabilityRef = useRef<((scrollY: number) => void) | null>(null);
 
   // Manage active video on screen focus/blur
+  // On focus: restore feed context if returning from Reels, otherwise re-trigger viewability
+  // On blur: stop all videos and clear active state
   useFocusEffect(
     useCallback(() => {
-      // On focus: re-trigger viewability to resume the visible video
-      const timer = setTimeout(() => {
-        computeViewabilityRef.current?.(lastScrollYRef.current);
-      }, 200);
-      return () => {
-        clearTimeout(timer);
-        // On blur: clear active video and viewability tracking
+      // === ON FOCUS ===
+      const feedContext = videoPlaybackStore.getFeedContext();
+
+      // Blur cleanup (shared between both branches)
+      const blurCleanup = () => {
         if (viewabilityTimeoutRef.current) {
           clearTimeout(viewabilityTimeoutRef.current);
           viewabilityTimeoutRef.current = null;
         }
+        restoringContextRef.current = false;
         activePostIdRef.current = null;
         pendingActivePostRef.current = null;
-        // Hard stop ALL videos via registry (prevents ghost audio on navigation)
         videoRegistry.stopAll().catch(() => {});
-        // Clear active post and video in store
         videoPlaybackStore.setActivePostId(null);
         videoPlaybackStore.setActiveVideo(null);
       };
-    }, [])
+
+      if (feedContext) {
+        // Returning from Reels: restore scroll + force active post
+        videoPlaybackStore.setFeedContext(null); // consume one-shot
+
+        // Freeze viewability during restore
+        restoringContextRef.current = true;
+
+        // Restore scroll position (no animation to avoid flash)
+        scrollViewRef.current?.scrollTo({ y: feedContext.scrollY, animated: false });
+
+        // Force active post (bypass viewability calculation)
+        activePostIdRef.current = feedContext.postId;
+        pendingActivePostRef.current = feedContext.postId;
+        videoPlaybackStore.setActivePostId(feedContext.postId);
+        const post = publications.find(p => p._id === feedContext.postId);
+        const video = post?.medias?.find(m => m.type === 'video');
+        videoPlaybackStore.setActiveVideo(video?.url || null);
+
+        // Unfreeze after 500ms — let scroll + seek stabilize
+        const restoreTimer = setTimeout(() => {
+          restoringContextRef.current = false;
+          computeViewabilityRef.current?.(lastScrollYRef.current);
+        }, 500);
+
+        return () => {
+          clearTimeout(restoreTimer);
+          blurCleanup();
+        };
+      } else {
+        // Normal focus (not returning from Reels)
+        const timer = setTimeout(() => {
+          computeViewabilityRef.current?.(lastScrollYRef.current);
+        }, 200);
+
+        return () => {
+          clearTimeout(timer);
+          blurCleanup();
+        };
+      }
+    }, [publications])
   );
 
   const renderStories = () => (
@@ -2825,6 +2875,8 @@ export default function Accueil() {
   // Viewability calculation with hystérésis — called from handleScroll AND initial load
   // Uses absolute positions (sectionOffset + relativeY) and real measured heights
   const computeVideoViewability = useCallback((scrollY: number) => {
+    // Freeze viewability during feed context restore (returning from Reels)
+    if (restoringContextRef.current) return;
     if (ongletActif !== 'feed' || publications.length === 0) return;
 
     const viewportTop = scrollY;

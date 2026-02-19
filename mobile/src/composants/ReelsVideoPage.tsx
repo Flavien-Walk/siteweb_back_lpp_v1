@@ -53,6 +53,7 @@ interface ReelsVideoPageProps {
   posterUrl?: string;
   isActive: boolean;
   onClose: () => void;
+  initialPositionMillis?: number;
 }
 
 export default function ReelsVideoPage({
@@ -61,11 +62,16 @@ export default function ReelsVideoPage({
   posterUrl,
   isActive,
   onClose,
+  initialPositionMillis = 0,
 }: ReelsVideoPageProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const videoRef = useRef<Video>(null);
   const videoIdRef = useRef(`reels-${publication._id}`);
+  // Prefixed postId to avoid identity collision with feed PostMediaCarousel
+  // Without this, setActivePostId(publication._id) makes the feed's useIsPostActive(postId)
+  // return true (same ID), causing the feed video to play alongside the Reels video (double audio).
+  const reelsPostId = `reels:${publication._id}`;
 
   // Etats video
   const [isPlaying, setIsPlaying] = useState(false);
@@ -86,6 +92,10 @@ export default function ReelsVideoPage({
 
   // Ref for holdPaused (needed in worklet callbacks with [] deps)
   const holdPausedRef = useRef(false);
+
+  // Position tracking for session save on close
+  const currentPositionRef = useRef(0);
+  const initialSeekDoneRef = useRef(false);
 
   // ========= DECLARATIVE VIDEO CONTROL =========
   // Single source of truth: shouldPlay is computed from state, no imperative calls
@@ -110,24 +120,33 @@ export default function ReelsVideoPage({
   useEffect(() => {
     const id = videoIdRef.current;
     if (videoRef.current) {
-      videoRegistry.registerVideo(id, videoRef.current, publication._id, videoUrl);
+      videoRegistry.registerVideo(id, videoRef.current, reelsPostId, videoUrl);
     }
     return () => {
       videoRegistry.stopAndUnregister(id).catch(() => {});
     };
   }, [publication._id, videoUrl]);
 
+  // Save position to session store on unmount (for feed restore)
+  useEffect(() => {
+    return () => {
+      if (currentPositionRef.current > 0) {
+        videoPlaybackStore.saveSession(videoUrl, currentPositionRef.current, false);
+      }
+    };
+  }, [videoUrl]);
+
   // Stop other videos + update store when this page becomes active
   useEffect(() => {
     if (isActive) {
-      videoRegistry.stopAllExcept(publication._id).catch(() => {});
-      videoPlaybackStore.setActivePostId(publication._id);
+      videoRegistry.stopAllExcept(reelsPostId).catch(() => {});
+      videoPlaybackStore.setActivePostId(reelsPostId);
       videoPlaybackStore.setActiveVideo(videoUrl);
     }
     // No imperative pause on !isActive — shouldPlay prop handles it
   }, [isActive, publication._id, videoUrl]);
 
-  // Playback status update (read-only, no side effects)
+  // Playback status update — tracks position + applies initial seek once
   const handlePlaybackStatus = useCallback((status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
       if (status.error) {
@@ -136,6 +155,9 @@ export default function ReelsVideoPage({
       return;
     }
 
+    // Track position for session save on close
+    currentPositionRef.current = status.positionMillis;
+
     setIsPlaying(status.isPlaying);
     setIsLoading(status.isBuffering);
 
@@ -143,7 +165,13 @@ export default function ReelsVideoPage({
       setDuration(status.durationMillis);
       setProgress(status.positionMillis / status.durationMillis);
     }
-  }, []);
+
+    // Initial seek (once, on first load) — resume from feed position
+    if (!initialSeekDoneRef.current && initialPositionMillis > 0) {
+      initialSeekDoneRef.current = true;
+      videoRef.current?.setPositionAsync(initialPositionMillis).catch(() => {});
+    }
+  }, [initialPositionMillis]);
 
   // Toggle like
   const handleToggleLike = useCallback(async () => {
