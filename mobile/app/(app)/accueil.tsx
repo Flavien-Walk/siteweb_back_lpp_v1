@@ -250,12 +250,13 @@ export default function Accueil() {
   const scrollTopOpacity = useRef(new Animated.Value(0)).current;
 
   // Video viewability tracking with debounce
-  // Only change active video when a post is dominant (>70% visible) for >150ms
+  // Only change active video when a NEW post is dominant (>50% visible) for >150ms
+  // NEVER transitions to null during scroll — avoids killing the current video
   const activePostIdRef = useRef<string | null>(null);
   const pendingActivePostRef = useRef<string | null>(null);
   const viewabilityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const VIEWABILITY_THRESHOLD = 0.7; // 70% visible (stricter to avoid false positives)
-  const VIEWABILITY_DELAY_MS = 150; // 150ms minimum view time (faster response)
+  const VIEWABILITY_THRESHOLD = 0.5; // 50% visible (tolerant during scroll)
+  const VIEWABILITY_DELAY_MS = 150; // 150ms debounce between post switches
 
   // Publications API
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -2841,42 +2842,32 @@ export default function Accueil() {
       }
     }
 
-    // Debounced update: only change active video after 250ms of same dominant post
-    if (dominantPostId !== pendingActivePostRef.current) {
-      // New dominant post detected - start debounce timer
+    // Only react to NON-NULL dominant posts — never clear active post during scroll.
+    // When no video meets the threshold (scroll transition), keep current video playing.
+    // Cleanup is handled by: tab change, navigation away, component unmount.
+    if (dominantPostId && dominantPostId !== pendingActivePostRef.current) {
       pendingActivePostRef.current = dominantPostId;
 
-      // Clear any existing timeout
       if (viewabilityTimeoutRef.current) {
         clearTimeout(viewabilityTimeoutRef.current);
         viewabilityTimeoutRef.current = null;
       }
 
-      // Only set timeout if there's a new dominant post (or clearing to null)
       viewabilityTimeoutRef.current = setTimeout(() => {
-        // After delay, if the pending post is still the same, make it active
         if (pendingActivePostRef.current === dominantPostId) {
-          // Only update if actually different from current active
           if (activePostIdRef.current !== dominantPostId) {
             activePostIdRef.current = dominantPostId;
 
-            // CRITICAL: Hard stop all videos except the new active post
-            // This prevents ghost audio from recycled FlatList cells
+            // Stop all videos except the new active one
             videoRegistry.stopAllExcept(dominantPostId).catch(() => {});
 
             // Set active post ID (SOURCE OF TRUTH for shouldPlay)
             videoPlaybackStore.setActivePostId(dominantPostId);
 
-            // Find the video URL for this post (for session management)
-            let videoUrl: string | null = null;
-            if (dominantPostId) {
-              const post = publications.find(p => p._id === dominantPostId);
-              const video = post?.medias?.find(m => m.type === 'video');
-              videoUrl = video?.url || null;
-            }
-
-            // Update global store (secondary, for fullscreen support)
-            videoPlaybackStore.setActiveVideo(videoUrl);
+            // Find the video URL for session management
+            const post = publications.find(p => p._id === dominantPostId);
+            const video = post?.medias?.find(m => m.type === 'video');
+            videoPlaybackStore.setActiveVideo(video?.url || null);
           }
         }
         viewabilityTimeoutRef.current = null;
