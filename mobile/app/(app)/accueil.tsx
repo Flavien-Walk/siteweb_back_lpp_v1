@@ -1823,6 +1823,29 @@ export default function Accueil() {
   // Ref to always hold the latest computeVideoViewability (declared later in file)
   const computeViewabilityRef = useRef<((scrollY: number) => void) | null>(null);
 
+  // Stop all feed video/audio when create-post modal is open, resume on close
+  useEffect(() => {
+    if (modalCreerPost) {
+      // Hard stop all videos immediately
+      if (viewabilityTimeoutRef.current) {
+        clearTimeout(viewabilityTimeoutRef.current);
+        viewabilityTimeoutRef.current = null;
+      }
+      activePostIdRef.current = null;
+      pendingActivePostRef.current = null;
+      videoRegistry.stopAll().catch(() => {});
+      videoPlaybackStore.setActivePostId(null);
+      videoPlaybackStore.setActiveVideo(null);
+
+      return () => {
+        // Modal closing — re-trigger viewability after short delay
+        setTimeout(() => {
+          computeViewabilityRef.current?.(lastScrollYRef.current);
+        }, 300);
+      };
+    }
+  }, [modalCreerPost]);
+
   // Manage active video on screen focus/blur
   // On focus: restore feed context if returning from Reels, otherwise re-trigger viewability
   // On blur: stop all videos and clear active state
@@ -3316,11 +3339,12 @@ export default function Accueil() {
       )}
       </Animated.View>
 
-      {/* Modal creer publication — plein ecran opaque */}
+      {/* Modal creer publication — plein ecran opaque, isole du feed */}
       <Modal
         visible={modalCreerPost}
         animationType="slide"
         transparent={false}
+        statusBarTranslucent
         onRequestClose={() => {
           setModalCreerPost(false);
           setMediasSelectionnes([]);
@@ -3329,11 +3353,12 @@ export default function Accueil() {
           setShowMentions(false);
         }}
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1, backgroundColor: couleurs.fond }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <SafeAreaView style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: couleurs.fond }}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <SafeAreaView style={{ flex: 1 }}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nouvelle publication</Text>
               <Pressable onPress={() => {
@@ -3471,8 +3496,9 @@ export default function Accueil() {
                 )}
               </Pressable>
             </View>
-          </SafeAreaView>
-        </KeyboardAvoidingView>
+            </SafeAreaView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Recherche plein écran */}
