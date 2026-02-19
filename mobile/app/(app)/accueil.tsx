@@ -19,6 +19,7 @@ import {
   Platform,
   Alert,
   Keyboard,
+  KeyboardAvoidingView,
   DeviceEventEmitter,
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
@@ -276,6 +277,7 @@ export default function Accueil() {
   const [publications, setPublications] = useState<Publication[]>([]);
   const [chargement, setChargement] = useState(true);
   const [modalCreerPost, setModalCreerPost] = useState(false);
+  const nouveauPostInputRef = useRef<TextInput>(null);
   const [nouveauPostContenu, setNouveauPostContenu] = useState('');
   const [creationEnCours, setCreationEnCours] = useState(false);
   // Multi-média: support jusqu'à 10 médias par publication
@@ -1191,6 +1193,16 @@ export default function Accueil() {
     await chargerDonnees();
     setRafraichissement(false);
   };
+
+  // Focus le TextInput apres l'animation d'ouverture du modal (evite le saut clavier)
+  useEffect(() => {
+    if (modalCreerPost) {
+      const timer = setTimeout(() => {
+        nouveauPostInputRef.current?.focus();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [modalCreerPost]);
 
   // === Gestion des mentions @ ===
   const handleTextChange = useCallback((text: string) => {
@@ -3327,7 +3339,10 @@ export default function Accueil() {
           setShowMentions(false);
         }}
       >
-        <KeyboardView style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nouvelle publication</Text>
@@ -3342,7 +3357,7 @@ export default function Accueil() {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalAuthor}>
                 <Avatar
                   uri={utilisateur?.avatar}
@@ -3357,6 +3372,7 @@ export default function Accueil() {
               </View>
 
               <TextInput
+                ref={nouveauPostInputRef}
                 style={styles.modalTextInput}
                 placeholder="Quoi de neuf ? Partagez vos idees... Tapez @ pour mentionner"
                 placeholderTextColor={couleurs.texteSecondaire}
@@ -3364,7 +3380,6 @@ export default function Accueil() {
                 onChangeText={handleTextChange}
                 multiline
                 maxLength={5000}
-                autoFocus
               />
 
               {/* Autocomplete mentions */}
@@ -3467,7 +3482,7 @@ export default function Accueil() {
               </Pressable>
             </View>
           </View>
-        </KeyboardView>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Recherche plein écran */}
