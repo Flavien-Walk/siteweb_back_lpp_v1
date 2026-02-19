@@ -33,6 +33,9 @@ export { default as HeartAnimation } from './HeartAnimation';
 export { default as VideoActionsOverlay } from './VideoActionsOverlay';
 export { default as ImageViewerModal } from './ImageViewerModal';
 
+// Reels (feed video vertical)
+export { default as ReelsVideoPage } from './ReelsVideoPage';
+
 // Composants Commentaires
 // UnifiedCommentsSheet = composant unique pour tous les contextes (feed, profil, fullscreen)
 export { default as UnifiedCommentsSheet } from './UnifiedCommentsSheet';

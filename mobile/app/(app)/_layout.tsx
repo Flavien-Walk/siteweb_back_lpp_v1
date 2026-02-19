@@ -103,6 +103,15 @@ export default function AppLayout() {
           fullScreenGestureEnabled: Platform.OS === 'ios',
         }}
       />
+      {/* Reels - feed vidéo vertical style Instagram */}
+      <Stack.Screen
+        name="reels"
+        options={{
+          animation: 'slide_from_bottom',
+          gestureEnabled: false,
+          headerShown: false,
+        }}
+      />
       {/* Choix statut - fade, pas de geste */}
       <Stack.Screen
         name="choix-statut"

@@ -133,6 +133,7 @@ const styles = StyleSheet.create({
     bottom: Platform.OS === 'ios' ? 140 : 160,
     alignItems: 'center',
     gap: 24,
+    zIndex: 10,
   },
   actionButton: {
     alignItems: 'center',

@@ -37,7 +37,8 @@ import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
 import { Utilisateur } from '../../src/services/auth';
 // useStaff importé uniquement dans PublicationCard extrait
-import { PostMediaCarousel, VideoPlayerModal, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay, KeyboardView } from '../../src/composants';
+import { PostMediaCarousel, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay, KeyboardView } from '../../src/composants';
+import { isVideoUrl } from '../../src/utils/mediaUtils';
 import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
 import { videoRegistry } from '../../src/stores/videoRegistry';
 import {
@@ -287,22 +288,7 @@ export default function Accueil() {
   const [showMentions, setShowMentions] = useState(false);
   const mentionSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Video player modal
-  const [videoModalVisible, setVideoModalVisible] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [videoPostId, setVideoPostId] = useState<string | null>(null);
-  const [videoInitialPosition, setVideoInitialPosition] = useState<number>(0);
-  const [videoInitialShouldPlay, setVideoInitialShouldPlay] = useState<boolean>(true);
-  // États pour interactions fullscreen (Instagram-like)
-  const [videoLiked, setVideoLiked] = useState(false);
-  const [videoLikesCount, setVideoLikesCount] = useState(0);
-  const [videoCommentsCount, setVideoCommentsCount] = useState(0);
-  const videoOnLikeRef = useRef<(() => void) | null>(null);
-  const videoOnCommentsRef = useRef<(() => void) | null>(null);
-  const videoOnShareRef = useRef<(() => void) | null>(null);
-  const setVideoOnLike = (fn: () => void) => { videoOnLikeRef.current = fn; };
-  const setVideoOnComments = (fn: () => void) => { videoOnCommentsRef.current = fn; };
-  const setVideoOnShare = (fn: () => void) => { videoOnShareRef.current = fn; };
+  // Video player (reels navigation - states retires, navigation vers /(app)/reels)
 
   // Comments sheet (UnifiedCommentsSheet)
   const [commentsSheetVisible, setCommentsSheetVisible] = useState(false);
@@ -351,19 +337,22 @@ export default function Accueil() {
     nbComments: number,
     handlers: { onLike: () => void; onComments: () => void; onShare: () => void }
   ) => {
-    setVideoUrl(params.videoUrl);
-    setVideoPostId(publication._id);
-    setVideoInitialPosition(params.positionMillis);
-    setVideoInitialShouldPlay(params.isPlaying);
-    // Stocker les infos pour le modal fullscreen
-    setVideoLiked(liked);
-    setVideoLikesCount(nbLikes);
-    setVideoCommentsCount(nbComments);
-    setVideoOnLike(handlers.onLike);
-    setVideoOnComments(handlers.onComments);
-    setVideoOnShare(handlers.onShare);
-    setVideoModalVisible(true);
-  }, []);
+    // Filtrer les publications qui ont au moins une video
+    const videoPubs = publications.filter(p =>
+      p.medias?.some(m => m.type === 'video') ||
+      (p.media && isVideoUrl(p.media))
+    );
+    const tappedIndex = videoPubs.findIndex(p => p._id === publication._id);
+
+    // Naviguer vers l'ecran Reels (feed video vertical)
+    router.push({
+      pathname: '/(app)/reels',
+      params: {
+        initialIndex: String(Math.max(0, tappedIndex)),
+        videoPublicationIds: JSON.stringify(videoPubs.map(p => p._id)),
+      },
+    });
+  }, [publications]);
 
   // ============ FIN CALLBACKS PUBLICATIONCARD ============
 
@@ -480,14 +469,6 @@ export default function Accueil() {
         useNativeDriver: true,
       }).start();
     }
-  };
-
-  const closeVideoModal = (finalPositionMillis?: number) => {
-    // VideoPlayerModal gère tout en interne (y compris les commentaires)
-    setVideoModalVisible(false);
-    setVideoUrl(null);
-    setVideoInitialPosition(0);
-    setVideoInitialShouldPlay(true);
   };
 
   // Messagerie
@@ -3521,24 +3502,6 @@ export default function Accueil() {
           </View>
         </View>
       </Modal>
-
-      {/* Modal Lecteur Vidéo - Composant factorisé */}
-      <VideoPlayerModal
-        visible={videoModalVisible}
-        videoUrl={videoUrl}
-        postId={videoPostId || undefined}
-        onClose={closeVideoModal}
-        initialPositionMillis={videoInitialPosition}
-        initialShouldPlay={videoInitialShouldPlay}
-        origin="feed"
-        // Props Instagram-like
-        liked={videoLiked}
-        likesCount={videoLikesCount}
-        commentsCount={videoCommentsCount}
-        onLike={videoOnLikeRef.current || undefined}
-        onComments={videoPostId ? () => openCommentsSheet(videoPostId, videoCommentsCount) : undefined}
-        onShare={videoOnShareRef.current || undefined}
-      />
 
       {/* Modal Visionneuse Image - Style Instagram avec actions overlay */}
       <ImageViewerModal

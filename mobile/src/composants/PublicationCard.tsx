@@ -765,6 +765,7 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
           onDoubleTapLike={handleLike}
           onMediaPress={handleMediaPress}
           onVideoPress={handleVideoPress}
+          autoPlayVideos={true}
         />
       ) : publication.media && (() => {
         // Fallback pour anciennes publications sans medias[]

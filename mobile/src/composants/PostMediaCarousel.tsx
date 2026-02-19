@@ -87,7 +87,7 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
 }) => {
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showPlayButton, setShowPlayButton] = useState(true);
+  const [showPlayButton, setShowPlayButton] = useState(!autoPlayVideos);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   // Track current position for fullscreen handoff
@@ -96,6 +96,8 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   const pendingSessionRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
   // Track registration status
   const isRegisteredRef = useRef(false);
+  // Track long-press-to-pause state (prevents autoplay from restarting)
+  const holdPausedRef = useRef(false);
   // Unique ID for this video in the registry
   const videoId = `${postId}-${item.url}`;
 
@@ -185,10 +187,25 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     }
   }, [onDoubleTapLike]);
 
-  // Use double-tap hook: single tap = play/pause, double tap = like
+  // Long press: pause while held, resume on release
+  const handleLongPress = useCallback(() => {
+    if (videoRef.current && isPlaying) {
+      videoRef.current.pauseAsync();
+      holdPausedRef.current = true;
+    }
+  }, [isPlaying]);
+
+  const handlePressOut = useCallback(() => {
+    if (holdPausedRef.current && videoRef.current) {
+      videoRef.current.playAsync();
+      holdPausedRef.current = false;
+    }
+  }, []);
+
+  // Use double-tap hook: single tap = open fullscreen reels, double tap = like
   const handleTap = useDoubleTap({
     onDoubleTap: handleDoubleTapLike,
-    onSingleTap: togglePlayPause,
+    onSingleTap: onVideoPress ? handleFullscreenPress : togglePlayPause,
     delayMs: 250,
   });
 
@@ -296,7 +313,8 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     }
 
     // Auto-play only if both locally active (in carousel) AND globally active
-    if (shouldBePlaying && autoPlayVideos && videoRef.current && !isPlaying) {
+    // Skip if user is long-pressing to pause (holdPausedRef)
+    if (shouldBePlaying && autoPlayVideos && videoRef.current && !isPlaying && !holdPausedRef.current) {
       videoRef.current.playAsync().catch(() => {});
     }
   }, [isActive, isGloballyActive, autoPlayVideos, isPlaying]);
@@ -336,19 +354,26 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   if (item.type === 'video') {
     return (
       <View style={[styles.mediaContainer, { width, height }]}>
-        {/* Zone de tap: single = play/pause, double = like */}
-        <Pressable style={StyleSheet.absoluteFill} onPress={handleTap}>
+        {/* Zone de tap: single = fullscreen, double = like, long press = pause/resume */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handleTap}
+          onLongPress={handleLongPress}
+          onPressOut={handlePressOut}
+          delayLongPress={300}
+        >
           <Video
             ref={videoRef}
             source={{ uri: item.url }}
             style={styles.media}
             resizeMode={ResizeMode.COVER}
             isLooping
+            isMuted
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
             posterSource={item.thumbnailUrl ? { uri: item.thumbnailUrl } : undefined}
             usePoster={!!item.thumbnailUrl}
           />
-          {showPlayButton && (
+          {showPlayButton && !autoPlayVideos && (
             <View style={styles.playButtonOverlay}>
               <View style={styles.playButton}>
                 <Ionicons name="play" size={32} color={couleurs.blanc} />
