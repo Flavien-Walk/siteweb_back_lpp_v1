@@ -193,6 +193,18 @@ export default function ReelsScreen() {
     router.back();
   }, [router]);
 
+  // Description overlay state — allows pan gesture to close overlay instead of fullscreen
+  const overlayOpen = useSharedValue(false);
+  const closeOverlayRef = useRef<(() => void) | null>(null);
+
+  const handleOverlayToggle = useCallback((open: boolean) => {
+    overlayOpen.value = open;
+  }, []);
+
+  const doCloseOverlay = useCallback(() => {
+    closeOverlayRef.current?.();
+  }, []);
+
   // Swipe-to-dismiss (horizontal pan wrapping la FlatList)
   const translateX = useSharedValue(0);
   const screenOpacity = useSharedValue(1);
@@ -205,6 +217,8 @@ export default function ReelsScreen() {
     .maxPointers(1)
     .onUpdate((event) => {
       'worklet';
+      // Don't move screen when description overlay is open
+      if (overlayOpen.value) return;
       if (event.translationX > 0) {
         translateX.value = event.translationX;
         screenOpacity.value = 1 - (event.translationX / SCREEN_WIDTH) * 0.5;
@@ -212,6 +226,15 @@ export default function ReelsScreen() {
     })
     .onEnd((event) => {
       'worklet';
+      // If overlay is open, close it instead of dismissing fullscreen
+      if (overlayOpen.value) {
+        if (event.translationX > 10) {
+          runOnJS(doCloseOverlay)();
+        }
+        translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
+        screenOpacity.value = withSpring(1);
+        return;
+      }
       if (event.translationX > DISMISS_THRESHOLD) {
         translateX.value = withTiming(SCREEN_WIDTH, { duration: 200 }, () => {
           runOnJS(handleClose)();
@@ -262,9 +285,11 @@ export default function ReelsScreen() {
         isActive={index === currentIndex}
         onClose={handleClose}
         initialPositionMillis={index === initialIndex ? initialPositionMillis : 0}
+        onOverlayToggle={handleOverlayToggle}
+        closeOverlayRef={closeOverlayRef}
       />
     </View>
-  ), [currentIndex, getVideoUrl, getPosterUrl, handleClose, initialIndex, initialPositionMillis]);
+  ), [currentIndex, getVideoUrl, getPosterUrl, handleClose, initialIndex, initialPositionMillis, handleOverlayToggle]);
 
   // Loading state
   if (loading) {

@@ -27,6 +27,8 @@ import {
   ActivityIndicator,
   Share,
   ScrollView,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,6 +56,8 @@ interface ReelsVideoPageProps {
   isActive: boolean;
   onClose: () => void;
   initialPositionMillis?: number;
+  onOverlayToggle?: (open: boolean) => void;
+  closeOverlayRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export default function ReelsVideoPage({
@@ -63,6 +67,8 @@ export default function ReelsVideoPage({
   isActive,
   onClose,
   initialPositionMillis = 0,
+  onOverlayToggle,
+  closeOverlayRef,
 }: ReelsVideoPageProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -96,6 +102,109 @@ export default function ReelsVideoPage({
   // Position tracking for session save on close
   const currentPositionRef = useRef(0);
   const initialSeekDoneRef = useRef(false);
+
+  // ========= DESCRIPTION OVERLAY ANIMATION =========
+  const overlayTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT * 0.5)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const closeDescriptionFnRef = useRef<() => void>(() => {});
+
+  const openDescription = useCallback(() => {
+    overlayTranslateY.setValue(SCREEN_HEIGHT * 0.5);
+    backdropOpacity.setValue(0);
+    setDescriptionExpanded(true);
+    onOverlayToggle?.(true);
+  }, [onOverlayToggle, overlayTranslateY, backdropOpacity]);
+
+  const closeDescription = useCallback(() => {
+    onOverlayToggle?.(false);
+    Animated.parallel([
+      Animated.timing(overlayTranslateY, {
+        toValue: SCREEN_HEIGHT * 0.5,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setDescriptionExpanded(false);
+    });
+  }, [onOverlayToggle, overlayTranslateY, backdropOpacity]);
+
+  // Keep ref in sync for PanResponder (created once, needs latest fn)
+  closeDescriptionFnRef.current = closeDescription;
+
+  // Animate open when descriptionExpanded becomes true
+  useEffect(() => {
+    if (descriptionExpanded) {
+      Animated.parallel([
+        Animated.spring(overlayTranslateY, {
+          toValue: 0,
+          damping: 22,
+          mass: 1,
+          stiffness: 240,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [descriptionExpanded]);
+
+  // Expose closeDescription to parent (reels.tsx) only when overlay is open on active page
+  useEffect(() => {
+    if (closeOverlayRef) {
+      closeOverlayRef.current = (isActive && descriptionExpanded) ? closeDescription : null;
+    }
+  }, [closeOverlayRef, closeDescription, isActive, descriptionExpanded]);
+
+  // Close overlay when page becomes inactive (e.g. user swiped to next video)
+  useEffect(() => {
+    if (!isActive && descriptionExpanded) {
+      setDescriptionExpanded(false);
+      onOverlayToggle?.(false);
+      overlayTranslateY.setValue(SCREEN_HEIGHT * 0.5);
+      backdropOpacity.setValue(0);
+    }
+  }, [isActive]);
+
+  // PanResponder for drag handle — swipe down to dismiss overlay
+  const dragHandlePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) {
+          overlayTranslateY.setValue(gs.dy);
+          backdropOpacity.setValue(Math.max(0, 1 - gs.dy / (SCREEN_HEIGHT * 0.3)));
+        }
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 80 || gs.vy > 0.5) {
+          closeDescriptionFnRef.current();
+        } else {
+          Animated.parallel([
+            Animated.spring(overlayTranslateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              damping: 20,
+              stiffness: 200,
+            }),
+            Animated.timing(backdropOpacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
 
   // ========= DECLARATIVE VIDEO CONTROL =========
   // Single source of truth: shouldPlay is computed from state, no imperative calls
@@ -226,6 +335,7 @@ export default function ReelsVideoPage({
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
     .maxDuration(300)
+    .enabled(!descriptionExpanded)
     .onEnd(() => {
       'worklet';
       runOnJS(doDoubleTapLike)();
@@ -235,6 +345,7 @@ export default function ReelsVideoPage({
   const singleTapGesture = Gesture.Tap()
     .numberOfTaps(1)
     .maxDuration(250)
+    .enabled(!descriptionExpanded)
     .requireExternalGestureToFail(doubleTapGesture)
     .onEnd(() => {
       'worklet';
@@ -244,6 +355,7 @@ export default function ReelsVideoPage({
   // Long press : maintenir pour pause, relacher pour reprendre
   const longPressGesture = Gesture.LongPress()
     .minDuration(300)
+    .enabled(!descriptionExpanded)
     .onStart(() => {
       'worklet';
       runOnJS(doPauseForHold)();
@@ -382,7 +494,7 @@ export default function ReelsVideoPage({
           </Text>
         </Pressable>
         {publication.contenu ? (
-          <Pressable onPress={() => setDescriptionExpanded(true)}>
+          <Pressable onPress={openDescription}>
             <Text style={styles.description} numberOfLines={2}>
               {publication.contenu}
             </Text>
@@ -399,41 +511,64 @@ export default function ReelsVideoPage({
         </View>
       </View>
 
-      {/* Couche 5 : Description expandee (overlay) */}
+      {/* Couche 5 : Description overlay anime (backdrop + sheet) */}
       {descriptionExpanded && publication.contenu ? (
-        <Pressable
-          style={[styles.descriptionOverlay, { paddingBottom: insets.bottom + 80 }]}
-          onPress={() => setDescriptionExpanded(false)}
-        >
-          <ScrollView
-            style={styles.descriptionScroll}
-            contentContainerStyle={styles.descriptionScrollContent}
-            showsVerticalScrollIndicator={false}
+        <>
+          {/* Dim backdrop — tap to close */}
+          <Animated.View
+            style={[styles.descriptionBackdrop, { opacity: backdropOpacity }]}
           >
-            <View style={styles.descriptionExpandedHeader}>
-              <Pressable style={styles.authorRow} onPress={handleNavigateToProfile}>
-                <Avatar
-                  uri={publication.auteur.avatar}
-                  prenom={publication.auteur.prenom}
-                  nom={publication.auteur.nom}
-                  taille={32}
-                />
-                <Text style={styles.authorName} numberOfLines={1}>
-                  {publication.auteur.prenom} {publication.auteur.nom}
-                </Text>
-              </Pressable>
-            </View>
-            <Text style={styles.descriptionFullText}>
-              {publication.contenu}
-            </Text>
             <Pressable
-              onPress={() => setDescriptionExpanded(false)}
-              style={styles.voirMoinsButton}
+              style={StyleSheet.absoluteFill}
+              onPress={closeDescription}
+            />
+          </Animated.View>
+
+          {/* Animated bottom sheet */}
+          <Animated.View
+            style={[
+              styles.descriptionSheet,
+              {
+                paddingBottom: insets.bottom + 20,
+                transform: [{ translateY: overlayTranslateY }],
+              },
+            ]}
+          >
+            {/* Drag handle — swipe down to dismiss */}
+            <View {...dragHandlePanResponder.panHandlers} style={styles.dragHandleArea}>
+              <View style={styles.dragHandle} />
+            </View>
+
+            <ScrollView
+              style={styles.descriptionScroll}
+              contentContainerStyle={styles.descriptionScrollContent}
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.voirMoinsText}>voir moins</Text>
-            </Pressable>
-          </ScrollView>
-        </Pressable>
+              <View style={styles.descriptionExpandedHeader}>
+                <Pressable style={styles.authorRow} onPress={handleNavigateToProfile}>
+                  <Avatar
+                    uri={publication.auteur.avatar}
+                    prenom={publication.auteur.prenom}
+                    nom={publication.auteur.nom}
+                    taille={32}
+                  />
+                  <Text style={styles.authorName} numberOfLines={1}>
+                    {publication.auteur.prenom} {publication.auteur.nom}
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={styles.descriptionFullText}>
+                {publication.contenu}
+              </Text>
+              <Pressable
+                onPress={closeDescription}
+                style={styles.voirMoinsButton}
+              >
+                <Text style={styles.voirMoinsText}>voir moins</Text>
+              </Pressable>
+            </ScrollView>
+          </Animated.View>
+        </>
       ) : null}
 
       {/* Comments sheet */}
@@ -572,16 +707,36 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: couleurs.blanc,
   },
-  // Description expandee overlay
-  descriptionOverlay: {
+  // Description overlay anime
+  descriptionBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     zIndex: 25,
-    justifyContent: 'flex-end',
+  },
+  descriptionSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    maxHeight: SCREEN_HEIGHT * 0.55,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    zIndex: 26,
+    paddingHorizontal: espacements.md,
+  },
+  dragHandleArea: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   descriptionScroll: {
-    maxHeight: SCREEN_HEIGHT * 0.5,
-    marginHorizontal: espacements.md,
+    maxHeight: SCREEN_HEIGHT * 0.4,
   },
   descriptionScrollContent: {
     paddingBottom: 20,
