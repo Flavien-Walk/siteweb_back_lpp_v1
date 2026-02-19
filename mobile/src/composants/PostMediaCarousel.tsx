@@ -93,7 +93,7 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   // Track current position for fullscreen handoff
   const currentPositionRef = useRef<number>(0);
   // Track if we need to apply a pending session after load
-  const pendingSessionRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
+  const pendingSessionRef = useRef<{ position: number } | null>(null);
   // Track registration status
   const isRegisteredRef = useRef(false);
   // Track long-press-to-pause state
@@ -148,35 +148,26 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
       // Track position for fullscreen handoff
       currentPositionRef.current = status.positionMillis || 0;
 
-      // Apply pending session if video just loaded
+      // Apply pending position restore if video just loaded
+      // Only restore POSITION — play/pause is handled by shouldPlay prop
       if (pendingSessionRef.current) {
-        const { position, shouldPlay } = pendingSessionRef.current;
+        const { position } = pendingSessionRef.current;
         pendingSessionRef.current = null;
-        (async () => {
-          try {
-            await videoRef.current?.setPositionAsync(position);
-            if (shouldPlay) {
-              await videoRef.current?.playAsync();
-            }
-          } catch {
-            // Ignore errors
-          }
-        })();
+        videoRef.current?.setPositionAsync(position).catch(() => {});
       }
     }
   }, []);
 
-  const togglePlayPause = useCallback(async () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-      } else {
-        // Set this post AND video as globally active before playing
-        // This ensures other videos stop and this one is allowed to play
-        videoPlaybackStore.setActivePostId(postId);
-        videoPlaybackStore.setActiveVideo(item.url);
-        await videoRef.current.playAsync();
-      }
+  // Toggle play/pause by changing global active state — shouldPlay prop handles the rest
+  const togglePlayPause = useCallback(() => {
+    if (isPlaying) {
+      // Deactivate this post → shouldPlay becomes false
+      videoPlaybackStore.setActivePostId(null);
+      videoPlaybackStore.setActiveVideo(null);
+    } else {
+      // Activate this post → shouldPlay becomes true
+      videoPlaybackStore.setActivePostId(postId);
+      videoPlaybackStore.setActiveVideo(item.url);
     }
   }, [isPlaying, item.url, postId]);
 
@@ -190,12 +181,12 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
 
   // Handler pour ouvrir plein écran
   // Capture position exacte via getStatusAsync pour fiabilité
+  // No pauseAsync — handleOpenVideo sets activePostId=null which makes shouldPlay=false
   const handleFullscreenPress = useCallback(async () => {
     if (onVideoPress && videoRef.current) {
       try {
         const status = await videoRef.current.getStatusAsync();
         if (status.isLoaded) {
-          await videoRef.current.pauseAsync();
           onVideoPress({
             videoUrl: item.url,
             thumbnailUrl: item.thumbnailUrl,
@@ -242,6 +233,8 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   });
 
   // AUTO-RESYNC: Listen to store session changes (when fullscreen closes)
+  // Restore POSITION only from session (e.g. after returning from fullscreen)
+  // Play/pause is handled entirely by the shouldPlay prop — no imperative calls
   useEffect(() => {
     if (!session || !isActive) return;
 
@@ -249,38 +242,14 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
     const isRecent = Date.now() - session.updatedAt < 2000;
     if (!isRecent) return;
 
-    const applySession = async () => {
-      if (!videoRef.current) return;
+    if (!videoRef.current) return;
 
-      try {
-        const status = await videoRef.current.getStatusAsync();
-        if (status.isLoaded) {
-          // Video is loaded, apply immediately
-          await videoRef.current.setPositionAsync(session.positionMillis);
-          // Only play if globally active AND session says shouldPlay
-          if (session.shouldPlay && isGloballyActive) {
-            await videoRef.current.playAsync();
-          } else {
-            await videoRef.current.pauseAsync();
-          }
-        } else {
-          // Video not loaded yet, store pending session (will check global active when applying)
-          pendingSessionRef.current = {
-            position: session.positionMillis,
-            shouldPlay: session.shouldPlay && isGloballyActive,
-          };
-        }
-      } catch {
-        // Store as pending in case of error
-        pendingSessionRef.current = {
-          position: session.positionMillis,
-          shouldPlay: session.shouldPlay && isGloballyActive,
-        };
-      }
-    };
-
-    applySession();
-  }, [session, isActive, isGloballyActive]);
+    // Restore position only
+    videoRef.current.setPositionAsync(session.positionMillis).catch(() => {
+      // Video not loaded yet, store pending position
+      pendingSessionRef.current = { position: session.positionMillis };
+    });
+  }, [session, isActive]);
 
   // Fallback: Resync position via props (legacy support)
   useEffect(() => {
