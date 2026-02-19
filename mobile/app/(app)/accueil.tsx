@@ -38,10 +38,11 @@ import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
 import { Utilisateur } from '../../src/services/auth';
 // useStaff importé uniquement dans PublicationCard extrait
-import { PostMediaCarousel, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay, KeyboardView } from '../../src/composants';
+import { PostMediaCarousel, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay, KeyboardView, AdCard } from '../../src/composants';
 import { isVideoUrl } from '../../src/utils/mediaUtils';
 import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
 import { videoRegistry } from '../../src/stores/videoRegistry';
+import { type FeedItem, buildFeedWithAds, isAdItem, isPublication, getFeedItemKey } from '../../src/services/ads';
 import {
   Publication,
   Mention,
@@ -275,6 +276,8 @@ export default function Accueil() {
 
   // Publications API
   const [publications, setPublications] = useState<Publication[]>([]);
+  // Feed mixte : publications + publicites inserees par l'algorithme
+  const feedItems = useMemo(() => buildFeedWithAds(publications), [publications]);
   const [chargement, setChargement] = useState(true);
   const [modalCreerPost, setModalCreerPost] = useState(false);
   const nouveauPostInputRef = useRef<TextInput>(null);
@@ -1957,37 +1960,50 @@ export default function Accueil() {
             <Text style={styles.emptySubtext}>Soyez le premier a publier !</Text>
           </View>
         ) : (
-          publications.map((publication, index) => (
-            <View
-              key={publication._id}
-              onLayout={(e) => {
-                const { y, height } = e.nativeEvent.layout;
-                publicationLayoutsRef.current.set(publication._id, { y, height });
-              }}
-              style={publicationCiblee === publication._id ? {
-                borderWidth: 2,
-                borderColor: couleurs.primaire,
-                borderRadius: rayons.lg,
-                backgroundColor: couleurs.primaireLight,
-              } : undefined}
-            >
-              <AnimatedPublicationWrapper index={index}>
-                <PublicationCard
-                  publication={publication}
-                  onUpdate={handleUpdatePublication}
-                  onDelete={handleDeletePublication}
-                  onOpenCommentsSheet={openCommentsSheet}
-                  onNavigateToProfile={naviguerVersProfil}
-                  onOpenImage={handleOpenImage}
-                  onOpenVideo={handleOpenVideo}
-                  onResetControlsTimeout={resetControlsTimeout}
-                  styles={styles}
-                  mediaWidth={SCREEN_WIDTH - 32}
-                  mediaHeight={SCREEN_WIDTH - 32}
-                />
-              </AnimatedPublicationWrapper>
-            </View>
-          ))
+          feedItems.map((item, index) => {
+            const layoutKey = getFeedItemKey(item);
+            return (
+              <View
+                key={layoutKey}
+                onLayout={(e) => {
+                  const { y, height } = e.nativeEvent.layout;
+                  publicationLayoutsRef.current.set(layoutKey, { y, height });
+                }}
+                style={isPublication(item) && publicationCiblee === item._id ? {
+                  borderWidth: 2,
+                  borderColor: couleurs.primaire,
+                  borderRadius: rayons.lg,
+                  backgroundColor: couleurs.primaireLight,
+                } : undefined}
+              >
+                <AnimatedPublicationWrapper index={index}>
+                  {isAdItem(item) ? (
+                    <AdCard
+                      ad={item}
+                      feedPosition={index}
+                      mediaWidth={SCREEN_WIDTH - 32}
+                      mediaHeight={SCREEN_WIDTH - 32}
+                      styles={styles}
+                    />
+                  ) : (
+                    <PublicationCard
+                      publication={item}
+                      onUpdate={handleUpdatePublication}
+                      onDelete={handleDeletePublication}
+                      onOpenCommentsSheet={openCommentsSheet}
+                      onNavigateToProfile={naviguerVersProfil}
+                      onOpenImage={handleOpenImage}
+                      onOpenVideo={handleOpenVideo}
+                      onResetControlsTimeout={resetControlsTimeout}
+                      styles={styles}
+                      mediaWidth={SCREEN_WIDTH - 32}
+                      mediaHeight={SCREEN_WIDTH - 32}
+                    />
+                  )}
+                </AnimatedPublicationWrapper>
+              </View>
+            );
+          })
         )}
       </View>
     </>
@@ -2910,23 +2926,37 @@ export default function Accueil() {
   const computeVideoViewability = useCallback((scrollY: number) => {
     // Freeze viewability during feed context restore (returning from Reels)
     if (restoringContextRef.current) return;
-    if (ongletActif !== 'feed' || publications.length === 0) return;
+    if (ongletActif !== 'feed' || feedItems.length === 0) return;
 
     const viewportTop = scrollY;
     const viewportBottom = scrollY + SCREEN_HEIGHT;
     const sectionOffset = sectionOffsetRef.current;
 
-    // Calculate visibility ratio for all video publications
+    // Calculate visibility ratio for all video items (publications + ads)
     let bestPostId: string | null = null;
     let bestVisibility = 0;
     let currentActiveVisibility = 0;
 
-    for (const publication of publications) {
-      const layout = publicationLayoutsRef.current.get(publication._id);
-      if (!layout) continue;
+    for (const item of feedItems) {
+      // Determine layout key, video postId, and whether item has video
+      let layoutKey: string;
+      let videoPostId: string;
+      let hasVideo: boolean;
 
-      const hasVideo = publication.medias?.some(m => m.type === 'video');
+      if (isAdItem(item)) {
+        layoutKey = `ad:${item._id}`;
+        videoPostId = `ad:${item._id}`;
+        hasVideo = true; // ads are always video
+      } else {
+        layoutKey = item._id;
+        videoPostId = item._id;
+        hasVideo = item.medias?.some(m => m.type === 'video') ?? false;
+      }
+
       if (!hasVideo) continue;
+
+      const layout = publicationLayoutsRef.current.get(layoutKey);
+      if (!layout) continue;
 
       // Absolute position within ScrollView content
       const postTop = sectionOffset + layout.y;
@@ -2938,14 +2968,14 @@ export default function Accueil() {
       const visibilityRatio = layout.height > 0 ? visibleHeight / layout.height : 0;
 
       // Track current active video's visibility
-      if (publication._id === activePostIdRef.current) {
+      if (videoPostId === activePostIdRef.current) {
         currentActiveVisibility = visibilityRatio;
       }
 
       // Track the most visible video post
       if (visibilityRatio > bestVisibility) {
         bestVisibility = visibilityRatio;
-        bestPostId = publication._id;
+        bestPostId = videoPostId;
       }
     }
 
@@ -2956,21 +2986,16 @@ export default function Accueil() {
     let nextActivePostId: string | null = null;
 
     if (activePostIdRef.current) {
-      // We have a currently active video
       if (currentActiveVisibility >= STOP_THRESHOLD) {
-        // Current still visible enough → keep it (hystérésis)
         nextActivePostId = activePostIdRef.current;
       } else {
-        // Current dropped below STOP_THRESHOLD → look for replacement
         if (bestPostId && bestVisibility >= START_THRESHOLD) {
           nextActivePostId = bestPostId;
         } else {
-          // No video ready → STOP ALL
           nextActivePostId = null;
         }
       }
     } else {
-      // No current active video → activate best if above START_THRESHOLD
       if (bestPostId && bestVisibility >= START_THRESHOLD) {
         nextActivePostId = bestPostId;
       } else {
@@ -2994,12 +3019,23 @@ export default function Accueil() {
             activePostIdRef.current = capturedNextId;
 
             if (capturedNextId) {
-              // Activate a specific video
+              // Activate a specific video (publication or ad)
               videoRegistry.stopAllExcept(capturedNextId).catch(() => {});
               videoPlaybackStore.setActivePostId(capturedNextId);
-              const post = publications.find(p => p._id === capturedNextId);
-              const video = post?.medias?.find(m => m.type === 'video');
-              videoPlaybackStore.setActiveVideo(video?.url || null);
+
+              // Find video URL — handle both publications and ads
+              let videoUrl: string | null = null;
+              if (capturedNextId.startsWith('ad:')) {
+                const adId = capturedNextId.slice(3); // remove 'ad:' prefix
+                const adItem = feedItems.find(i => isAdItem(i) && i._id === adId);
+                videoUrl = adItem && isAdItem(adItem) ? adItem.videoUrl : null;
+              } else {
+                const pub = feedItems.find(i => isPublication(i) && i._id === capturedNextId);
+                if (pub && isPublication(pub)) {
+                  videoUrl = pub.medias?.find(m => m.type === 'video')?.url || null;
+                }
+              }
+              videoPlaybackStore.setActiveVideo(videoUrl);
             } else {
               // STOP ALL — no video visible on screen
               videoRegistry.stopAll().catch(() => {});
@@ -3011,7 +3047,7 @@ export default function Accueil() {
         viewabilityTimeoutRef.current = null;
       }, VIEWABILITY_DELAY_MS);
     }
-  }, [ongletActif, publications]);
+  }, [ongletActif, feedItems]);
 
   // Keep ref in sync so useFocusEffect can call the latest version
   computeViewabilityRef.current = computeVideoViewability;
@@ -3051,7 +3087,7 @@ export default function Accueil() {
       computeVideoViewability(lastScrollYRef.current);
     }, 300);
     return () => clearTimeout(timer);
-  }, [publications.length, ongletActif, computeVideoViewability]);
+  }, [feedItems.length, ongletActif, computeVideoViewability]);
 
   const handleScrollBegin = useCallback(() => {
     // No-op: let viewability tracking handle video switching

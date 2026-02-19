@@ -27,6 +27,7 @@ export { default as StaffActions } from './StaffActions';
 // Composants Publications
 export { default as PostMediaCarousel, type VideoFullscreenParams } from './PostMediaCarousel';
 export { default as PublicationCard, type PublicationCardProps, type VideoOpenParams } from './PublicationCard';
+export { default as AdCard } from './AdCard';
 
 // Composants Video & Image Fullscreen
 export { default as HeartAnimation } from './HeartAnimation';
