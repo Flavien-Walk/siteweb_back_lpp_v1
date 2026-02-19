@@ -1850,8 +1850,16 @@ export default function Accueil() {
         // Freeze viewability during restore
         restoringContextRef.current = true;
 
+        // Compute correct scrollY for the target post (handles swiped-to-different-video case)
+        // If the user watched a different video in Reels, we need to scroll to THAT post
+        let targetScrollY = feedContext.scrollY; // fallback to saved scrollY
+        const postLayout = publicationLayoutsRef.current.get(feedContext.postId);
+        if (postLayout) {
+          targetScrollY = Math.max(0, sectionOffsetRef.current + postLayout.y - 100);
+        }
+
         // Restore scroll position (no animation to avoid flash)
-        scrollViewRef.current?.scrollTo({ y: feedContext.scrollY, animated: false });
+        scrollViewRef.current?.scrollTo({ y: targetScrollY, animated: false });
 
         // Force active post (bypass viewability calculation)
         activePostIdRef.current = feedContext.postId;

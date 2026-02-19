@@ -57,6 +57,11 @@ export default function ReelsScreen() {
   // State
   const [publications, setPublications] = useState<Publication[]>([]);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  // Refs to access latest values from stale closures (useFocusEffect blur, unmount cleanup)
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
+  const publicationsRef = useRef(publications);
+  publicationsRef.current = publications;
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -166,6 +171,17 @@ export default function ReelsScreen() {
   // Nettoyage complet au demontage
   useEffect(() => {
     return () => {
+      // Update feedContext with current video's postId (safety net)
+      const currentPub = publicationsRef.current[currentIndexRef.current];
+      if (currentPub) {
+        const existing = videoPlaybackStore.getFeedContext();
+        if (existing) {
+          videoPlaybackStore.setFeedContext({
+            postId: currentPub._id,
+            scrollY: existing.scrollY,
+          });
+        }
+      }
       videoRegistry.stopAll().catch(() => {});
       videoPlaybackStore.setActivePostId(null);
       videoPlaybackStore.setActiveVideo(null);
@@ -177,7 +193,18 @@ export default function ReelsScreen() {
     useCallback(() => {
       // Screen focused
       return () => {
-        // Screen unfocused
+        // Screen unfocused — update feedContext with current video's postId
+        // (covers system back gesture, Android back button, etc.)
+        const currentPub = publicationsRef.current[currentIndexRef.current];
+        if (currentPub) {
+          const existing = videoPlaybackStore.getFeedContext();
+          if (existing) {
+            videoPlaybackStore.setFeedContext({
+              postId: currentPub._id,
+              scrollY: existing.scrollY,
+            });
+          }
+        }
         videoRegistry.stopAll().catch(() => {});
         videoPlaybackStore.setActivePostId(null);
         videoPlaybackStore.setActiveVideo(null);
@@ -185,8 +212,16 @@ export default function ReelsScreen() {
     }, [])
   );
 
-  // Close handler
+  // Close handler — update feedContext with the CURRENT video's postId before navigating back
   const handleClose = useCallback(() => {
+    const currentPub = publicationsRef.current[currentIndexRef.current];
+    if (currentPub) {
+      const existing = videoPlaybackStore.getFeedContext();
+      videoPlaybackStore.setFeedContext({
+        postId: currentPub._id,
+        scrollY: existing?.scrollY ?? 0,
+      });
+    }
     videoRegistry.stopAll().catch(() => {});
     videoPlaybackStore.setActivePostId(null);
     videoPlaybackStore.setActiveVideo(null);
@@ -211,7 +246,7 @@ export default function ReelsScreen() {
 
   const panGesture = Gesture.Pan()
     .activeOffsetX([10, 500])
-    .failOffsetY([-50, 50])
+    .failOffsetY([-80, 80])
     .failOffsetX([-500, -15])
     .minPointers(1)
     .maxPointers(1)
