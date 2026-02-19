@@ -3452,7 +3452,7 @@ export default function Accueil() {
               </Pressable>
             </View>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { paddingBottom: Math.max(espacements.lg, insets.bottom) }]}>
               <Pressable
                 style={[
                   styles.modalPublishBtn,
