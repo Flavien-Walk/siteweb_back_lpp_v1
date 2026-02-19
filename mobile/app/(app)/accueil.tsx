@@ -246,7 +246,7 @@ export default function Accueil() {
 
   // Paramètres de navigation (pour scroll vers une publication depuis notification)
   const { publicationId } = useLocalSearchParams<{ publicationId?: string }>();
-  const publicationLayoutsRef = useRef<Map<string, number>>(new Map());
+  const publicationLayoutsRef = useRef<Map<string, { y: number; height: number }>>(new Map());
   const [publicationCiblee, setPublicationCiblee] = useState<string | null>(null);
 
   const [rafraichissement, setRafraichissement] = useState(false);
@@ -258,15 +258,18 @@ export default function Accueil() {
   const [afficherScrollTop, setAfficherScrollTop] = useState(false);
   const scrollTopOpacity = useRef(new Animated.Value(0)).current;
 
-  // Video viewability tracking with debounce
-  // Only change active video when a NEW post is dominant (>50% visible) for >150ms
-  // NEVER transitions to null during scroll — avoids killing the current video
+  // Video viewability tracking with hystérésis
+  // START_THRESHOLD: video must be this visible to START playing
+  // STOP_THRESHOLD: current video keeps playing until it drops below this (hystérésis)
+  // Transitions to null (stop all) when no video is above STOP_THRESHOLD
   const activePostIdRef = useRef<string | null>(null);
   const pendingActivePostRef = useRef<string | null>(null);
   const viewabilityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScrollYRef = useRef<number>(0);
-  const VIEWABILITY_THRESHOLD = 0.5; // 50% visible (tolerant during scroll)
-  const VIEWABILITY_DELAY_MS = 150; // 150ms debounce between post switches
+  const sectionOffsetRef = useRef<number>(0);
+  const START_THRESHOLD = 0.5;    // 50% visible to START playing
+  const STOP_THRESHOLD = 0.15;    // 15% visible to STOP (hystérésis buffer)
+  const VIEWABILITY_DELAY_MS = 150; // 150ms debounce between switches
 
   // Publications API
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -770,11 +773,12 @@ export default function Accueil() {
     if (publicationCiblee && !chargement && publications.length > 0) {
       // Attendre que les layouts soient calculés
       const timeoutId = setTimeout(() => {
-        const layoutY = publicationLayoutsRef.current.get(publicationCiblee);
-        if (layoutY !== undefined && scrollViewRef.current) {
+        const layout = publicationLayoutsRef.current.get(publicationCiblee);
+        if (layout !== undefined && scrollViewRef.current) {
           // Scroller vers la publication avec un offset pour le header
+          const absoluteY = sectionOffsetRef.current + layout.y;
           scrollViewRef.current.scrollTo({
-            y: Math.max(0, layoutY - 100),
+            y: Math.max(0, absoluteY - 100),
             animated: true,
           });
           // Réinitialiser après le scroll
@@ -1792,11 +1796,18 @@ export default function Accueil() {
     }, [pendingStoryIndex])
   );
 
-  // Clear active video and viewability state when leaving the feed screen
+  // Ref to always hold the latest computeVideoViewability (declared later in file)
+  const computeViewabilityRef = useRef<((scrollY: number) => void) | null>(null);
+
+  // Manage active video on screen focus/blur
   useFocusEffect(
     useCallback(() => {
-      // On focus: nothing to do (scroll will set active video)
+      // On focus: re-trigger viewability to resume the visible video
+      const timer = setTimeout(() => {
+        computeViewabilityRef.current?.(lastScrollYRef.current);
+      }, 200);
       return () => {
+        clearTimeout(timer);
         // On blur: clear active video and viewability tracking
         if (viewabilityTimeoutRef.current) {
           clearTimeout(viewabilityTimeoutRef.current);
@@ -1834,7 +1845,12 @@ export default function Accueil() {
     <>
       {renderStories()}
       <NextAction />
-      <View style={styles.section}>
+      <View
+        style={styles.section}
+        onLayout={(e) => {
+          sectionOffsetRef.current = e.nativeEvent.layout.y;
+        }}
+      >
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Fil d'actualite</Text>
         </View>
@@ -1851,7 +1867,8 @@ export default function Accueil() {
             <View
               key={publication._id}
               onLayout={(e) => {
-                publicationLayoutsRef.current.set(publication._id, e.nativeEvent.layout.y);
+                const { y, height } = e.nativeEvent.layout;
+                publicationLayoutsRef.current.set(publication._id, { y, height });
               }}
               style={publicationCiblee === publication._id ? {
                 borderWidth: 2,
@@ -2794,62 +2811,114 @@ export default function Accueil() {
     setTimeout(action, 200);
   };
 
-  // Reusable viewability calculation — called from handleScroll AND initial load
+  // Viewability calculation with hystérésis — called from handleScroll AND initial load
+  // Uses absolute positions (sectionOffset + relativeY) and real measured heights
   const computeVideoViewability = useCallback((scrollY: number) => {
     if (ongletActif !== 'feed' || publications.length === 0) return;
 
     const viewportTop = scrollY;
     const viewportBottom = scrollY + SCREEN_HEIGHT;
-    let dominantPostId: string | null = null;
-    let maxVisibility = 0;
+    const sectionOffset = sectionOffsetRef.current;
+
+    // Calculate visibility ratio for all video publications
+    let bestPostId: string | null = null;
+    let bestVisibility = 0;
+    let currentActiveVisibility = 0;
 
     for (const publication of publications) {
-      const pubY = publicationLayoutsRef.current.get(publication._id);
-      if (pubY === undefined) continue;
+      const layout = publicationLayoutsRef.current.get(publication._id);
+      if (!layout) continue;
 
       const hasVideo = publication.medias?.some(m => m.type === 'video');
       if (!hasVideo) continue;
 
-      const postHeight = SCREEN_WIDTH + 150;
-      const postTop = pubY;
-      const postBottom = pubY + postHeight;
+      // Absolute position within ScrollView content
+      const postTop = sectionOffset + layout.y;
+      const postBottom = postTop + layout.height;
 
       const visibleTop = Math.max(postTop, viewportTop);
       const visibleBottom = Math.min(postBottom, viewportBottom);
       const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-      const visibilityRatio = visibleHeight / postHeight;
+      const visibilityRatio = layout.height > 0 ? visibleHeight / layout.height : 0;
 
-      if (visibilityRatio > maxVisibility && visibilityRatio >= VIEWABILITY_THRESHOLD) {
-        maxVisibility = visibilityRatio;
-        dominantPostId = publication._id;
+      // Track current active video's visibility
+      if (publication._id === activePostIdRef.current) {
+        currentActiveVisibility = visibilityRatio;
+      }
+
+      // Track the most visible video post
+      if (visibilityRatio > bestVisibility) {
+        bestVisibility = visibilityRatio;
+        bestPostId = publication._id;
       }
     }
 
-    // Only react to NON-NULL dominant posts — never clear active post during scroll.
-    if (dominantPostId && dominantPostId !== pendingActivePostRef.current) {
-      pendingActivePostRef.current = dominantPostId;
+    // Hystérésis decision logic:
+    // - Current active stays as long as it's above STOP_THRESHOLD (15%)
+    // - New video needs START_THRESHOLD (50%) to take over
+    // - If nothing above STOP_THRESHOLD → STOP ALL (null)
+    let nextActivePostId: string | null = null;
+
+    if (activePostIdRef.current) {
+      // We have a currently active video
+      if (currentActiveVisibility >= STOP_THRESHOLD) {
+        // Current still visible enough → keep it (hystérésis)
+        nextActivePostId = activePostIdRef.current;
+      } else {
+        // Current dropped below STOP_THRESHOLD → look for replacement
+        if (bestPostId && bestVisibility >= START_THRESHOLD) {
+          nextActivePostId = bestPostId;
+        } else {
+          // No video ready → STOP ALL
+          nextActivePostId = null;
+        }
+      }
+    } else {
+      // No current active video → activate best if above START_THRESHOLD
+      if (bestPostId && bestVisibility >= START_THRESHOLD) {
+        nextActivePostId = bestPostId;
+      } else {
+        nextActivePostId = null;
+      }
+    }
+
+    // Apply change if different from what's pending
+    if (nextActivePostId !== pendingActivePostRef.current) {
+      pendingActivePostRef.current = nextActivePostId;
 
       if (viewabilityTimeoutRef.current) {
         clearTimeout(viewabilityTimeoutRef.current);
         viewabilityTimeoutRef.current = null;
       }
 
+      const capturedNextId = nextActivePostId;
       viewabilityTimeoutRef.current = setTimeout(() => {
-        if (pendingActivePostRef.current === dominantPostId) {
-          if (activePostIdRef.current !== dominantPostId) {
-            activePostIdRef.current = dominantPostId;
-            videoRegistry.stopAllExcept(dominantPostId).catch(() => {});
-            videoPlaybackStore.setActivePostId(dominantPostId);
+        if (pendingActivePostRef.current === capturedNextId) {
+          if (activePostIdRef.current !== capturedNextId) {
+            activePostIdRef.current = capturedNextId;
 
-            const post = publications.find(p => p._id === dominantPostId);
-            const video = post?.medias?.find(m => m.type === 'video');
-            videoPlaybackStore.setActiveVideo(video?.url || null);
+            if (capturedNextId) {
+              // Activate a specific video
+              videoRegistry.stopAllExcept(capturedNextId).catch(() => {});
+              videoPlaybackStore.setActivePostId(capturedNextId);
+              const post = publications.find(p => p._id === capturedNextId);
+              const video = post?.medias?.find(m => m.type === 'video');
+              videoPlaybackStore.setActiveVideo(video?.url || null);
+            } else {
+              // STOP ALL — no video visible on screen
+              videoRegistry.stopAll().catch(() => {});
+              videoPlaybackStore.setActivePostId(null);
+              videoPlaybackStore.setActiveVideo(null);
+            }
           }
         }
         viewabilityTimeoutRef.current = null;
       }, VIEWABILITY_DELAY_MS);
     }
   }, [ongletActif, publications]);
+
+  // Keep ref in sync so useFocusEffect can call the latest version
+  computeViewabilityRef.current = computeVideoViewability;
 
   // Gestion du scroll pour afficher/masquer le bouton scroll-to-top + viewability vidéos
   const handleScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
