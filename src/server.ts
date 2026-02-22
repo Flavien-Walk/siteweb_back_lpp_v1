@@ -8,6 +8,7 @@ import { creerApp } from './app.js';
 import { connecterMongo, fermerMongo } from './config/mongo.js';
 import { initializeSocket, getConnectedUsersCount } from './socket/index.js';
 import { purgeAutoBlocks } from './middlewares/securityMonitor.js';
+import { startSubscriptionCron } from './services/subscriptionCron.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -70,6 +71,9 @@ const demarrerServeur = async (): Promise<void> => {
 
     // Initialiser Socket.io
     const io = initializeSocket(serveur);
+
+    // Démarrer le cron job LPP+
+    startSubscriptionCron();
 
     // Démarrer le serveur
     serveur.listen(PORT, () => {

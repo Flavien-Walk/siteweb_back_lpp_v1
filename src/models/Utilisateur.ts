@@ -133,6 +133,15 @@ export interface IUtilisateur extends Document {
   warnings: IWarning[];
   // Tracking pour le systeme de sanctions automatiques
   moderation: IModerationTracking;
+  // Abonnement LPP+
+  lppPlus?: {
+    status: 'inactive' | 'active' | 'canceled';
+    startedAt?: Date | null;
+    currentPeriodEnd?: Date | null;
+    cancelAtPeriodEnd: boolean;
+    canceledAt?: Date | null;
+    renewalCount: number;
+  };
   // Surveillance
   surveillance: {
     active: boolean;
@@ -345,6 +354,34 @@ const utilisateurSchema = new Schema<IUtilisateur>(
         default: Date.now,
       },
     },
+    // Abonnement LPP+
+    lppPlus: {
+      status: {
+        type: String,
+        enum: ['inactive', 'active', 'canceled'],
+        default: 'inactive',
+      },
+      startedAt: {
+        type: Date,
+        default: null,
+      },
+      currentPeriodEnd: {
+        type: Date,
+        default: null,
+      },
+      cancelAtPeriodEnd: {
+        type: Boolean,
+        default: false,
+      },
+      canceledAt: {
+        type: Date,
+        default: null,
+      },
+      renewalCount: {
+        type: Number,
+        default: 0,
+      },
+    },
     // Surveillance
     surveillance: {
       active: {
@@ -553,6 +590,8 @@ utilisateurSchema.methods.getWarningsBeforeNextSanction = function (): number {
 utilisateurSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.motDePasse;
+  // Ajouter isVerified calculé depuis lppPlus
+  obj.isVerified = obj.lppPlus?.status === 'active';
   return obj;
 };
 

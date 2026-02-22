@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import SupportTicket from '../models/SupportTicket.js';
 import Notification from '../models/Notification.js';
+import Utilisateur from '../models/Utilisateur.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
 // ============================================
@@ -63,12 +64,16 @@ export const creerTicket = async (
       );
     }
 
+    // LPP+ : priorite haute automatique pour les abonnes
+    const user = await Utilisateur.findById(userId).select('lppPlus').lean() as any;
+    const isLppPlus = user?.lppPlus?.status === 'active';
+
     const ticket = await SupportTicket.create({
       user: userId,
       subject: stripHtml(donnees.subject),
       category: donnees.category,
       status: 'en_attente',
-      priority: 'medium',
+      priority: isLppPlus ? 'high' : 'medium',
       messages: [
         {
           sender: userId,

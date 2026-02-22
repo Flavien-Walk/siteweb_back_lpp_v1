@@ -24,6 +24,7 @@ import moderationRoutes from './routes/moderationRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
 import supportTicketRoutes from './routes/supportTicketRoutes.js';
 import gamificationRoutes from './routes/gamificationRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
 import { securityMonitor, checkBlockedIP, sanitizeQueryParams, hideAdminRoutes, invalidateBlockedIPCache, purgeAutoBlocks } from './middlewares/securityMonitor.js';
@@ -394,6 +395,7 @@ export const creerApp = (): Application => {
   app.use('/api/activity', activityRoutes);
   app.use('/api/support', supportTicketRoutes);
   app.use('/api/gamification', gamificationRoutes);
+  app.use('/api/subscriptions', subscriptionRoutes);
 
   // ============================================
   // GESTION DES ERREURS

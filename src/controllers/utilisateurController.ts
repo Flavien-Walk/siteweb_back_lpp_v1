@@ -99,7 +99,7 @@ export const getUtilisateur = async (
 
     // PENTEST-09: Ne pas exposer le role (revele le staff)
     const utilisateur = await Utilisateur.findById(id)
-      .select('prenom nom avatar bio statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation profilPublic');
+      .select('prenom nom avatar bio statut amis demandesAmisRecues demandesAmisEnvoyees dateCreation profilPublic lppPlus');
 
     if (!utilisateur) {
       res.status(404).json({
@@ -164,6 +164,7 @@ export const getUtilisateur = async (
           dateInscription: utilisateur.dateCreation,
           profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
+          isVerified: (utilisateur as any).lppPlus?.status === 'active',
           estAmi,
           demandeEnvoyee,
           demandeRecue,

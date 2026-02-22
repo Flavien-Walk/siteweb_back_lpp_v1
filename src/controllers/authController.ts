@@ -325,6 +325,13 @@ export const moi = async (
           permissions: effectivePermissions,
           // Statut du compte (pour le mobile)
           accountStatus: 'active',
+          // LPP+ (certification)
+          isVerified: (utilisateur as any).lppPlus?.status === 'active',
+          lppPlus: (utilisateur as any).lppPlus ? {
+            status: (utilisateur as any).lppPlus.status || 'inactive',
+            currentPeriodEnd: (utilisateur as any).lppPlus.currentPeriodEnd || null,
+            cancelAtPeriodEnd: (utilisateur as any).lppPlus.cancelAtPeriodEnd || false,
+          } : { status: 'inactive', currentPeriodEnd: null, cancelAtPeriodEnd: false },
         },
       },
     });
