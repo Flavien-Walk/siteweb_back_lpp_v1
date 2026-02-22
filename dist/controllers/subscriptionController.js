@@ -54,7 +54,8 @@ exports.getSubscription = getSubscription;
 const activateSubscription = async (req, res, next) => {
     try {
         const userId = req.utilisateur._id;
-        const utilisateur = await Utilisateur_js_1.default.findById(userId);
+        // +email necessaire car le champ a select:false dans le schema
+        const utilisateur = await Utilisateur_js_1.default.findById(userId).select('+email');
         if (!utilisateur) {
             throw new gestionErreurs_js_1.ErreurAPI('Utilisateur non trouve.', 404);
         }
@@ -124,7 +125,8 @@ exports.activateSubscription = activateSubscription;
 const cancelSubscription = async (req, res, next) => {
     try {
         const userId = req.utilisateur._id;
-        const utilisateur = await Utilisateur_js_1.default.findById(userId);
+        // +email necessaire car le champ a select:false dans le schema
+        const utilisateur = await Utilisateur_js_1.default.findById(userId).select('+email');
         if (!utilisateur) {
             throw new gestionErreurs_js_1.ErreurAPI('Utilisateur non trouve.', 404);
         }
@@ -188,7 +190,8 @@ exports.cancelSubscription = cancelSubscription;
 const reactivateSubscription = async (req, res, next) => {
     try {
         const userId = req.utilisateur._id;
-        const utilisateur = await Utilisateur_js_1.default.findById(userId);
+        // +email necessaire car le champ a select:false dans le schema
+        const utilisateur = await Utilisateur_js_1.default.findById(userId).select('+email');
         if (!utilisateur) {
             throw new gestionErreurs_js_1.ErreurAPI('Utilisateur non trouve.', 404);
         }

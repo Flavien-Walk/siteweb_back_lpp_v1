@@ -64,7 +64,8 @@ export const activateSubscription = async (
 ): Promise<void> => {
   try {
     const userId = req.utilisateur!._id;
-    const utilisateur = await Utilisateur.findById(userId);
+    // +email necessaire car le champ a select:false dans le schema
+    const utilisateur = await Utilisateur.findById(userId).select('+email');
 
     if (!utilisateur) {
       throw new ErreurAPI('Utilisateur non trouve.', 404);
@@ -145,7 +146,8 @@ export const cancelSubscription = async (
 ): Promise<void> => {
   try {
     const userId = req.utilisateur!._id;
-    const utilisateur = await Utilisateur.findById(userId);
+    // +email necessaire car le champ a select:false dans le schema
+    const utilisateur = await Utilisateur.findById(userId).select('+email');
 
     if (!utilisateur) {
       throw new ErreurAPI('Utilisateur non trouve.', 404);
@@ -220,7 +222,8 @@ export const reactivateSubscription = async (
 ): Promise<void> => {
   try {
     const userId = req.utilisateur!._id;
-    const utilisateur = await Utilisateur.findById(userId);
+    // +email necessaire car le champ a select:false dans le schema
+    const utilisateur = await Utilisateur.findById(userId).select('+email');
 
     if (!utilisateur) {
       throw new ErreurAPI('Utilisateur non trouve.', 404);
