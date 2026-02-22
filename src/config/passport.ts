@@ -36,29 +36,27 @@ export const configurerPassport = (): void => {
               return done(null, utilisateur);
             }
 
+            // 2. Verifier si un compte existe avec cet email
             const email = profile.emails?.[0]?.value;
-
-            // Chercher un compte existant par email (merge login+inscription)
-            // Google verifie l'email → le merge est safe :
-            // - L'attaquant devrait controler l'inbox Gmail pour avoir ce token
-            // - S'il controle l'inbox, il peut deja reset le mdp local
-            // - Le motDePasse reste en base → login email+mdp fonctionne toujours
             if (email) {
               const existant = await Utilisateur.findOne({ email: email.toLowerCase() });
               if (existant) {
-                // Lier l'identite Google au compte existant
-                existant.provider = 'google';
-                existant.providerId = profile.id;
-                existant.emailVerifie = true;
-                if (!existant.avatar && profile.photos?.[0]?.value) {
-                  existant.avatar = profile.photos[0].value;
-                }
-                await existant.save();
-                return done(null, existant);
+                // SEC-AUTH-01: Email collision — NE PAS lier automatiquement
+                // Signaler link_required pour que l'utilisateur prouve la propriete du compte
+                return done(null, false, {
+                  message: 'link_required',
+                  linkData: {
+                    userId: existant._id.toString(),
+                    email: existant.email,
+                    googleId: profile.id,
+                    googleName: `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim() || 'Utilisateur Google',
+                    googleAvatar: profile.photos?.[0]?.value,
+                  },
+                } as any);
               }
             }
 
-            // Aucun compte existant → creer un nouveau
+            // 3. Aucune collision — creer un nouveau
             const nouvelUtilisateur = await Utilisateur.create({
               prenom: profile.name?.givenName || 'Utilisateur',
               nom: profile.name?.familyName || 'Google',

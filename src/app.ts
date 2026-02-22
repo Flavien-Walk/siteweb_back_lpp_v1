@@ -302,6 +302,18 @@ export const creerApp = (): Application => {
     legacyHeaders: false,
   }));
 
+  // Rate limiter strict pour les endpoints de liaison de compte OAuth
+  app.use('/api/auth/link/', rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // max 5 tentatives par fenetre
+    message: {
+      succes: false,
+      message: 'Trop de tentatives de liaison. Reessayez dans quelques minutes.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
+
   // PENTEST-02: Rate limit strict sur endpoints publics de lecture (anti-scraping)
   const limiterPublicRead = rateLimit({
     windowMs: 60 * 1000, // 1 minute

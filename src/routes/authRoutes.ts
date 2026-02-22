@@ -13,6 +13,9 @@ import {
   getSanctionInfo,
   getMySanctions,
   getModerationStatus,
+  confirmLinkWithPassword,
+  sendLinkCode,
+  verifyLinkCode,
 } from '../controllers/authController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { generateOAuthState } from '../utils/oauthStore.js';
@@ -121,17 +124,46 @@ router.get(
 );
 
 /**
+ * GET /api/auth/google/mobile
+ * Initier le flux OAuth Google (mobile dedie)
+ * Force platform=mobile dans le state, force account picker
+ */
+router.get('/google/mobile', (req: Request, res: Response, next: NextFunction) => {
+  const state = generateOAuthState('mobile');
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    session: false,
+    state,
+    prompt: 'select_account',
+  })(req, res, next);
+});
+
+/**
  * GET /api/auth/google/callback
  * Callback apres authentification Google
+ * Mode custom pour gerer link_required (done(null, false, info))
  */
-router.get(
-  '/google/callback',
-  passport.authenticate('google', {
-    session: false,
-    failureRedirect: `${process.env.CLIENT_URL}/connexion?erreur=google_echec`,
-  }),
-  callbackOAuth
-);
+router.get('/google/callback', (req: Request, res: Response, next: NextFunction) => {
+  passport.authenticate('google', { session: false }, (err: any, user: any, info: any) => {
+    if (err) {
+      console.error('[OAuth] Passport error:', err);
+      return res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_erreur`);
+    }
+
+    if (!user && info?.message === 'link_required') {
+      // Email collision — attacher linkData pour callbackOAuth
+      (req as any).linkData = info.linkData;
+      (req as any).user = null;
+    } else if (!user) {
+      // Echec authentification standard
+      return res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=google_echec`);
+    } else {
+      (req as any).user = user;
+    }
+
+    callbackOAuth(req, res);
+  })(req, res, next);
+});
 
 // ============================================
 // ROUTES OAUTH - FACEBOOK
@@ -218,5 +250,27 @@ router.get('/oauth/token', getOAuthToken);
  * Utilise par le mobile apres le callback OAuth (securise: code one-time)
  */
 router.post('/exchange-code', exchangeOAuthCode);
+
+// ============================================
+// ROUTES DE LIAISON DE COMPTE (LINKING)
+// ============================================
+
+/**
+ * POST /api/auth/link/google/confirm
+ * Lier un compte Google en prouvant la propriete par mot de passe
+ */
+router.post('/link/google/confirm', confirmLinkWithPassword);
+
+/**
+ * POST /api/auth/link/google/send-code
+ * Envoyer un code OTP par email pour la liaison de compte
+ */
+router.post('/link/google/send-code', sendLinkCode);
+
+/**
+ * POST /api/auth/link/google/verify-code
+ * Verifier le code OTP et completer la liaison du compte Google
+ */
+router.post('/link/google/verify-code', verifyLinkCode);
 
 export default router;

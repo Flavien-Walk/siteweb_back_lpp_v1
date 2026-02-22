@@ -21,13 +21,26 @@ interface CodeEntry {
   createdAt: number;
 }
 
+interface LinkStoreEntry {
+  userId: string;
+  email: string;
+  googleId: string;
+  googleName: string;
+  googleAvatar?: string;
+  otpHash?: string;
+  otpExpire?: number;
+  createdAt: number;
+}
+
 // Stores en memoire (remplacer par Redis en production pour multi-instance)
 const stateStore = new Map<string, StateEntry>();
 const codeStore = new Map<string, CodeEntry>();
+const linkStore = new Map<string, LinkStoreEntry>();
 
 // TTL en millisecondes
 const STATE_TTL = 10 * 60 * 1000; // 10 minutes
 const CODE_TTL = 5 * 60 * 1000; // 5 minutes
+const LINK_TTL = 10 * 60 * 1000; // 10 minutes
 
 // Nettoyage automatique toutes les 5 minutes
 setInterval(() => {
@@ -42,6 +55,12 @@ setInterval(() => {
   for (const [key, entry] of codeStore.entries()) {
     if (now - entry.createdAt > CODE_TTL) {
       codeStore.delete(key);
+    }
+  }
+
+  for (const [key, entry] of linkStore.entries()) {
+    if (now - entry.createdAt > LINK_TTL) {
+      linkStore.delete(key);
     }
   }
 }, 5 * 60 * 1000);
@@ -150,8 +169,62 @@ export const validateTemporaryCode = (code: string): string | null => {
   return entry.userId;
 };
 
+/**
+ * Genere un linkToken pour une demande de liaison de compte
+ * Stocke les donnees Google + userId du compte existant
+ */
+export const generateLinkToken = (data: Omit<LinkStoreEntry, 'createdAt'>): string => {
+  const token = crypto.randomBytes(24).toString('base64url');
+  linkStore.set(token, {
+    ...data,
+    createdAt: Date.now(),
+  });
+  return token;
+};
+
+/**
+ * Lit les donnees d'un linkToken SANS le consommer
+ * Utilise par send-code et verify-code (le token doit rester valide)
+ */
+export const peekLinkToken = (token: string): LinkStoreEntry | null => {
+  if (!token || typeof token !== 'string') return null;
+  const entry = linkStore.get(token);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > LINK_TTL) {
+    linkStore.delete(token);
+    return null;
+  }
+  return entry;
+};
+
+/**
+ * Valide et consomme un linkToken (usage unique)
+ */
+export const validateLinkToken = (token: string): LinkStoreEntry | null => {
+  const entry = peekLinkToken(token);
+  if (!entry) return null;
+  linkStore.delete(token);
+  return entry;
+};
+
+/**
+ * Met a jour le hash OTP sur un linkToken existant
+ */
+export const updateLinkTokenOTP = (token: string, otpHash: string, otpExpire: number): boolean => {
+  const entry = linkStore.get(token);
+  if (!entry) return false;
+  if (Date.now() - entry.createdAt > LINK_TTL) {
+    linkStore.delete(token);
+    return false;
+  }
+  entry.otpHash = otpHash;
+  entry.otpExpire = otpExpire;
+  return true;
+};
+
 // Export pour les tests
 export const _getStoreSize = () => ({
   states: stateStore.size,
   codes: codeStore.size,
+  links: linkStore.size,
 });
