@@ -72,9 +72,23 @@ export const activateSubscription = async (
 
     const currentLppPlus = (utilisateur as any).lppPlus;
 
-    // Verifier si deja actif
+    // Idempotent : si deja actif, retourner l'etat actuel sans erreur
     if (currentLppPlus?.status === 'active') {
-      throw new ErreurAPI('L\'abonnement LPP+ est deja actif.', 400);
+      res.json({
+        succes: true,
+        message: 'Abonnement LPP+ deja actif.',
+        data: {
+          lppPlus: {
+            status: currentLppPlus.status,
+            startedAt: currentLppPlus.startedAt,
+            currentPeriodEnd: currentLppPlus.currentPeriodEnd,
+            cancelAtPeriodEnd: currentLppPlus.cancelAtPeriodEnd || false,
+            canceledAt: currentLppPlus.canceledAt || null,
+            renewalCount: currentLppPlus.renewalCount || 0,
+          },
+        },
+      });
+      return;
     }
 
     // Activer l'abonnement (1 mois)
@@ -143,8 +157,21 @@ export const cancelSubscription = async (
       throw new ErreurAPI('Aucun abonnement actif a resilier.', 400);
     }
 
+    // Idempotent : si deja resilie, retourner l'etat actuel
     if (currentLppPlus.cancelAtPeriodEnd) {
-      throw new ErreurAPI('La resiliation est deja programmee.', 400);
+      res.json({
+        succes: true,
+        message: 'Resiliation deja programmee.',
+        data: {
+          lppPlus: {
+            status: currentLppPlus.status,
+            currentPeriodEnd: currentLppPlus.currentPeriodEnd,
+            cancelAtPeriodEnd: true,
+            canceledAt: currentLppPlus.canceledAt,
+          },
+        },
+      });
+      return;
     }
 
     // Marquer comme resilie en fin de periode
