@@ -656,7 +656,7 @@ export const confirmLinkWithPassword = async (
     await utilisateur.save();
 
     // Generer le token JWT
-    const token = genererToken(utilisateur._id.toString());
+    const token = genererToken(utilisateur);
 
     console.log(`[OAuth Link] Compte ${utilisateur.email} lie a Google (via mot de passe)`);
 
@@ -818,7 +818,7 @@ export const verifyLinkCode = async (
     await utilisateur.save();
 
     // Generer le token JWT
-    const token = genererToken(utilisateur._id.toString());
+    const token = genererToken(utilisateur);
 
     console.log(`[OAuth Link] Compte ${utilisateur.email} lie a Google (via code OTP)`);
 
