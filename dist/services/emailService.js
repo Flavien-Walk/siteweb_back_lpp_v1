@@ -1,14 +1,13 @@
-import { Resend } from 'resend';
-import { randomInt } from 'crypto';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.envoyerEmailLppRenouvellement = exports.envoyerEmailLppFin = exports.envoyerEmailLppReactivation = exports.envoyerEmailLppResiliation = exports.envoyerEmailLppActivation = exports.envoyerEmailVerification = exports.genererCodeVerification = void 0;
+const resend_1 = require("resend");
+const crypto_1 = require("crypto");
+const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = 'La Premiere Pierre <noreply@lapremierepierre.org>';
 const REPLY_TO = 'support@lapremierepierre.org';
-
 // URL de desabonnement (page parametres de l'app ou landing page)
 const UNSUBSCRIBE_URL = 'https://lapremierepierre.org/parametres';
-
 /**
  * Headers communs pour les emails transactionnels LPP+.
  *
@@ -19,33 +18,27 @@ const UNSUBSCRIBE_URL = 'https://lapremierepierre.org/parametres';
  *   exigee par Gmail/Yahoo pour les expediteurs de masse.
  */
 const LPP_EMAIL_HEADERS = {
-  'List-Unsubscribe': `<mailto:unsubscribe@lapremierepierre.org?subject=unsubscribe>, <${UNSUBSCRIBE_URL}>`,
-  'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    'List-Unsubscribe': `<mailto:unsubscribe@lapremierepierre.org?subject=unsubscribe>, <${UNSUBSCRIBE_URL}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
 };
-
 /**
  * Generer un code de verification 6 chiffres
  */
-export const genererCodeVerification = (): string => {
-  return String(randomInt(0, 999999)).padStart(6, '0');
+const genererCodeVerification = () => {
+    return String((0, crypto_1.randomInt)(0, 999999)).padStart(6, '0');
 };
-
+exports.genererCodeVerification = genererCodeVerification;
 /**
  * Envoyer un email de verification avec code 6 chiffres
  */
-export const envoyerEmailVerification = async (
-  email: string,
-  prenom: string,
-  code: string
-): Promise<void> => {
-  console.log(`[EMAIL] Envoi verification vers ${email}`);
-
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: email,
-    replyTo: REPLY_TO,
-    subject: `${code} - Verifie ton email`,
-    html: `
+const envoyerEmailVerification = async (email, prenom, code) => {
+    console.log(`[EMAIL] Envoi verification vers ${email}`);
+    const result = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        replyTo: REPLY_TO,
+        subject: `${code} - Verifie ton email`,
+        html: `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -77,22 +70,20 @@ export const envoyerEmailVerification = async (
   </table>
 </body>
 </html>`,
-    text: `Salut ${prenom} !\n\nVoici ton code de verification : ${code}\n\nCe code expire dans 10 minutes.\nSi tu n'as pas demande ce code, ignore cet email.\n\n— La Premiere Pierre`,
-  });
-
-  console.log(`[EMAIL] Verification envoyee:`, JSON.stringify(result));
+        text: `Salut ${prenom} !\n\nVoici ton code de verification : ${code}\n\nCe code expire dans 10 minutes.\nSi tu n'as pas demande ce code, ignore cet email.\n\n— La Premiere Pierre`,
+    });
+    console.log(`[EMAIL] Verification envoyee:`, JSON.stringify(result));
 };
-
+exports.envoyerEmailVerification = envoyerEmailVerification;
 // ============================================
 // EMAILS LPP+ (ABONNEMENT)
 // ============================================
-
 /**
  * Template HTML commun pour tous les emails LPP+.
  * Le footer inclut une mention legale et un lien de desabonnement
  * pour satisfaire les exigences anti-spam de Gmail/Yahoo.
  */
-const lppEmailTemplate = (prenom: string, title: string, body: string): string => `
+const lppEmailTemplate = (prenom, title, body) => `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -117,19 +108,13 @@ const lppEmailTemplate = (prenom: string, title: string, body: string): string =
   </table>
 </body>
 </html>`;
-
 /**
  * Email d'activation LPP+
  * Sujet transactionnel (pas de "!" ni de vocabulaire marketing)
  */
-export const envoyerEmailLppActivation = async (
-  email: string,
-  prenom: string,
-  dateFinPeriode: string
-): Promise<void> => {
-  console.log(`[EMAIL LPP+] Envoi activation vers ${email}`);
-
-  const body = `
+const envoyerEmailLppActivation = async (email, prenom, dateFinPeriode) => {
+    console.log(`[EMAIL LPP+] Envoi activation vers ${email}`);
+    const body = `
     <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Ton abonnement LPP+ est maintenant actif. Voici un recapitulatif de ton compte.</p>
     <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
       <p style="color:#A855F7;font-size:14px;margin:0 0 4px;font-weight:600;">Inclus dans ton abonnement :</p>
@@ -140,128 +125,102 @@ export const envoyerEmailLppActivation = async (
     <p style="color:#A0A0B0;font-size:13px;margin:0 0 4px;">Date de debut : aujourd'hui</p>
     <p style="color:#A0A0B0;font-size:13px;margin:0 0 4px;">Prochaine echeance : ${dateFinPeriode}</p>
     <p style="color:#707080;font-size:12px;margin:16px 0 0;">Tu peux resilier a tout moment depuis les parametres de ton compte.</p>`;
-
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: email,
-    replyTo: REPLY_TO,
-    subject: `Confirmation de ton abonnement LPP+`,
-    headers: LPP_EMAIL_HEADERS,
-    html: lppEmailTemplate(prenom, 'Abonnement active', body),
-    text: `Salut ${prenom},\n\nTon abonnement LPP+ est maintenant actif.\n\nInclus dans ton abonnement :\n- Badge certifie sur ton profil\n- Support prioritaire\n- Reductions sur les mises en avant\n\nDate de debut : aujourd'hui\nProchaine echeance : ${dateFinPeriode}\n\nTu peux resilier a tout moment depuis les parametres de ton compte.\n\n— La Premiere Pierre`,
-  });
-
-  console.log(`[EMAIL LPP+] Activation envoyee:`, JSON.stringify(result));
+    const result = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        replyTo: REPLY_TO,
+        subject: `Confirmation de ton abonnement LPP+`,
+        headers: LPP_EMAIL_HEADERS,
+        html: lppEmailTemplate(prenom, 'Abonnement active', body),
+        text: `Salut ${prenom},\n\nTon abonnement LPP+ est maintenant actif.\n\nInclus dans ton abonnement :\n- Badge certifie sur ton profil\n- Support prioritaire\n- Reductions sur les mises en avant\n\nDate de debut : aujourd'hui\nProchaine echeance : ${dateFinPeriode}\n\nTu peux resilier a tout moment depuis les parametres de ton compte.\n\n— La Premiere Pierre`,
+    });
+    console.log(`[EMAIL LPP+] Activation envoyee:`, JSON.stringify(result));
 };
-
+exports.envoyerEmailLppActivation = envoyerEmailLppActivation;
 /**
  * Email de resiliation LPP+ (fin de periode)
  */
-export const envoyerEmailLppResiliation = async (
-  email: string,
-  prenom: string,
-  dateFinPeriode: string
-): Promise<void> => {
-  console.log(`[EMAIL LPP+] Envoi resiliation vers ${email}`);
-
-  const body = `
+const envoyerEmailLppResiliation = async (email, prenom, dateFinPeriode) => {
+    console.log(`[EMAIL LPP+] Envoi resiliation vers ${email}`);
+    const body = `
     <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Ta demande de resiliation a bien ete prise en compte. Ton abonnement reste actif jusqu'a la fin de ta periode en cours.</p>
     <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
       <p style="color:#E0E0E0;font-size:14px;margin:0;"><strong>Actif jusqu'au :</strong> ${dateFinPeriode}</p>
     </div>
     <p style="color:#707080;font-size:12px;margin:0;">Tu peux reactiver ton abonnement a tout moment avant cette date depuis les parametres de ton compte.</p>`;
-
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: email,
-    replyTo: REPLY_TO,
-    subject: `LPP+ - Confirmation de resiliation`,
-    headers: LPP_EMAIL_HEADERS,
-    html: lppEmailTemplate(prenom, 'Resiliation confirmee', body),
-    text: `Salut ${prenom},\n\nTa demande de resiliation a bien ete prise en compte.\n\nTon abonnement reste actif jusqu'au : ${dateFinPeriode}\n\nTu peux reactiver a tout moment avant cette date depuis les parametres de ton compte.\n\n— La Premiere Pierre`,
-  });
-
-  console.log(`[EMAIL LPP+] Resiliation envoyee:`, JSON.stringify(result));
+    const result = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        replyTo: REPLY_TO,
+        subject: `LPP+ - Confirmation de resiliation`,
+        headers: LPP_EMAIL_HEADERS,
+        html: lppEmailTemplate(prenom, 'Resiliation confirmee', body),
+        text: `Salut ${prenom},\n\nTa demande de resiliation a bien ete prise en compte.\n\nTon abonnement reste actif jusqu'au : ${dateFinPeriode}\n\nTu peux reactiver a tout moment avant cette date depuis les parametres de ton compte.\n\n— La Premiere Pierre`,
+    });
+    console.log(`[EMAIL LPP+] Resiliation envoyee:`, JSON.stringify(result));
 };
-
+exports.envoyerEmailLppResiliation = envoyerEmailLppResiliation;
 /**
  * Email de reactivation LPP+
  */
-export const envoyerEmailLppReactivation = async (
-  email: string,
-  prenom: string
-): Promise<void> => {
-  console.log(`[EMAIL LPP+] Envoi reactivation vers ${email}`);
-
-  const body = `
+const envoyerEmailLppReactivation = async (email, prenom) => {
+    console.log(`[EMAIL LPP+] Envoi reactivation vers ${email}`);
+    const body = `
     <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Ta resiliation a ete annulee. Ton abonnement LPP+ continue normalement sans interruption.</p>
     <p style="color:#707080;font-size:12px;margin:0;">Aucune action supplementaire n'est requise de ta part.</p>`;
-
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: email,
-    replyTo: REPLY_TO,
-    subject: `LPP+ - Abonnement reactive`,
-    headers: LPP_EMAIL_HEADERS,
-    html: lppEmailTemplate(prenom, 'Reactivation confirmee', body),
-    text: `Salut ${prenom},\n\nTa resiliation a ete annulee. Ton abonnement LPP+ continue normalement sans interruption.\n\nAucune action supplementaire n'est requise de ta part.\n\n— La Premiere Pierre`,
-  });
-
-  console.log(`[EMAIL LPP+] Reactivation envoyee:`, JSON.stringify(result));
+    const result = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        replyTo: REPLY_TO,
+        subject: `LPP+ - Abonnement reactive`,
+        headers: LPP_EMAIL_HEADERS,
+        html: lppEmailTemplate(prenom, 'Reactivation confirmee', body),
+        text: `Salut ${prenom},\n\nTa resiliation a ete annulee. Ton abonnement LPP+ continue normalement sans interruption.\n\nAucune action supplementaire n'est requise de ta part.\n\n— La Premiere Pierre`,
+    });
+    console.log(`[EMAIL LPP+] Reactivation envoyee:`, JSON.stringify(result));
 };
-
+exports.envoyerEmailLppReactivation = envoyerEmailLppReactivation;
 /**
  * Email de fin d'abonnement LPP+
  */
-export const envoyerEmailLppFin = async (
-  email: string,
-  prenom: string
-): Promise<void> => {
-  console.log(`[EMAIL LPP+] Envoi fin abonnement vers ${email}`);
-
-  const body = `
+const envoyerEmailLppFin = async (email, prenom) => {
+    console.log(`[EMAIL LPP+] Envoi fin abonnement vers ${email}`);
+    const body = `
     <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Ton abonnement LPP+ a pris fin. Tu peux te reabonner a tout moment depuis la boutique de l'application.</p>
     <p style="color:#707080;font-size:12px;margin:0;">Merci d'avoir utilise LPP+.</p>`;
-
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: email,
-    replyTo: REPLY_TO,
-    subject: `LPP+ - Fin de ton abonnement`,
-    headers: LPP_EMAIL_HEADERS,
-    html: lppEmailTemplate(prenom, 'Abonnement termine', body),
-    text: `Salut ${prenom},\n\nTon abonnement LPP+ a pris fin.\n\nTu peux te reabonner a tout moment depuis la boutique de l'application.\n\nMerci d'avoir utilise LPP+.\n\n— La Premiere Pierre`,
-  });
-
-  console.log(`[EMAIL LPP+] Fin abonnement envoyee:`, JSON.stringify(result));
+    const result = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        replyTo: REPLY_TO,
+        subject: `LPP+ - Fin de ton abonnement`,
+        headers: LPP_EMAIL_HEADERS,
+        html: lppEmailTemplate(prenom, 'Abonnement termine', body),
+        text: `Salut ${prenom},\n\nTon abonnement LPP+ a pris fin.\n\nTu peux te reabonner a tout moment depuis la boutique de l'application.\n\nMerci d'avoir utilise LPP+.\n\n— La Premiere Pierre`,
+    });
+    console.log(`[EMAIL LPP+] Fin abonnement envoyee:`, JSON.stringify(result));
 };
-
+exports.envoyerEmailLppFin = envoyerEmailLppFin;
 /**
  * Email de renouvellement LPP+
  */
-export const envoyerEmailLppRenouvellement = async (
-  email: string,
-  prenom: string,
-  dateFinPeriode: string
-): Promise<void> => {
-  console.log(`[EMAIL LPP+] Envoi renouvellement vers ${email}`);
-
-  const body = `
+const envoyerEmailLppRenouvellement = async (email, prenom, dateFinPeriode) => {
+    console.log(`[EMAIL LPP+] Envoi renouvellement vers ${email}`);
+    const body = `
     <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Ton abonnement LPP+ a ete renouvele. Voici les details de ta prochaine echeance.</p>
     <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
       <p style="color:#E0E0E0;font-size:14px;margin:0;"><strong>Prochaine echeance :</strong> ${dateFinPeriode}</p>
     </div>
     <p style="color:#707080;font-size:12px;margin:0;">Tu peux gerer ton abonnement depuis les parametres de ton compte.</p>`;
-
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: email,
-    replyTo: REPLY_TO,
-    subject: `LPP+ - Renouvellement de ton abonnement`,
-    headers: LPP_EMAIL_HEADERS,
-    html: lppEmailTemplate(prenom, 'Renouvellement confirme', body),
-    text: `Salut ${prenom},\n\nTon abonnement LPP+ a ete renouvele.\n\nProchaine echeance : ${dateFinPeriode}\n\nTu peux gerer ton abonnement depuis les parametres de ton compte.\n\n— La Premiere Pierre`,
-  });
-
-  console.log(`[EMAIL LPP+] Renouvellement envoye:`, JSON.stringify(result));
+    const result = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        replyTo: REPLY_TO,
+        subject: `LPP+ - Renouvellement de ton abonnement`,
+        headers: LPP_EMAIL_HEADERS,
+        html: lppEmailTemplate(prenom, 'Renouvellement confirme', body),
+        text: `Salut ${prenom},\n\nTon abonnement LPP+ a ete renouvele.\n\nProchaine echeance : ${dateFinPeriode}\n\nTu peux gerer ton abonnement depuis les parametres de ton compte.\n\n— La Premiere Pierre`,
+    });
+    console.log(`[EMAIL LPP+] Renouvellement envoye:`, JSON.stringify(result));
 };
+exports.envoyerEmailLppRenouvellement = envoyerEmailLppRenouvellement;
+//# sourceMappingURL=emailService.js.map
