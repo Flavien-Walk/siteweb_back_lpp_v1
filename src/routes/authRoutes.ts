@@ -115,6 +115,7 @@ router.get(
       scope: ['profile', 'email'],
       session: false,
       state: (req as any).authState,
+      prompt: 'select_account', // Force account picker (pas d'auto-login silencieux)
     })(req, res, next);
   }
 );

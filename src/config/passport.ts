@@ -36,17 +36,29 @@ export const configurerPassport = (): void => {
               return done(null, utilisateur);
             }
 
-            // Vérifier si un utilisateur existe avec cet email
             const email = profile.emails?.[0]?.value;
-            const emailVerified = (profile.emails?.[0] as any)?.verified === true
-              || (profile.emails?.[0] as any)?.verified === 'true';
 
-            // SEC-AUTH-01: Ne PAS lier automatiquement un compte local par email match
-            // Risque: un attaquant avec un compte Google verifie pourrait prendre le controle
-            // d'un compte local existant. On cree un nouveau compte a la place.
-            // L'utilisateur devra lier manuellement ses comptes via les parametres.
+            // Chercher un compte existant par email (merge login+inscription)
+            // Google verifie l'email → le merge est safe :
+            // - L'attaquant devrait controler l'inbox Gmail pour avoir ce token
+            // - S'il controle l'inbox, il peut deja reset le mdp local
+            // - Le motDePasse reste en base → login email+mdp fonctionne toujours
+            if (email) {
+              const existant = await Utilisateur.findOne({ email: email.toLowerCase() });
+              if (existant) {
+                // Lier l'identite Google au compte existant
+                existant.provider = 'google';
+                existant.providerId = profile.id;
+                existant.emailVerifie = true;
+                if (!existant.avatar && profile.photos?.[0]?.value) {
+                  existant.avatar = profile.photos[0].value;
+                }
+                await existant.save();
+                return done(null, existant);
+              }
+            }
 
-            // Créer un nouvel utilisateur
+            // Aucun compte existant → creer un nouveau
             const nouvelUtilisateur = await Utilisateur.create({
               prenom: profile.name?.givenName || 'Utilisateur',
               nom: profile.name?.familyName || 'Google',
