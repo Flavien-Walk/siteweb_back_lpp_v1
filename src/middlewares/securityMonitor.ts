@@ -307,6 +307,7 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
   // 1. Verification IP bloquee
   const ipStatus = await isIPBlocked(ip);
   if (ipStatus.blocked) {
+    console.warn(`[SECURITY] BLOCKED IP=${ip} path=${req.originalUrl} permanent=${ipStatus.permanent}`);
     logSecurityEvent('ip_blocked', 'high', req, 403, `Requete bloquee - IP bannie: ${ip}`, {
       originalPath: req.originalUrl,
       permanent: ipStatus.permanent,
@@ -330,6 +331,7 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
   if (ua && ua.length >= 10) {
     const bannedDevice = await isDeviceBanned(ua);
     if (bannedDevice) {
+      console.warn(`[SECURITY] BLOCKED DEVICE IP=${ip} ua=${ua.slice(0, 80)} nav=${bannedDevice.navigateur} os=${bannedDevice.os}`);
       logSecurityEvent('ip_blocked', 'high', req, 403,
         `Requete bloquee - Appareil banni: ${bannedDevice.navigateur} / ${bannedDevice.os}`, {
           originalPath: req.originalUrl,
@@ -352,6 +354,7 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
   // 3. Detection proxy/VPN (AVANT tout traitement)
   const proxyDetection = detectProxy(req);
   if (proxyDetection) {
+    console.warn(`[SECURITY] PROXY DETECTED IP=${ip} reason=${proxyDetection}`);
     logSecurityEvent('unauthorized_access', 'critical', req, 403,
       `PROXY/VPN DETECTE: ${proxyDetection}`, {
         source: 'proxy_detection',
@@ -374,6 +377,7 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
   if (ua) {
     const maliciousUA = detectMaliciousUA(ua);
     if (maliciousUA) {
+      console.warn(`[SECURITY] MALICIOUS UA IP=${ip} ua=${ua.slice(0, 100)}`);
       logSecurityEvent('injection_attempt', 'critical', req, 403,
         `OUTIL MALVEILLANT: ${maliciousUA}`, {
           source: 'malicious_ua',
@@ -390,6 +394,7 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
 
     // 5. Outils CLI sur routes sensibles (curl, python, etc.)
     if (isCLIToolOnSensitiveRoute(ua, req.originalUrl)) {
+      console.warn(`[SECURITY] CLI TOOL ON SENSITIVE ROUTE IP=${ip} ua=${ua.slice(0, 80)} path=${req.originalUrl}`);
       logSecurityEvent('unauthorized_access', 'high', req, 403,
         `Outil CLI sur route sensible: ${ua.slice(0, 80)} -> ${req.originalUrl}`, {
           source: 'cli_tool_sensitive',
@@ -407,6 +412,7 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
 
   // 6. Pas de User-Agent du tout = suspect (bots basiques)
   if (!ua || ua.length < 5) {
+    console.warn(`[SECURITY] NO USER-AGENT IP=${ip} path=${req.originalUrl} ua="${ua}"`);
     logSecurityEvent('unauthorized_access', 'medium', req, 403,
       `Requete sans User-Agent depuis ${ip}: ${req.originalUrl}`, {
         source: 'missing_ua',
@@ -562,11 +568,12 @@ const detectProxy = (req: Request): string | null => {
   }
 
   // 2. Chaine X-Forwarded-For suspecte (multiple proxies)
-  // Cloudflare + Render = 2 IPs normal. > 4 = chaine proxy suspecte
+  // Render = 1-2 IPs normal. Carrier NAT/CDN = 3-6 possible.
+  // > 8 = chaine proxy deliberee (Tor, multi-hop VPN)
   const xff = req.headers['x-forwarded-for'];
   if (xff) {
     const ips = String(xff).split(',').map(s => s.trim());
-    if (ips.length > 4) {
+    if (ips.length > 8) {
       return `Chaine proxy detectee: X-Forwarded-For contient ${ips.length} IPs`;
     }
   }
@@ -682,6 +689,8 @@ const trackAttack = async (ip: string, req: Request, threatType: ThreatType = 'i
     data.blocked = true;
     const durLabel = config.permanent ? 'PERMANENT' : `${Math.round(config.duration / 60000)} min`;
     const raison = `[AUTO] ${threatType}: ${data.count} tentative(s) en ${Math.round(config.window / 60000)} min (ban ${durLabel})`;
+
+    console.warn(`[SECURITY] AUTO-BLOCK TRIGGERED IP=${ip} threat=${threatType} count=${data.count}/${config.threshold} ban=${durLabel} path=${req.originalUrl}`);
 
     await autoBlockIP(ip, req, raison, config.permanent ? undefined : config.duration);
 
@@ -847,21 +856,25 @@ export const securityMonitor = (req: Request, res: Response, next: NextFunction)
     // 401 - Acces non autorise
     if (statusCode === 401) {
       const isLoginPath = req.path.includes('/connexion');
-      const isTokenIssue = body?.message?.includes('Token');
+      const msg = body?.message || '';
+      const isTokenExpired = msg.includes('invalide') || msg.includes('expiré') || msg.includes('expire');
+      const isTokenMissing = msg.includes('manquant') || msg.includes('Session terminée');
 
       if (isLoginPath) {
-        logSecurityEvent('brute_force', 'medium', req, 401, `Echec login: ${body?.message || 'inconnu'}`, {
+        logSecurityEvent('brute_force', 'medium', req, 401, `Echec login: ${msg || 'inconnu'}`, {
           email: req.body?.email ? req.body.email.slice(0, 50) : 'N/A',
         });
         // Tracker brute force pour auto-blocage (ban temporaire, pas permanent)
         trackAttack(ip, req, 'brute_force');
-      } else if (isTokenIssue) {
-        logSecurityEvent('token_forgery', 'medium', req, 401, `Token invalide: ${body?.message || 'inconnu'}`, {
+      } else if (isTokenExpired) {
+        logSecurityEvent('token_forgery', 'medium', req, 401, `Token invalide: ${msg || 'inconnu'}`, {
           authHeader: (req.headers.authorization || '').slice(0, 50) + '...',
         });
-        // Token expire/invalide = brute force, PAS injection
-        // Un JWT expire est un cas normal (session expiree), pas une attaque
+        // Token falsifie ou expire = brute force
         trackAttack(ip, req, 'brute_force');
+      } else if (isTokenMissing) {
+        // Token absent = erreur client (pas une attaque), on logue sans tracker
+        logSecurityEvent('unauthorized_access', 'low', req, 401, `Token manquant: ${req.originalUrl}`, {});
       } else {
         logSecurityEvent('unauthorized_access', 'medium', req, 401, `Acces non autorise: ${req.originalUrl}`, {});
       }
