@@ -150,12 +150,14 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
 
     socketRef.current = io(SOCKET_URL, {
       auth: { token, userId },
-      transports: ['websocket', 'polling'], // WebSocket prioritaire, polling en fallback
+      transports: ['polling', 'websocket'], // Polling d'abord (fiable sur Expo Go), upgrade WebSocket ensuite
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
+      timeout: 15000,
+      forceNew: true,
     });
 
     // Event handlers

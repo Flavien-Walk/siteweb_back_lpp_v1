@@ -16,6 +16,7 @@ import { SocketProvider } from '../src/contexts/SocketContext';
 import SplashScreen from '../src/composants/SplashScreen';
 import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
 import ErrorBoundary from '../src/composants/ErrorBoundary';
+import XpToast from '../src/composants/XpToast';
 
 // Wrapper pour fournir le SocketProvider avec le userId
 function SocketWrapper({ children }: { children: React.ReactNode }) {
@@ -85,6 +86,7 @@ function AppContent() {
           }}
         />
       </Stack>
+      <XpToast />
     </>
   );
 }

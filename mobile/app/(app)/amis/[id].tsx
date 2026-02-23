@@ -18,8 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
 import { Avatar } from '../../../src/composants';
+import AppBadge from '../../../src/composants/AppBadge';
 import { getAmisUtilisateur, ProfilUtilisateur } from '../../../src/services/utilisateurs';
-import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
 
 export default function ListeAmisPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -87,21 +87,7 @@ export default function ListeAmisPage() {
       />
       <View style={styles.amiInfo}>
         <Text style={styles.amiNom}>{item.prenom} {item.nom}</Text>
-        {(() => {
-          const badgeConfig = getUserBadgeConfig(item.role, item.statut);
-          return (
-            <View style={styles.amiStatutContainer}>
-              <Ionicons
-                name={badgeConfig.icon}
-                size={12}
-                color={badgeConfig.color}
-              />
-              <Text style={[styles.amiStatut, { color: badgeConfig.color }]}>
-                {badgeConfig.label}
-              </Text>
-            </View>
-          );
-        })()}
+        <AppBadge type="role" role={item.role} statut={item.statut} size="xs" variant="ghost" />
       </View>
       <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
     </Pressable>
@@ -343,18 +329,5 @@ const styles = StyleSheet.create({
     fontSize: typographie.tailles.base,
     fontWeight: typographie.poids.medium,
     color: couleurs.texte,
-  },
-  amiStatutContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  amiStatut: {
-    fontSize: typographie.tailles.xs,
-    color: couleurs.texteSecondaire,
-  },
-  amiStatutEntrepreneur: {
-    color: couleurs.primaire,
   },
 });

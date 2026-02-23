@@ -43,7 +43,8 @@ import { getPublicationsUtilisateur, Publication } from '../../../src/services/p
 import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
 import { getProjetsSuivisUtilisateur, Projet } from '../../../src/services/projets';
 import StoryViewer from '../../../src/composants/StoryViewer';
-import { getUserBadgeConfig, isUserVerified, VERIFIED_BADGE_COLOR } from '../../../src/utils/userDisplay';
+import { isUserVerified } from '../../../src/utils/userDisplay';
+import AppBadge from '../../../src/composants/AppBadge';
 import { getPublicGamification } from '../../../src/services/gamification';
 
 type OngletActivite = 'publications' | 'projets';
@@ -404,7 +405,6 @@ export default function ProfilUtilisateurPage() {
 
   const estMonProfil = moi?.id === profil._id;
   const boutonConfig = getBoutonAmiConfig();
-  const statutConfig = getUserBadgeConfig(profil.role, profil.statut);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -526,19 +526,9 @@ export default function ProfilUtilisateurPage() {
 
           {/* Badge statut */}
           <View style={styles.badgesRow}>
-            <View style={[styles.statutBadge, { backgroundColor: `${statutConfig.color}15` }]}>
-              <Ionicons name={statutConfig.icon} size={14} color={statutConfig.color} />
-              <Text style={[styles.statutText, { color: statutConfig.color }]}>
-                {statutConfig.label}
-              </Text>
-            </View>
+            <AppBadge type="role" role={profil.role} statut={profil.statut} size="md" variant="soft" />
             {isUserVerified(profil) && (
-              <View style={[styles.statutBadge, { backgroundColor: `${VERIFIED_BADGE_COLOR}15` }]}>
-                <Ionicons name="checkmark-circle" size={14} color={VERIFIED_BADGE_COLOR} />
-                <Text style={[styles.statutText, { color: VERIFIED_BADGE_COLOR }]}>
-                  Verifie
-                </Text>
-              </View>
+              <AppBadge type="verified" size="md" variant="soft" />
             )}
             {gamificationData && (
               <View style={[styles.statutBadge, { backgroundColor: 'rgba(124, 92, 255, 0.1)' }]}>

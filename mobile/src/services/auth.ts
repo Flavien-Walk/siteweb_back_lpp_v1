@@ -282,12 +282,15 @@ export const modifierMotDePasse = async (
  * Supprimer le compte
  * Apres suppression, nettoie le token et les donnees locales
  * (pas de POST /auth/deconnexion car le compte n'existe plus)
+ *
+ * Comptes locaux : verification par mot de passe
+ * Comptes OAuth (Google) : verification par email du compte
  */
 export const supprimerCompte = async (
-  motDePasse: string
+  options: { motDePasse?: string; emailConfirmation?: string }
 ): Promise<ReponseAPI<void>> => {
   const reponse = await api.delete<void>('/profil', true, {
-    motDePasse,
+    ...options,
     confirmation: 'SUPPRIMER MON COMPTE',
   });
 

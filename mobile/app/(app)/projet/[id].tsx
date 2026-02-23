@@ -217,6 +217,10 @@ export default function ProjetDetailPage() {
           setEstSuivi(reponse.data.projet.estSuivi);
           setNbFollowers(reponse.data.projet.nbFollowers);
         }
+        // Gamification: XP pour visite de projet (ex: 5e projet visite)
+        if (!estRefresh && reponse.gamification) {
+          applyDelta(reponse.gamification);
+        }
       }
     } catch (error) {
       console.error('Erreur chargement projet:', error);
@@ -224,7 +228,7 @@ export default function ProjetDetailPage() {
       setChargement(false);
       setRafraichissement(false);
     }
-  }, [id]);
+  }, [id, applyDelta]);
 
   // Charger les représentants
   const chargerRepresentants = useCallback(async () => {

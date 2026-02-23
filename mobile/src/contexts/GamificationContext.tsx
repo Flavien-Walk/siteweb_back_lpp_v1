@@ -92,7 +92,7 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       setState(null);
       setIsLoading(false);
     }
-  }, [isAuthenticated, utilisateur?._id]);
+  }, [isAuthenticated, utilisateur?.id]);
 
   // Appliquer un delta recu depuis une reponse API
   const applyDelta = useCallback((delta: GamificationDelta) => {

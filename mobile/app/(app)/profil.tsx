@@ -48,10 +48,12 @@ import { getMesProjets, Projet } from '../../src/services/projets';
 import Avatar from '../../src/composants/Avatar';
 import KeyboardView from '../../src/composants/KeyboardView';
 import SwipeableScreen from '../../src/composants/SwipeableScreen';
+import { useGamification } from '../../src/contexts/GamificationContext';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
-import { getUserBadgeConfig, isUserVerified, VERIFIED_BADGE_COLOR } from '../../src/utils/userDisplay';
-import { useGamification } from '../../src/contexts/GamificationContext';
+import EditBioModal from '../../src/composants/EditBioModal';
+import { isUserVerified } from '../../src/utils/userDisplay';
+import AppBadge from '../../src/composants/AppBadge';
 
 type Onglet = 'profil-public' | 'parametres';
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
@@ -90,7 +92,9 @@ export default function Profil() {
 
   // Suppression compte
   const [motDePasseSuppression, setMotDePasseSuppression] = useState('');
+  const [emailSuppression, setEmailSuppression] = useState('');
   const [confirmationSuppression, setConfirmationSuppression] = useState('');
+  const estCompteOAuth = utilisateur?.provider !== 'local';
 
   // Confidentialite
   const [profilPublic, setProfilPublic] = useState(true);
@@ -102,7 +106,6 @@ export default function Profil() {
 
   // Modal Bio
   const [modalBio, setModalBio] = useState(false);
-  const [bioTemp, setBioTemp] = useState('');
 
   // Animation de l'indicateur d'onglet
   const [indicatorPosition] = useState(new Animated.Value(0));
@@ -127,7 +130,7 @@ export default function Profil() {
   const [moderationStatus, setModerationStatus] = useState<ModerationStatus | null>(null);
 
   // Gamification (nouveau systeme)
-  const { state: gamification } = useGamification();
+  const { state: gamification, applyDelta } = useGamification();
 
   // Switch statut entrepreneur/visiteur
   const [statutSelectionne, setStatutSelectionne] = useState<StatutUtilisateur>(utilisateur?.statut || 'visiteur');
@@ -350,22 +353,24 @@ export default function Profil() {
   };
 
   const handleOuvrirModalBio = () => {
-    setBioTemp(utilisateur?.bio || '');
     setModalBio(true);
   };
 
-  const handleSauvegarderBio = async () => {
+  const handleSauvegarderBio = async (nouvelleBio: string) => {
     setChargement(true);
     const reponse = await modifierProfil({
-      bio: bioTemp
+      bio: nouvelleBio
     });
     setChargement(false);
 
     if (reponse.succes && reponse.data) {
       updateUser(reponse.data.utilisateur);
-      setBio(bioTemp);
+      setBio(nouvelleBio);
       setModalBio(false);
       afficherMessage('succes', 'Bio mise a jour !');
+      if (reponse.gamification) {
+        applyDelta(reponse.gamification);
+      }
     } else {
       afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
     }
@@ -434,6 +439,9 @@ export default function Profil() {
     if (reponse.succes && reponse.data) {
       afficherMessage('succes', 'Profil mis a jour avec succes');
       updateUser(reponse.data.utilisateur);
+      if (reponse.gamification) {
+        applyDelta(reponse.gamification);
+      }
     } else {
       afficherMessage('erreur', reponse.message || 'Erreur lors de la mise a jour');
     }
@@ -475,9 +483,17 @@ export default function Profil() {
       return;
     }
 
-    if (!motDePasseSuppression) {
-      afficherMessage('erreur', 'Veuillez entrer votre mot de passe');
-      return;
+    // Verification selon le type de compte
+    if (estCompteOAuth) {
+      if (!emailSuppression) {
+        afficherMessage('erreur', 'Veuillez entrer votre adresse email');
+        return;
+      }
+    } else {
+      if (!motDePasseSuppression) {
+        afficherMessage('erreur', 'Veuillez entrer votre mot de passe');
+        return;
+      }
     }
 
     Alert.alert(
@@ -491,7 +507,11 @@ export default function Profil() {
           onPress: async () => {
             setChargement(true);
             try {
-              const reponse = await supprimerCompte(motDePasseSuppression);
+              const reponse = await supprimerCompte(
+                estCompteOAuth
+                  ? { emailConfirmation: emailSuppression }
+                  : { motDePasse: motDePasseSuppression }
+              );
 
               if (reponse.succes) {
                 // Token et donnees locales deja nettoyes par supprimerCompte
@@ -545,9 +565,6 @@ export default function Profil() {
     if (!utilisateur) return 'U';
     return `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase();
   };
-
-  // Configuration du badge utilisateur (rôle staff ou statut)
-  const statutConfig = getUserBadgeConfig(utilisateur?.role, utilisateur?.statut);
 
   const formatDateInscription = (date?: string) => {
     if (!date) return '';
@@ -663,35 +680,29 @@ export default function Profil() {
 
       {/* Informations utilisateur */}
       <View style={styles.infoSection}>
-        {/* Nom complet et statut */}
+        {/* Nom complet et badges — une seule ligne, nom tronque si besoin */}
         <View style={styles.nameStatusRow}>
-          <Text style={styles.nomComplet}>{utilisateur?.prenom} {utilisateur?.nom}</Text>
-          <View style={[styles.statutBadge, { backgroundColor: `${statutConfig.color}15` }]}>
-            <Ionicons name={statutConfig.icon} size={12} color={statutConfig.color} />
-            <Text style={[styles.statutText, { color: statutConfig.color }]}>
-              {statutConfig.label}
-            </Text>
+          <Text style={styles.nomComplet} numberOfLines={1} ellipsizeMode="tail">
+            {utilisateur?.prenom} {utilisateur?.nom}
+          </Text>
+          <View style={styles.badgesRow}>
+            <AppBadge type="role" role={utilisateur?.role} statut={utilisateur?.statut} size="sm" variant="soft" />
+            {isUserVerified(utilisateur) && (
+              <AppBadge type="verified" size="sm" variant="outline" />
+            )}
+            {gamification && (
+              <View style={styles.xpBadge}>
+                <Ionicons
+                  name={(gamification.levelIcon || 'trophy-outline') as any}
+                  size={11}
+                  color={couleurs.primaire}
+                />
+                <Text style={styles.xpBadgeText}>
+                  Niv.{gamification.level}
+                </Text>
+              </View>
+            )}
           </View>
-          {isUserVerified(utilisateur) && (
-            <View style={[styles.statutBadge, { backgroundColor: `${VERIFIED_BADGE_COLOR}15` }]}>
-              <Ionicons name="checkmark-circle" size={12} color={VERIFIED_BADGE_COLOR} />
-              <Text style={[styles.statutText, { color: VERIFIED_BADGE_COLOR }]}>
-                Verifie
-              </Text>
-            </View>
-          )}
-          {gamification && (
-            <View style={styles.xpBadge}>
-              <Ionicons
-                name={(gamification.levelIcon || 'trophy-outline') as any}
-                size={12}
-                color={couleurs.primaire}
-              />
-              <Text style={styles.xpBadgeText}>
-                Niv.{gamification.level} · {gamification.xp} XP
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Section Description */}
@@ -1474,17 +1485,32 @@ export default function Profil() {
           La suppression de votre compte est definitive. Toutes vos donnees personnelles seront effacees.
         </Text>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Mot de passe pour confirmer</Text>
-          <TextInput
-            style={styles.input}
-            value={motDePasseSuppression}
-            onChangeText={setMotDePasseSuppression}
-            placeholder="Votre mot de passe"
-            placeholderTextColor={couleurs.texteSecondaire}
-            secureTextEntry
-          />
-        </View>
+        {estCompteOAuth ? (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Confirmez votre adresse email</Text>
+            <TextInput
+              style={styles.input}
+              value={emailSuppression}
+              onChangeText={setEmailSuppression}
+              placeholder="votre@email.com"
+              placeholderTextColor={couleurs.texteSecondaire}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+        ) : (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Mot de passe pour confirmer</Text>
+            <TextInput
+              style={styles.input}
+              value={motDePasseSuppression}
+              onChangeText={setMotDePasseSuppression}
+              placeholder="Votre mot de passe"
+              placeholderTextColor={couleurs.texteSecondaire}
+              secureTextEntry
+            />
+          </View>
+        )}
 
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Tapez SUPPRIMER pour confirmer</Text>
@@ -1769,58 +1795,13 @@ export default function Profil() {
         </Modal>
 
         {/* Modal modification bio */}
-        <Modal
+        <EditBioModal
           visible={modalBio}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalBio(false)}
-        >
-          <KeyboardView style={styles.modalOverlay}>
-            <Pressable
-              style={styles.modalOverlayTouchable}
-              onPress={() => setModalBio(false)}
-            />
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Modifier la bio</Text>
-                <Pressable onPress={() => setModalBio(false)}>
-                  <Ionicons name="close" size={24} color={couleurs.texte} />
-                </Pressable>
-              </View>
-
-              <Text style={styles.bioModalDescription}>
-                Decrivez-vous en quelques mots pour que les autres membres puissent mieux vous connaitre.
-              </Text>
-
-              <TextInput
-                style={styles.bioInput}
-                value={bioTemp}
-                onChangeText={setBioTemp}
-                placeholder="Votre bio..."
-                placeholderTextColor={couleurs.texteSecondaire}
-                multiline
-                numberOfLines={4}
-                maxLength={150}
-              />
-
-              <Text style={styles.bioCharCount}>
-                {bioTemp.length}/150 caracteres
-              </Text>
-
-              <Pressable
-                style={[styles.btnPrimary, chargement && styles.btnDisabled]}
-                onPress={handleSauvegarderBio}
-                disabled={chargement}
-              >
-                {chargement ? (
-                  <ActivityIndicator color={couleurs.blanc} />
-                ) : (
-                  <Text style={styles.btnPrimaryText}>Enregistrer</Text>
-                )}
-              </Pressable>
-            </View>
-          </KeyboardView>
-        </Modal>
+          initialValue={utilisateur?.bio || ''}
+          onClose={() => setModalBio(false)}
+          onSave={handleSauvegarderBio}
+          loading={chargement}
+        />
 
         {/* Modal Visionneuse Image */}
         <Modal
@@ -2097,7 +2078,6 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   nameStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
     gap: espacements.sm,
     marginBottom: espacements.sm,
   },
@@ -2105,30 +2085,25 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: couleurs.texte,
+    flexShrink: 1,
   },
-  statutBadge: {
+  badgesRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: espacements.sm,
-    paddingVertical: 3,
-    borderRadius: rayons.sm,
-  },
-  statutText: {
-    fontSize: 11,
-    fontWeight: '600',
+    gap: 6,
+    flexShrink: 0,
   },
   xpBadge: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
+    gap: 3,
     backgroundColor: couleurs.primaireLight,
-    paddingHorizontal: espacements.sm,
+    paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: rayons.sm,
+    borderRadius: rayons.full,
   },
   xpBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700' as const,
     color: couleurs.primaire,
   },
@@ -2195,32 +2170,6 @@ const createStyles = (couleurs: any, isDark: boolean) => StyleSheet.create({
   infoItemText: {
     fontSize: 13,
     color: couleurs.texteSecondaire,
-  },
-  // Modal Bio
-  bioModalDescription: {
-    fontSize: 14,
-    color: couleurs.texteSecondaire,
-    lineHeight: 20,
-    marginBottom: espacements.lg,
-  },
-  bioInput: {
-    backgroundColor: couleurs.fond,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    borderRadius: rayons.md,
-    paddingHorizontal: espacements.md,
-    paddingVertical: espacements.md,
-    fontSize: 15,
-    color: couleurs.texte,
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  bioCharCount: {
-    fontSize: 12,
-    color: couleurs.texteSecondaire,
-    textAlign: 'right',
-    marginTop: espacements.xs,
-    marginBottom: espacements.sm,
   },
   actionsSection: {
     flexDirection: 'row',

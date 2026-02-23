@@ -74,3 +74,7 @@ export { default as QuickQuests } from './QuickQuests';
 export { default as OnboardingGuide } from './OnboardingGuide';
 export { default as XpToast } from './XpToast';
 export { default as NextAction } from './NextAction';
+
+// Badge unifie
+export { default as AppBadge } from './AppBadge';
+export type { AppBadgeProps } from './AppBadge';

@@ -35,12 +35,14 @@ import {
 import { sharePublication } from '../services/activity';
 import { formatRelativeDate } from '../utils/dateUtils';
 import { getVideoThumbnail, isVideoUrl } from '../utils/mediaUtils';
-import { getUserBadgeConfig, isUserVerified, VERIFIED_BADGE_COLOR } from '../utils/userDisplay';
+import { isUserVerified } from '../utils/userDisplay';
+import AppBadge from './AppBadge';
 import { router } from 'expo-router';
 import Avatar from './Avatar';
 import LikeButton, { LikeButtonCompact } from './LikeButton';
 import AnimatedPressable from './AnimatedPressable';
-import { StaffActions, PostMediaCarousel } from './index';
+import StaffActions from './StaffActions';
+import PostMediaCarousel from './PostMediaCarousel';
 import MoreActionsSheet from './MoreActionsSheet';
 import { Mention } from '../services/publications';
 
@@ -482,21 +484,10 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
             <Pressable onPress={naviguerVersProfilAuteur} style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.postAuteur}>{auteurNom}</Text>
               {isUserVerified(publication.auteur) && (
-                <Ionicons name="checkmark-circle" size={14} color={VERIFIED_BADGE_COLOR} style={{ marginLeft: 4 }} />
+                <AppBadge type="verified" iconOnly size="sm" />
               )}
             </Pressable>
-            {(() => {
-              const badgeConfig = getUserBadgeConfig(publication.auteur.role, publication.auteur.statut);
-              return (
-                <View style={[
-                  styles.statutBadge,
-                  { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
-                ]}>
-                  <Ionicons name={badgeConfig.icon} size={10} color="#fff" />
-                  <Text style={styles.statutBadgeText}>{badgeConfig.label}</Text>
-                </View>
-              );
-            })()}
+            <AppBadge type="role" role={publication.auteur.role} statut={publication.auteur.statut} size="xs" variant="solid" />
             {publication.auteurType === 'Projet' && (
               <View style={styles.startupBadge}>
                 <Text style={styles.startupBadgeText}>Startup</Text>
@@ -748,17 +739,7 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
                             <View style={styles.commentBubbleHeader}>
                               <View style={styles.commentAuteurRow}>
                                 <Text style={styles.commentAuteur}>{commentAuteur}</Text>
-                                {(() => {
-                                  const badgeConfig = getUserBadgeConfig(comment.auteur.role, comment.auteur.statut);
-                                  return (
-                                    <View style={[
-                                      styles.statutBadgeSmall,
-                                      { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
-                                    ]}>
-                                      <Text style={styles.statutBadgeSmallText}>{badgeConfig.label}</Text>
-                                    </View>
-                                  );
-                                })()}
+                                <AppBadge type="role" role={comment.auteur.role} statut={comment.auteur.statut} size="xs" variant="solid" />
                               </View>
                               {canEditDeleteComment && (
                                 <View style={styles.commentActionsMenu}>
@@ -860,17 +841,7 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
                                 <View style={styles.commentBubbleHeader}>
                                   <View style={styles.commentAuteurRow}>
                                     <Text style={styles.commentAuteur}>{repAuteur}</Text>
-                                    {(() => {
-                                      const badgeConfig = getUserBadgeConfig(reponse.auteur.role, reponse.auteur.statut);
-                                      return (
-                                        <View style={[
-                                          styles.statutBadgeSmall,
-                                          { backgroundColor: badgeConfig.isStaff ? badgeConfig.color : (badgeConfig.label === 'Entrepreneur' ? '#F59E0B' : '#10B981') }
-                                        ]}>
-                                          <Text style={styles.statutBadgeSmallText}>{badgeConfig.label}</Text>
-                                        </View>
-                                      );
-                                    })()}
+                                    <AppBadge type="role" role={reponse.auteur.role} statut={reponse.auteur.statut} size="xs" variant="solid" />
                                   </View>
                                   {canEditDeleteReply && (
                                     <View style={styles.commentActionsMenu}>

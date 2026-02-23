@@ -324,24 +324,7 @@ export default function Messages() {
         setParticipantsSelectionnes([...participantsSelectionnes, user]);
       }
     } else {
-      // Conversation privée directe - vérifier si ami
-      if (!amisIds.has(user._id)) {
-        Alert.alert(
-          'Ami requis',
-          `Vous ne pouvez envoyer des messages qu'à vos amis. Envoyez d'abord une demande d'ami à ${user.prenom}.`,
-          [
-            { text: 'Annuler', style: 'cancel' },
-            {
-              text: 'Voir le profil',
-              onPress: () => {
-                setModalNouveauVisible(false);
-                router.push(`/utilisateur/${user._id}`);
-              },
-            },
-          ]
-        );
-        return;
-      }
+      // Conversation privée directe (amis ou non — les non-amis arrivent en "Demandes")
       try {
         const reponse = await getOuCreerConversationPrivee(user._id);
         if (reponse.succes && reponse.data) {
@@ -897,7 +880,6 @@ export default function Messages() {
                           style={({ pressed }) => [
                             styles.utilisateurItem,
                             pressed && styles.utilisateurItemPressed,
-                            !estAmi && styles.utilisateurNonAmi,
                           ]}
                           onPress={() => demarrerConversation(user)}
                         >
@@ -913,15 +895,11 @@ export default function Messages() {
                             </Text>
                             {!estAmi && (
                               <Text style={styles.utilisateurNonAmiLabel}>
-                                Non ami - Message impossible
+                                Ira dans ses demandes
                               </Text>
                             )}
                           </View>
-                          {estAmi ? (
-                            <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
-                          ) : (
-                            <Ionicons name="lock-closed" size={18} color={couleurs.texteMuted} />
-                          )}
+                          <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
                         </Pressable>
                       );
                     })}

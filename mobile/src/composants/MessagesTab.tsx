@@ -26,7 +26,10 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { couleurs, espacements, rayons, typographie } from '../constantes/theme';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
-import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../composants';
+import Avatar from './Avatar';
+import AnimatedPressable from './AnimatedPressable';
+import { SkeletonList } from './SkeletonLoader';
+import { NotificationBadge } from './AnimatedCounter';
 import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 import {
   getConversations,
@@ -312,23 +315,7 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
         setParticipantsSelectionnes([...participantsSelectionnes, user]);
       }
     } else {
-      if (!amisIds.has(user._id)) {
-        Alert.alert(
-          'Ami requis',
-          `Vous ne pouvez envoyer des messages qu'à vos amis.`,
-          [
-            { text: 'Annuler', style: 'cancel' },
-            {
-              text: 'Voir le profil',
-              onPress: () => {
-                setModalNouveauVisible(false);
-                router.push(`/utilisateur/${user._id}`);
-              },
-            },
-          ]
-        );
-        return;
-      }
+      // Conversation privée directe (amis ou non — les non-amis arrivent en "Demandes")
       try {
         const reponse = await getOuCreerConversationPrivee(user._id);
         if (reponse.succes && reponse.data) {
@@ -841,7 +828,6 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
                           style={({ pressed }) => [
                             styles.utilisateurItem,
                             pressed && styles.utilisateurItemPressed,
-                            !estAmi && styles.utilisateurNonAmi,
                           ]}
                           onPress={() => demarrerConversation(user)}
                         >
@@ -857,15 +843,11 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
                             </Text>
                             {!estAmi && (
                               <Text style={styles.utilisateurNonAmiLabel}>
-                                Non ami - Message impossible
+                                Ira dans ses demandes
                               </Text>
                             )}
                           </View>
-                          {estAmi ? (
-                            <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
-                          ) : (
-                            <Ionicons name="lock-closed" size={18} color={couleurs.texteMuted} />
-                          )}
+                          <Ionicons name="chevron-forward" size={20} color={couleurs.texteMuted} />
                         </Pressable>
                       );
                     })}

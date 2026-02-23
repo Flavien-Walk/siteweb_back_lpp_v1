@@ -7,7 +7,7 @@ import { couleurs } from '../constantes/theme';
 import type { Role, StatutUtilisateur } from '../services/auth';
 
 // Types pour les icônes Ionicons
-type IoniconsName = 'star' | 'shield' | 'shield-checkmark' | 'shield-outline' | 'rocket' | 'compass';
+type IoniconsName = 'star' | 'shield' | 'shield-checkmark' | 'shield-outline' | 'ribbon-outline' | 'footsteps-outline';
 
 export interface UserBadgeConfig {
   label: string;
@@ -77,8 +77,8 @@ export const getUserBadgeConfig = (
     case 'entrepreneur':
       return {
         label: 'Entrepreneur',
-        icon: 'rocket',
-        color: couleurs.primaire,
+        icon: 'ribbon-outline',
+        color: '#F59E0B',  // Ambre/doré — distinction, reconnu dans LPP
         isStaff: false,
       };
 
@@ -86,8 +86,8 @@ export const getUserBadgeConfig = (
     default:
       return {
         label: 'Visiteur',
-        icon: 'compass',
-        color: couleurs.texteSecondaire,
+        icon: 'footsteps-outline',
+        color: '#64748B',  // Slate — premiers pas, en chemin
         isStaff: false,
       };
   }
