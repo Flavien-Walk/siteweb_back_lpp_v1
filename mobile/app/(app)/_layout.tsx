@@ -103,6 +103,15 @@ export default function AppLayout() {
           fullScreenGestureEnabled: Platform.OS === 'ios',
         }}
       />
+      {/* Boutique - PagerView horizontal, SwipeableScreen gère le swipe-back */}
+      <Stack.Screen
+        name="boutique"
+        options={{
+          animation: 'slide_from_right',
+          gestureEnabled: false,
+          fullScreenGestureEnabled: false,
+        }}
+      />
       {/* Reels - feed vidéo vertical style Instagram */}
       <Stack.Screen
         name="reels"

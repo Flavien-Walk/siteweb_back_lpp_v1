@@ -118,9 +118,28 @@ export const getUserDisplayLabel = (
   return getUserBadgeConfig(role, statut).label;
 };
 
+// ============ BADGE VERIFIE (Certification) ============
+
+export const VERIFIED_BADGE_COLOR = '#3B82F6'; // Bleu Meta Verified
+
+/**
+ * Verifie si un utilisateur a le badge Verifie (certification active).
+ * Regle produit : badge visible UNIQUEMENT pour les comptes Entrepreneur
+ * avec un abonnement LPP+ actif. Un Visiteur ne voit jamais le badge,
+ * meme si son abonnement est encore techniquement actif.
+ */
+export const isUserVerified = (
+  user?: { isVerified?: boolean; statut?: string } | null,
+): boolean => {
+  if (!user) return false;
+  return user.statut === 'entrepreneur' && user.isVerified === true;
+};
+
 export default {
   getUserBadgeConfig,
   getUserDisplayLabel,
   isStaffRole,
+  isUserVerified,
   STAFF_COLORS,
+  VERIFIED_BADGE_COLOR,
 };

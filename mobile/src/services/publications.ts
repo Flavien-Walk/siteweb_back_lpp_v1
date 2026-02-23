@@ -16,6 +16,7 @@ export interface Auteur {
   avatar?: string;
   role?: Role;
   statut?: StatutUtilisateur;
+  isVerified?: boolean;
 }
 
 export type MediaType = 'image' | 'video';

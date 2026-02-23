@@ -259,17 +259,9 @@ export default function ReelsAdPage({
         </Pressable>
       </View>
 
-      {/* Brand overlay (bottom-left) */}
-      <View style={[styles.brandContainer, { bottom: insets.bottom + 100 }]} pointerEvents="box-none">
-        {/* Sponsored badge */}
-        <View style={styles.sponsorisedRow}>
-          <View style={styles.sponsorisedBadge}>
-            <Ionicons name="megaphone" size={10} color="#fff" />
-            <Text style={styles.sponsorisedText}>Sponsorisé</Text>
-          </View>
-        </View>
-
-        {/* Brand avatar + name */}
+      {/* Brand overlay (bottom-left) — meme position que authorContainer dans ReelsVideoPage */}
+      <View style={[styles.brandContainer, { bottom: insets.bottom + 60 }]} pointerEvents="box-none">
+        {/* Brand avatar + name + "Sponsorise" inline (style Instagram) */}
         <View style={styles.brandRow}>
           <Avatar
             uri={ad.brand.avatar}
@@ -280,6 +272,7 @@ export default function ReelsAdPage({
           <Text style={styles.brandName} numberOfLines={1}>
             {ad.brand.name}
           </Text>
+          <Text style={styles.sponsorisedInline}> · Sponsorise</Text>
         </View>
 
         {/* Description */}
@@ -295,7 +288,7 @@ export default function ReelsAdPage({
           onPress={handleCtaPress}
         >
           <Text style={styles.ctaText}>{ad.ctaLabel}</Text>
-          <Ionicons name="arrow-forward" size={14} color="#fff" />
+          <Ionicons name="chevron-forward" size={14} color="#fff" />
         </Pressable>
       </View>
 
@@ -399,27 +392,6 @@ const styles = StyleSheet.create({
     right: 80,
     zIndex: 10,
   },
-  sponsorisedRow: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  sponsorisedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: rayons.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    gap: 4,
-  },
-  sponsorisedText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -433,7 +405,14 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.7)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
-    flexShrink: 1,
+  },
+  sponsorisedInline: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 13,
+    fontWeight: '400',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   description: {
     color: couleurs.blanc,

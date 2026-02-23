@@ -43,7 +43,7 @@ import { getPublicationsUtilisateur, Publication } from '../../../src/services/p
 import { getStoriesUtilisateur, Story } from '../../../src/services/stories';
 import { getProjetsSuivisUtilisateur, Projet } from '../../../src/services/projets';
 import StoryViewer from '../../../src/composants/StoryViewer';
-import { getUserBadgeConfig } from '../../../src/utils/userDisplay';
+import { getUserBadgeConfig, isUserVerified, VERIFIED_BADGE_COLOR } from '../../../src/utils/userDisplay';
 import { getPublicGamification } from '../../../src/services/gamification';
 
 type OngletActivite = 'publications' | 'projets';
@@ -532,6 +532,14 @@ export default function ProfilUtilisateurPage() {
                 {statutConfig.label}
               </Text>
             </View>
+            {isUserVerified(profil) && (
+              <View style={[styles.statutBadge, { backgroundColor: `${VERIFIED_BADGE_COLOR}15` }]}>
+                <Ionicons name="checkmark-circle" size={14} color={VERIFIED_BADGE_COLOR} />
+                <Text style={[styles.statutText, { color: VERIFIED_BADGE_COLOR }]}>
+                  Verifie
+                </Text>
+              </View>
+            )}
             {gamificationData && (
               <View style={[styles.statutBadge, { backgroundColor: 'rgba(124, 92, 255, 0.1)' }]}>
                 <Ionicons name={(gamificationData.levelIcon || 'trophy-outline') as any} size={14} color="#7C5CFF" />

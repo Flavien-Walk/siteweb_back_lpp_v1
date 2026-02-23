@@ -85,7 +85,7 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
 
   return (
     <View style={parentStyles.postCard}>
-      {/* Header : marque + badge Sponsorise + menu ... */}
+      {/* Header : marque + "Sponsorise" discret (style Instagram) */}
       <View style={parentStyles.postHeader}>
         <Avatar
           uri={ad.brand.avatar}
@@ -94,16 +94,8 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
           taille={44}
         />
         <View style={parentStyles.postAuteurContainer}>
-          <View style={parentStyles.postAuteurRow}>
-            <Text style={parentStyles.postAuteur}>{ad.brand.name}</Text>
-            <View style={[adStyles.sponsoriseBadge, { backgroundColor: couleurs.primaire }]}>
-              <Ionicons name="megaphone" size={10} color="#fff" />
-              <Text style={adStyles.sponsoriseText}>Sponsorisé</Text>
-            </View>
-          </View>
-          {ad.brand.tagline ? (
-            <Text style={parentStyles.postTimestamp}>{ad.brand.tagline}</Text>
-          ) : null}
+          <Text style={parentStyles.postAuteur}>{ad.brand.name}</Text>
+          <Text style={parentStyles.postTimestamp}>Sponsorise</Text>
         </View>
         <Pressable style={adStyles.moreButton} onPress={() => setShowMenu(true)}>
           <Ionicons name="ellipsis-horizontal" size={20} color={couleurs.texteSecondaire} />
@@ -124,24 +116,13 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
         />
       </View>
 
-      {/* Tags */}
-      {ad.tags.length > 0 && (
-        <View style={adStyles.tagsRow}>
-          {ad.tags.map((tag) => (
-            <View key={tag} style={[adStyles.tag, { backgroundColor: couleurs.primaireLight }]}>
-              <Text style={[adStyles.tagText, { color: couleurs.primaire }]}>#{tag}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* CTA */}
+      {/* CTA discret style Instagram */}
       <Pressable
-        style={[adStyles.ctaButton, { backgroundColor: couleurs.primaire }]}
+        style={[adStyles.ctaButton, { borderColor: couleurs.texteSecondaire }]}
         onPress={handleCtaPress}
       >
-        <Text style={adStyles.ctaText}>{ad.ctaLabel}</Text>
-        <Ionicons name="arrow-forward" size={16} color="#fff" />
+        <Text style={[adStyles.ctaText, { color: couleurs.texte }]}>{ad.ctaLabel}</Text>
+        <Ionicons name="chevron-forward" size={14} color={couleurs.texteSecondaire} />
       </Pressable>
 
       {/* Bottom Sheet Signalement */}
@@ -158,20 +139,6 @@ const AdCard: React.FC<AdCardProps> = React.memo(({
 AdCard.displayName = 'AdCard';
 
 const adStyles = StyleSheet.create({
-  sponsoriseBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: rayons.full,
-    paddingHorizontal: espacements.sm,
-    paddingVertical: 2,
-    gap: 4,
-    marginLeft: espacements.sm,
-  },
-  sponsoriseText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
-  },
   moreButton: {
     padding: espacements.sm,
     marginLeft: 'auto',
@@ -180,38 +147,22 @@ const adStyles = StyleSheet.create({
     borderRadius: rayons.md,
     overflow: 'hidden',
   },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espacements.sm,
-    paddingHorizontal: espacements.md,
-    paddingTop: espacements.sm,
-  },
-  tag: {
-    borderRadius: rayons.full,
-    paddingHorizontal: espacements.sm,
-    paddingVertical: 2,
-  },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   ctaButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: rayons.lg,
-    paddingVertical: espacements.sm + 2,
+    alignSelf: 'flex-start',
+    borderRadius: rayons.full,
+    borderWidth: 1,
+    paddingVertical: espacements.sm,
+    paddingHorizontal: espacements.lg,
     marginHorizontal: espacements.md,
     marginTop: espacements.md,
     marginBottom: espacements.sm,
-    gap: espacements.sm,
-    overflow: 'hidden',
+    gap: 4,
   },
   ctaText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

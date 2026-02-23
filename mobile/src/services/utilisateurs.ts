@@ -22,6 +22,7 @@ export interface ProfilUtilisateur {
   demandeRecue?: boolean;
   nbAmis?: number;
   projetsSuivis?: number;
+  isVerified?: boolean;
 }
 
 export interface DemandeAmi {

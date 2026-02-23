@@ -50,7 +50,7 @@ import KeyboardView from '../../src/composants/KeyboardView';
 import SwipeableScreen from '../../src/composants/SwipeableScreen';
 import StoryViewer from '../../src/composants/StoryViewer';
 import StoryCreator from '../../src/composants/StoryCreator';
-import { getUserBadgeConfig } from '../../src/utils/userDisplay';
+import { getUserBadgeConfig, isUserVerified, VERIFIED_BADGE_COLOR } from '../../src/utils/userDisplay';
 import { useGamification } from '../../src/contexts/GamificationContext';
 
 type Onglet = 'profil-public' | 'parametres';
@@ -490,14 +490,20 @@ export default function Profil() {
           style: 'destructive',
           onPress: async () => {
             setChargement(true);
-            const reponse = await supprimerCompte(motDePasseSuppression);
-            setChargement(false);
+            try {
+              const reponse = await supprimerCompte(motDePasseSuppression);
 
-            if (reponse.succes) {
-              await logout();
-              router.replace('/(auth)/connexion');
-            } else {
-              afficherMessage('erreur', reponse.message || 'Erreur lors de la suppression');
+              if (reponse.succes) {
+                // Token et donnees locales deja nettoyes par supprimerCompte
+                setChargement(false);
+                router.replace('/(auth)/connexion');
+              } else {
+                setChargement(false);
+                afficherMessage('erreur', reponse.message || 'Erreur lors de la suppression');
+              }
+            } catch {
+              setChargement(false);
+              afficherMessage('erreur', 'Erreur reseau. Reessaie.');
             }
           },
         },
@@ -666,6 +672,14 @@ export default function Profil() {
               {statutConfig.label}
             </Text>
           </View>
+          {isUserVerified(utilisateur) && (
+            <View style={[styles.statutBadge, { backgroundColor: `${VERIFIED_BADGE_COLOR}15` }]}>
+              <Ionicons name="checkmark-circle" size={12} color={VERIFIED_BADGE_COLOR} />
+              <Text style={[styles.statutText, { color: VERIFIED_BADGE_COLOR }]}>
+                Verifie
+              </Text>
+            </View>
+          )}
           {gamification && (
             <View style={styles.xpBadge}>
               <Ionicons

@@ -15,7 +15,6 @@ import { Publication } from './publications';
 export interface AdBrand {
   name: string;
   avatar: string;
-  tagline?: string;
 }
 
 export interface AdItem {
@@ -46,16 +45,15 @@ export const MOCK_ADS: AdItem[] = [
     itemType: 'ad',
     campaignId: 'camp-nike-2025',
     brand: {
-      name: 'Nike Innovation',
+      name: 'Nike',
       avatar: 'https://logo.clearbit.com/nike.com',
-      tagline: 'Just Do It',
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    ctaLabel: 'Decouvrir',
+    videoUrl: 'https://videos.pexels.com/video-files/5182920/5182920-hd_720_1280_25fps.mp4',
+    ctaLabel: 'En savoir plus',
     ctaUrl: 'https://nike.com',
-    tags: ['sport', 'innovation'],
+    tags: [],
     weight: 8,
-    contenu: 'Decouvrez la nouvelle generation de chaussures connectees pour les athletes entrepreneurs.',
+    contenu: 'Chaque foulee compte. Retrouvez nos nouveautes running pour cette saison.',
   },
   {
     _id: 'ad-002',
@@ -64,14 +62,13 @@ export const MOCK_ADS: AdItem[] = [
     brand: {
       name: 'Notion',
       avatar: 'https://logo.clearbit.com/notion.so',
-      tagline: 'Your connected workspace',
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
     ctaLabel: 'Essayer gratuitement',
     ctaUrl: 'https://notion.so',
-    tags: ['productivite', 'startup'],
+    tags: [],
     weight: 7,
-    contenu: 'Gerez votre startup avec Notion. Organisation, roadmap, wiki — tout en un seul outil.',
+    contenu: 'Tout votre travail, dans un seul espace. Notes, projets, docs — simplifie.',
   },
   {
     _id: 'ad-003',
@@ -80,14 +77,13 @@ export const MOCK_ADS: AdItem[] = [
     brand: {
       name: 'Stripe',
       avatar: 'https://logo.clearbit.com/stripe.com',
-      tagline: 'Payments infrastructure',
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
     ctaLabel: 'Commencer',
     ctaUrl: 'https://stripe.com',
-    tags: ['fintech', 'paiement'],
+    tags: [],
     weight: 9,
-    contenu: 'Acceptez les paiements en ligne en 10 minutes. Infrastructure fiable pour startups ambitieuses.',
+    contenu: 'Des paiements en ligne en quelques lignes de code. Rejoignez les millions d\'entreprises qui utilisent Stripe.',
   },
   {
     _id: 'ad-004',
@@ -96,14 +92,13 @@ export const MOCK_ADS: AdItem[] = [
     brand: {
       name: 'Figma',
       avatar: 'https://logo.clearbit.com/figma.com',
-      tagline: 'Design together',
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
-    ctaLabel: 'Designer maintenant',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    ctaLabel: 'Decouvrir',
     ctaUrl: 'https://figma.com',
-    tags: ['design', 'collaboration'],
+    tags: [],
     weight: 6,
-    contenu: 'Prototypez, designez et collaborez en temps reel. Le design tool #1 des startups.',
+    contenu: 'Du prototype au produit final, designez et collaborez en temps reel.',
   },
 ];
 

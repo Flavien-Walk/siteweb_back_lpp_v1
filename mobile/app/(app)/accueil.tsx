@@ -2861,7 +2861,7 @@ export default function Accueil() {
   // Actions FAB
   const FAB_ACTIONS = [
     { id: 1, icon: 'create-outline' as const, label: 'Publier', color: '#6366F1', action: () => setModalCreerPost(true) },
-    { id: 2, icon: 'videocam-outline' as const, label: 'Go Live', color: '#EF4444', action: () => router.push('/live/start') },
+    { id: 2, icon: 'storefront-outline' as const, label: 'Boutique', color: '#8B5CFF', action: () => router.push('/(app)/boutique') },
     { id: 3, icon: 'trophy-outline' as const, label: 'Parcours', color: '#FFBD59', action: () => router.push('/(app)/parcours') },
     { id: 4, icon: 'rocket-outline' as const, label: 'Startup', color: '#F59E0B', action: () => router.push('/(app)/mes-startups') },
   ];

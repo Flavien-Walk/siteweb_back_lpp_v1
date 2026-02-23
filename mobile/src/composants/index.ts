@@ -60,6 +60,15 @@ export { default as KeyboardView } from './KeyboardView';
 // Error handling
 export { default as ErrorBoundary } from './ErrorBoundary';
 
+// Boutique / Marketplace
+export { default as SubscriptionHeroCard } from './SubscriptionHeroCard';
+export { default as BoostGoalCard } from './BoostGoalCard';
+export { default as BundleCard } from './BundleCard';
+export { default as BoostFlowSheet } from './BoostFlowSheet';
+export { default as MarketplaceProductCard } from './MarketplaceProductCard';
+export { default as ProductDetailSheet } from './ProductDetailSheet';
+export { default as CategoryFilterBar } from './CategoryFilterBar';
+
 // Gamification
 export { default as QuickQuests } from './QuickQuests';
 export { default as OnboardingGuide } from './OnboardingGuide';

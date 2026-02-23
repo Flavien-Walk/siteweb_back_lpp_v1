@@ -35,7 +35,7 @@ import {
 import { sharePublication } from '../services/activity';
 import { formatRelativeDate } from '../utils/dateUtils';
 import { getVideoThumbnail, isVideoUrl } from '../utils/mediaUtils';
-import { getUserBadgeConfig } from '../utils/userDisplay';
+import { getUserBadgeConfig, isUserVerified, VERIFIED_BADGE_COLOR } from '../utils/userDisplay';
 import { router } from 'expo-router';
 import Avatar from './Avatar';
 import LikeButton, { LikeButtonCompact } from './LikeButton';
@@ -479,8 +479,11 @@ const PublicationCardComponent: React.FC<PublicationCardProps> = ({
         </Pressable>
         <View style={styles.postAuteurContainer}>
           <View style={styles.postAuteurRow}>
-            <Pressable onPress={naviguerVersProfilAuteur}>
+            <Pressable onPress={naviguerVersProfilAuteur} style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.postAuteur}>{auteurNom}</Text>
+              {isUserVerified(publication.auteur) && (
+                <Ionicons name="checkmark-circle" size={14} color={VERIFIED_BADGE_COLOR} style={{ marginLeft: 4 }} />
+              )}
             </Pressable>
             {(() => {
               const badgeConfig = getUserBadgeConfig(publication.auteur.role, publication.auteur.statut);

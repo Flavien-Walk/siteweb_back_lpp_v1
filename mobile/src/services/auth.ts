@@ -47,6 +47,14 @@ export interface Utilisateur {
   // Champs staff (renvoyés par /api/auth/moi si staff)
   isStaff?: boolean;
   permissions?: Permission[];
+  // Certification (badge Verifie) — calculé depuis lppPlus.status === 'active'
+  isVerified?: boolean;
+  // Abonnement LPP+
+  lppPlus?: {
+    status: 'inactive' | 'active' | 'canceled';
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+  };
 }
 
 interface DonneesConnexion {
@@ -91,6 +99,9 @@ const normaliserUtilisateur = (data: any): Utilisateur => {
     // Champs staff
     isStaff: data.isStaff ?? false,
     permissions: data.permissions || [],
+    // LPP+
+    isVerified: data.isVerified ?? false,
+    lppPlus: data.lppPlus || { status: 'inactive', currentPeriodEnd: null, cancelAtPeriodEnd: false },
   };
 };
 
@@ -269,6 +280,8 @@ export const modifierMotDePasse = async (
 
 /**
  * Supprimer le compte
+ * Apres suppression, nettoie le token et les donnees locales
+ * (pas de POST /auth/deconnexion car le compte n'existe plus)
  */
 export const supprimerCompte = async (
   motDePasse: string
@@ -279,7 +292,9 @@ export const supprimerCompte = async (
   });
 
   if (reponse.succes) {
-    await deconnexion();
+    // Nettoyage local uniquement — pas d'appel serveur car le compte est supprime
+    await removeToken();
+    await AsyncStorage.removeItem(STORAGE_KEYS.UTILISATEUR);
   }
 
   return reponse;
@@ -414,6 +429,72 @@ export const verifierEmail = async (
  */
 export const renvoyerCodeVerification = async (): Promise<ReponseAPI<void>> => {
   return api.post<void>('/auth/renvoyer-code', {}, true);
+};
+
+// ============================================
+// LIAISON DE COMPTE GOOGLE (LINKING)
+// ============================================
+
+/**
+ * Lier un compte Google en prouvant la propriété par mot de passe
+ * POST /api/auth/link/google/confirm
+ */
+export const confirmerLiaisonGoogle = async (
+  linkToken: string,
+  motDePasse: string
+): Promise<ReponseAPI<ReponseAuth>> => {
+  const reponse = await api.post<ReponseAuth>(
+    '/auth/link/google/confirm',
+    { linkToken, motDePasse }
+  );
+
+  if (reponse.succes && reponse.data) {
+    const utilisateurNormalise = normaliserUtilisateur(reponse.data.utilisateur);
+    reponse.data.utilisateur = utilisateurNormalise;
+    await setToken(reponse.data.token);
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.UTILISATEUR,
+      JSON.stringify(utilisateurNormalise)
+    );
+  }
+
+  return reponse;
+};
+
+/**
+ * Envoyer un code OTP par email pour la liaison de compte
+ * POST /api/auth/link/google/send-code
+ */
+export const envoyerCodeLiaison = async (
+  linkToken: string
+): Promise<ReponseAPI<void>> => {
+  return api.post<void>('/auth/link/google/send-code', { linkToken });
+};
+
+/**
+ * Vérifier le code OTP et compléter la liaison du compte Google
+ * POST /api/auth/link/google/verify-code
+ */
+export const verifierCodeLiaison = async (
+  linkToken: string,
+  code: string
+): Promise<ReponseAPI<ReponseAuth>> => {
+  const reponse = await api.post<ReponseAuth>(
+    '/auth/link/google/verify-code',
+    { linkToken, code }
+  );
+
+  if (reponse.succes && reponse.data) {
+    const utilisateurNormalise = normaliserUtilisateur(reponse.data.utilisateur);
+    reponse.data.utilisateur = utilisateurNormalise;
+    await setToken(reponse.data.token);
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.UTILISATEUR,
+      JSON.stringify(utilisateurNormalise)
+    );
+  }
+
+  return reponse;
 };
 
 export { getToken };

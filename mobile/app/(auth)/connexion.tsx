@@ -97,6 +97,15 @@ export default function Connexion() {
         } else {
           router.replace('/(app)/accueil');
         }
+      } else if (result.linkRequired && result.linkToken) {
+        // Compte local existant avec le même email — écran de liaison
+        router.push({
+          pathname: '/(auth)/lier-compte',
+          params: {
+            linkToken: result.linkToken,
+            email: result.linkEmail || '',
+          },
+        });
       } else {
         setErreur(result.message || 'Erreur de connexion');
       }
