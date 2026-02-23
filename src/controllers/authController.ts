@@ -667,6 +667,8 @@ export const confirmLinkWithPassword = async (
 
     // Generer le token JWT
     const token = genererToken(utilisateur);
+    const isStaff = utilisateur.isStaff();
+    const effectivePermissions = utilisateur.getEffectivePermissions();
 
     console.log(`[OAuth Link] Compte ${utilisateur.email} lie a Google (via mot de passe)`);
 
@@ -688,6 +690,8 @@ export const confirmLinkWithPassword = async (
           profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
           emailVerifie: utilisateur.emailVerifie,
+          isStaff,
+          permissions: effectivePermissions,
         },
       },
     });
@@ -834,6 +838,8 @@ export const verifyLinkCode = async (
 
     // Generer le token JWT
     const token = genererToken(utilisateur);
+    const isStaff = utilisateur.isStaff();
+    const effectivePermissions = utilisateur.getEffectivePermissions();
 
     console.log(`[OAuth Link] Compte ${utilisateur.email} lie a Google (via code OTP)`);
 
@@ -855,6 +861,8 @@ export const verifyLinkCode = async (
           profilPublic: utilisateur.profilPublic ?? true,
           nbAmis: utilisateur.amis?.length || 0,
           emailVerifie: utilisateur.emailVerifie,
+          isStaff,
+          permissions: effectivePermissions,
         },
       },
     });
