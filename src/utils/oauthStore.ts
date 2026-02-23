@@ -13,6 +13,7 @@ import crypto from 'crypto';
 interface StateEntry {
   nonce: string;
   platform: 'web' | 'mobile';
+  redirectUrl?: string;
   createdAt: number;
 }
 
@@ -68,16 +69,18 @@ setInterval(() => {
 /**
  * Genere un state OAuth securise avec nonce CSRF
  * @param platform - 'web' ou 'mobile'
+ * @param redirectUrl - URL de retour mobile (Expo Go = exp://, standalone = lpp://)
  * @returns Le state encode en base64 a passer a l'OAuth provider
  */
-export const generateOAuthState = (platform: 'web' | 'mobile' = 'web'): string => {
+export const generateOAuthState = (platform: 'web' | 'mobile' = 'web', redirectUrl?: string): string => {
   // Generer un nonce cryptographiquement securise
   const nonce = crypto.randomBytes(32).toString('hex');
 
-  // Stocker le nonce
+  // Stocker le nonce (+ redirectUrl pour mobile)
   stateStore.set(nonce, {
     nonce,
     platform,
+    redirectUrl,
     createdAt: Date.now(),
   });
 
@@ -92,7 +95,7 @@ export const generateOAuthState = (platform: 'web' | 'mobile' = 'web'): string =
  * @param encodedState - Le state recu du callback OAuth
  * @returns Les donnees du state si valide, null sinon
  */
-export const validateOAuthState = (encodedState: string): { platform: 'web' | 'mobile' } | null => {
+export const validateOAuthState = (encodedState: string): { platform: 'web' | 'mobile'; redirectUrl?: string } | null => {
   try {
     // Decoder le state
     const stateData = JSON.parse(Buffer.from(encodedState, 'base64').toString());
@@ -117,7 +120,10 @@ export const validateOAuthState = (encodedState: string): { platform: 'web' | 'm
     // Consommer le nonce (usage unique)
     stateStore.delete(nonce);
 
-    return { platform: platform === 'mobile' ? 'mobile' : 'web' };
+    return {
+      platform: platform === 'mobile' ? 'mobile' : 'web',
+      redirectUrl: entry.redirectUrl,
+    };
   } catch {
     return null;
   }

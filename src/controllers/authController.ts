@@ -373,6 +373,16 @@ export const callbackOAuth = (req: Request, res: Response): void => {
 
     const isMobile = stateData.platform === 'mobile';
 
+    // URL de retour mobile (dynamique depuis Linking.createURL cote Expo)
+    // Fallback vers le scheme statique si non fourni
+    const mobileBaseUrl = stateData.redirectUrl || `${MOBILE_SCHEME}://auth/callback`;
+
+    // Helper pour construire l'URL mobile avec query params
+    const mobileRedirect = (params: string): string => {
+      const sep = mobileBaseUrl.includes('?') ? '&' : '?';
+      return `${mobileBaseUrl}${sep}${params}`;
+    };
+
     // 2. Gerer link_required (email collision — compte local existant)
     if (!req.user && (req as any).linkData) {
       const { userId, email, googleId, googleName, googleAvatar } = (req as any).linkData;
@@ -385,7 +395,7 @@ export const callbackOAuth = (req: Request, res: Response): void => {
       });
 
       if (isMobile) {
-        res.redirect(`${MOBILE_SCHEME}://auth/callback?status=link_required&linkToken=${linkToken}&email=${encodeURIComponent(email)}`);
+        res.redirect(mobileRedirect(`status=link_required&linkToken=${linkToken}&email=${encodeURIComponent(email)}`));
       } else {
         res.redirect(`${process.env.CLIENT_URL}/auth/link-account?linkToken=${linkToken}&email=${encodeURIComponent(email)}`);
       }
@@ -397,7 +407,7 @@ export const callbackOAuth = (req: Request, res: Response): void => {
     // 3. Verifier que l'utilisateur est authentifie
     if (!utilisateur) {
       if (isMobile) {
-        res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=oauth_echec`);
+        res.redirect(mobileRedirect('erreur=oauth_echec'));
       } else {
         res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=oauth_echec`);
       }
@@ -407,7 +417,7 @@ export const callbackOAuth = (req: Request, res: Response): void => {
     // 3. Verifier si le compte est banni
     if (utilisateur.isBanned && utilisateur.isBanned()) {
       if (isMobile) {
-        res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=compte_banni`);
+        res.redirect(mobileRedirect('erreur=compte_banni'));
       } else {
         res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=compte_banni`);
       }
@@ -417,7 +427,7 @@ export const callbackOAuth = (req: Request, res: Response): void => {
     // 4. Verifier si le compte est suspendu
     if (utilisateur.isSuspended && utilisateur.isSuspended()) {
       if (isMobile) {
-        res.redirect(`${MOBILE_SCHEME}://auth/callback?erreur=compte_suspendu`);
+        res.redirect(mobileRedirect('erreur=compte_suspendu'));
       } else {
         res.redirect(`${process.env.CLIENT_URL}/connexion?erreur=compte_suspendu`);
       }
@@ -429,7 +439,7 @@ export const callbackOAuth = (req: Request, res: Response): void => {
       // MOBILE: Generer un code temporaire (one-time, 5 min TTL)
       // Le token n'est JAMAIS expose dans l'URL
       const code = generateTemporaryCode(utilisateur._id.toString());
-      res.redirect(`${MOBILE_SCHEME}://auth/callback?code=${code}`);
+      res.redirect(mobileRedirect(`code=${code}`));
       return;
     }
 

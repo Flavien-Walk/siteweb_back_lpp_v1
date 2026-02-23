@@ -129,7 +129,8 @@ router.get(
  * Force platform=mobile dans le state, force account picker
  */
 router.get('/google/mobile', (req: Request, res: Response, next: NextFunction) => {
-  const state = generateOAuthState('mobile');
+  const redirectUrl = (req.query.redirectUrl as string) || undefined;
+  const state = generateOAuthState('mobile', redirectUrl);
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false,
