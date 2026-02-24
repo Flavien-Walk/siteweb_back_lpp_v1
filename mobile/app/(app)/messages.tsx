@@ -3,7 +3,7 @@
  * Avec swipe pour supprimer et mise à jour temps réel
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -13,390 +13,77 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
-  Alert,
   Animated,
   ScrollView,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Swipeable } from 'react-native-gesture-handler';
 
 import { couleurs } from '../../src/constantes/theme';
 import styles from '../../src/features/messagerie/messages.styles';
-import { useUser } from '../../src/contexts/UserContext';
-import { useSocket } from '../../src/contexts/SocketContext';
 import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../../src/composants';
-import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
-import {
-  getConversations,
-  rechercherUtilisateurs,
-  getOuCreerConversationPrivee,
-  creerGroupe,
-  supprimerConversation,
-  Conversation,
-  Utilisateur,
-} from '../../src/services/messagerie';
-import {
-  getMesAmis,
-  ProfilUtilisateur,
-} from '../../src/services/utilisateurs';
+import { Conversation } from '../../src/services/messagerie';
+import { useMessages } from '../../src/features/messagerie/useMessages';
 
 export default function Messages() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { utilisateur } = useUser();
-  const { onNewMessage, isConnected: socketConnected } = useSocket();
-  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
-  // State
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [chargement, setChargement] = useState(true);
-  const [rafraichissement, setRafraichissement] = useState(false);
-  const [recherche, setRecherche] = useState('');
-  const [ongletActif, setOngletActif] = useState<'messages' | 'demandes'>('messages');
+  const {
+    // Refs
+    swipeableRefs,
 
-  // Nouvelle conversation
-  const [modalNouveauVisible, setModalNouveauVisible] = useState(false);
-  const [rechercheUtilisateur, setRechercheUtilisateur] = useState('');
-  const [utilisateursTrouves, setUtilisateursTrouves] = useState<Utilisateur[]>([]);
-  const [chargementRecherche, setChargementRecherche] = useState(false);
+    // État conversations
+    chargement,
+    rafraichissement,
+    recherche,
+    setRecherche,
+    ongletActif,
+    setOngletActif,
 
-  // Nouveau groupe
-  const [modeGroupe, setModeGroupe] = useState(false);
-  const [participantsSelectionnes, setParticipantsSelectionnes] = useState<Utilisateur[]>([]);
-  const [nomGroupe, setNomGroupe] = useState('');
+    // État modal
+    modalNouveauVisible,
+    setModalNouveauVisible,
+    rechercheUtilisateur,
+    setRechercheUtilisateur,
+    utilisateursTrouves,
+    chargementRecherche,
 
-  // Liste d'amis pour la création de groupe et le filtrage
-  const [mesAmis, setMesAmis] = useState<ProfilUtilisateur[]>([]);
-  const [chargementAmis, setChargementAmis] = useState(false);
-  const [amisIds, setAmisIds] = useState<Set<string>>(new Set());
+    // État groupe
+    modeGroupe,
+    participantsSelectionnes,
+    nomGroupe,
+    setNomGroupe,
 
+    // État amis
+    mesAmis,
+    chargementAmis,
+    amisIds,
 
-  // Extraire les contacts existants depuis les conversations
-  const contactsExistants = React.useMemo(() => {
-    const contacts: Utilisateur[] = [];
-    const idsVus = new Set<string>();
+    // Données dérivées
+    contactsExistants,
+    conversationsFiltrees,
+    compteurOnglets,
 
-    conversations.forEach(conv => {
-      if (!conv.estGroupe && conv.participant && !idsVus.has(conv.participant._id)) {
-        contacts.push(conv.participant);
-        idsVus.add(conv.participant._id);
-      }
-      // Aussi ajouter les participants des groupes
-      if (conv.participants) {
-        conv.participants.forEach(p => {
-          if (!idsVus.has(p._id)) {
-            contacts.push(p);
-            idsVus.add(p._id);
-          }
-        });
-      }
-    });
+    // Handlers
+    chargerConversations,
+    ouvrirConversation,
+    handleSupprimerConversation,
+    demarrerConversation,
+    handleCreerGroupe,
+    activerModeGroupe,
+    resetModalState,
+    formatDate,
+  } = useMessages();
 
-    return contacts;
-  }, [conversations]);
+  // ── Render swipe actions ──────────────────────────────────────────────────
 
-  // Charger les conversations
-  const chargerConversations = useCallback(async (estRefresh = false, silencieux = false) => {
-    if (estRefresh) {
-      setRafraichissement(true);
-    } else if (!silencieux) {
-      setChargement(true);
-    }
-
-    try {
-      const reponse = await getConversations();
-      if (reponse.succes && reponse.data) {
-        setConversations(reponse.data.conversations);
-      }
-    } catch (error) {
-      console.error('Erreur chargement conversations:', error);
-    } finally {
-      setChargement(false);
-      setRafraichissement(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    chargerConversations();
-    // Charger la liste des amis pour le filtrage Messages/Demandes
-    chargerAmisInitial();
-  }, [chargerConversations]);
-
-  // === SOCKET: Écouter les nouveaux messages pour mettre à jour la liste ===
-  useEffect(() => {
-    const unsubscribe = onNewMessage(() => {
-      console.log('[MESSAGES] Nouveau message reçu, rafraîchissement liste');
-      // Rafraîchir silencieusement la liste des conversations
-      chargerConversations(false, true);
-    });
-
-    return unsubscribe;
-  }, [onNewMessage, chargerConversations]);
-
-  // Charger les amis au démarrage pour le filtrage
-  const chargerAmisInitial = async () => {
-    try {
-      const reponse = await getMesAmis();
-      if (reponse.succes && reponse.data) {
-        const ids = new Set(reponse.data.amis.map(ami => ami._id));
-        setAmisIds(ids);
-        setMesAmis(reponse.data.amis.filter(ami => ami._id !== utilisateur?.id));
-      }
-    } catch (error) {
-      console.error('Erreur chargement amis:', error);
-    }
-  };
-
-  // Polling pour mise à jour temps réel (toutes les 15 secondes)
-  // Réduit de 3s à 15s pour économiser la batterie et les requêtes API
-  // TODO: Remplacer par WebSocket pour temps réel optimal
-  useEffect(() => {
-    const interval = setInterval(() => {
-      chargerConversations(false, true); // Silencieux
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [chargerConversations]);
-
-  // Rafraîchir quand l'écran reprend le focus (conversations + amis)
-  useFocusEffect(
-    useCallback(() => {
-      chargerConversations(false, true);
-      chargerAmisInitial();
-    }, [chargerConversations])
-  );
-
-  // Recherche utilisateurs pour nouvelle conversation
-  useEffect(() => {
-    const delai = setTimeout(async () => {
-      if (rechercheUtilisateur.trim().length >= 2) {
-        setChargementRecherche(true);
-        try {
-          const reponse = await rechercherUtilisateurs(rechercheUtilisateur.trim());
-          if (reponse.succes && reponse.data) {
-            setUtilisateursTrouves(reponse.data.utilisateurs);
-          }
-        } catch (error) {
-          console.error('Erreur recherche:', error);
-        } finally {
-          setChargementRecherche(false);
-        }
-      } else {
-        setUtilisateursTrouves([]);
-      }
-    }, 300);
-
-    return () => clearTimeout(delai);
-  }, [rechercheUtilisateur]);
-
-  // Charger la liste d'amis pour la création de groupe
-  const chargerMesAmis = async () => {
-    setChargementAmis(true);
-    try {
-      const reponse = await getMesAmis();
-      if (reponse.succes && reponse.data) {
-        // Filtrer pour exclure soi-même
-        const amisFiltres = reponse.data.amis.filter(
-          (ami) => ami._id !== utilisateur?.id
-        );
-        setMesAmis(amisFiltres);
-      }
-    } catch (error) {
-      console.error('Erreur chargement amis:', error);
-    } finally {
-      setChargementAmis(false);
-    }
-  };
-
-  // Activer le mode groupe et charger les amis
-  const activerModeGroupe = async () => {
-    setModeGroupe(true);
-    setParticipantsSelectionnes([]);
-    await chargerMesAmis();
-  };
-
-  // Filtrer conversations par onglet (amis/non-amis) et recherche
-  const conversationsFiltrees = React.useMemo(() => {
-    return conversations.filter((conv) => {
-      // Exclure les conversations sans message (créées mais annulées)
-      if (!conv.dernierMessage) return false;
-
-      // Filtrage par onglet (Messages = amis, Demandes = non-amis)
-      if (!conv.estGroupe && conv.participant) {
-        const estAmi = amisIds.has(conv.participant._id);
-        if (ongletActif === 'messages' && !estAmi) return false;
-        if (ongletActif === 'demandes' && estAmi) return false;
-      }
-      // Les groupes n'apparaissent que dans l'onglet Messages
-      if (conv.estGroupe && ongletActif === 'demandes') return false;
-
-      // Filtrage par recherche
-      if (recherche.length < 2) return true;
-      const rechercheMin = recherche.toLowerCase();
-
-      if (conv.estGroupe) {
-        return conv.nomGroupe?.toLowerCase().includes(rechercheMin);
-      }
-
-      return `${conv.participant?.prenom} ${conv.participant?.nom}`
-        .toLowerCase()
-        .includes(rechercheMin);
-    });
-  }, [conversations, ongletActif, amisIds, recherche]);
-
-  // Compter les messages non lus par onglet
-  const compteurOnglets = React.useMemo(() => {
-    let messagesAmis = 0;
-    let demandesNonAmis = 0;
-
-    conversations.forEach(conv => {
-      if (conv.estGroupe) {
-        messagesAmis += conv.messagesNonLus || 0;
-      } else if (conv.participant) {
-        const estAmi = amisIds.has(conv.participant._id);
-        if (estAmi) {
-          messagesAmis += conv.messagesNonLus || 0;
-        } else {
-          demandesNonAmis += conv.messagesNonLus || 0;
-        }
-      }
-    });
-
-    return { messagesAmis, demandesNonAmis };
-  }, [conversations, amisIds]);
-
-  // Ouvrir une conversation
-  const ouvrirConversation = useCallback((conv: Conversation) => {
-    router.push({
-      pathname: '/(app)/conversation/[id]',
-      params: { id: conv._id },
-    });
-  }, [router]);
-
-  // Supprimer une conversation (seulement de mon côté)
-  const handleSupprimerConversation = async (convId: string) => {
-    Alert.alert(
-      'Supprimer la conversation',
-      'Cette conversation sera supprimée de votre liste. L\'autre personne conservera la conversation de son côté.',
-      [
-        { text: 'Annuler', style: 'cancel', onPress: () => {
-          // Fermer le swipe
-          swipeableRefs.current.get(convId)?.close();
-        }},
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const reponse = await supprimerConversation(convId);
-              if (reponse.succes) {
-                setConversations(prev => prev.filter(c => c._id !== convId));
-              } else {
-                Alert.alert('Erreur', reponse.message || 'Impossible de supprimer la conversation');
-              }
-            } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer la conversation');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Démarrer une conversation privée
-  const demarrerConversation = async (user: Utilisateur) => {
-    if (modeGroupe) {
-      // Ajouter/retirer des participants (uniquement amis)
-      if (!amisIds.has(user._id)) {
-        Alert.alert(
-          'Ami requis',
-          `${user.prenom} n'est pas dans votre liste d'amis. Ajoutez-le en ami pour l'ajouter au groupe.`
-        );
-        return;
-      }
-      const dejaSelectionne = participantsSelectionnes.find((p) => p._id === user._id);
-      if (dejaSelectionne) {
-        setParticipantsSelectionnes(participantsSelectionnes.filter((p) => p._id !== user._id));
-      } else {
-        setParticipantsSelectionnes([...participantsSelectionnes, user]);
-      }
-    } else {
-      // Conversation privée directe (amis ou non — les non-amis arrivent en "Demandes")
-      try {
-        const reponse = await getOuCreerConversationPrivee(user._id);
-        if (reponse.succes && reponse.data) {
-          setModalNouveauVisible(false);
-          setRechercheUtilisateur('');
-          router.push({
-            pathname: '/(app)/conversation/[id]',
-            params: { id: reponse.data.conversation._id },
-          });
-        }
-      } catch (error) {
-        Alert.alert('Erreur', 'Impossible de créer la conversation');
-      }
-    }
-  };
-
-  // Créer un groupe
-  const handleCreerGroupe = async () => {
-    if (participantsSelectionnes.length === 0) {
-      Alert.alert('Erreur', 'Sélectionnez au moins un participant');
-      return;
-    }
-    if (!nomGroupe.trim()) {
-      Alert.alert('Erreur', 'Entrez un nom pour le groupe');
-      return;
-    }
-
-    try {
-      const reponse = await creerGroupe(
-        nomGroupe.trim(),
-        participantsSelectionnes.map((p) => p._id)
-      );
-      if (reponse.succes && reponse.data) {
-        setModalNouveauVisible(false);
-        resetModalState();
-        router.push({
-          pathname: '/(app)/conversation/[id]',
-          params: { id: reponse.data.groupe._id },
-        });
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de créer le groupe');
-    }
-  };
-
-  const resetModalState = () => {
-    setRechercheUtilisateur('');
-    setUtilisateursTrouves([]);
-    setModeGroupe(false);
-    setParticipantsSelectionnes([]);
-    setNomGroupe('');
-  };
-
-  // Formater la date
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const maintenant = new Date();
-    const diff = maintenant.getTime() - date.getTime();
-    const jours = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (jours === 0) {
-      return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    } else if (jours === 1) {
-      return 'Hier';
-    } else if (jours < 7) {
-      return date.toLocaleDateString('fr-FR', { weekday: 'short' });
-    }
-    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-  };
-
-  // Render swipe actions (droite - supprimer)
-  const renderRightActions = (convId: string, progress: Animated.AnimatedInterpolation<number>) => {
+  const renderRightActions = (
+    convId: string,
+    progress: Animated.AnimatedInterpolation<number>
+  ) => {
     const translateX = progress.interpolate({
       inputRange: [0, 1],
       outputRange: [80, 0],
@@ -414,8 +101,10 @@ export default function Messages() {
     );
   };
 
-  // Render swipe actions (gauche - archiver/muet)
-  const renderLeftActions = (conv: Conversation, progress: Animated.AnimatedInterpolation<number>) => {
+  const renderLeftActions = (
+    conv: Conversation,
+    progress: Animated.AnimatedInterpolation<number>
+  ) => {
     const translateX = progress.interpolate({
       inputRange: [0, 1],
       outputRange: [-80, 0],
@@ -440,93 +129,97 @@ export default function Messages() {
     );
   };
 
-  // Render conversation item
-  const renderConversation = useCallback(({ item }: { item: Conversation }) => {
-    const nom = item.estGroupe
-      ? item.nomGroupe
-      : `${item.participant?.prenom} ${item.participant?.nom}`;
+  // ── Render conversation item ──────────────────────────────────────────────
 
-    const avatar = item.estGroupe
-      ? item.imageGroupe
-      : item.participant?.avatar;
+  const renderConversation = React.useCallback(
+    ({ item }: { item: Conversation }) => {
+      const nom = item.estGroupe
+        ? item.nomGroupe
+        : `${item.participant?.prenom} ${item.participant?.nom}`;
 
-    const initiales = item.estGroupe
-      ? (item.nomGroupe?.substring(0, 2).toUpperCase() || 'GR')
-      : `${item.participant?.prenom?.[0] || ''}${item.participant?.nom?.[0] || ''}`.toUpperCase();
+      const avatar = item.estGroupe ? item.imageGroupe : item.participant?.avatar;
 
-    return (
-      <Swipeable
-        ref={(ref) => { swipeableRefs.current.set(item._id, ref); }}
-        renderRightActions={(progress) => renderRightActions(item._id, progress)}
-        renderLeftActions={(progress) => renderLeftActions(item, progress)}
-        overshootRight={false}
-        overshootLeft={false}
-        friction={2}
-      >
-        <AnimatedPressable
-          style={styles.conversationItem}
-          onPress={() => ouvrirConversation(item)}
-          scaleOnPress={0.98}
+      return (
+        <Swipeable
+          ref={(ref) => { swipeableRefs.current.set(item._id, ref); }}
+          renderRightActions={(progress) => renderRightActions(item._id, progress)}
+          renderLeftActions={(progress) => renderLeftActions(item, progress)}
+          overshootRight={false}
+          overshootLeft={false}
+          friction={2}
         >
-          {/* Avatar */}
-          <View style={styles.avatarContainer}>
-            <Avatar
-              uri={avatar}
-              prenom={item.estGroupe ? item.nomGroupe?.substring(0, 1) : item.participant?.prenom}
-              nom={item.estGroupe ? item.nomGroupe?.substring(1, 2) : item.participant?.nom}
-              taille={56}
-              gradientColors={item.estGroupe ? ['#10B981', '#059669'] : [couleurs.primaire, couleurs.primaireDark]}
-            />
-            {item.estGroupe && (
-              <View style={styles.groupBadge}>
-                <Ionicons name="people" size={10} color={couleurs.blanc} />
+          <AnimatedPressable
+            style={styles.conversationItem}
+            onPress={() => ouvrirConversation(item)}
+            scaleOnPress={0.98}
+          >
+            {/* Avatar */}
+            <View style={styles.avatarContainer}>
+              <Avatar
+                uri={avatar}
+                prenom={item.estGroupe ? item.nomGroupe?.substring(0, 1) : item.participant?.prenom}
+                nom={item.estGroupe ? item.nomGroupe?.substring(1, 2) : item.participant?.nom}
+                taille={56}
+                gradientColors={
+                  item.estGroupe
+                    ? ['#10B981', '#059669']
+                    : [couleurs.primaire, couleurs.primaireDark]
+                }
+              />
+              {item.estGroupe && (
+                <View style={styles.groupBadge}>
+                  <Ionicons name="people" size={10} color={couleurs.blanc} />
+                </View>
+              )}
+            </View>
+
+            {/* Infos */}
+            <View style={styles.conversationInfo}>
+              <View style={styles.conversationHeader}>
+                <Text
+                  style={[
+                    styles.conversationNom,
+                    item.messagesNonLus > 0 && styles.conversationNomNonLu,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {nom}
+                </Text>
+                <Text style={styles.conversationDate}>
+                  {item.dernierMessage ? formatDate(item.dernierMessage.dateCreation) : ''}
+                </Text>
               </View>
+              <View style={styles.conversationPreview}>
+                <Text
+                  style={[
+                    styles.conversationMessage,
+                    item.messagesNonLus > 0 && styles.conversationMessageNonLu,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.dernierMessage?.contenu || 'Aucun message'}
+                </Text>
+                <NotificationBadge count={item.messagesNonLus} />
+              </View>
+            </View>
+
+            {/* Indicateur sourdine */}
+            {item.estMuet && (
+              <Ionicons name="volume-mute" size={16} color={couleurs.texteMuted} />
             )}
-          </View>
+          </AnimatedPressable>
+        </Swipeable>
+      );
+    },
+    [ouvrirConversation, formatDate]
+  );
 
-          {/* Infos */}
-          <View style={styles.conversationInfo}>
-            <View style={styles.conversationHeader}>
-              <Text
-                style={[
-                  styles.conversationNom,
-                  item.messagesNonLus > 0 && styles.conversationNomNonLu,
-                ]}
-                numberOfLines={1}
-              >
-                {nom}
-              </Text>
-              <Text style={styles.conversationDate}>
-                {item.dernierMessage ? formatDate(item.dernierMessage.dateCreation) : ''}
-              </Text>
-            </View>
-            <View style={styles.conversationPreview}>
-              <Text
-                style={[
-                  styles.conversationMessage,
-                  item.messagesNonLus > 0 && styles.conversationMessageNonLu,
-                ]}
-                numberOfLines={1}
-              >
-                {item.dernierMessage?.contenu || 'Aucun message'}
-              </Text>
-              <NotificationBadge count={item.messagesNonLus} />
-            </View>
-          </View>
-
-          {/* Indicateur sourdine */}
-          {item.estMuet && (
-            <Ionicons name="volume-mute" size={16} color={couleurs.texteMuted} />
-          )}
-        </AnimatedPressable>
-      </Swipeable>
-    );
-  }, [ouvrirConversation, couleurs]);
+  // ── JSX ───────────────────────────────────────────────────────────────────
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Header */}
-        <View style={styles.header}>
+      {/* Header */}
+      <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBack}>
           <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
         </Pressable>
@@ -541,20 +234,20 @@ export default function Messages() {
 
       {/* Barre de recherche */}
       <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={couleurs.texteMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Rechercher une conversation..."
-            placeholderTextColor={couleurs.textePlaceholder}
-            value={recherche}
-            onChangeText={setRecherche}
-          />
-          {recherche.length > 0 && (
-            <Pressable onPress={() => setRecherche('')}>
-              <Ionicons name="close-circle" size={20} color={couleurs.texteMuted} />
-            </Pressable>
-          )}
-        </View>
+        <Ionicons name="search" size={20} color={couleurs.texteMuted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher une conversation..."
+          placeholderTextColor={couleurs.textePlaceholder}
+          value={recherche}
+          onChangeText={setRecherche}
+        />
+        {recherche.length > 0 && (
+          <Pressable onPress={() => setRecherche('')}>
+            <Ionicons name="close-circle" size={20} color={couleurs.texteMuted} />
+          </Pressable>
+        )}
+      </View>
 
       {/* Onglets Messages / Demandes */}
       <View style={styles.tabsContainer}>
@@ -686,8 +379,7 @@ export default function Messages() {
               if (!modeGroupe) {
                 activerModeGroupe();
               } else {
-                setModeGroupe(false);
-                setParticipantsSelectionnes([]);
+                resetModalState();
               }
             }}
           >
@@ -791,16 +483,12 @@ export default function Messages() {
                             estSelectionne && styles.utilisateurItemSelectionne,
                           ]}
                           onPress={() => {
-                            if (estSelectionne) {
-                              setParticipantsSelectionnes(
-                                participantsSelectionnes.filter((p) => p._id !== ami._id)
-                              );
-                            } else {
-                              setParticipantsSelectionnes([
-                                ...participantsSelectionnes,
-                                { _id: ami._id, prenom: ami.prenom, nom: ami.nom, avatar: ami.avatar },
-                              ]);
-                            }
+                            demarrerConversation({
+                              _id: ami._id,
+                              prenom: ami.prenom,
+                              nom: ami.nom,
+                              avatar: ami.avatar,
+                            });
                           }}
                         >
                           <Avatar
@@ -838,7 +526,7 @@ export default function Messages() {
                 contentContainerStyle={styles.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {/* Afficher les contacts existants si pas de recherche */}
+                {/* Contacts existants si pas de recherche */}
                 {rechercheUtilisateur.length < 2 && contactsExistants.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Suggestions</Text>
@@ -906,7 +594,7 @@ export default function Messages() {
                   </>
                 )}
 
-                {/* Message si aucun résultat de recherche */}
+                {/* Aucun résultat de recherche */}
                 {rechercheUtilisateur.length >= 2 && utilisateursTrouves.length === 0 && (
                   <View style={styles.modalEmptyContainer}>
                     <Ionicons name="search-outline" size={48} color={couleurs.texteMuted} />
@@ -915,7 +603,7 @@ export default function Messages() {
                   </View>
                 )}
 
-                {/* Message si aucun contact et pas de recherche */}
+                {/* Aucun contact et pas de recherche */}
                 {rechercheUtilisateur.length < 2 && contactsExistants.length === 0 && (
                   <View style={styles.modalEmptyContainer}>
                     <Ionicons name="people-outline" size={48} color={couleurs.texteMuted} />

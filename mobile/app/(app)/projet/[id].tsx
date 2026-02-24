@@ -3,7 +3,7 @@
  * Design style plateforme d'investissement - V2 Optimisée
  */
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,25 +33,13 @@ const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 import { espacements } from '../../../src/constantes/theme';
 import { useTheme } from '../../../src/contexts/ThemeContext';
-import { useUser } from '../../../src/contexts/UserContext';
-import { useGamification } from '../../../src/contexts/GamificationContext';
 import Avatar from '../../../src/composants/Avatar';
 import SwipeableScreen from '../../../src/composants/SwipeableScreen';
-import {
-  Projet,
-  Porteur,
-  LienProjet,
-  TypeLien,
-  getProjet,
-  toggleSuivreProjet,
-  getRepresentantsProjet,
-} from '../../../src/services/projets';
-import { getOuCreerConversationPrivee } from '../../../src/services/messagerie';
+import { TypeLien } from '../../../src/services/projets';
 import createStyles from '../../../src/features/projets/projet-detail.styles';
+import { useProjetDetail, TabKey } from '../../../src/features/projets/useProjetDetail';
 
 // Types pour les onglets
-type TabKey = 'vision' | 'market' | 'docs';
-
 interface TabItem {
   key: TabKey;
   label: string;
@@ -125,44 +113,41 @@ const formatMontant = (montant: number): string => {
 };
 
 export default function ProjetDetailPage() {
-  const { id, action } = useLocalSearchParams<{ id: string; action?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { couleurs } = useTheme();
-  const { utilisateur } = useUser();
-  const { applyDelta } = useGamification();
   const styles = createStyles(couleurs);
 
-  // États principaux
-  const [projet, setProjet] = useState<Projet | null>(null);
-  const [chargement, setChargement] = useState(true);
-  const [rafraichissement, setRafraichissement] = useState(false);
-  const [actionEnCours, setActionEnCours] = useState(false);
+  const {
+    projet,
+    representants,
+    chargement,
+    rafraichissement,
+    actionEnCours,
+    chargementRepresentants,
+    estSuivi,
+    nbFollowers,
+    showDetails,
+    activeTab,
+    showContactModal,
+    isOwnerOrMember,
+    progressionFinancement,
+    chargerProjet,
+    handleToggleSuivre,
+    openContactModal,
+    handleContacterRepresentant,
+    naviguerVersProfil,
+    setShowDetails,
+    setActiveTab,
+    setShowContactModal,
+  } = useProjetDetail();
 
-  // Suivre
-  const [estSuivi, setEstSuivi] = useState(false);
-  const [nbFollowers, setNbFollowers] = useState(0);
+  // -------------------------------------------------------------------------
+  // Animations (UI-only)
+  // -------------------------------------------------------------------------
 
-  // Voir plus / moins
-  const [showDetails, setShowDetails] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>('vision');
-
-  // Contacter - Modal représentants
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [representants, setRepresentants] = useState<Porteur[]>([]);
-  const [chargementRepresentants, setChargementRepresentants] = useState(false);
-
-  // Animations
   const scrollY = useRef(new Animated.Value(0)).current;
-  const actionEnCoursRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
-
-  // Calculer la progression de financement
-  const progressionFinancement = useMemo(() => {
-    if (!projet?.objectifFinancement || projet.objectifFinancement === 0) return 0;
-    const montantLeve = projet.montantLeve || 0;
-    return Math.min((montantLeve / projet.objectifFinancement) * 100, 100);
-  }, [projet]);
 
   // Animation de la barre de progression
   useEffect(() => {
@@ -200,144 +185,10 @@ export default function ProjetDetailPage() {
     extrapolate: 'clamp',
   });
 
-  // Charger le projet
-  const chargerProjet = useCallback(async (estRefresh = false) => {
-    if (!id) return;
+  // -------------------------------------------------------------------------
+  // Fonctions de rendu
+  // -------------------------------------------------------------------------
 
-    if (estRefresh) {
-      setRafraichissement(true);
-    } else {
-      setChargement(true);
-    }
-
-    try {
-      const reponse = await getProjet(id);
-      if (reponse.succes && reponse.data) {
-        setProjet(reponse.data.projet);
-        if (!actionEnCoursRef.current) {
-          setEstSuivi(reponse.data.projet.estSuivi);
-          setNbFollowers(reponse.data.projet.nbFollowers);
-        }
-        // Gamification: XP pour visite de projet (ex: 5e projet visite)
-        if (!estRefresh && reponse.gamification) {
-          applyDelta(reponse.gamification);
-        }
-      }
-    } catch (error) {
-      console.error('Erreur chargement projet:', error);
-    } finally {
-      setChargement(false);
-      setRafraichissement(false);
-    }
-  }, [id, applyDelta]);
-
-  // Charger les représentants
-  const chargerRepresentants = useCallback(async () => {
-    if (!id) return;
-    setChargementRepresentants(true);
-    try {
-      const reponse = await getRepresentantsProjet(id);
-      if (reponse.succes && reponse.data) {
-        setRepresentants(reponse.data.representants);
-      }
-    } catch (error) {
-      console.error('Erreur chargement representants:', error);
-    } finally {
-      setChargementRepresentants(false);
-    }
-  }, [id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      chargerProjet();
-    }, [chargerProjet])
-  );
-
-  // Ouvrir le modal contact si action=contact
-  useEffect(() => {
-    if (action === 'contact' && projet && !chargement) {
-      openContactModal();
-    }
-  }, [action, projet, chargement]);
-
-  const handleToggleSuivre = async () => {
-    if (!id || actionEnCours) return;
-
-    setActionEnCours(true);
-    actionEnCoursRef.current = true;
-
-    const previousEstSuivi = estSuivi;
-    const previousNbFollowers = nbFollowers;
-
-    const newEstSuivi = !estSuivi;
-    const newNbFollowers = estSuivi ? nbFollowers - 1 : nbFollowers + 1;
-    setEstSuivi(newEstSuivi);
-    setNbFollowers(newNbFollowers);
-
-    try {
-      const reponse = await toggleSuivreProjet(id);
-
-      if (reponse.succes && reponse.data) {
-        const apiData = reponse.data as { estSuivi?: boolean; suivi?: boolean; nbFollowers?: number; totalFollowers?: number };
-        const apiEstSuivi = apiData.estSuivi ?? apiData.suivi;
-        const apiNbFollowers = apiData.nbFollowers ?? apiData.totalFollowers;
-
-        if (typeof apiEstSuivi === 'boolean') {
-          setEstSuivi(apiEstSuivi);
-        }
-        if (typeof apiNbFollowers === 'number') {
-          setNbFollowers(apiNbFollowers);
-        }
-        if (reponse.gamification) applyDelta(reponse.gamification);
-      } else if (!reponse.succes) {
-        setEstSuivi(previousEstSuivi);
-        setNbFollowers(previousNbFollowers);
-      }
-    } catch (error) {
-      console.error('Erreur toggle suivre:', error);
-      setEstSuivi(previousEstSuivi);
-      setNbFollowers(previousNbFollowers);
-    } finally {
-      setActionEnCours(false);
-      actionEnCoursRef.current = false;
-    }
-  };
-
-  const openContactModal = async () => {
-    setShowContactModal(true);
-    await chargerRepresentants();
-  };
-
-  const handleContacterRepresentant = async (representant: Porteur) => {
-    try {
-      setActionEnCours(true);
-      const reponse = await getOuCreerConversationPrivee(representant._id);
-      if (reponse.succes && reponse.data) {
-        setShowContactModal(false);
-        router.push({
-          pathname: '/(app)/conversation/[id]',
-          params: { id: reponse.data.conversation._id },
-        });
-      }
-    } catch (error) {
-      console.error('Erreur creation conversation:', error);
-    } finally {
-      setActionEnCours(false);
-    }
-  };
-
-  const naviguerVersProfil = (userId: string) => {
-    if (utilisateur?.id === userId) {
-      router.push('/(app)/profil');
-    } else {
-      router.push({
-        pathname: '/(app)/utilisateur/[id]',
-        params: { id: userId },
-      });
-    }
-  };
-
-  // Rendu du header animé
   const renderHeader = () => {
     if (!projet) return null;
 
@@ -409,7 +260,6 @@ export default function ProjetDetailPage() {
     );
   };
 
-  // Rendu des stats compactes
   const renderQuickStats = () => {
     if (!projet) return null;
 
@@ -455,7 +305,6 @@ export default function ProjetDetailPage() {
     );
   };
 
-  // Rendu des liens externes (en haut de page)
   const renderLinks = () => {
     if (!projet?.liens || projet.liens.length === 0) return null;
 
@@ -493,7 +342,6 @@ export default function ProjetDetailPage() {
     );
   };
 
-  // Rendu de la barre de progression de financement
   const renderProgressBar = () => {
     if (!projet?.objectifFinancement) return null;
 
@@ -544,17 +392,6 @@ export default function ProjetDetailPage() {
     );
   };
 
-  // Verifier si l'utilisateur est proprietaire ou membre de l'equipe
-  const isOwnerOrMember = useMemo(() => {
-    if (!utilisateur || !projet) return false;
-    const isOwner = projet.porteur?._id === utilisateur.id;
-    const isMember = projet.equipe?.some(
-      (membre) => membre.utilisateur?._id === utilisateur.id
-    );
-    return isOwner || isMember;
-  }, [utilisateur, projet]);
-
-  // Rendu des boutons d'action
   const renderActions = () => (
     <View style={styles.actionsContainer}>
       {/* Bouton Suivre - masque si proprietaire ou membre */}
@@ -593,7 +430,6 @@ export default function ProjetDetailPage() {
     </View>
   );
 
-  // Rendu du bouton Voir plus/moins
   const renderShowMoreButton = () => (
     <Pressable
       style={styles.showMoreButton}
@@ -610,7 +446,6 @@ export default function ProjetDetailPage() {
     </Pressable>
   );
 
-  // Rendu des onglets
   const renderTabs = () => (
     <View style={styles.tabsContainer}>
       {TABS.map((tab) => (
@@ -632,7 +467,6 @@ export default function ProjetDetailPage() {
     </View>
   );
 
-  // Rendu du contenu Vision
   const renderVisionTab = () => {
     if (!projet) return null;
 
@@ -801,7 +635,6 @@ export default function ProjetDetailPage() {
     );
   };
 
-  // Rendu du contenu Market
   const renderMarketTab = () => {
     if (!projet) return null;
 
@@ -870,7 +703,6 @@ export default function ProjetDetailPage() {
     );
   };
 
-  // Rendu du contenu Documents
   const renderDocsTab = () => {
     if (!projet) return null;
 
@@ -961,7 +793,10 @@ export default function ProjetDetailPage() {
     );
   };
 
+  // -------------------------------------------------------------------------
   // Écrans de chargement et erreur
+  // -------------------------------------------------------------------------
+
   if (chargement) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -984,12 +819,16 @@ export default function ProjetDetailPage() {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Rendu principal
+  // -------------------------------------------------------------------------
+
   const content = (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-        {/* Header animé */}
-        {renderHeader()}
+      {/* Header animé */}
+      {renderHeader()}
 
       {/* Contenu scrollable */}
       <Animated.ScrollView
@@ -1013,22 +852,12 @@ export default function ProjetDetailPage() {
         }
       >
         <View style={styles.contentCard}>
-          {/* Stats rapides */}
           {renderQuickStats()}
-
-          {/* Liens externes */}
           {renderLinks()}
-
-          {/* Barre de progression */}
           {renderProgressBar()}
-
-          {/* Actions */}
           {renderActions()}
-
-          {/* Bouton Voir plus */}
           {renderShowMoreButton()}
 
-          {/* Onglets et contenu (affiché si showDetails) */}
           {showDetails && (
             <>
               {renderTabs()}
