@@ -4,7 +4,7 @@
  * V2: Draft média, fullscreen viewer, réactions, reply-to, swipe reply
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import React, { useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,6 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 
@@ -32,62 +31,26 @@ import { couleurs, espacements } from '../../../src/constantes/theme';
 import styles from '../../../src/features/conversation/conversation.styles';
 import KeyboardView from '../../../src/composants/KeyboardView';
 import { useUser } from '../../../src/contexts/UserContext';
-import { useGamification } from '../../../src/contexts/GamificationContext';
-import { useSocket, MessageSocketEvent, TypingSocketEvent } from '../../../src/contexts/SocketContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation, SwipeableScreen } from '../../../src/composants';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
-import { useAutoRefresh } from '../../../src/hooks/useAutoRefresh';
 import {
-  getMessages,
-  envoyerMessage,
-  marquerConversationLue,
-  toggleMuetConversation,
-  retirerParticipantGroupe,
-  modifierMessage,
-  supprimerMessage,
-  reagirMessage,
   Message,
   Utilisateur,
-  TypeMessage,
   TypeReaction,
 } from '../../../src/services/messagerie';
 import { getVideoThumbnail } from '../../../src/utils/mediaUtils';
-import * as FileSystem from 'expo-file-system/legacy';
+import {
+  useConversation,
+  REACTIONS,
+  DELAI_EDITION_MS,
+  type DraftMedia,
+  type ConversationInfo,
+} from '../../../src/features/conversation/useConversation';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = 60;
 const SWIPE_DEADZONE = 15; // Deadzone avant de décider horizontal vs vertical
-
-// Types pour les nouvelles fonctionnalités
-interface DraftMedia {
-  type: 'image' | 'video';
-  uri: string;
-  base64?: string;
-  mime?: string;
-  duration?: number;
-}
-
-interface ConversationInfo {
-  _id: string;
-  estGroupe: boolean;
-  nomGroupe?: string;
-  imageGroupe?: string;
-  participants: Utilisateur[];
-}
-
-// Réactions disponibles
-const REACTIONS: { type: TypeReaction; emoji: string }[] = [
-  { type: 'heart', emoji: '❤️' },
-  { type: 'laugh', emoji: '😂' },
-  { type: 'wow', emoji: '😮' },
-  { type: 'sad', emoji: '😢' },
-  { type: 'angry', emoji: '😡' },
-  { type: 'like', emoji: '👍' },
-];
-
-// Délai maximum pour éditer un message (15 minutes)
-const DELAI_EDITION_MS = 15 * 60 * 1000;
 
 // Composant animé pour les bulles de message
 const AnimatedMessageBubble = ({
@@ -239,202 +202,51 @@ export default function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { utilisateur } = useUser();
-  const { applyDelta } = useGamification();
-  const flatListRef = useRef<FlatList>(null);
-
-  // Socket pour temps réel
-  const {
-    isConnected: socketConnected,
-    onNewMessage,
-    onTyping,
-    emitTyping,
-    emitMessageRead,
-    joinConversation,
-    leaveConversation
-  } = useSocket();
-
-  // State
-  const [conversation, setConversation] = useState<ConversationInfo | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [chargement, setChargement] = useState(true);
-  const [messageTexte, setMessageTexte] = useState('');
-  const [envoiEnCours, setEnvoiEnCours] = useState(false);
-
-  // Édition de message
-  const [messageEnEdition, setMessageEnEdition] = useState<Message | null>(null);
-  const [contenuEdition, setContenuEdition] = useState('');
-  const [modalEditionVisible, setModalEditionVisible] = useState(false);
-
-  // Draft média (preview avant envoi)
-  const [draftMedia, setDraftMedia] = useState<DraftMedia | null>(null);
-
-  // Fullscreen média viewer - utilise les mêmes composants que le feed
-  const [fullscreenVideoUrl, setFullscreenVideoUrl] = useState<string | null>(null);
-  const [fullscreenImageUrl, setFullscreenImageUrl] = useState<string | null>(null);
-
-  // Réactions
-  const [reactionPickerMessage, setReactionPickerMessage] = useState<Message | null>(null);
-
-  // Reply to message
-  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-
-  // Animation coeur double-tap
-  const [heartAnimationMessage, setHeartAnimationMessage] = useState<string | null>(null);
-
-  // Typing indicator (qui est en train de taper)
-  const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastTypingEmitRef = useRef<number>(0);
 
   const inputContainerRef = useRef<View>(null);
 
-  // Charger les messages
-  const chargerMessages = useCallback(async (silencieux = false) => {
-    if (!id) return;
-
-    if (!silencieux) {
-      setChargement(true);
-    }
-
-    try {
-      const reponse = await getMessages(id);
-      if (reponse.succes && reponse.data) {
-        setConversation(reponse.data.conversation);
-        setMessages(reponse.data.messages);
-        // Marquer comme lu
-        marquerConversationLue(id);
-      }
-    } catch (error) {
-      if (__DEV__) console.error('Erreur chargement messages:', error);
-      if (!silencieux) {
-        Alert.alert('Erreur', 'Impossible de charger les messages');
-      }
-    } finally {
-      setChargement(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    chargerMessages();
-  }, [chargerMessages]);
-
-  // === SOCKET: Rejoindre/quitter la conversation ===
-  useEffect(() => {
-    if (id && socketConnected) {
-      if (__DEV__) console.log('[CONVERSATION] Joining room:', id);
-      joinConversation(id);
-
-      return () => {
-        if (__DEV__) console.log('[CONVERSATION] Leaving room:', id);
-        leaveConversation(id);
-      };
-    }
-  }, [id, socketConnected, joinConversation, leaveConversation]);
-
-  // === SOCKET: Écouter les nouveaux messages ===
-  useEffect(() => {
-    if (!id) return;
-
-    const unsubscribe = onNewMessage((event: MessageSocketEvent) => {
-      // Vérifier que le message est pour cette conversation
-      if (event.conversationId !== id) return;
-
-      if (__DEV__) console.log('[CONVERSATION] Nouveau message reçu via socket:', event.message._id);
-
-      // Convertir le format socket vers le format Message
-      const newMessage: Message = {
-        _id: event.message._id,
-        contenu: event.message.contenu,
-        expediteur: event.message.expediteur,
-        dateCreation: event.message.dateEnvoi,
-        type: 'texte' as TypeMessage,
-        estMoi: event.message.expediteur._id === utilisateur?.id,
-        estLu: false,
-        lecteurs: [],
-        reactions: [],
-      };
-
-      // Ajouter le message s'il n'existe pas déjà
-      setMessages(prev => {
-        const exists = prev.some(m => m._id === newMessage._id);
-        if (exists) return prev;
-        return [...prev, newMessage];
-      });
-
-      // Scroll vers le bas
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-
-      // Marquer comme lu si c'est pas mon message
-      if (!newMessage.estMoi) {
-        emitMessageRead(id, newMessage._id);
-      }
-    });
-
-    return unsubscribe;
-  }, [id, utilisateur?.id, onNewMessage, emitMessageRead]);
-
-  // === SOCKET: Écouter les indicateurs de frappe ===
-  useEffect(() => {
-    if (!id) return;
-
-    const unsubscribe = onTyping((event: TypingSocketEvent) => {
-      if (event.conversationId !== id) return;
-      if (event.userId === utilisateur?.id) return; // Ignorer mes propres events
-
-      setTypingUsers(prev => {
-        const newMap = new Map(prev);
-        if (event.isTyping) {
-          newMap.set(event.userId, event.userName);
-        } else {
-          newMap.delete(event.userId);
-        }
-        return newMap;
-      });
-    });
-
-    return unsubscribe;
-  }, [id, utilisateur?.id, onTyping]);
-
-  // === SOCKET: Émettre typing quand je tape ===
-  const handleTextChange = useCallback((text: string) => {
-    setMessageTexte(text);
-
-    if (!id || !socketConnected) return;
-
-    const now = Date.now();
-    // Throttle: émettre max toutes les 2 secondes
-    if (now - lastTypingEmitRef.current > 2000) {
-      emitTyping(id, true);
-      lastTypingEmitRef.current = now;
-    }
-
-    // Reset le timeout pour arrêter le typing
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    typingTimeoutRef.current = setTimeout(() => {
-      emitTyping(id, false);
-    }, 3000);
-  }, [id, socketConnected, emitTyping]);
-
-  // Auto-refresh en fallback (si socket déconnecté, polling plus fréquent)
-  // Gère automatiquement l'AppState (arrête le polling en arrière-plan)
-  // et rafraîchit au focus de l'écran
-  useAutoRefresh({
-    onRefresh: useCallback(async () => {
-      if (id) {
-        await chargerMessages(true);
-      }
-    }, [id, chargerMessages]),
-    // Si socket connecté: polling moins fréquent (30s) comme backup
-    // Si socket déconnecté: polling fréquent (8s) pour compenser
-    pollingInterval: socketConnected ? 30000 : 8000,
-    refreshOnFocus: true,
-    minRefreshInterval: socketConnected ? 10000 : 3000,
-    enabled: !!id && !chargement,
-  });
+  const {
+    conversation,
+    messages,
+    chargement,
+    messageTexte,
+    envoiEnCours,
+    messageEnEdition,
+    contenuEdition,
+    setContenuEdition,
+    modalEditionVisible,
+    setModalEditionVisible,
+    draftMedia,
+    replyingTo,
+    heartAnimationMessage,
+    typingUsers,
+    chargerMessages,
+    handleTextChange,
+    handleEnvoyer,
+    handleEnvoyerDraft,
+    handleCancelDraft,
+    handleSelectMedia,
+    handleSupprimerMessage,
+    handleLongPressMessage,
+    handleMessageOptions,
+    handleDoubleTapLike,
+    handleAddReaction,
+    handleReplyToMessage,
+    handleCancelReply,
+    handleSwipeReply,
+    handleOpenFullscreen,
+    handleToggleMuet,
+    handleQuitterGroupe,
+    saveEdition,
+    clearHeartAnimation,
+    fullscreenVideoUrl,
+    fullscreenImageUrl,
+    setFullscreenVideoUrl,
+    setFullscreenImageUrl,
+    reactionPickerMessage,
+    setReactionPickerMessage,
+    flatListRef,
+  } = useConversation(id);
 
   // Keyboard handling: scroll to end when keyboard opens
   useEffect(() => {
@@ -449,338 +261,62 @@ export default function ConversationScreen() {
     return () => {
       keyboardShowListener.remove();
     };
-  }, []);
+  }, [flatListRef]);
 
-  // Vérifier si un message peut être édité (moins de 15 minutes)
-  const peutEditerMessage = (message: Message) => {
-    if (!message.estMoi) return false;
-    const dateCreation = new Date(message.dateCreation).getTime();
-    const maintenant = Date.now();
-    return (maintenant - dateCreation) < DELAI_EDITION_MS;
+  // Formater l'heure
+  const formatHeure = (dateStr: string) => {
+    return new Date(dateStr).toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
-  // Calculer le temps restant pour éditer
-  const getTempsRestantEdition = (message: Message) => {
-    const dateCreation = new Date(message.dateCreation).getTime();
-    const maintenant = Date.now();
-    const tempsEcoule = maintenant - dateCreation;
-    const tempsRestant = DELAI_EDITION_MS - tempsEcoule;
+  // Formater la date pour les séparateurs
+  const formatDateSeparateur = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const maintenant = new Date();
+    const hier = new Date(maintenant);
+    hier.setDate(hier.getDate() - 1);
 
-    if (tempsRestant <= 0) return null;
-
-    const minutes = Math.floor(tempsRestant / 60000);
-    return `${minutes} min restantes`;
-  };
-
-  // Envoyer un message (texte ou draft média)
-  const handleEnvoyer = async () => {
-    // Si on a un draft média, l'envoyer
-    if (draftMedia) {
-      return handleEnvoyerDraft();
+    if (date.toDateString() === maintenant.toDateString()) {
+      return "Aujourd'hui";
+    } else if (date.toDateString() === hier.toDateString()) {
+      return 'Hier';
     }
-
-    if (!messageTexte.trim() || envoiEnCours || !id) return;
-
-    const contenu = messageTexte.trim();
-    setMessageTexte('');
-    setEnvoiEnCours(true);
-
-    try {
-      const reponse = await envoyerMessage(contenu, {
-        conversationId: id,
-        replyTo: replyingTo?._id,
-      });
-      if (reponse.succes && reponse.data) {
-        // Dedup: socket may have already delivered this message
-        setMessages((prev) => {
-          const exists = prev.some(m => m._id === reponse.data!.message._id);
-          if (exists) return prev;
-          return [...prev, reponse.data!.message];
-        });
-        setReplyingTo(null);
-        if (reponse.gamification) applyDelta(reponse.gamification);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      }
-    } catch (error) {
-      Alert.alert('Erreur', "Impossible d'envoyer le message");
-      setMessageTexte(contenu);
-    } finally {
-      setEnvoiEnCours(false);
-    }
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
   };
 
-  // Ouvrir le modal d'édition
-  const ouvrirEdition = (message: Message) => {
-    if (!peutEditerMessage(message)) {
-      Alert.alert('Impossible', 'Ce message ne peut plus être modifié (délai de 15 minutes dépassé)');
-      return;
-    }
-    setMessageEnEdition(message);
-    setContenuEdition(message.contenu);
-    setModalEditionVisible(true);
+  // Obtenir l'emoji de réaction pour l'affichage
+  const getReactionEmoji = (type: TypeReaction): string => {
+    return REACTIONS.find(r => r.type === type)?.emoji || '👍';
   };
 
-  // Sauvegarder l'édition
-  const sauvegarderEdition = async () => {
-    if (!messageEnEdition || !contenuEdition.trim() || !id) return;
-
-    try {
-      const reponse = await modifierMessage(id, messageEnEdition._id, contenuEdition.trim());
-      if (reponse.succes && reponse.data) {
-        setMessages(prev => prev.map(m =>
-          m._id === messageEnEdition._id
-            ? { ...m, contenu: contenuEdition.trim(), modifie: true }
-            : m
-        ));
-        setModalEditionVisible(false);
-        setMessageEnEdition(null);
-        setContenuEdition('');
-      } else {
-        Alert.alert('Erreur', reponse.message || 'Impossible de modifier le message');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de modifier le message');
-    }
+  // Obtenir l'avatar de l'autre personne (conversation privée)
+  const getAutreParticipant = () => {
+    if (!conversation || conversation.estGroupe) return null;
+    const userId = utilisateur?.id;
+    return conversation.participants.find((p) => p._id !== userId);
   };
 
-  // Supprimer un message pour tout le monde
-  const handleSupprimerMessage = async (message: Message) => {
-    if (!peutEditerMessage(message) || !id) return;
+  // Naviguer vers le profil de l'autre utilisateur
+  const naviguerVersProfil = () => {
+    if (!conversation) return;
 
-    Alert.alert(
-      'Supprimer pour tous',
-      'Ce message sera supprimé pour tout le monde. Cette action est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const reponse = await supprimerMessage(id, message._id);
-              if (reponse.succes) {
-                setMessages(prev => prev.filter(m => m._id !== message._id));
-              } else {
-                Alert.alert('Erreur', reponse.message || 'Impossible de supprimer le message');
-              }
-            } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer le message');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Long press sur un message - ouvre le picker de réactions
-  const handleLongPressMessage = useCallback((message: Message) => {
-    setReactionPickerMessage(message);
-  }, []);
-
-  // Options supplémentaires pour mes propres messages
-  const handleMessageOptions = (message: Message) => {
-    if (!message.estMoi) return;
-
-    const peutModifier = peutEditerMessage(message);
-
-    if (Platform.OS === 'ios') {
-      const options = peutModifier
-        ? ['Modifier', 'Supprimer pour tous', 'Copier', 'Annuler']
-        : ['Copier', 'Annuler'];
-
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: options.length - 1,
-          destructiveButtonIndex: peutModifier ? 1 : undefined,
-        },
-        (buttonIndex) => {
-          if (peutModifier) {
-            if (buttonIndex === 0) ouvrirEdition(message);
-            if (buttonIndex === 1) handleSupprimerMessage(message);
-          }
-        }
-      );
+    if (conversation.estGroupe) {
+      showOptions();
     } else {
-      Alert.alert(
-        'Options',
-        undefined,
-        peutModifier
-          ? [
-              { text: 'Modifier', onPress: () => ouvrirEdition(message) },
-              { text: 'Supprimer pour tous', style: 'destructive', onPress: () => handleSupprimerMessage(message) },
-              { text: 'Copier' },
-              { text: 'Annuler', style: 'cancel' },
-            ]
-          : [
-              { text: 'Copier' },
-              { text: 'Annuler', style: 'cancel' },
-            ]
-      );
-    }
-  };
-
-  // Générer un ID unique pour le message (idempotence)
-  const generateClientMessageId = () => {
-    return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  };
-
-  // Sélectionner un média (image ou vidéo) - MISE EN DRAFT
-  const handleSelectMedia = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission refusée', 'L\'accès à la galerie est nécessaire pour envoyer des médias.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      quality: 0.8,
-      allowsEditing: false,
-      videoMaxDuration: 60,
-    });
-
-    if (result.canceled || !result.assets[0]) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    const isVideo = asset.type === 'video';
-
-    if (asset.fileSize && asset.fileSize > 25 * 1024 * 1024) {
-      Alert.alert('Fichier trop volumineux', 'La taille maximale est de 25 MB.');
-      return;
-    }
-
-    const mimeType = isVideo
-      ? (asset.uri.endsWith('.mov') ? 'video/quicktime' : 'video/mp4')
-      : 'image/jpeg';
-
-    setDraftMedia({
-      type: isVideo ? 'video' : 'image',
-      uri: asset.uri,
-      mime: mimeType,
-      duration: asset.duration ?? undefined,
-    });
-  };
-
-  // Annuler le draft média
-  const handleCancelDraft = () => {
-    setDraftMedia(null);
-  };
-
-  // Envoyer le draft média
-  const handleEnvoyerDraft = async () => {
-    if (!draftMedia || !id) return;
-
-    setEnvoiEnCours(true);
-
-    try {
-      const base64 = await FileSystem.readAsStringAsync(draftMedia.uri, {
-        encoding: 'base64',
-      });
-
-      const dataUrl = `data:${draftMedia.mime};base64,${base64}`;
-      const clientMessageId = generateClientMessageId();
-
-      const reponse = await envoyerMessage(dataUrl, {
-        conversationId: id,
-        type: draftMedia.type,
-        clientMessageId,
-        replyTo: replyingTo?._id,
-      });
-
-      if (reponse.succes && reponse.data) {
-        // Dedup: socket may have already delivered this message
-        setMessages((prev) => {
-          const exists = prev.some(m => m._id === reponse.data!.message._id);
-          if (exists) return prev;
-          return [...prev, reponse.data!.message];
+      const autre = getAutreParticipant();
+      if (autre) {
+        router.push({
+          pathname: '/(app)/utilisateur/[id]',
+          params: { id: autre._id },
         });
-        setDraftMedia(null);
-        setReplyingTo(null);
-        if (reponse.gamification) applyDelta(reponse.gamification);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      } else {
-        Alert.alert('Erreur', reponse.message || 'Impossible d\'envoyer le média');
       }
-    } catch (error) {
-      if (__DEV__) console.error('Erreur envoi média:', error);
-      Alert.alert('Erreur', 'Impossible d\'envoyer le média');
-    } finally {
-      setEnvoiEnCours(false);
     }
-  };
-
-  // Ouvrir média en fullscreen - utilise les mêmes composants que le feed
-  const handleOpenFullscreen = useCallback((message: Message) => {
-    if (message.type === 'video') {
-      setFullscreenVideoUrl(message.contenu);
-    } else if (message.type === 'image') {
-      setFullscreenImageUrl(message.contenu);
-    }
-  }, []);
-
-  // Double-tap pour liker un message
-  const handleDoubleTapLike = useCallback(async (message: Message) => {
-    // Animation coeur
-    setHeartAnimationMessage(message._id);
-
-    // Toggle réaction coeur
-    const userId = utilisateur?.id;
-    const myReaction = message.reactions?.find(r => r.userId === userId);
-    const newType = myReaction?.type === 'heart' ? null : 'heart';
-
-    try {
-      const reponse = await reagirMessage(message._id, newType);
-      if (reponse.succes && reponse.data) {
-        setMessages(prev => prev.map(m =>
-          m._id === message._id
-            ? { ...m, reactions: reponse.data!.reactions }
-            : m
-        ));
-      }
-    } catch (error) {
-      if (__DEV__) console.error('Erreur ajout réaction:', error);
-    }
-  }, [utilisateur?.id]);
-
-  // Ajouter/supprimer une réaction
-  const handleAddReaction = async (message: Message, reactionType: TypeReaction) => {
-    setReactionPickerMessage(null);
-
-    const userId = utilisateur?.id;
-    const myReaction = message.reactions?.find(r => r.userId === userId);
-    const newReactionType = myReaction?.type === reactionType ? null : reactionType;
-
-    try {
-      const reponse = await reagirMessage(message._id, newReactionType);
-      if (reponse.succes && reponse.data) {
-        setMessages(prev => prev.map(m =>
-          m._id === message._id
-            ? { ...m, reactions: reponse.data!.reactions }
-            : m
-        ));
-      }
-    } catch (error) {
-      if (__DEV__) console.error('Erreur réaction:', error);
-      Alert.alert('Erreur', 'Impossible d\'ajouter la réaction');
-    }
-  };
-
-  // Répondre à un message
-  const handleReplyToMessage = useCallback((message: Message) => {
-    setReplyingTo(message);
-    setReactionPickerMessage(null);
-  }, []);
-
-  // Annuler le reply
-  const handleCancelReply = () => {
-    setReplyingTo(null);
   };
 
   // Menu d'options
@@ -861,114 +397,18 @@ export default function ConversationScreen() {
     }
   };
 
-  const handleToggleMuet = async () => {
-    if (!id) return;
-    try {
-      const reponse = await toggleMuetConversation(id);
-      if (reponse.succes && reponse.data) {
-        Alert.alert(
-          'Info',
-          reponse.data.estMuet ? 'Conversation en sourdine' : 'Notifications activées'
-        );
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de modifier les paramètres');
-    }
+  // Calculer le temps restant pour éditer
+  const getTempsRestantEdition = (message: Message) => {
+    const dateCreation = new Date(message.dateCreation).getTime();
+    const maintenant = Date.now();
+    const tempsEcoule = maintenant - dateCreation;
+    const tempsRestant = DELAI_EDITION_MS - tempsEcoule;
+
+    if (tempsRestant <= 0) return null;
+
+    const minutes = Math.floor(tempsRestant / 60000);
+    return `${minutes} min restantes`;
   };
-
-  const handleQuitterGroupe = async () => {
-    const userId = utilisateur?.id;
-    if (!id || !userId) return;
-
-    Alert.alert(
-      'Quitter le groupe',
-      'Êtes-vous sûr de vouloir quitter ce groupe ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Quitter',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await retirerParticipantGroupe(id, userId);
-              router.back();
-            } catch (error) {
-              Alert.alert('Erreur', 'Impossible de quitter le groupe');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Formater l'heure
-  const formatHeure = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // Formater la date pour les séparateurs
-  const formatDateSeparateur = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const maintenant = new Date();
-    const hier = new Date(maintenant);
-    hier.setDate(hier.getDate() - 1);
-
-    if (date.toDateString() === maintenant.toDateString()) {
-      return "Aujourd'hui";
-    } else if (date.toDateString() === hier.toDateString()) {
-      return 'Hier';
-    }
-    return date.toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    });
-  };
-
-  // Vérifier si on doit afficher un séparateur de date
-  const shouldShowDateSeparator = (index: number) => {
-    if (index === 0) return true;
-    const currentDate = new Date(messages[index].dateCreation).toDateString();
-    const previousDate = new Date(messages[index - 1].dateCreation).toDateString();
-    return currentDate !== previousDate;
-  };
-
-  // Obtenir l'avatar de l'autre personne (conversation privée)
-  const getAutreParticipant = () => {
-    if (!conversation || conversation.estGroupe) return null;
-    const userId = utilisateur?.id;
-    return conversation.participants.find((p) => p._id !== userId);
-  };
-
-  // Naviguer vers le profil de l'autre utilisateur
-  const naviguerVersProfil = () => {
-    if (!conversation) return;
-
-    if (conversation.estGroupe) {
-      showOptions();
-    } else {
-      const autre = getAutreParticipant();
-      if (autre) {
-        router.push({
-          pathname: '/(app)/utilisateur/[id]',
-          params: { id: autre._id },
-        });
-      }
-    }
-  };
-
-  // Obtenir l'emoji de réaction pour l'affichage
-  const getReactionEmoji = (type: TypeReaction): string => {
-    return REACTIONS.find(r => r.type === type)?.emoji || '👍';
-  };
-
-  // Callback stable pour swipe reply
-  const handleSwipeReply = useCallback((message: Message) => {
-    handleReplyToMessage(message);
-  }, [handleReplyToMessage]);
 
   // Composant message individuel avec handlers - MEMOIZED
   const MessageItem = memo(({
@@ -1177,9 +617,6 @@ export default function ConversationScreen() {
       </View>
     );
   });
-
-  // Clear heart animation callback stable
-  const clearHeartAnimation = useCallback(() => setHeartAnimationMessage(null), []);
 
   // Autre participant memoized
   const autreParticipant = useMemo(() => getAutreParticipant(), [conversation, utilisateur?.id]);
@@ -1462,7 +899,7 @@ export default function ConversationScreen() {
                 </Pressable>
                 <Pressable
                   style={[styles.modalSaveBtn, !contenuEdition.trim() && styles.modalSaveBtnDisabled]}
-                  onPress={sauvegarderEdition}
+                  onPress={saveEdition}
                   disabled={!contenuEdition.trim()}
                 >
                   <Text style={styles.modalSaveText}>Enregistrer</Text>
