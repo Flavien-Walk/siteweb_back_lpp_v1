@@ -32,10 +32,7 @@ mobile/
       features/                 # Composants lies a une feature
         feed/                   # CreerPublicationModal, RechercheModal
         projets/                # EtapeIdentite, EtapeProposition, EtapeBusiness
-        profil/                 # (futur: sections profil)
-        boutique/               # (futur: ProductGallery, etc.)
-      ui/                       # Primitives UI (futur: Avatar, Bouton, etc.)
-      layout/                   # Wrappers (futur: KeyboardView, etc.)
+        stories/                # WidgetToolbar, DraggableWidget, WidgetRenderer
       Avatar.tsx                # Composant avatar avec initiales
       PublicationCard.tsx       # Carte publication du feed
       MessagesTab.tsx           # Onglet messages dans accueil
@@ -74,11 +71,7 @@ mobile/
       useAnimations.ts          # Animations reanimated/animated
       useAutoRefresh.ts         # Polling + focus refresh
       useDoubleTap.ts           # Detection double tap
-      useLoadingState.ts        # Gestion chargement/rafraichissement/erreur
-      useModalState.ts          # Gestion visible/data/ouvrir/fermer
       useStaff.ts               # Detection role staff
-      useTabNavigation.ts       # Onglets + PagerView
-      useVideoViewability.ts    # Auto-play video au scroll
     services/                   # Appels API (plat, un fichier par domaine)
       api.ts                    # Client HTTP de base
       auth.ts                   # Authentification + profil
@@ -156,12 +149,13 @@ export default function DecouvrirTab(props: DecouvrirTabProps) {
 }
 ```
 
-### Barrel re-exports
-Les dossiers importants ont un `index.ts` qui re-exporte :
+### Barrel re-export
+Le fichier `composants/index.ts` centralise les re-exports de tous les composants partages :
 ```ts
 // composants/index.ts
 export { default as Avatar } from './Avatar';
 export { default as PublicationCard } from './PublicationCard';
+// ... 50+ composants
 ```
 
 ## Architecture par feature
@@ -193,12 +187,10 @@ export { default as PublicationCard } from './PublicationCard';
 - messages.tsx : 935 → 623 lignes (-33%)
 - projet/[id].tsx : 1111 → 940 lignes (-15%)
 - nouveau-projet + modifier-projet : duplication -23%
-- Code mort supprime : ~1318 lignes
+- Code mort supprime : ~2600 lignes (fichiers + code inline)
 - Styles extraits : 10 fichiers (~8000 lignes)
-- Hooks crees : 8 hooks partages + 3 hooks feature
+- Hooks feature crees : 3 (useConversation, useMessages, useProjetDetail)
 
-### Travail restant (Phases 11-13)
-- Reorganiser composants dans ui/ et layout/
+### Travail restant
 - Decomposer gros composants (MessagesTab 1259, ProductDetailSheet 1166, StoryCreator 1110)
 - Eclater useAnimations.ts en hooks individuels
-- Consolider contextes/ et services/
