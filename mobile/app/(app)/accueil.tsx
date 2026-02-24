@@ -12,21 +12,13 @@ import {
   ScrollView,
   Animated,
   RefreshControl,
-  Image,
-  TextInput,
   Dimensions,
-  Modal,
   Platform,
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
   DeviceEventEmitter,
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import type { PagerViewOnPageSelectedEvent, PagerViewOnPageScrollEvent } from 'react-native-pager-view';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -38,7 +30,6 @@ import createStyles from '../../src/features/accueil/accueil.styles';
 import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
 import { Utilisateur } from '../../src/services/auth';
-// useStaff importé uniquement dans PublicationCard extrait
 import { PostMediaCarousel, UnifiedCommentsSheet, PublicationCard, VideoOpenParams, ImageViewerModal, MessagesTab, StorySwipeOverlay, KeyboardView, AdCard } from '../../src/composants';
 import { isVideoUrl } from '../../src/utils/mediaUtils';
 import { videoPlaybackStore } from '../../src/stores/videoPlaybackStore';
@@ -46,50 +37,20 @@ import { videoRegistry } from '../../src/stores/videoRegistry';
 import { type FeedItem, buildFeedWithAds, isAdItem, isPublication, getFeedItemKey } from '../../src/services/ads';
 import {
   Publication,
-  Mention,
-  MentionUtilisateur,
-  MentionProjet,
   getPublications,
-  creerPublication,
-  rechercherMentions,
-  // Les autres imports (toggleLike, comments, etc.) sont dans PublicationCard
 } from '../../src/services/publications';
 import {
   Conversation,
-  Message as MessageAPI,
-  Utilisateur as UtilisateurAPI,
   getConversations,
-  getMessages,
-  envoyerMessage,
-  rechercherUtilisateurs,
 } from '../../src/services/messagerie';
-import {
-  Projet,
-  CategorieProjet,
-  getProjets,
-  getProjetsTendance,
-  toggleSuivreProjet,
-  getMesProjetsEntrepreneur,
-  StatsEntrepreneur,
-  getIncubateursActifs,
-  IncubateurActif,
-} from '../../src/services/projets';
 import {
   Evenement,
   getEvenements,
 } from '../../src/services/evenements';
 import { getNotifications } from '../../src/services/notifications';
-// sharePublication importé dans PublicationCard
-import { rechercherUtilisateurs as rechercherUtilisateursAPI, ProfilUtilisateur, getDemandesAmis } from '../../src/services/utilisateurs';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getDemandesAmis } from '../../src/services/utilisateurs';
 import Avatar from '../../src/composants/Avatar';
-
-// Clé de stockage pour l'historique de recherche
-const HISTORIQUE_RECHERCHE_KEY = '@lpp_historique_recherche';
-const MAX_HISTORIQUE = 10;
-// LikeButton et getUserBadgeConfig importés dans PublicationCard
 import AnimatedPressable from '../../src/composants/AnimatedPressable';
-import { INCUBATEURS_FR } from '../../src/constantes/incubateurs';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
 // Nouveau systeme gamification
 import NextAction from '../../src/composants/NextAction';
@@ -101,22 +62,18 @@ import StoryCreator from '../../src/composants/StoryCreator';
 import { Story } from '../../src/services/stories';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import { useAutoRefresh, useNotificationsRefresh } from '../../src/hooks/useAutoRefresh';
-import {
-  Live as LiveAPI,
-  getActiveLives,
-  getAgoraToken,
-  formatLiveDuration,
-  formatViewerCount,
-} from '../../src/services/live';
-import { LiveCard } from '../../src/composants';
 import OnboardingFlow from '../../src/composants/CoachMark';
+// Composants extraits (Phase 6)
+import DecouvrirTab from '../../src/features/accueil/DecouvrirTab';
+import LiveTab from '../../src/features/accueil/LiveTab';
+import EntrepreneurTab from '../../src/features/accueil/EntrepreneurTab';
+import CreerPublicationModal from '../../src/composants/features/feed/CreerPublicationModal';
+import RechercheModal from '../../src/composants/features/feed/RechercheModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Types
 type OngletActif = 'feed' | 'decouvrir' | 'live' | 'messages' | 'entrepreneur';
-
-
 
 // Composant wrapper pour l'animation d'entrée des publications
 const AnimatedPublicationWrapper = ({ children, index }: { children: React.ReactNode; index: number }) => {
@@ -254,7 +211,6 @@ export default function Accueil() {
 
   const [rafraichissement, setRafraichissement] = useState(false);
   const [ongletActif, setOngletActif] = useState<OngletActif>('feed');
-  const [recherche, setRecherche] = useState('');
   const [fabOuvert, setFabOuvert] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -281,33 +237,6 @@ export default function Accueil() {
   const feedItems = useMemo(() => buildFeedWithAds(publications), [publications]);
   const [chargement, setChargement] = useState(true);
   const [modalCreerPost, setModalCreerPost] = useState(false);
-  const nouveauPostInputRef = useRef<TextInput>(null);
-  const [nouveauPostContenu, setNouveauPostContenu] = useState('');
-  const [creationEnCours, setCreationEnCours] = useState(false);
-  // Multi-média: support jusqu'à 10 médias par publication
-  const [mediasSelectionnes, setMediasSelectionnes] = useState<Array<{
-    uri: string;
-    type: 'image' | 'video';
-    base64?: string;
-    mimeType?: string;
-  }>>([]);
-  const MAX_MEDIAS = 10;
-
-  // Mentions @ autocomplete
-  const [mentionsSuggestions, setMentionsSuggestions] = useState<Array<{
-    type: 'utilisateur' | 'projet';
-    id: string;
-    label: string;
-    avatar?: string;
-    sub?: string;
-  }>>([]);
-  const [mentionsSelectionnees, setMentionsSelectionnees] = useState<Array<{
-    type: 'utilisateur' | 'projet';
-    id: string;
-  }>>([]);
-  const [mentionQuery, setMentionQuery] = useState('');
-  const [showMentions, setShowMentions] = useState(false);
-  const mentionSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Video player (reels navigation - states retires, navigation vers /(app)/reels)
 
@@ -515,45 +444,6 @@ export default function Accueil() {
 
   // Messagerie
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [rechercheMessage, setRechercheMessage] = useState('');
-  const [modalNouvelleConversation, setModalNouvelleConversation] = useState(false);
-  const [destinataireRecherche, setDestinataireRecherche] = useState('');
-  const [resultatsRecherche, setResultatsRecherche] = useState<UtilisateurAPI[]>([]);
-  const [messageContenu, setMessageContenu] = useState('');
-  const [destinataireSelectionne, setDestinataireSelectionne] = useState<UtilisateurAPI | null>(null);
-  const [envoiEnCours, setEnvoiEnCours] = useState(false);
-  const [conversationActive, setConversationActive] = useState<{ userId: string; participant: UtilisateurAPI } | null>(null);
-  const [messagesConversation, setMessagesConversation] = useState<MessageAPI[]>([]);
-  const [chargementMessages, setChargementMessages] = useState(false);
-
-  // Projets (startups) API - Decouvrir
-  const [projets, setProjets] = useState<Projet[]>([]);
-  const [projetsTendance, setProjetsTendance] = useState<Projet[]>([]);
-  const [chargementProjets, setChargementProjets] = useState(false);
-
-  const [categorieFiltre, setCategorieFiltre] = useState<CategorieProjet | 'all'>('all');
-  const [rechercheProjet, setRechercheProjet] = useState('');
-  const [rechercheProjetDebounced, setRechercheProjetDebounced] = useState('');
-  const [incubateursActifs, setIncubateursActifs] = useState<IncubateurActif[]>([]);
-  const [incubateurFiltre, setIncubateurFiltre] = useState<string | null>(null);
-
-  // Debounce recherche projet (400ms)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setRechercheProjetDebounced(rechercheProjet);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [rechercheProjet]);
-
-  // Lancer la recherche quand le texte debounced change
-  useEffect(() => {
-    chargerProjets(categorieFiltre, rechercheProjetDebounced);
-  }, [rechercheProjetDebounced]);
-
-  // Projets Entrepreneur (mes projets)
-  const [mesProjetsEntrepreneur, setMesProjetsEntrepreneur] = useState<Projet[]>([]);
-  const [statsEntrepreneur, setStatsEntrepreneur] = useState<StatsEntrepreneur | null>(null);
-  const [chargementMesProjets, setChargementMesProjets] = useState(false);
 
   // Evenements (lives) API
   const [evenements, setEvenements] = useState<Evenement[]>([]);
@@ -565,14 +455,8 @@ export default function Accueil() {
   // Demandes d'amis en attente
   const [demandesAmisEnAttente, setDemandesAmisEnAttente] = useState(0);
 
-  // Recherche utilisateurs
-  const [rechercheUtilisateurs, setRechercheUtilisateurs] = useState<ProfilUtilisateur[]>([]);
-  const [chargementRecherche, setChargementRecherche] = useState(false);
+  // Recherche
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
-  const rechercheInputRef = useRef<TextInput>(null);
-
-  // Historique de recherche
-  const [historiqueRecherche, setHistoriqueRecherche] = useState<string[]>([]);
 
   // Stories
   const [storyViewerVisible, setStoryViewerVisible] = useState(false);
@@ -583,11 +467,6 @@ export default function Accueil() {
   const [pendingStoryIndex, setPendingStoryIndex] = useState<number | null>(null);
   const pendingStoryRestoreRef = useRef(false);
 
-  // Lives
-  const [lives, setLives] = useState<LiveAPI[]>([]);
-  const [chargementLives, setChargementLives] = useState(false);
-  const [rechercheLive, setRechercheLive] = useState('');
-  const [triLive, setTriLive] = useState<'populaire' | 'recent'>('populaire');
   const [storyIsOwn, setStoryIsOwn] = useState(false);
   const [storyUserId, setStoryUserId] = useState('');
   const [storiesRefreshKey, setStoriesRefreshKey] = useState(0);
@@ -721,9 +600,7 @@ export default function Accueil() {
     onRefresh: useCallback(async () => {
       await Promise.all([
         chargerPublications(),
-        chargerProjets(),
         chargerEvenements(),
-        chargerMesProjetsEntrepreneur(),
       ]);
     }, []),
     pollingInterval: 60000, // 60 secondes
@@ -731,18 +608,6 @@ export default function Accueil() {
     minRefreshInterval: 15000, // 15 secondes minimum entre refreshes
     enabled: true,
   });
-
-  // Charger l'historique de recherche au montage
-  useEffect(() => {
-    chargerHistoriqueRecherche();
-  }, []);
-
-  // Charger les lives quand l'onglet live est actif
-  useEffect(() => {
-    if (ongletActif === 'live') {
-      chargerLives();
-    }
-  }, [ongletActif]);
 
   // Animation slide geree directement par StorySwipeOverlay pour apercu live
   // Quand on ferme via le bouton ou swipe dans StoryCreator, on anime vers 0
@@ -822,63 +687,12 @@ export default function Accueil() {
     }
   }, [publicationCiblee, chargement, publications]);
 
-  // Fonctions pour l'historique de recherche
-  const chargerHistoriqueRecherche = async () => {
-    try {
-      const data = await AsyncStorage.getItem(HISTORIQUE_RECHERCHE_KEY);
-      if (data) {
-        setHistoriqueRecherche(JSON.parse(data));
-      }
-    } catch (error) {
-      console.error('Erreur chargement historique:', error);
-    }
-  };
-
-  const ajouterAHistorique = async (terme: string) => {
-    try {
-      const termeTrim = terme.trim();
-      if (termeTrim.length < 2) return;
-
-      // Éviter les doublons et limiter la taille
-      const nouvelHistorique = [
-        termeTrim,
-        ...historiqueRecherche.filter(t => t.toLowerCase() !== termeTrim.toLowerCase()),
-      ].slice(0, MAX_HISTORIQUE);
-
-      setHistoriqueRecherche(nouvelHistorique);
-      await AsyncStorage.setItem(HISTORIQUE_RECHERCHE_KEY, JSON.stringify(nouvelHistorique));
-    } catch (error) {
-      console.error('Erreur sauvegarde historique:', error);
-    }
-  };
-
-  const supprimerDeHistorique = async (terme: string) => {
-    try {
-      const nouvelHistorique = historiqueRecherche.filter(t => t !== terme);
-      setHistoriqueRecherche(nouvelHistorique);
-      await AsyncStorage.setItem(HISTORIQUE_RECHERCHE_KEY, JSON.stringify(nouvelHistorique));
-    } catch (error) {
-      console.error('Erreur suppression historique:', error);
-    }
-  };
-
-  const viderHistorique = async () => {
-    try {
-      setHistoriqueRecherche([]);
-      await AsyncStorage.removeItem(HISTORIQUE_RECHERCHE_KEY);
-    } catch (error) {
-      console.error('Erreur vidage historique:', error);
-    }
-  };
-
   const chargerDonnees = async () => {
     await Promise.all([
       chargerPublications(),
       chargerConversations(),
-      chargerProjets(),
       chargerEvenements(),
       chargerNotifications(),
-      chargerMesProjetsEntrepreneur(),
     ]);
   };
 
@@ -906,39 +720,9 @@ export default function Accueil() {
     }
   };
 
-  // Recherche utilisateurs avec debounce
-  useEffect(() => {
-    const delai = setTimeout(async () => {
-      if (recherche.trim().length >= 2) {
-        setChargementRecherche(true);
-        try {
-          const reponse = await rechercherUtilisateursAPI(recherche.trim());
-          if (reponse.succes && reponse.data) {
-            setRechercheUtilisateurs(reponse.data.utilisateurs);
-          }
-        } catch (error) {
-          console.error('Erreur recherche utilisateurs:', error);
-        } finally {
-          setChargementRecherche(false);
-        }
-      } else {
-        setRechercheUtilisateurs([]);
-      }
-    }, 300);
-
-    return () => clearTimeout(delai);
-  }, [recherche]);
-
   // Ouvrir la recherche plein écran
   const ouvrirRecherche = () => {
     setRechercheOuverte(true);
-  };
-
-  // Fermer la recherche plein écran
-  const fermerRecherche = () => {
-    setRechercheOuverte(false);
-    setRecherche('');
-    setRechercheUtilisateurs([]);
   };
 
   const chargerPublications = async () => {
@@ -966,55 +750,6 @@ export default function Accueil() {
     }
   };
 
-  const chargerProjets = async (filtreCategorie?: CategorieProjet | 'all', filtreRecherche?: string, filtreIncubateur?: string | null) => {
-    try {
-      setChargementProjets(true);
-      const cat = filtreCategorie ?? categorieFiltre;
-      const q = filtreRecherche ?? rechercheProjet;
-      const inc = filtreIncubateur !== undefined ? filtreIncubateur : incubateurFiltre;
-      const filtres: Record<string, any> = { limit: 20 };
-      if (cat !== 'all') filtres.categorie = cat;
-      if (q.trim()) filtres.q = q.trim();
-      if (inc) filtres.incubateur = inc;
-
-      const [projetsRes, tendanceRes, incubateursRes] = await Promise.all([
-        getProjets(filtres),
-        getProjetsTendance(5),
-        getIncubateursActifs(),
-      ]);
-      if (projetsRes.succes && projetsRes.data) {
-        setProjets(projetsRes.data.projets);
-      }
-      if (tendanceRes.succes && tendanceRes.data) {
-        setProjetsTendance(tendanceRes.data.projets);
-      }
-      if (incubateursRes.succes && incubateursRes.data) {
-        setIncubateursActifs(incubateursRes.data.incubateurs);
-      }
-    } catch (error) {
-      if (__DEV__) console.error('Erreur chargement projets:', error);
-    } finally {
-      setChargementProjets(false);
-    }
-  };
-
-  // Charger les projets de l'entrepreneur connecte
-  const chargerMesProjetsEntrepreneur = async () => {
-    if (utilisateur?.statut !== 'entrepreneur') return;
-    try {
-      setChargementMesProjets(true);
-      const reponse = await getMesProjetsEntrepreneur();
-      if (reponse.succes && reponse.data) {
-        setMesProjetsEntrepreneur(reponse.data.projets);
-        setStatsEntrepreneur(reponse.data.stats);
-      }
-    } catch (error) {
-      console.error('Erreur chargement projets entrepreneur:', error);
-    } finally {
-      setChargementMesProjets(false);
-    }
-  };
-
   const chargerEvenements = async () => {
     try {
       setChargementEvenements(true);
@@ -1029,419 +764,15 @@ export default function Accueil() {
     }
   };
 
-  // TODO: Passer a false pour retirer le mock et utiliser les vrais lives
-  const MOCK_LIVES_ENABLED = true;
-
-  const chargerLives = async () => {
-    try {
-      setChargementLives(true);
-
-      if (MOCK_LIVES_ENABLED) {
-        // Mock data pour preview UI
-        const now = new Date();
-        const mockLives: LiveAPI[] = [
-          {
-            _id: 'mock-1',
-            channelName: 'ch-mock-1',
-            title: 'Pitch NovaPay — le paiement mobile en Afrique',
-            thumbnail: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop&q=80',
-            startedAt: new Date(now.getTime() - 45 * 60000).toISOString(),
-            viewerCount: 142,
-            host: { _id: 'u1', prenom: 'Yasmine', nom: 'Belkacem', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=400&fit=crop&crop=face&q=80' },
-          },
-          {
-            _id: 'mock-2',
-            channelName: 'ch-mock-2',
-            title: 'Live coding React Native — tips performance',
-            thumbnail: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&h=400&fit=crop&q=80',
-            startedAt: new Date(now.getTime() - 22 * 60000).toISOString(),
-            viewerCount: 89,
-            host: { _id: 'u2', prenom: 'Hugo', nom: 'Carpentier', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=400&fit=crop&crop=face&q=80' },
-          },
-          {
-            _id: 'mock-3',
-            channelName: 'ch-mock-3',
-            title: 'Q&A Business Angel — vos questions levee de fonds',
-            thumbnail: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop&q=80',
-            startedAt: new Date(now.getTime() - 8 * 60000).toISOString(),
-            viewerCount: 67,
-            host: { _id: 'u5', prenom: 'Maxime', nom: 'Leroy', avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop&crop=face&q=80' },
-          },
-          {
-            _id: 'mock-4',
-            channelName: 'ch-mock-4',
-            title: 'Design review — refonte UX d\'une app sante',
-            thumbnail: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=600&h=400&fit=crop&q=80',
-            startedAt: new Date(now.getTime() - 3 * 60000).toISOString(),
-            viewerCount: 34,
-            host: { _id: 'u3', prenom: 'Clara', nom: 'Fontaine', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face&q=80' },
-          },
-          {
-            _id: 'mock-5',
-            channelName: 'ch-mock-5',
-            title: 'AMA — De Amazon a ma startup velo cargo',
-            thumbnail: 'https://images.unsplash.com/photo-1616432043562-3671ea2e5242?w=600&h=400&fit=crop&q=80',
-            startedAt: new Date(now.getTime() - 95 * 60000).toISOString(),
-            viewerCount: 213,
-            host: { _id: 'u4', prenom: 'Antoine', nom: 'Roche', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face&q=80' },
-          },
-        ];
-        setLives(mockLives);
-        setChargementLives(false);
-        return;
-      }
-
-      const reponse = await getActiveLives();
-      if (reponse.succes && reponse.data) {
-        // Filtrer les lives fantomes (> 12h = clairement perime/jamais termine)
-        const MAX_LIVE_DURATION = 12 * 60 * 60 * 1000;
-        const now = Date.now();
-        const livesActifs = reponse.data.lives.filter(l => {
-          const duree = now - new Date(l.startedAt).getTime();
-          return duree < MAX_LIVE_DURATION;
-        });
-        setLives(livesActifs);
-      }
-    } catch (error) {
-      console.error('Erreur chargement lives:', error);
-    } finally {
-      setChargementLives(false);
-    }
-  };
-
-  const handleSuivreProjet = async (projetId: string) => {
-    try {
-      const reponse = await toggleSuivreProjet(projetId);
-      if (reponse.succes && reponse.data) {
-        setProjets(prev => prev.map(p =>
-          p._id === projetId
-            ? { ...p, estSuivi: reponse.data!.estSuivi, nbFollowers: reponse.data!.nbFollowers }
-            : p
-        ));
-        // Gamification: le backend gere automatiquement via applyGamificationEvent
-        if (reponse.gamification) {
-          applyDelta(reponse.gamification);
-        }
-      }
-    } catch (error) {
-      console.error('Erreur suivre projet:', error);
-    }
-  };
-
-  const handleRechercheDestinataire = async (texte: string) => {
-    setDestinataireRecherche(texte);
-    if (texte.length < 2) {
-      setResultatsRecherche([]);
-      return;
-    }
-    try {
-      const reponse = await rechercherUtilisateurs(texte);
-      if (reponse.succes && reponse.data) {
-        setResultatsRecherche(reponse.data.utilisateurs);
-      }
-    } catch (error) {
-      console.error('Erreur recherche utilisateurs:', error);
-    }
-  };
-
-  const handleEnvoyerMessage = async () => {
-    if (!destinataireSelectionne || !messageContenu.trim() || envoiEnCours) return;
-
-    try {
-      setEnvoiEnCours(true);
-      const reponse = await envoyerMessage(messageContenu.trim(), { destinataireId: destinataireSelectionne._id });
-      if (reponse.succes) {
-        setMessageContenu('');
-        setDestinataireSelectionne(null);
-        setDestinataireRecherche('');
-        setModalNouvelleConversation(false);
-        await chargerConversations();
-        Alert.alert('Succes', 'Message envoye !');
-      } else {
-        Alert.alert('Erreur', reponse.message || 'Impossible d\'envoyer le message');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Une erreur est survenue');
-    } finally {
-      setEnvoiEnCours(false);
-    }
-  };
-
-  const handleOuvrirConversation = async (conv: Conversation) => {
-    // Rediriger vers le nouvel ecran de conversation
-    router.push({
-      pathname: '/(app)/conversation/[id]',
-      params: { id: conv._id },
-    });
-  };
-
-  const handleEnvoyerMessageConversation = async () => {
-    if (!conversationActive || !messageContenu.trim() || envoiEnCours) return;
-
-    try {
-      setEnvoiEnCours(true);
-      const reponse = await envoyerMessage(messageContenu.trim(), { destinataireId: conversationActive.userId });
-      if (reponse.succes && reponse.data) {
-        setMessagesConversation(prev => [...prev, reponse.data!.message]);
-        setMessageContenu('');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible d\'envoyer le message');
-    } finally {
-      setEnvoiEnCours(false);
-    }
-  };
-
   const handleRafraichissement = async () => {
     setRafraichissement(true);
     await chargerDonnees();
     setRafraichissement(false);
   };
 
-  // === Gestion des mentions @ ===
-  const handleTextChange = useCallback((text: string) => {
-    setNouveauPostContenu(text);
-
-    // Detecter si on est en train de taper une mention @
-    const cursorPos = text.length; // Approximation (pas de cursorPosition en RN)
-    const textBeforeCursor = text.slice(0, cursorPos);
-    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
-
-    if (mentionMatch) {
-      const query = mentionMatch[1];
-      setMentionQuery(query);
-      setShowMentions(true);
-
-      if (mentionSearchTimeout.current) clearTimeout(mentionSearchTimeout.current);
-      if (query.length >= 1) {
-        mentionSearchTimeout.current = setTimeout(async () => {
-          try {
-            const res = await rechercherMentions(query);
-            if (res.succes && res.data) {
-              const suggestions: typeof mentionsSuggestions = [];
-              (res.data.utilisateurs || []).forEach((u: MentionUtilisateur) => {
-                suggestions.push({
-                  type: 'utilisateur',
-                  id: u._id,
-                  label: `${u.prenom} ${u.nom}`,
-                  avatar: u.avatar,
-                  sub: 'Ami',
-                });
-              });
-              (res.data.projets || []).forEach((p: MentionProjet) => {
-                suggestions.push({
-                  type: 'projet',
-                  id: p._id,
-                  label: p.nom,
-                  avatar: p.logo,
-                  sub: p.categorie || 'Projet',
-                });
-              });
-              setMentionsSuggestions(suggestions);
-            }
-          } catch { /* ignore */ }
-        }, 250);
-      } else {
-        setMentionsSuggestions([]);
-      }
-    } else {
-      setShowMentions(false);
-      setMentionsSuggestions([]);
-    }
-  }, []);
-
-  const handleSelectMention = useCallback((item: typeof mentionsSuggestions[0]) => {
-    // Remplacer @query par @label dans le texte
-    const textBeforeMention = nouveauPostContenu.replace(/@\w*$/, '');
-    const mentionTag = `@${item.label.replace(/\s+/g, '_')} `;
-    setNouveauPostContenu(textBeforeMention + mentionTag);
-
-    // Ajouter aux mentions selectionnees (eviter doublons)
-    setMentionsSelectionnees(prev => {
-      if (prev.some(m => m.id === item.id)) return prev;
-      return [...prev, { type: item.type, id: item.id }];
-    });
-
-    setShowMentions(false);
-    setMentionsSuggestions([]);
-  }, [nouveauPostContenu]);
-
-  const handleCreerPost = async () => {
-    if ((!nouveauPostContenu.trim() && mediasSelectionnes.length === 0) || creationEnCours) return;
-
-    try {
-      setCreationEnCours(true);
-
-      // Préparer les médias en base64
-      let mediasData: string[] | undefined;
-      if (mediasSelectionnes.length > 0) {
-        mediasData = mediasSelectionnes.map((m) => {
-          if (m.base64) {
-            const mimeType = m.mimeType || (m.type === 'video' ? 'video/mp4' : 'image/jpeg');
-            return `data:${mimeType};base64,${m.base64}`;
-          }
-          return m.uri;
-        });
-      }
-
-      const reponse = await creerPublication(
-        nouveauPostContenu.trim(),
-        mediasData,
-        undefined,
-        mentionsSelectionnees.length > 0 ? mentionsSelectionnees : undefined
-      );
-      if (reponse.succes && reponse.data) {
-        setPublications(prev => [reponse.data!.publication, ...prev]);
-        setNouveauPostContenu('');
-        setMediasSelectionnes([]);
-        setMentionsSelectionnees([]);
-        setModalCreerPost(false);
-        if (reponse.gamification) applyDelta(reponse.gamification);
-        Alert.alert('Succes', 'Publication creee !');
-      } else {
-        Alert.alert('Erreur', reponse.message || 'Impossible de creer la publication');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Une erreur est survenue');
-    } finally {
-      setCreationEnCours(false);
-    }
-  };
-
-  // Sélection d'images depuis la galerie (multi-sélection)
-  const handleSelectImage = async () => {
-    try {
-      if (mediasSelectionnes.length >= MAX_MEDIAS) {
-        Alert.alert('Limite atteinte', `Maximum ${MAX_MEDIAS} médias par publication.`);
-        return;
-      }
-
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre galerie pour ajouter des photos.');
-        return;
-      }
-
-      const remainingSlots = MAX_MEDIAS - mediasSelectionnes.length;
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsMultipleSelection: true,
-        selectionLimit: remainingSlots,
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets.length > 0) {
-        const newMedias = result.assets.map(asset => ({
-          uri: asset.uri,
-          type: 'image' as const,
-          base64: asset.base64 || undefined,
-          mimeType: asset.mimeType || 'image/jpeg',
-        }));
-        setMediasSelectionnes(prev => [...prev, ...newMedias].slice(0, MAX_MEDIAS));
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de sélectionner les images');
-    }
-  };
-
-  // Sélection d'une vidéo depuis la galerie (ajout au tableau)
-  const handleSelectVideo = async () => {
-    try {
-      if (mediasSelectionnes.length >= MAX_MEDIAS) {
-        Alert.alert('Limite atteinte', `Maximum ${MAX_MEDIAS} médias par publication.`);
-        return;
-      }
-
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre galerie pour ajouter des vidéos.');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['videos'],
-        allowsEditing: true,
-        quality: 0.5,
-        videoMaxDuration: 30,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-
-        // Vérifier la taille du fichier (limite à 50MB)
-        const fileInfo = await FileSystem.getInfoAsync(asset.uri);
-        if (fileInfo.exists && 'size' in fileInfo && fileInfo.size > 50 * 1024 * 1024) {
-          Alert.alert('Vidéo trop volumineuse', 'La vidéo ne doit pas dépasser 50 MB. Essayez une vidéo plus courte.');
-          return;
-        }
-
-        // Lire la vidéo en base64
-        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        setMediasSelectionnes(prev => [...prev, {
-          uri: asset.uri,
-          type: 'video' as const,
-          base64: base64,
-          mimeType: asset.mimeType || 'video/mp4',
-        }].slice(0, MAX_MEDIAS));
-      }
-    } catch (error) {
-      console.error('Erreur sélection vidéo:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner la vidéo. Elle est peut-être trop volumineuse.');
-    }
-  };
-
-  // Prendre une photo avec l'appareil photo (ajout au tableau)
-  const handleTakePhoto = async () => {
-    try {
-      if (mediasSelectionnes.length >= MAX_MEDIAS) {
-        Alert.alert('Limite atteinte', `Maximum ${MAX_MEDIAS} médias par publication.`);
-        return;
-      }
-
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Nous avons besoin d\'accéder à votre caméra pour prendre des photos.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        setMediasSelectionnes(prev => [...prev, {
-          uri: asset.uri,
-          type: 'image' as const,
-          base64: asset.base64 || undefined,
-          mimeType: asset.mimeType || 'image/jpeg',
-        }].slice(0, MAX_MEDIAS));
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de prendre la photo');
-    }
-  };
-
-  // Supprimer un média du tableau
-  const handleRemoveMedia = (index: number) => {
-    setMediasSelectionnes(prev => prev.filter((_, i) => i !== index));
-  };
-
   const handleProfil = useCallback(() => {
     router.push('/(app)/profil');
   }, [router]);
-
-  const getInitiales = () => {
-    if (!utilisateur) return 'U';
-    return `${utilisateur.prenom?.[0] || ''}${utilisateur.nom?.[0] || ''}`.toUpperCase();
-  };
 
   // Utiliser les compteurs socket si connecté, sinon fallback sur calcul local
   const localUnreadMessages = conversations.reduce((total, conv) => total + conv.messagesNonLus, 0);
@@ -1450,217 +781,6 @@ export default function Accueil() {
   // Compteurs notifications et demandes d'amis avec socket
   const effectiveNotifications = socketConnected ? socketUnreadNotifications : notificationsNonLues;
   const effectiveDemandesAmis = socketConnected ? socketUnreadDemandesAmis : demandesAmisEnAttente;
-
-  // ============ COMPOSANTS LOCAUX ============
-  // PublicationCard extrait vers: src/composants/PublicationCard.tsx (optimisation P0)
-
-  const ProjetCard = ({ projet }: { projet: Projet }) => {
-    // Verifier si c'est le propre projet de l'utilisateur
-    const isOwnProject = utilisateur?.id === projet.porteur?._id;
-
-    // State local pour optimistic update + sync avec props
-    const [suivi, setSuivi] = useState(projet.estSuivi);
-    const [nbFollowers, setNbFollowers] = useState(projet.nbFollowers);
-    const [enCours, setEnCours] = useState(false);
-
-    // Sync state local avec props quand le projet change (navigation, refetch)
-    // Mais SEULEMENT si on n'est pas en train de faire une action
-    useEffect(() => {
-      if (!enCours) {
-        setSuivi(projet.estSuivi);
-        setNbFollowers(projet.nbFollowers);
-      }
-    }, [projet._id, projet.estSuivi, projet.nbFollowers, enCours]);
-
-    const handleToggleSuivre = async () => {
-      if (enCours) return;
-
-      // IMPORTANT: Marquer enCours AVANT tout pour bloquer le useEffect sync
-      setEnCours(true);
-
-      // Sauvegarder l'etat precedent pour rollback
-      const previousSuivi = suivi;
-      const previousNbFollowers = nbFollowers;
-
-      // Optimistic update local
-      const newSuivi = !suivi;
-      const newNbFollowers = suivi ? nbFollowers - 1 : nbFollowers + 1;
-      setSuivi(newSuivi);
-      setNbFollowers(newNbFollowers);
-
-      // Optimistic update sur le state parent (source de verite)
-      setProjets(prev => prev.map(p =>
-        p._id === projet._id
-          ? { ...p, estSuivi: newSuivi, nbFollowers: newNbFollowers }
-          : p
-      ));
-
-      try {
-        const reponse = await toggleSuivreProjet(projet._id);
-
-        // Debug: voir ce que l'API renvoie
-        if (__DEV__) {
-          console.log('🔄 toggleSuivreProjet response:', JSON.stringify(reponse, null, 2));
-        }
-
-        if (reponse.succes && reponse.data) {
-          // Backend renvoie maintenant estSuivi et nbFollowers
-          const apiData = reponse.data as { estSuivi?: boolean; suivi?: boolean; nbFollowers?: number; totalFollowers?: number };
-          const apiEstSuivi = apiData.estSuivi ?? apiData.suivi;
-          const apiNbFollowers = apiData.nbFollowers ?? apiData.totalFollowers;
-
-          if (__DEV__) {
-            console.log('✅ Follow reussi - API:', { apiEstSuivi, apiNbFollowers });
-          }
-
-          // Utiliser les valeurs de l'API si disponibles
-          if (typeof apiEstSuivi === 'boolean') {
-            setSuivi(apiEstSuivi);
-            setProjets(prev => prev.map(p =>
-              p._id === projet._id ? { ...p, estSuivi: apiEstSuivi } : p
-            ));
-          }
-          if (typeof apiNbFollowers === 'number') {
-            setNbFollowers(apiNbFollowers);
-            setProjets(prev => prev.map(p =>
-              p._id === projet._id ? { ...p, nbFollowers: apiNbFollowers } : p
-            ));
-          }
-          // Gamification: le backend gere automatiquement via applyGamificationEvent
-          if (reponse.gamification) {
-            applyDelta(reponse.gamification);
-          }
-        } else if (!reponse.succes) {
-          // Rollback si echec explicite
-          console.warn('⚠️ toggleSuivreProjet: succes=false ou pas de data');
-          setSuivi(previousSuivi);
-          setNbFollowers(previousNbFollowers);
-          setProjets(prev => prev.map(p =>
-            p._id === projet._id
-              ? { ...p, estSuivi: previousSuivi, nbFollowers: previousNbFollowers }
-              : p
-          ));
-        }
-      } catch (error) {
-        console.error('❌ Erreur toggle suivre projet:', error);
-        // Rollback en cas d'exception reseau
-        setSuivi(previousSuivi);
-        setNbFollowers(previousNbFollowers);
-        setProjets(prev => prev.map(p =>
-          p._id === projet._id
-            ? { ...p, estSuivi: previousSuivi, nbFollowers: previousNbFollowers }
-            : p
-        ));
-      } finally {
-        setEnCours(false);
-      }
-    };
-
-    const handleVoirFiche = () => {
-      router.push({
-        pathname: '/(app)/projet/[id]',
-        params: { id: projet._id },
-      });
-    };
-
-    const handleContacter = () => {
-      router.push({
-        pathname: '/(app)/projet/[id]',
-        params: { id: projet._id, action: 'contact' },
-      });
-    };
-
-    // La card n'est PAS un Pressable pour eviter la propagation
-    // Seuls les zones cliquables specifiques ont un onPress
-    return (
-      <View style={styles.startupCard}>
-        {/* Zone image cliquable vers fiche */}
-        <Pressable onPress={handleVoirFiche}>
-          <Image
-            source={{ uri: projet.image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop' }}
-            style={styles.startupImage}
-          />
-        </Pressable>
-        <View style={styles.startupContent}>
-          {/* Zone header cliquable vers fiche */}
-          <Pressable onPress={handleVoirFiche}>
-            <View style={styles.startupHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.startupNom}>{projet.nom}</Text>
-                <View style={styles.startupLocation}>
-                  <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
-                  <Text style={styles.startupVille}>{projet.localisation?.ville || 'France'}</Text>
-                </View>
-              </View>
-              {projet.logo && (
-                <Image source={{ uri: projet.logo }} style={styles.startupLogo} />
-              )}
-            </View>
-            <Text style={styles.startupDescription} numberOfLines={2}>{projet.pitch || projet.description}</Text>
-            <View style={styles.startupTags}>
-              {projet.tags.slice(0, 3).map((tag, i) => (
-                <View key={i} style={styles.startupTag}>
-                  <Text style={styles.startupTagText}>{tag}</Text>
-                </View>
-              ))}
-              {projet.categorie && (
-                <View style={[styles.startupTag, { backgroundColor: couleurs.primaire + '20' }]}>
-                  <Text style={[styles.startupTagText, { color: couleurs.primaire }]}>{projet.categorie}</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.startupStats}>
-              <View style={styles.startupStat}>
-                <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-                <Text style={styles.startupStatText}>{nbFollowers} abonnes</Text>
-              </View>
-              <View style={styles.startupStat}>
-                <Ionicons name="trending-up-outline" size={14} color={couleurs.texteSecondaire} />
-                <Text style={styles.startupStatText}>{projet.maturite}</Text>
-              </View>
-            </View>
-          </Pressable>
-          {/* Zone boutons - chacun est independant */}
-          <View style={styles.startupActions}>
-            {isOwnProject ? (
-              <Pressable
-                style={[styles.startupBtnPrimary, styles.startupBtnSuivi]}
-                onPress={handleVoirFiche}
-              >
-                <Ionicons name="briefcase" size={18} color={couleurs.primaire} />
-                <Text style={[styles.startupBtnPrimaryText, styles.startupBtnSuiviText]}>
-                  Mon projet
-                </Text>
-              </Pressable>
-            ) : (
-              <>
-                <Pressable
-                  style={[styles.startupBtnPrimary, suivi && styles.startupBtnSuivi, enCours && { opacity: 0.6 }]}
-                  onPress={handleToggleSuivre}
-                  disabled={enCours}
-                >
-                  <Ionicons
-                    name={suivi ? 'checkmark' : 'add'}
-                    size={18}
-                    color={suivi ? couleurs.primaire : couleurs.blanc}
-                  />
-                  <Text style={[styles.startupBtnPrimaryText, suivi && styles.startupBtnSuiviText]}>
-                    {suivi ? 'Suivi' : 'Suivre'}
-                  </Text>
-                </Pressable>
-                <Pressable style={styles.startupBtnSecondary} onPress={handleContacter}>
-                  <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
-                </Pressable>
-                <Pressable style={styles.startupBtnSecondary} onPress={handleVoirFiche}>
-                  <Ionicons name="eye-outline" size={18} color={couleurs.texte} />
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
-      </View>
-    );
-  };
 
   // ============ SECTIONS ============
 
@@ -2010,854 +1130,8 @@ export default function Accueil() {
     </>
   );
 
-  // Categories pour les filtres decouvrir
-  const DECOUVRIR_CATEGORIES: { value: CategorieProjet | 'all'; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-    { value: 'all', label: 'Tout', icon: 'apps', color: couleurs.primaire },
-    { value: 'tech', label: 'Tech', icon: 'hardware-chip', color: '#3B82F6' },
-    { value: 'food', label: 'Food', icon: 'restaurant', color: '#F97316' },
-    { value: 'sante', label: 'Sante', icon: 'medkit', color: '#EF4444' },
-    { value: 'education', label: 'Education', icon: 'school', color: '#8B5CF6' },
-    { value: 'energie', label: 'Energie', icon: 'flash', color: '#F59E0B' },
-    { value: 'culture', label: 'Culture', icon: 'color-palette', color: '#EC4899' },
-    { value: 'environnement', label: 'Eco', icon: 'leaf', color: '#10B981' },
-  ];
 
-  const MATURITE_LABELS: Record<string, { label: string; color: string }> = {
-    idee: { label: 'Idee', color: '#9CA3AF' },
-    prototype: { label: 'Prototype', color: '#F59E0B' },
-    lancement: { label: 'Lancement', color: '#3B82F6' },
-    croissance: { label: 'Croissance', color: '#10B981' },
-  };
 
-  const handleCategorieChange = (cat: CategorieProjet | 'all') => {
-    setCategorieFiltre(cat);
-    setIncubateurFiltre(null);
-    chargerProjets(cat, rechercheProjetDebounced, null);
-  };
-
-  const handleRechercheProjetSubmit = useCallback(() => {
-    // Bypass debounce — recherche immediate sur submit clavier
-    setRechercheProjetDebounced(rechercheProjet);
-    chargerProjets(categorieFiltre, rechercheProjet);
-  }, [rechercheProjet, categorieFiltre, chargerProjets]);
-
-  const renderDecouvrirContent = () => (
-    <>
-      {/* Barre de recherche projet */}
-      <View style={styles.decouvrirSearchSection}>
-        <View style={styles.decouvrirSearchBar}>
-          <Ionicons name="search" size={16} color={couleurs.texteMuted} />
-          <TextInput
-            style={styles.decouvrirSearchInput}
-            placeholder="Rechercher un projet..."
-            placeholderTextColor={couleurs.texteMuted}
-            value={rechercheProjet}
-            onChangeText={setRechercheProjet}
-            onSubmitEditing={handleRechercheProjetSubmit}
-            returnKeyType="search"
-          />
-          {rechercheProjet.length > 0 && (
-            <Pressable onPress={() => { setRechercheProjet(''); setRechercheProjetDebounced(''); chargerProjets(categorieFiltre, ''); }}>
-              <Ionicons name="close-circle" size={18} color={couleurs.texteMuted} />
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* Filtres categories */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.decouvrirCategoriesContainer}
-        style={styles.decouvrirCategoriesScroll}
-      >
-        {DECOUVRIR_CATEGORIES.map((cat) => {
-          const isActive = categorieFiltre === cat.value;
-          return (
-            <Pressable
-              key={cat.value}
-              onPress={() => handleCategorieChange(cat.value)}
-              style={[
-                styles.decouvrirCategorieChip,
-                isActive
-                  ? { backgroundColor: cat.color + '20', borderColor: cat.color }
-                  : { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure },
-              ]}
-            >
-              <Ionicons name={cat.icon} size={14} color={isActive ? cat.color : couleurs.texteMuted} />
-              <Text style={[
-                styles.decouvrirCategorieText,
-                { color: isActive ? cat.color : couleurs.texteSecondaire },
-              ]}>
-                {cat.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      {/* Filtre incubateur actif */}
-      {incubateurFiltre && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: espacements.md, paddingVertical: espacements.xs, backgroundColor: couleurs.primaire + '15', gap: espacements.sm }}>
-          <Ionicons name="business" size={16} color={couleurs.primaire} />
-          <Text style={{ flex: 1, color: couleurs.primaire, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>{incubateurFiltre}</Text>
-          <Pressable
-            onPress={() => {
-              setIncubateurFiltre(null);
-              chargerProjets(categorieFiltre, rechercheProjetDebounced, null);
-            }}
-            hitSlop={8}
-          >
-            <Ionicons name="close-circle" size={20} color={couleurs.primaire} />
-          </Pressable>
-        </View>
-      )}
-
-      {/* Section Trending */}
-      {projetsTendance.length > 0 && categorieFiltre === 'all' && !rechercheProjet && (
-        <View style={styles.decouvrirSection}>
-          <View style={styles.decouvrirSectionHeader}>
-            <Ionicons name="flame" size={18} color="#F59E0B" />
-            <Text style={styles.decouvrirSectionTitle}>Tendances</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.decouvrirTrendingScroll}>
-            {projetsTendance.map((projet, index) => {
-              const mat = MATURITE_LABELS[projet.maturite] || MATURITE_LABELS.idee;
-              const catConf = DECOUVRIR_CATEGORIES.find(c => c.value === projet.categorie);
-              return (
-                <Pressable
-                  key={projet._id}
-                  style={styles.decouvrirTrendingCard}
-                  onPress={() => router.push({ pathname: '/(app)/projet/[id]', params: { id: projet._id } })}
-                >
-                  {projet.image ? (
-                    <Image source={{ uri: projet.image }} style={styles.decouvrirTrendingImage} />
-                  ) : (
-                    <LinearGradient
-                      colors={[catConf?.color || couleurs.primaire, couleurs.fondSecondaire]}
-                      style={styles.decouvrirTrendingImagePlaceholder}
-                    >
-                      <Ionicons name={catConf?.icon || 'rocket'} size={28} color="rgba(255,255,255,0.6)" />
-                    </LinearGradient>
-                  )}
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.85)']}
-                    style={styles.decouvrirTrendingOverlay}
-                  >
-                    <View style={styles.decouvrirTrendingRankBadge}>
-                      <Text style={styles.decouvrirTrendingRankText}>#{index + 1}</Text>
-                    </View>
-                    <Text style={styles.decouvrirTrendingNom} numberOfLines={1}>{projet.nom}</Text>
-                    <Text style={styles.decouvrirTrendingPitch} numberOfLines={1}>{projet.pitch}</Text>
-                    <View style={styles.decouvrirTrendingMeta}>
-                      <View style={[styles.decouvrirMaturiteBadge, { backgroundColor: mat.color + '30' }]}>
-                        <Text style={[styles.decouvrirMaturiteText, { color: mat.color }]}>{mat.label}</Text>
-                      </View>
-                      <View style={styles.decouvrirTrendingStat}>
-                        <Ionicons name="people" size={11} color="rgba(255,255,255,0.7)" />
-                        <Text style={styles.decouvrirTrendingStatText}>{projet.nbFollowers}</Text>
-                      </View>
-                    </View>
-                  </LinearGradient>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Section Incubateurs */}
-      {categorieFiltre === 'all' && !rechercheProjet && !incubateurFiltre && (
-        <View style={styles.decouvrirSection}>
-          <View style={styles.decouvrirSectionHeader}>
-            <Ionicons name="business" size={18} color="#8B5CF6" />
-            <Text style={styles.decouvrirSectionTitle}>Incubateurs</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.decouvrirTrendingScroll}>
-            {INCUBATEURS_FR.map((inc) => {
-              const actif = incubateursActifs.find(a => a.nom === inc.nom);
-              const count = actif?.count || 0;
-              return (
-                <Pressable
-                  key={inc.nom}
-                  style={styles.decouvrirTrendingCard}
-                  onPress={() => {
-                    setIncubateurFiltre(inc.nom);
-                    chargerProjets(categorieFiltre, rechercheProjetDebounced, inc.nom);
-                  }}
-                >
-                  <Image source={{ uri: inc.image }} style={styles.decouvrirTrendingImage} />
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.85)']}
-                    style={styles.decouvrirTrendingOverlay}
-                  >
-                    <Text style={styles.decouvrirTrendingNom} numberOfLines={2}>{inc.nom}</Text>
-                    <View style={styles.decouvrirTrendingStat}>
-                      <Ionicons name="rocket" size={11} color="rgba(255,255,255,0.7)" />
-                      <Text style={styles.decouvrirTrendingStatText}>{count} projet{count > 1 ? 's' : ''}</Text>
-                    </View>
-                  </LinearGradient>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Section liste des projets */}
-      <View style={styles.decouvrirSection}>
-        <View style={styles.decouvrirSectionHeader}>
-          <Ionicons name="compass" size={18} color={couleurs.primaire} />
-          <Text style={styles.decouvrirSectionTitle}>
-            {categorieFiltre !== 'all'
-              ? DECOUVRIR_CATEGORIES.find(c => c.value === categorieFiltre)?.label || 'Projets'
-              : 'Tous les projets'}
-          </Text>
-          <Text style={styles.decouvrirSectionCount}>{projets.length}</Text>
-        </View>
-
-        {chargementProjets ? (
-          <SkeletonList type="post" count={3} />
-        ) : projets.length === 0 ? (
-          <View style={styles.decouvrirEmptyState}>
-            <View style={styles.decouvrirEmptyIcon}>
-              <Ionicons name="rocket-outline" size={40} color={couleurs.primaire} />
-            </View>
-            <Text style={styles.decouvrirEmptyTitle}>
-              {rechercheProjet ? `Aucun resultat pour "${rechercheProjet}"` : 'Aucun projet pour le moment'}
-            </Text>
-            <Text style={styles.decouvrirEmptySubtitle}>
-              {rechercheProjet
-                ? 'Essayez avec d\'autres mots-cles'
-                : 'Les projets publies par les entrepreneurs apparaitront ici.'}
-            </Text>
-            {rechercheProjet ? (
-              <Pressable
-                style={styles.decouvrirEmptyBtn}
-                onPress={() => { setRechercheProjet(''); setRechercheProjetDebounced(''); chargerProjets(categorieFiltre, ''); }}
-              >
-                <Text style={styles.decouvrirEmptyBtnText}>Effacer la recherche</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
-          projets.map((projet) => (
-            <ProjetCard key={projet._id} projet={projet} />
-          ))
-        )}
-      </View>
-    </>
-  );
-
-  const rejoindreUnLive = async (live: LiveAPI) => {
-    try {
-      // Obtenir un token Agora pour le viewer
-      const tokenRes = await getAgoraToken(live.channelName, 'subscriber');
-      if (!tokenRes.succes || !tokenRes.data) {
-        Alert.alert('Erreur', 'Impossible de rejoindre le live');
-        return;
-      }
-      const creds = tokenRes.data;
-      router.push({
-        pathname: '/live/viewer',
-        params: {
-          liveId: live._id,
-          channelName: creds.channelName,
-          appId: creds.appId,
-          token: creds.token,
-          uid: creds.uid.toString(),
-          hostPrenom: live.host.prenom,
-          hostNom: live.host.nom,
-          hostAvatar: live.host.avatar || '',
-          title: live.title || '',
-          viewerCount: live.viewerCount.toString(),
-        },
-      });
-    } catch (error) {
-      console.error('Erreur rejoindre live:', error);
-      Alert.alert('Erreur', 'Impossible de rejoindre le live');
-    }
-  };
-
-  // Memoized live computations
-  const { livesFiltres, livesTries, totalViewers, featuredLive, autresLives } = useMemo(() => {
-    const filtres = rechercheLive.length >= 2
-      ? lives.filter(l =>
-          `${l.host?.prenom} ${l.host?.nom}`.toLowerCase().includes(rechercheLive.toLowerCase()) ||
-          (l.title || '').toLowerCase().includes(rechercheLive.toLowerCase())
-        )
-      : lives;
-    const tries = [...filtres].sort((a, b) =>
-      triLive === 'populaire'
-        ? b.viewerCount - a.viewerCount
-        : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-    );
-    return {
-      livesFiltres: filtres,
-      livesTries: tries,
-      totalViewers: lives.reduce((sum, l) => sum + l.viewerCount, 0),
-      featuredLive: tries[0],
-      autresLives: tries.slice(1),
-    };
-  }, [lives, rechercheLive, triLive]);
-
-  // Memoized conversations filtrees
-  const conversationsFiltreesAccueil = useMemo(() =>
-    conversations.filter(conv =>
-      rechercheMessage.length < 2 ||
-      (conv.participant && `${conv.participant.prenom} ${conv.participant.nom}`.toLowerCase().includes(rechercheMessage.toLowerCase()))
-    ), [conversations, rechercheMessage]);
-
-  const renderLiveContent = () => {
-    return (
-      <View style={styles.liveContainer}>
-        {/* ====== HEADER ====== */}
-        <View style={styles.liveHeader}>
-          <View style={styles.liveHeaderLeft}>
-            <Text style={styles.sectionTitle}>Live</Text>
-            {lives.length > 0 && (
-              <View style={styles.liveCountBadge}>
-                <View style={styles.liveCountDot} />
-                <Text style={styles.liveCountText}>{lives.length}</Text>
-              </View>
-            )}
-          </View>
-          <Pressable
-            onPress={() => router.push('/live/start')}
-            style={({ pressed }) => [pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-          >
-            <View style={styles.goLiveBtn}>
-              <Ionicons name="radio" size={15} color={couleurs.blanc} />
-              <Text style={styles.goLiveBtnText}>Go Live</Text>
-            </View>
-          </Pressable>
-        </View>
-
-        {chargementLives ? (
-          <SkeletonList type="post" count={3} />
-        ) : lives.length === 0 ? (
-          /* ====== EMPTY STATE ====== */
-          <View style={styles.liveEmptyState}>
-            <LinearGradient
-              colors={[couleurs.primaireDark, couleurs.primaire, `${couleurs.primaireLight}88`]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.liveEmptyHero}
-            >
-              <View style={styles.liveEmptyIconRing}>
-                <Ionicons name="videocam" size={32} color={couleurs.primaireLight} />
-              </View>
-              <Text style={styles.liveEmptyTitle}>Personne n'est en direct</Text>
-              <Text style={styles.liveEmptySubtitle}>
-                Soyez le premier a diffuser en direct{'\n'}et partagez un moment avec la communaute
-              </Text>
-              <Pressable
-                onPress={() => router.push('/live/start')}
-                style={({ pressed }) => [pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
-              >
-                <View style={styles.liveEmptyCTABtn}>
-                  <Ionicons name="radio" size={18} color={couleurs.blanc} />
-                  <Text style={styles.liveEmptyCTAText}>Lancer mon live</Text>
-                </View>
-              </Pressable>
-            </LinearGradient>
-
-            {/* Divider */}
-            <View style={styles.liveDivider} />
-
-            {/* Comment ca marche */}
-            <View style={styles.liveHowToSection}>
-              <View style={styles.liveSectionHeader}>
-                <Ionicons name="help-circle" size={18} color={couleurs.primaire} />
-                <Text style={styles.liveSectionTitle}>Comment ca marche</Text>
-              </View>
-              <View style={styles.liveHowToSteps}>
-                {[
-                  { num: '1', title: 'Lancez', desc: 'Appuyez sur Go Live', color: couleurs.erreur },
-                  { num: '2', title: 'Diffusez', desc: 'En video ou audio', color: couleurs.primaire },
-                  { num: '3', title: 'Interagissez', desc: 'Avec votre audience', color: couleurs.secondaire },
-                ].map((step) => (
-                  <View key={step.num} style={styles.liveHowToStep}>
-                    <View style={[styles.liveHowToStepNum, { backgroundColor: `${step.color}20` }]}>
-                      <Text style={[styles.liveHowToStepNumText, { color: step.color }]}>{step.num}</Text>
-                    </View>
-                    <Text style={styles.liveHowToStepTitle}>{step.title}</Text>
-                    <Text style={styles.liveHowToStepDesc}>{step.desc}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        ) : (
-          /* ====== LIVES ACTIFS ====== */
-          <View style={styles.livesActiveContainer}>
-            {/* Barre de recherche */}
-            <View style={styles.liveSearchBar}>
-              <Ionicons name="search" size={16} color={couleurs.texteSecondaire} />
-              <TextInput
-                style={styles.liveSearchInput}
-                placeholder="Rechercher un live..."
-                placeholderTextColor={couleurs.texteMuted}
-                value={rechercheLive}
-                onChangeText={setRechercheLive}
-                returnKeyType="search"
-              />
-              {rechercheLive.length > 0 && (
-                <Pressable onPress={() => setRechercheLive('')}>
-                  <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
-                </Pressable>
-              )}
-            </View>
-
-            {/* Tri + stats */}
-            <View style={styles.liveSortRow}>
-              <Pressable
-                style={[styles.liveSortChip, triLive === 'populaire' && styles.liveSortChipActive]}
-                onPress={() => setTriLive('populaire')}
-              >
-                <Ionicons name="flame" size={13} color={triLive === 'populaire' ? couleurs.blanc : couleurs.texteSecondaire} />
-                <Text style={[styles.liveSortChipText, triLive === 'populaire' && styles.liveSortChipTextActive]}>Tendances</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.liveSortChip, triLive === 'recent' && styles.liveSortChipActive]}
-                onPress={() => setTriLive('recent')}
-              >
-                <Ionicons name="time" size={13} color={triLive === 'recent' ? couleurs.blanc : couleurs.texteSecondaire} />
-                <Text style={[styles.liveSortChipText, triLive === 'recent' && styles.liveSortChipTextActive]}>Recents</Text>
-              </Pressable>
-              <View style={styles.liveStatsCompact}>
-                <Ionicons name="eye" size={12} color={couleurs.texteSecondaire} />
-                <Text style={styles.liveStatsCompactText}>{formatViewerCount(totalViewers)}</Text>
-              </View>
-            </View>
-
-            {/* Resultats */}
-            {livesFiltres.length === 0 && rechercheLive.length >= 2 ? (
-              <View style={styles.liveNoResults}>
-                <Ionicons name="search-outline" size={36} color={couleurs.texteMuted} />
-                <Text style={styles.liveNoResultsText}>Aucun live pour "{rechercheLive}"</Text>
-              </View>
-            ) : (
-              <>
-                {/* Section A la une */}
-                {featuredLive && (
-                  <View style={styles.liveSection}>
-                    <View style={styles.liveSectionHeader}>
-                      <Ionicons name="flame" size={18} color={couleurs.accent} />
-                      <Text style={styles.liveSectionTitle}>A la une</Text>
-                    </View>
-                    <LiveCard
-                      live={featuredLive}
-                      onPress={() => rejoindreUnLive(featuredLive)}
-                      variant="featured"
-                      index={0}
-                    />
-                  </View>
-                )}
-
-                {/* Divider */}
-                {autresLives.length > 0 && <View style={styles.liveDivider} />}
-
-                {/* Section En direct - scroll horizontal */}
-                {autresLives.length > 0 && (
-                  <View style={styles.liveSection}>
-                    <View style={styles.liveSectionHeader}>
-                      <Ionicons name="radio" size={18} color={couleurs.erreur} />
-                      <Text style={styles.liveSectionTitle}>En direct</Text>
-                      <Text style={styles.liveSectionCount}>{autresLives.length}</Text>
-                    </View>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.liveTrendingScroll}
-                    >
-                      {autresLives.map((live, i) => (
-                        <LiveCard
-                          key={live._id}
-                          live={live}
-                          onPress={() => rejoindreUnLive(live)}
-                          variant="card"
-                          index={i + 1}
-                        />
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const renderMessagesContent = () => {
-    const conversationsFiltrees = conversationsFiltreesAccueil;
-
-    // Vue conversation active
-    if (conversationActive) {
-      return (
-        <View style={styles.section}>
-          <View style={styles.messagesCard}>
-            <View style={styles.messagesHeader}>
-              <Pressable onPress={() => { setConversationActive(null); setMessagesConversation([]); }}>
-                <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
-              </Pressable>
-              <View style={styles.conversationHeaderInfo}>
-                <Image
-                  source={{ uri: conversationActive.participant.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
-                  style={styles.conversationHeaderAvatar}
-                />
-                <Text style={styles.messagesHeaderTitle}>
-                  {conversationActive.participant.prenom} {conversationActive.participant.nom}
-                </Text>
-              </View>
-              <View style={{ width: 24 }} />
-            </View>
-            <ScrollView style={styles.messagesConversation} contentContainerStyle={{ paddingVertical: espacements.md }}>
-              {chargementMessages ? (
-                <Text style={styles.chargementText}>Chargement...</Text>
-              ) : messagesConversation.length === 0 ? (
-                <Text style={styles.messagesEmptyText}>Aucun message. Commencez la conversation !</Text>
-              ) : (
-                messagesConversation.map((msg) => (
-                  <View key={msg._id} style={[styles.messageBubble, msg.estMoi ? styles.messageBubbleMoi : styles.messageBubbleAutre]}>
-                    <Text style={[styles.messageBubbleText, msg.estMoi && styles.messageBubbleTextMoi]}>{msg.contenu}</Text>
-                    <Text style={[styles.messageBubbleTime, msg.estMoi && styles.messageBubbleTimeMoi]}>
-                      {new Date(msg.dateCreation).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-            <View style={styles.messageInputContainer}>
-              <TextInput
-                style={styles.messageInput}
-                placeholder="Votre message..."
-                placeholderTextColor={couleurs.texteSecondaire}
-                value={messageContenu}
-                onChangeText={setMessageContenu}
-                multiline
-              />
-              <Pressable
-                style={[styles.sendButton, (!messageContenu.trim() || envoiEnCours) && styles.sendButtonDisabled]}
-                onPress={handleEnvoyerMessageConversation}
-                disabled={!messageContenu.trim() || envoiEnCours}
-              >
-                <Ionicons name="send" size={20} color="#fff" />
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.messagesCard}>
-          <View style={styles.messagesHeader}>
-            <Text style={styles.messagesHeaderTitle}>Conversations</Text>
-            <Pressable style={styles.messagesNewBtn} onPress={() => setModalNouvelleConversation(true)}>
-              <Ionicons name="create-outline" size={20} color={couleurs.primaire} />
-            </Pressable>
-          </View>
-
-          {/* Barre de recherche */}
-          <View style={styles.messagesSearchContainer}>
-            <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
-            <TextInput
-              style={styles.messagesSearchInput}
-              placeholder="Rechercher une conversation..."
-              placeholderTextColor={couleurs.texteSecondaire}
-              value={rechercheMessage}
-              onChangeText={setRechercheMessage}
-            />
-            {rechercheMessage.length > 0 && (
-              <Pressable onPress={() => setRechercheMessage('')}>
-                <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
-              </Pressable>
-            )}
-          </View>
-
-          <View style={styles.messagesList}>
-            {conversationsFiltrees.length === 0 ? (
-              <View style={styles.emptyMessages}>
-                <Ionicons name="chatbubbles-outline" size={48} color={couleurs.texteSecondaire} />
-                <Text style={styles.emptyMessagesText}>
-                  {rechercheMessage.length > 0 ? 'Aucune conversation trouvee' : 'Aucune conversation'}
-                </Text>
-                <Pressable style={styles.startConversationBtn} onPress={() => setModalNouvelleConversation(true)}>
-                  <Text style={styles.startConversationBtnText}>Demarrer une conversation</Text>
-                </Pressable>
-              </View>
-            ) : (
-              conversationsFiltrees.map((conv) => (
-                <Pressable
-                  key={conv._id}
-                  style={[styles.messageRow, conv.messagesNonLus > 0 && styles.messageRowUnread]}
-                  onPress={() => handleOuvrirConversation(conv)}
-                >
-                  <Image
-                    source={{ uri: conv.participant?.avatar || 'https://api.dicebear.com/7.x/thumbs/png?seed=default&backgroundColor=6366f1&size=128' }}
-                    style={styles.messageAvatar}
-                  />
-                  <View style={styles.messageContent}>
-                    <Text style={[styles.messageExpediteur, conv.messagesNonLus > 0 && styles.messageExpediteurUnread]}>
-                      {conv.estGroupe ? conv.nomGroupe : `${conv.participant?.prenom || ''} ${conv.participant?.nom || ''}`}
-                    </Text>
-                    <Text style={styles.messageDernier} numberOfLines={1}>
-                      {conv.dernierMessage?.contenu || 'Aucun message'}
-                    </Text>
-                  </View>
-                  <View style={styles.messageMeta}>
-                    <Text style={styles.messageDate}>
-                      {conv.dernierMessage ? new Date(conv.dernierMessage.dateCreation).toLocaleDateString('fr-FR') : ''}
-                    </Text>
-                    {conv.messagesNonLus > 0 && (
-                      <View style={styles.messageUnreadBadge}>
-                        <Text style={styles.messageUnreadBadgeText}>{conv.messagesNonLus}</Text>
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
-              ))
-            )}
-          </View>
-        </View>
-
-        {/* Modal nouvelle conversation */}
-        <Modal
-          visible={modalNouvelleConversation}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => {
-            setModalNouvelleConversation(false);
-            setDestinataireSelectionne(null);
-            setDestinataireRecherche('');
-            setMessageContenu('');
-          }}
-        >
-          <KeyboardView style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Nouvelle conversation</Text>
-                <Pressable onPress={() => {
-                  setModalNouvelleConversation(false);
-                  setDestinataireSelectionne(null);
-                  setDestinataireRecherche('');
-                  setMessageContenu('');
-                }}>
-                  <Ionicons name="close" size={24} color={couleurs.texte} />
-                </Pressable>
-              </View>
-
-              {!destinataireSelectionne ? (
-                <>
-                  <View style={styles.modalSearchContainer}>
-                    <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
-                    <TextInput
-                      style={styles.modalSearchInput}
-                      placeholder="Rechercher un utilisateur..."
-                      placeholderTextColor={couleurs.texteSecondaire}
-                      value={destinataireRecherche}
-                      onChangeText={handleRechercheDestinataire}
-                      autoFocus
-                    />
-                  </View>
-                  <ScrollView style={styles.searchResults}>
-                    {resultatsRecherche.map((user) => (
-                      <Pressable
-                        key={user._id}
-                        style={styles.searchResultItem}
-                        onPress={() => setDestinataireSelectionne(user)}
-                      >
-                        <Avatar
-                          uri={user.avatar}
-                          prenom={user.prenom}
-                          nom={user.nom}
-                          taille={40}
-                        />
-                        <Text style={styles.searchResultName}>{user.prenom} {user.nom}</Text>
-                      </Pressable>
-                    ))}
-                    {destinataireRecherche.length >= 2 && resultatsRecherche.length === 0 && (
-                      <Text style={styles.noResultsText}>Aucun utilisateur trouve</Text>
-                    )}
-                  </ScrollView>
-                </>
-              ) : (
-                <>
-                  <View style={styles.selectedDestinataireContainer}>
-                    <Avatar
-                      uri={destinataireSelectionne.avatar}
-                      prenom={destinataireSelectionne.prenom}
-                      nom={destinataireSelectionne.nom}
-                      taille={36}
-                    />
-                    <Text style={styles.selectedDestinataireName}>
-                      {destinataireSelectionne.prenom} {destinataireSelectionne.nom}
-                    </Text>
-                    <Pressable onPress={() => setDestinataireSelectionne(null)}>
-                      <Ionicons name="close-circle" size={20} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  </View>
-                  <TextInput
-                    style={styles.modalMessageInput}
-                    placeholder="Votre message..."
-                    placeholderTextColor={couleurs.texteSecondaire}
-                    value={messageContenu}
-                    onChangeText={setMessageContenu}
-                    multiline
-                    numberOfLines={4}
-                  />
-                  <Pressable
-                    style={[styles.sendMessageBtn, (!messageContenu.trim() || envoiEnCours) && styles.sendMessageBtnDisabled]}
-                    onPress={handleEnvoyerMessage}
-                    disabled={!messageContenu.trim() || envoiEnCours}
-                  >
-                    <Text style={styles.sendMessageBtnText}>
-                      {envoiEnCours ? 'Envoi...' : 'Envoyer'}
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
-          </KeyboardView>
-        </Modal>
-      </View>
-    );
-  };
-
-  // Contenu de l'onglet Entrepreneur
-  const renderEntrepreneurContent = () => {
-    const hasProjects = mesProjetsEntrepreneur.length > 0;
-
-    return (
-      <View style={styles.entrepreneurContainer}>
-        {/* Header Entrepreneur */}
-        <View style={styles.entrepreneurHeader}>
-          <View>
-            <Text style={[styles.entrepreneurTitle, { color: couleurs.texte }]}>
-              Mes Projets
-            </Text>
-            <Text style={[styles.entrepreneurSubtitle, { color: couleurs.texteSecondaire }]}>
-              {statsEntrepreneur
-                ? `${statsEntrepreneur.published} publie${statsEntrepreneur.published > 1 ? 's' : ''} · ${statsEntrepreneur.drafts} brouillon${statsEntrepreneur.drafts > 1 ? 's' : ''}`
-                : 'Gerez vos startups et projets'}
-            </Text>
-          </View>
-          <Pressable
-            style={[styles.entrepreneurCreateBtn, { backgroundColor: couleurs.primaire }]}
-            onPress={() => router.push('/entrepreneur/nouveau-projet')}
-          >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-            <Text style={styles.entrepreneurCreateBtnText}>Creer</Text>
-          </Pressable>
-        </View>
-
-        {/* Liste des projets */}
-        <ScrollView
-          style={styles.entrepreneurList}
-          contentContainerStyle={styles.entrepreneurListContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={chargementMesProjets}
-              onRefresh={chargerMesProjetsEntrepreneur}
-              tintColor={couleurs.primaire}
-            />
-          }
-        >
-          {chargementMesProjets && !hasProjects ? (
-            <View style={styles.entrepreneurLoading}>
-              <Text style={[styles.entrepreneurLoadingText, { color: couleurs.texteSecondaire }]}>
-                Chargement...
-              </Text>
-            </View>
-          ) : hasProjects ? (
-            <>
-              {mesProjetsEntrepreneur.map((projet) => (
-                <Pressable
-                  key={projet._id}
-                  style={[styles.entrepreneurProjectCard, { backgroundColor: couleurs.fondSecondaire }]}
-                  onPress={() => router.push({ pathname: '/(app)/entrepreneur/[id]', params: { id: projet._id } })}
-                >
-                  {projet.image ? (
-                    <Image source={{ uri: projet.image }} style={styles.entrepreneurProjectImage} />
-                  ) : (
-                    <View style={[styles.entrepreneurProjectImagePlaceholder, { backgroundColor: couleurs.bordure }]}>
-                      <Ionicons name="briefcase-outline" size={24} color={couleurs.texteSecondaire} />
-                    </View>
-                  )}
-                  <View style={styles.entrepreneurProjectInfo}>
-                    <View style={styles.entrepreneurProjectHeader}>
-                      <Text style={[styles.entrepreneurProjectName, { color: couleurs.texte }]} numberOfLines={1}>
-                        {projet.nom}
-                      </Text>
-                      <View style={[
-                        styles.entrepreneurProjectStatus,
-                        projet.statut === 'published' ? styles.entrepreneurStatusPublished : styles.entrepreneurStatusDraft
-                      ]}>
-                        <Text style={styles.entrepreneurProjectStatusText}>
-                          {projet.statut === 'published' ? 'Publie' : 'Brouillon'}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.entrepreneurProjectPitch, { color: couleurs.texteSecondaire }]} numberOfLines={2}>
-                      {projet.pitch}
-                    </Text>
-                    <View style={styles.entrepreneurProjectMeta}>
-                      <View style={styles.entrepreneurProjectMetaItem}>
-                        <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
-                        <Text style={[styles.entrepreneurProjectMetaText, { color: couleurs.texteSecondaire }]}>
-                          {projet.nbFollowers ?? projet.followers?.length ?? 0}
-                        </Text>
-                      </View>
-                      <View style={styles.entrepreneurProjectMetaItem}>
-                        <Ionicons name="location-outline" size={14} color={couleurs.texteSecondaire} />
-                        <Text style={[styles.entrepreneurProjectMetaText, { color: couleurs.texteSecondaire }]}>
-                          {projet.localisation?.ville || 'N/A'}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
-                </Pressable>
-              ))}
-            </>
-          ) : (
-            <View style={[styles.entrepreneurEmptyState, { backgroundColor: couleurs.fondSecondaire }]}>
-              <Ionicons name="briefcase-outline" size={64} color={couleurs.texteSecondaire} />
-              <Text style={[styles.entrepreneurEmptyTitle, { color: couleurs.texte }]}>
-                Commencez votre aventure
-              </Text>
-              <Text style={[styles.entrepreneurEmptyText, { color: couleurs.texteSecondaire }]}>
-                Creez votre premier projet et partagez votre vision avec la communaute LPP
-              </Text>
-              <Pressable
-                style={[styles.entrepreneurEmptyBtn, { backgroundColor: couleurs.primaire }]}
-                onPress={() => router.push('/entrepreneur/nouveau-projet')}
-              >
-                <Ionicons name="rocket-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.entrepreneurEmptyBtnText}>Creer mon premier projet</Text>
-              </Pressable>
-            </View>
-          )}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const renderTabContent = () => {
-    switch (ongletActif) {
-      case 'feed': return renderFeedContent();
-      case 'decouvrir': return renderDecouvrirContent();
-      case 'live': return renderLiveContent();
-      case 'messages': return renderMessagesContent();
-      case 'entrepreneur': return renderEntrepreneurContent();
-      default: return renderFeedContent();
-    }
-  };
 
   // Actions FAB
   const FAB_ACTIONS = [
@@ -3272,50 +1546,25 @@ export default function Accueil() {
             if (onglet.key === 'decouvrir') {
               return (
                 <View key="decouvrir" style={styles.pageContainer}>
-                  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContent}
-                    keyboardShouldPersistTaps="handled"
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={rafraichissement}
-                        onRefresh={handleRafraichissement}
-                        tintColor={couleurs.primaire}
-                      />
-                    }
-                  >
-                    {renderDecouvrirContent()}
-                    <View style={styles.footer}>
-                      <Text style={styles.footerLogo}>LPP</Text>
-                      <Text style={styles.footerText}>La Premiere Pierre</Text>
-                      <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
-                    </View>
-                  </ScrollView>
+                  <DecouvrirTab
+                    couleurs={couleurs}
+                    styles={styles}
+                    utilisateur={utilisateur}
+                    applyDelta={applyDelta}
+                    rafraichissement={rafraichissement}
+                    onRefresh={handleRafraichissement}
+                  />
                 </View>
               );
             }
             if (onglet.key === 'live') {
               return (
                 <View key="live" style={styles.pageContainer}>
-                  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContent}
-                    keyboardShouldPersistTaps="handled"
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={rafraichissement}
-                        onRefresh={handleRafraichissement}
-                        tintColor={couleurs.primaire}
-                      />
-                    }
-                  >
-                    {renderLiveContent()}
-                    <View style={styles.footer}>
-                      <Text style={styles.footerLogo}>LPP</Text>
-                      <Text style={styles.footerText}>La Premiere Pierre</Text>
-                      <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
-                    </View>
-                  </ScrollView>
+                  <LiveTab
+                    couleurs={couleurs}
+                    styles={styles}
+                    isActive={ongletActif === 'live'}
+                  />
                 </View>
               );
             }
@@ -3329,25 +1578,11 @@ export default function Accueil() {
             if (onglet.key === 'entrepreneur') {
               return (
                 <View key="entrepreneur" style={styles.pageContainer}>
-                  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContent}
-                    keyboardShouldPersistTaps="handled"
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={rafraichissement}
-                        onRefresh={handleRafraichissement}
-                        tintColor={couleurs.primaire}
-                      />
-                    }
-                  >
-                    {renderEntrepreneurContent()}
-                    <View style={styles.footer}>
-                      <Text style={styles.footerLogo}>LPP</Text>
-                      <Text style={styles.footerText}>La Premiere Pierre</Text>
-                      <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
-                    </View>
-                  </ScrollView>
+                  <EntrepreneurTab
+                    couleurs={couleurs}
+                    styles={styles}
+                    utilisateur={utilisateur}
+                  />
                 </View>
               );
             }
@@ -3376,325 +1611,26 @@ export default function Accueil() {
       )}
       </Animated.View>
 
-      {/* Modal creer publication — plein ecran opaque, isole du feed */}
-      <Modal
+      {/* Modal creer publication (composant extrait) */}
+      <CreerPublicationModal
         visible={modalCreerPost}
-        animationType="slide"
-        transparent={false}
-        statusBarTranslucent
-        onRequestClose={() => {
-          setModalCreerPost(false);
-          setMediasSelectionnes([]);
-          setNouveauPostContenu('');
-          setMentionsSelectionnees([]);
-          setShowMentions(false);
-        }}
-      >
-        <View style={{ flex: 1, backgroundColor: couleurs.fond }}>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <SafeAreaView style={{ flex: 1 }}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nouvelle publication</Text>
-              <Pressable onPress={() => {
-                setModalCreerPost(false);
-                setMediasSelectionnes([]);
-                setNouveauPostContenu('');
-                setMentionsSelectionnees([]);
-                setShowMentions(false);
-              }} style={styles.modalCloseBtn}>
-                <Ionicons name="close" size={24} color={couleurs.texte} />
-              </Pressable>
-            </View>
+        onClose={() => setModalCreerPost(false)}
+        couleurs={couleurs}
+        styles={styles}
+        utilisateur={utilisateur}
+        onPublicationCreated={(pub) => setPublications(prev => [pub, ...prev])}
+        applyDelta={applyDelta}
+        naviguerVersProfil={naviguerVersProfil}
+      />
 
-            <ScrollView style={[styles.modalBody, { flex: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <View style={styles.modalAuthor}>
-                <Avatar
-                  uri={utilisateur?.avatar}
-                  prenom={utilisateur?.prenom}
-                  nom={utilisateur?.nom}
-                  taille={40}
-                  onPress={() => naviguerVersProfil(utilisateur?.id)}
-                />
-                <Text style={styles.modalAuthorName}>
-                  {utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Vous'}
-                </Text>
-              </View>
-
-              <TextInput
-                ref={nouveauPostInputRef}
-                style={styles.modalTextInput}
-                placeholder="Quoi de neuf ? Partagez vos idees... Tapez @ pour mentionner"
-                placeholderTextColor={couleurs.texteSecondaire}
-                value={nouveauPostContenu}
-                onChangeText={handleTextChange}
-                multiline
-                maxLength={5000}
-              />
-
-              {/* Autocomplete mentions */}
-              {showMentions && mentionsSuggestions.length > 0 && (
-                <View style={styles.mentionDropdown}>
-                  {mentionsSuggestions.map((item) => (
-                    <Pressable
-                      key={`${item.type}-${item.id}`}
-                      style={({ pressed }) => [styles.mentionItem, pressed && { backgroundColor: couleurs.bordure }]}
-                      onPress={() => handleSelectMention(item)}
-                    >
-                      <View style={[styles.mentionItemAvatar, { backgroundColor: item.type === 'projet' ? 'rgba(245,158,11,0.15)' : couleurs.primaireLight }]}>
-                        {item.avatar ? (
-                          <Image source={{ uri: item.avatar }} style={styles.mentionItemAvatarImg} />
-                        ) : (
-                          <Ionicons
-                            name={item.type === 'projet' ? 'rocket-outline' : 'person-outline'}
-                            size={16}
-                            color={item.type === 'projet' ? '#F59E0B' : couleurs.primaire}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.mentionItemInfo}>
-                        <Text style={styles.mentionItemName}>{item.label}</Text>
-                        <Text style={styles.mentionItemSub}>{item.sub}</Text>
-                      </View>
-                      <Ionicons name={item.type === 'projet' ? 'rocket' : 'person'} size={14} color={couleurs.texteSecondaire} />
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-
-              {/* Aperçu des médias sélectionnés (multi-média) */}
-              {mediasSelectionnes.length > 0 && (
-                <View style={styles.mediasPreviewRow}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {mediasSelectionnes.map((media, index) => (
-                      <View key={`media-${index}`} style={styles.mediaPreviewItem}>
-                        <Image
-                          source={{ uri: media.uri }}
-                          style={styles.mediaPreviewThumb}
-                          resizeMode="cover"
-                        />
-                        {media.type === 'video' && (
-                          <View style={styles.mediaVideoIndicatorSmall}>
-                            <Ionicons name="play-circle" size={24} color="rgba(255,255,255,0.9)" />
-                          </View>
-                        )}
-                        <Pressable style={styles.mediaRemoveBtnSmall} onPress={() => handleRemoveMedia(index)}>
-                          <Ionicons name="close-circle" size={20} color={couleurs.blanc} />
-                        </Pressable>
-                        <View style={styles.mediaIndexBadge}>
-                          <Text style={styles.mediaIndexText}>{index + 1}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </ScrollView>
-                  <Text style={styles.mediasCount}>{mediasSelectionnes.length}/{MAX_MEDIAS} médias</Text>
-                </View>
-              )}
-
-              <Text style={styles.modalCharCount}>
-                {nouveauPostContenu.length}/5000
-              </Text>
-            </ScrollView>
-
-            {/* Barre d'actions médias */}
-            <View style={styles.modalMediaBar}>
-              <Pressable style={styles.modalMediaBtn} onPress={handleSelectImage}>
-                <Ionicons name="image-outline" size={24} color={couleurs.primaire} />
-                <Text style={styles.modalMediaBtnText}>Photo</Text>
-              </Pressable>
-              <Pressable style={styles.modalMediaBtn} onPress={handleSelectVideo}>
-                <Ionicons name="videocam-outline" size={24} color={couleurs.primaire} />
-                <Text style={styles.modalMediaBtnText}>Video</Text>
-              </Pressable>
-              <Pressable style={styles.modalMediaBtn} onPress={handleTakePhoto}>
-                <Ionicons name="camera-outline" size={24} color={couleurs.primaire} />
-                <Text style={styles.modalMediaBtnText}>Camera</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.modalFooter}>
-              <Pressable
-                style={[
-                  styles.modalPublishBtn,
-                  ((!nouveauPostContenu.trim() && mediasSelectionnes.length === 0) || creationEnCours) && styles.modalPublishBtnDisabled,
-                ]}
-                onPress={handleCreerPost}
-                disabled={(!nouveauPostContenu.trim() && mediasSelectionnes.length === 0) || creationEnCours}
-              >
-                {creationEnCours ? (
-                  <Text style={styles.modalPublishBtnText}>Publication...</Text>
-                ) : (
-                  <>
-                    <Ionicons name="send" size={18} color={couleurs.blanc} />
-                    <Text style={styles.modalPublishBtnText}>Publier</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-            </SafeAreaView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
-
-      {/* Recherche plein écran */}
-      <Modal
+      {/* Recherche plein ecran (composant extrait) */}
+      <RechercheModal
         visible={rechercheOuverte}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={fermerRecherche}
-      >
-        <View style={[styles.fullSearchContainer, { paddingTop: insets.top }]}>
-          {/* Header de recherche */}
-          <View style={styles.fullSearchHeader}>
-            <View style={styles.fullSearchInputContainer}>
-              <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
-              <TextInput
-                ref={rechercheInputRef}
-                style={styles.fullSearchInput}
-                placeholder="Rechercher..."
-                placeholderTextColor={couleurs.texteSecondaire}
-                value={recherche}
-                onChangeText={setRecherche}
-                autoFocus
-                returnKeyType="search"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {recherche.length > 0 && (
-                <Pressable onPress={() => setRecherche('')} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={couleurs.texteSecondaire} />
-                </Pressable>
-              )}
-            </View>
-            <Pressable onPress={fermerRecherche} style={styles.fullSearchCancel}>
-              <Text style={styles.fullSearchCancelText}>Annuler</Text>
-            </Pressable>
-          </View>
-
-          {/* Contenu de recherche */}
-          <View style={styles.fullSearchContent}>
-            {recherche.length < 2 ? (
-              historiqueRecherche.length > 0 ? (
-                <ScrollView
-                  style={styles.fullSearchResults}
-                  contentContainerStyle={{ paddingBottom: 100 }}
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  onScrollBeginDrag={() => Keyboard.dismiss()}
-                >
-                  <View style={styles.historiqueHeader}>
-                    <Text style={styles.historiqueTitle}>Recherches récentes</Text>
-                    <Pressable onPress={viderHistorique} hitSlop={8}>
-                      <Text style={styles.historiqueClear}>Effacer</Text>
-                    </Pressable>
-                  </View>
-                  {historiqueRecherche.map((terme, index) => (
-                    <Pressable
-                      key={`${terme}-${index}`}
-                      style={({ pressed }) => [
-                        styles.historiqueItem,
-                        pressed && styles.fullSearchResultItemPressed,
-                      ]}
-                      onPress={() => setRecherche(terme)}
-                    >
-                      <View style={styles.historiqueIconContainer}>
-                        <Ionicons name="time-outline" size={18} color={couleurs.texteSecondaire} />
-                      </View>
-                      <Text style={styles.historiqueText} numberOfLines={1}>{terme}</Text>
-                      <Pressable
-                        onPress={() => supprimerDeHistorique(terme)}
-                        hitSlop={8}
-                        style={styles.historiqueDeleteBtn}
-                      >
-                        <Ionicons name="close" size={18} color={couleurs.texteMuted} />
-                      </Pressable>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              ) : (
-                <View style={styles.fullSearchHint}>
-                  <View style={styles.fullSearchHintIcon}>
-                    <Ionicons name="search" size={40} color={couleurs.primaire} />
-                  </View>
-                  <Text style={styles.fullSearchHintTitle}>Rechercher sur LPP</Text>
-                  <Text style={styles.fullSearchHintText}>
-                    Trouvez des membres, startups, projets et bien plus encore
-                  </Text>
-                </View>
-              )
-            ) : chargementRecherche ? (
-                <View style={styles.fullSearchLoading}>
-                  <View style={styles.fullSearchLoadingDots}>
-                    <Animated.View style={[styles.fullSearchDot, { backgroundColor: couleurs.primaire }]} />
-                    <Animated.View style={[styles.fullSearchDot, { backgroundColor: couleurs.secondaire }]} />
-                    <Animated.View style={[styles.fullSearchDot, { backgroundColor: couleurs.primaire }]} />
-                  </View>
-                  <Text style={styles.fullSearchLoadingText}>Recherche en cours...</Text>
-                </View>
-              ) : rechercheUtilisateurs.length === 0 ? (
-                <View style={styles.fullSearchEmpty}>
-                  <View style={styles.fullSearchEmptyIcon}>
-                    <Ionicons name="person-outline" size={48} color={couleurs.texteSecondaire} />
-                  </View>
-                  <Text style={styles.fullSearchEmptyTitle}>Aucun résultat</Text>
-                  <Text style={styles.fullSearchEmptyText}>
-                    Aucun utilisateur ne correspond à "{recherche}"
-                  </Text>
-                </View>
-              ) : (
-                <ScrollView
-                  style={styles.fullSearchResults}
-                  contentContainerStyle={{ paddingBottom: 100 }}
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  onScrollBeginDrag={() => Keyboard.dismiss()}
-                >
-                  <Text style={styles.fullSearchResultsCount}>
-                    {rechercheUtilisateurs.length} résultat{rechercheUtilisateurs.length > 1 ? 's' : ''}
-                  </Text>
-                  {rechercheUtilisateurs.map((user) => (
-                    <Pressable
-                      key={user._id}
-                      style={({ pressed }) => [
-                        styles.fullSearchResultItem,
-                        pressed && styles.fullSearchResultItemPressed,
-                      ]}
-                      onPress={() => {
-                        // Ajouter le nom à l'historique
-                        ajouterAHistorique(`${user.prenom} ${user.nom}`);
-                        fermerRecherche();
-                        router.push({
-                          pathname: '/(app)/utilisateur/[id]',
-                          params: { id: user._id },
-                        });
-                      }}
-                    >
-                      <Avatar
-                        uri={user.avatar}
-                        prenom={user.prenom}
-                        nom={user.nom}
-                        taille={44}
-                      />
-                      <View style={styles.fullSearchResultInfo}>
-                        <Text style={styles.fullSearchResultName}>
-                          {user.prenom} {user.nom}
-                        </Text>
-                        {user.nbAmis !== undefined && (
-                          <Text style={styles.fullSearchResultSub}>
-                            {user.nbAmis} ami{user.nbAmis > 1 ? 's' : ''}
-                          </Text>
-                        )}
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={couleurs.texteMuted} />
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              )}
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setRechercheOuverte(false)}
+        couleurs={couleurs}
+        styles={styles}
+        insets={insets}
+      />
 
       {/* Modal Visionneuse Image - Style Instagram avec actions overlay */}
       <ImageViewerModal
