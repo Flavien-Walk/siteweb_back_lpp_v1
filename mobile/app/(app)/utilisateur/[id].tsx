@@ -27,7 +27,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 import { couleurs } from '../../../src/constantes/theme';
 import { useUser } from '../../../src/contexts/UserContext';
 import { useSocket } from '../../../src/contexts/SocketContext';
-import { Avatar, StaffActions } from '../../../src/composants';
+import { Avatar, StaffActions, SwipeableScreen } from '../../../src/composants';
 import { useStaff } from '../../../src/hooks/useStaff';
 import {
   getProfilUtilisateur,
@@ -355,8 +355,10 @@ export default function ProfilUtilisateurPage() {
   };
 
   // Formater la date d'inscription
-  const formatDateInscription = (date: string) => {
+  const formatDateInscription = (date?: string): string => {
+    if (!date) return '';
     const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
     return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   };
 
@@ -407,6 +409,7 @@ export default function ProfilUtilisateurPage() {
   const boutonConfig = getBoutonAmiConfig();
 
   return (
+    <SwipeableScreen>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header simple et propre */}
       <View style={styles.header}>
@@ -549,9 +552,11 @@ export default function ProfilUtilisateurPage() {
           ) : null}
 
           {/* Date d'inscription */}
-          <Text style={styles.dateInscription}>
-            Membre depuis {formatDateInscription(profil.dateInscription)}
-          </Text>
+          {formatDateInscription(profil.dateInscription) !== '' && (
+            <Text style={styles.dateInscription}>
+              Membre depuis {formatDateInscription(profil.dateInscription)}
+            </Text>
+          )}
         </View>
 
         {/* Boutons d'action */}
@@ -879,5 +884,6 @@ export default function ProfilUtilisateurPage() {
         />
       )}
     </View>
+    </SwipeableScreen>
   );
 }
