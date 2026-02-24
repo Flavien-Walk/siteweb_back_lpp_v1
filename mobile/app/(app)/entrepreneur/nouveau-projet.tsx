@@ -23,12 +23,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../../src/contexts/ThemeContext';
-import { espacements, rayons } from '../../../src/constantes/theme';
+import { espacements } from '../../../src/constantes/theme';
 import createStyles from '../../../src/features/projets/nouveau-projet.styles';
 import {
   ProjetFormData,
-  CategorieProjet,
-  MaturiteProjet,
   DocumentProjet,
   Metrique,
   LienProjet,
@@ -43,62 +41,19 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { getMesAmis, ProfilUtilisateur } from '../../../src/services/utilisateurs';
 import KeyboardView from '../../../src/composants/KeyboardView';
-import { INCUBATEURS_FR } from '../../../src/constantes/incubateurs';
+import {
+  ETAPES_CREATION as ETAPES,
+  CATEGORIES,
+  MATURITES,
+  TYPES_LIENS,
+  METRIQUE_ICONES,
+} from '../../../src/constantes/projets';
+import EtapeIdentite from '../../../src/composants/features/projets/EtapeIdentite';
+import EtapeProposition from '../../../src/composants/features/projets/EtapeProposition';
+import EtapeBusiness from '../../../src/composants/features/projets/EtapeBusiness';
 
 // Types pour les etapes (numeriques)
 type Etape = '1' | '2' | '3' | '4' | '5' | '6';
-
-const ETAPES: { key: Etape; label: string; description: string }[] = [
-  { key: '1', label: 'Identite', description: 'Nom, pitch et categorie' },
-  { key: '2', label: 'Equipe', description: 'Porteurs et co-fondateurs' },
-  { key: '3', label: 'Proposition', description: 'Probleme et solution' },
-  { key: '4', label: 'Business', description: 'Maturite et objectifs' },
-  { key: '5', label: 'Medias', description: 'Images et documents' },
-  { key: '6', label: 'Publication', description: 'Relecture et publication' },
-];
-
-const CATEGORIES: { value: CategorieProjet; label: string; icon: string }[] = [
-  { value: 'tech', label: 'Tech', icon: 'code-slash' },
-  { value: 'food', label: 'Food', icon: 'restaurant' },
-  { value: 'sante', label: 'Sante', icon: 'medkit' },
-  { value: 'education', label: 'Education', icon: 'school' },
-  { value: 'energie', label: 'Energie', icon: 'flash' },
-  { value: 'culture', label: 'Culture', icon: 'color-palette' },
-  { value: 'environnement', label: 'Environnement', icon: 'leaf' },
-  { value: 'autre', label: 'Autre', icon: 'ellipsis-horizontal' },
-];
-
-const MATURITES: { value: MaturiteProjet; label: string; description: string }[] = [
-  { value: 'idee', label: 'Idee', description: 'Concept en reflexion' },
-  { value: 'prototype', label: 'Prototype', description: 'MVP en developpement' },
-  { value: 'lancement', label: 'Lancement', description: 'Premiers clients' },
-  { value: 'croissance', label: 'Croissance', description: 'Scaling en cours' },
-];
-
-const TYPES_LIENS: { value: TypeLien; label: string; icon: string; placeholder: string }[] = [
-  { value: 'site', label: 'Site web', icon: 'globe-outline', placeholder: 'https://monsite.com' },
-  { value: 'fundraising', label: 'Levee de fonds', icon: 'cash-outline', placeholder: 'https://wiseed.com/...' },
-  { value: 'linkedin', label: 'LinkedIn', icon: 'logo-linkedin', placeholder: 'https://linkedin.com/company/...' },
-  { value: 'twitter', label: 'X / Twitter', icon: 'logo-twitter', placeholder: 'https://twitter.com/...' },
-  { value: 'instagram', label: 'Instagram', icon: 'logo-instagram', placeholder: 'https://instagram.com/...' },
-  { value: 'tiktok', label: 'TikTok', icon: 'logo-tiktok', placeholder: 'https://tiktok.com/@...' },
-  { value: 'youtube', label: 'YouTube', icon: 'logo-youtube', placeholder: 'https://youtube.com/...' },
-  { value: 'discord', label: 'Discord', icon: 'logo-discord', placeholder: 'https://discord.gg/...' },
-  { value: 'doc', label: 'Document', icon: 'document-outline', placeholder: 'https://notion.so/...' },
-  { value: 'email', label: 'Email', icon: 'mail-outline', placeholder: 'mailto:contact@monprojet.com' },
-  { value: 'other', label: 'Autre', icon: 'link-outline', placeholder: 'https://...' },
-];
-
-const METRIQUE_ICONES: { value: string; icon: string }[] = [
-  { value: 'analytics-outline', icon: 'analytics-outline' },
-  { value: 'people-outline', icon: 'people-outline' },
-  { value: 'cash-outline', icon: 'cash-outline' },
-  { value: 'trending-up-outline', icon: 'trending-up-outline' },
-  { value: 'star-outline', icon: 'star-outline' },
-  { value: 'cart-outline', icon: 'cart-outline' },
-  { value: 'globe-outline', icon: 'globe-outline' },
-  { value: 'time-outline', icon: 'time-outline' },
-];
 
 export default function NouveauProjetScreen() {
   const { couleurs } = useTheme();
@@ -595,202 +550,6 @@ export default function NouveauProjetScreen() {
     }
   };
 
-  // Rendu de l'etape A - Identite
-  const renderEtapeA = () => (
-    <View style={styles.etapeContent}>
-      <Text style={styles.etapeTitle}>Identite du projet</Text>
-      <Text style={styles.etapeDescription}>
-        Donnez vie a votre projet avec un nom accrocheur et un pitch percutant.
-      </Text>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Nom du projet *</Text>
-        <TextInput
-          style={styles.input}
-          value={formData.nom}
-          onChangeText={(text) => setFormData({ ...formData, nom: text })}
-          placeholder="Ex: GreenTech Solutions"
-          placeholderTextColor={couleurs.texteSecondaire}
-          maxLength={100}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Pitch (tagline) *</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline]}
-          value={formData.pitch}
-          onChangeText={(text) => setFormData({ ...formData, pitch: text })}
-          placeholder="Decrivez votre projet en une phrase"
-          placeholderTextColor={couleurs.texteSecondaire}
-          multiline
-          maxLength={200}
-        />
-        <Text style={styles.charCount}>{formData.pitch?.length || 0}/200</Text>
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Categorie *</Text>
-        <View style={styles.categoriesGrid}>
-          {CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat.value}
-              style={[
-                styles.categoryChip,
-                formData.categorie === cat.value && styles.categoryChipActive,
-              ]}
-              onPress={() => setFormData({ ...formData, categorie: cat.value })}
-            >
-              <Ionicons
-                name={cat.icon as any}
-                size={18}
-                color={formData.categorie === cat.value ? '#FFFFFF' : couleurs.texte}
-              />
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  formData.categorie === cat.value && styles.categoryChipTextActive,
-                ]}
-              >
-                {cat.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Ville *</Text>
-        <TextInput
-          style={styles.input}
-          value={formData.localisation?.ville}
-          onChangeText={(text) => setFormData({ ...formData, localisation: { ville: text } })}
-          placeholder="Ex: Lyon, Paris, Marseille..."
-          placeholderTextColor={couleurs.texteSecondaire}
-        />
-      </View>
-
-      {/* Incubateur */}
-      <View style={styles.inputGroup}>
-        <Pressable
-          style={{ flexDirection: 'row', alignItems: 'center', gap: espacements.sm }}
-          onPress={() => {
-            const next = !estIncube;
-            setEstIncube(next);
-            if (!next) {
-              setFormData({ ...formData, incubateur: undefined });
-              setIncubateurRecherche('');
-            }
-          }}
-        >
-          <View style={{
-            width: 22, height: 22, borderRadius: 4,
-            borderWidth: 2, borderColor: estIncube ? couleurs.primaire : couleurs.bordure,
-            backgroundColor: estIncube ? couleurs.primaire : 'transparent',
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            {estIncube && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
-          </View>
-          <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Ton projet est-il incube ?</Text>
-        </Pressable>
-
-        {estIncube && (
-          <View style={{ marginTop: espacements.sm }}>
-            <TextInput
-              style={styles.input}
-              value={incubateurRecherche}
-              onChangeText={setIncubateurRecherche}
-              placeholder="Rechercher un incubateur..."
-              placeholderTextColor={couleurs.texteSecondaire}
-            />
-            <View style={styles.categoriesGrid}>
-              {INCUBATEURS_FR
-                .filter(inc => !incubateurRecherche || inc.nom.toLowerCase().includes(incubateurRecherche.toLowerCase()))
-                .map((inc) => (
-                  <Pressable
-                    key={inc.nom}
-                    style={[
-                      styles.categoryChip,
-                      formData.incubateur === inc.nom && styles.categoryChipActive,
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, incubateur: formData.incubateur === inc.nom ? undefined : inc.nom });
-                    }}
-                  >
-                    <Ionicons
-                      name="business-outline"
-                      size={16}
-                      color={formData.incubateur === inc.nom ? '#FFFFFF' : couleurs.texte}
-                    />
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        formData.incubateur === inc.nom && styles.categoryChipTextActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {inc.nom}
-                    </Text>
-                  </Pressable>
-                ))}
-            </View>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Secteur d'activite</Text>
-        <TextInput
-          style={styles.input}
-          value={formData.secteur}
-          onChangeText={(text) => setFormData({ ...formData, secteur: text })}
-          placeholder="Ex: SaaS B2B, E-commerce..."
-          placeholderTextColor={couleurs.texteSecondaire}
-          maxLength={50}
-        />
-      </View>
-
-      {/* Tags */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Tags</Text>
-        <Text style={styles.inputHint}>Validez pour ajouter un tag (max 10)</Text>
-
-        {(formData.tags || []).length > 0 && (
-          <View style={styles.tagsContainer}>
-            {formData.tags!.map((tag, i) => (
-              <View key={i} style={styles.tagChip}>
-                <Text style={styles.tagChipText}>{tag}</Text>
-                <Pressable onPress={() => removeTag(i)} hitSlop={8}>
-                  <Ionicons name="close-circle" size={16} color={couleurs.texteSecondaire} />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View style={{ flexDirection: 'row', gap: espacements.sm }}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            value={tagInput}
-            onChangeText={setTagInput}
-            placeholder="Ex: IA, Fintech, GreenTech..."
-            placeholderTextColor={couleurs.texteSecondaire}
-            maxLength={30}
-            onSubmitEditing={addTag}
-            returnKeyType="done"
-            blurOnSubmit={false}
-          />
-          <Pressable
-            style={[styles.addTeamBtn, { paddingHorizontal: espacements.md, flex: 0 }]}
-            onPress={addTag}
-          >
-            <Ionicons name="add" size={22} color={couleurs.primaire} />
-          </Pressable>
-        </View>
-      </View>
-    </View>
-  );
-
   // Rendu de l'etape B - Equipe
   const renderEtapeB = () => (
     <View style={styles.etapeContent}>
@@ -854,169 +613,6 @@ export default function NouveauProjetScreen() {
           </Text>
         </View>
       )}
-    </View>
-  );
-
-  // Rendu de l'etape C - Proposition de valeur
-  const renderEtapeC = () => (
-    <View style={styles.etapeContent}>
-      <Text style={styles.etapeTitle}>Proposition de valeur</Text>
-      <Text style={styles.etapeDescription}>
-        Expliquez le probleme que vous resolvez et comment vous le faites.
-      </Text>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Probleme adresse</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline]}
-          value={formData.probleme}
-          onChangeText={(text) => setFormData({ ...formData, probleme: text })}
-          placeholder="Quel probleme resolvez-vous ?"
-          placeholderTextColor={couleurs.texteSecondaire}
-          multiline
-          maxLength={1000}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Votre solution</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline]}
-          value={formData.solution}
-          onChangeText={(text) => setFormData({ ...formData, solution: text })}
-          placeholder="Comment resolvez-vous ce probleme ?"
-          placeholderTextColor={couleurs.texteSecondaire}
-          multiline
-          maxLength={1000}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Avantage concurrentiel</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline]}
-          value={formData.avantageConcurrentiel}
-          onChangeText={(text) => setFormData({ ...formData, avantageConcurrentiel: text })}
-          placeholder="Qu'est-ce qui vous differencie ?"
-          placeholderTextColor={couleurs.texteSecondaire}
-          multiline
-          maxLength={500}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Public cible</Text>
-        <TextInput
-          style={styles.input}
-          value={formData.cible}
-          onChangeText={(text) => setFormData({ ...formData, cible: text })}
-          placeholder="A qui s'adresse votre produit/service ?"
-          placeholderTextColor={couleurs.texteSecondaire}
-          maxLength={500}
-        />
-      </View>
-    </View>
-  );
-
-  // Rendu de l'etape D - Business
-  const renderEtapeD = () => (
-    <View style={styles.etapeContent}>
-      <Text style={styles.etapeTitle}>Business & Traction</Text>
-      <Text style={styles.etapeDescription}>
-        Partagez l'avancement de votre projet et vos objectifs.
-      </Text>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Maturite du projet</Text>
-        <View style={styles.maturiteGrid}>
-          {MATURITES.map((mat) => (
-            <Pressable
-              key={mat.value}
-              style={[
-                styles.maturiteCard,
-                formData.maturite === mat.value && styles.maturiteCardActive,
-              ]}
-              onPress={() => setFormData({ ...formData, maturite: mat.value })}
-            >
-              <Text
-                style={[
-                  styles.maturiteLabel,
-                  formData.maturite === mat.value && styles.maturiteLabelActive,
-                ]}
-              >
-                {mat.label}
-              </Text>
-              <Text style={styles.maturiteDescription}>{mat.description}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Business model</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline]}
-          value={formData.businessModel}
-          onChangeText={(text) => setFormData({ ...formData, businessModel: text })}
-          placeholder="Comment generez-vous des revenus ?"
-          placeholderTextColor={couleurs.texteSecondaire}
-          multiline
-          maxLength={1000}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Objectif de financement (EUR)</Text>
-        <TextInput
-          style={styles.input}
-          value={formData.objectifFinancement?.toString() || ''}
-          onChangeText={(text) => {
-            // Nettoyer le texte pour ne garder que les chiffres
-            const cleanedText = text.replace(/[^0-9]/g, '');
-            if (cleanedText === '') {
-              setFormData({ ...formData, objectifFinancement: undefined });
-            } else {
-              const num = parseInt(cleanedText, 10);
-              setFormData({ ...formData, objectifFinancement: num });
-            }
-          }}
-          placeholder="Ex: 50000"
-          placeholderTextColor={couleurs.texteSecondaire}
-          keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-          returnKeyType="done"
-          maxLength={10}
-        />
-      </View>
-
-      {/* Metriques / KPIs */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Metriques cles</Text>
-        <Text style={styles.inputHint}>Chiffres cles a afficher sur la fiche (CA, utilisateurs, etc.)</Text>
-
-        {(formData.metriques || []).map((metrique, index) => (
-          <View key={index} style={styles.metriqueItem}>
-            <View style={styles.metriqueIconBox}>
-              <Ionicons
-                name={(metrique.icone || 'analytics-outline') as any}
-                size={20}
-                color={couleurs.primaire}
-              />
-            </View>
-            <View style={styles.metriqueInfo}>
-              <Text style={styles.metriqueValeur}>{metrique.valeur}</Text>
-              <Text style={styles.metriqueLabel}>{metrique.label}</Text>
-            </View>
-            <Pressable onPress={() => removeMetrique(index)} style={styles.documentRemove}>
-              <Ionicons name="close-circle" size={22} color="#EF4444" />
-            </Pressable>
-          </View>
-        ))}
-
-        <Pressable style={styles.addTeamBtn} onPress={() => setShowMetriqueModal(true)}>
-          <Ionicons name="add-circle-outline" size={24} color={couleurs.primaire} />
-          <Text style={styles.addTeamBtnText}>Ajouter une metrique</Text>
-        </Pressable>
-      </View>
     </View>
   );
 
@@ -1281,13 +877,70 @@ export default function NouveauProjetScreen() {
   // Rendu du contenu selon l'etape
   const renderEtapeContent = () => {
     switch (etapeActive) {
-      case '1': return renderEtapeA();
+      case '1': return (
+        <EtapeIdentite
+          formData={formData}
+          setFormData={setFormData}
+          estIncube={estIncube}
+          setEstIncube={setEstIncube}
+          incubateurRecherche={incubateurRecherche}
+          setIncubateurRecherche={setIncubateurRecherche}
+          tagInput={tagInput}
+          setTagInput={setTagInput}
+          addTag={addTag}
+          removeTag={removeTag}
+          couleurs={couleurs}
+          styles={styles}
+          mode="creation"
+        />
+      );
       case '2': return renderEtapeB();
-      case '3': return renderEtapeC();
-      case '4': return renderEtapeD();
+      case '3': return (
+        <EtapeProposition
+          formData={formData}
+          setFormData={setFormData}
+          couleurs={couleurs}
+          styles={styles}
+        />
+      );
+      case '4': return (
+        <EtapeBusiness
+          formData={formData}
+          setFormData={setFormData}
+          showMetriqueModal={showMetriqueModal}
+          setShowMetriqueModal={setShowMetriqueModal}
+          newMetriqueLabel={newMetriqueLabel}
+          setNewMetriqueLabel={setNewMetriqueLabel}
+          newMetriqueValeur={newMetriqueValeur}
+          setNewMetriqueValeur={setNewMetriqueValeur}
+          newMetriqueIcone={newMetriqueIcone}
+          setNewMetriqueIcone={setNewMetriqueIcone}
+          addMetrique={addMetrique}
+          removeMetrique={removeMetrique}
+          couleurs={couleurs}
+          styles={styles}
+          mode="creation"
+        />
+      );
       case '5': return renderEtapeE();
       case '6': return renderEtapeF();
-      default: return renderEtapeA();
+      default: return (
+        <EtapeIdentite
+          formData={formData}
+          setFormData={setFormData}
+          estIncube={estIncube}
+          setEstIncube={setEstIncube}
+          incubateurRecherche={incubateurRecherche}
+          setIncubateurRecherche={setIncubateurRecherche}
+          tagInput={tagInput}
+          setTagInput={setTagInput}
+          addTag={addTag}
+          removeTag={removeTag}
+          couleurs={couleurs}
+          styles={styles}
+          mode="creation"
+        />
+      );
     }
   };
 
