@@ -3,116 +3,15 @@
  * Gestion des conversations, groupes et messages
  */
 
-import { api, ReponseAPI } from './api';
+import { api } from './api';
 
-// Types
-export interface Utilisateur {
-  _id: string;
-  prenom: string;
-  nom: string;
-  avatar?: string;
-}
+// Types — source de verite dans types/messagerie.ts
+import type { ReponseAPI } from '../types/api';
+import type { UtilisateurMessagerie, Message, Conversation, TypeMessage, TypeReaction, Reaction, ConversationsResponse, MessagesResponse, EnvoyerMessageResponse, NonLusResponse, RechercheUtilisateursResponse, ConversationPriveeResponse, GroupeResponse } from '../types/messagerie';
 
-export type TypeMessage = 'texte' | 'image' | 'video' | 'systeme';
-export type TypeReaction = 'heart' | 'laugh' | 'wow' | 'sad' | 'angry' | 'like';
-
-export interface Reaction {
-  userId: string;
-  user?: {
-    _id: string;
-    prenom: string;
-    nom: string;
-    avatar?: string;
-  };
-  type: TypeReaction;
-  createdAt: string;
-}
-
-export interface ReplyToMessage {
-  _id: string;
-  contenu: string;
-  expediteur: {
-    _id?: string;
-    prenom: string;
-    nom: string;
-  };
-  type: TypeMessage;
-}
-
-export interface Message {
-  _id: string;
-  expediteur: Utilisateur;
-  type: TypeMessage;
-  contenu: string;
-  estLu: boolean;
-  lecteurs: string[];
-  dateCreation: string;
-  estMoi: boolean;
-  modifie?: boolean;
-  replyTo?: ReplyToMessage;
-  reactions?: Reaction[];
-}
-
-export interface Conversation {
-  _id: string;
-  estGroupe: boolean;
-  nomGroupe?: string;
-  imageGroupe?: string;
-  participant?: Utilisateur; // Pour les conversations privées
-  participants?: Utilisateur[]; // Pour les groupes
-  dernierMessage?: {
-    contenu: string;
-    expediteur: string;
-    dateCreation: string;
-    type: TypeMessage;
-  };
-  messagesNonLus: number;
-  estMuet: boolean;
-  dateMiseAJour: string;
-}
-
-interface ConversationsResponse {
-  conversations: Conversation[];
-}
-
-interface MessagesResponse {
-  conversation: {
-    _id: string;
-    estGroupe: boolean;
-    nomGroupe?: string;
-    imageGroupe?: string;
-    participants: Utilisateur[];
-  };
-  messages: Message[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-}
-
-interface EnvoyerMessageResponse {
-  message: Message;
-  conversationId: string;
-}
-
-interface NonLusResponse {
-  nombreNonLus: number;
-}
-
-interface RechercheUtilisateursResponse {
-  utilisateurs: Utilisateur[];
-}
-
-interface ConversationPriveeResponse {
-  conversation: Conversation;
-  participant: Utilisateur;
-}
-
-interface GroupeResponse {
-  groupe: Conversation;
-}
+// Re-exports pour compatibilite des imports existants
+// Note: Utilisateur ici = UtilisateurMessagerie (plus leger que l'Utilisateur auth)
+export type { UtilisateurMessagerie as Utilisateur, TypeMessage, TypeReaction, Reaction, ReplyToMessage, Message, Conversation } from '../types/messagerie';
 
 /**
  * Récupérer la liste des conversations
@@ -333,8 +232,8 @@ export const supprimerConversation = async (
  */
 export const getUtilisateur = async (
   userId: string
-): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
-  return api.get<{ utilisateur: Utilisateur }>(`/utilisateurs/${userId}`, false);
+): Promise<ReponseAPI<{ utilisateur: UtilisateurMessagerie }>> => {
+  return api.get<{ utilisateur: UtilisateurMessagerie }>(`/utilisateurs/${userId}`, false);
 };
 
 /**

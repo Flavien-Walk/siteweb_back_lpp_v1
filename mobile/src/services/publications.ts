@@ -3,69 +3,16 @@
  * Gestion des posts et commentaires
  */
 
-import api, { ReponseAPI } from './api';
+import api from './api';
 
-// Types
-export type Role = 'user' | 'admin';
-export type StatutUtilisateur = 'visiteur' | 'entrepreneur';
+// Types — source de verite dans types/publication.ts
+import type { ReponseAPI } from '../types/api';
+import type { Publication, Commentaire, Auteur, RaisonSignalement, MentionUtilisateur, MentionProjet } from '../types/publication';
+import type { PaginationData } from '../types/projet';
 
-export interface Auteur {
-  _id: string;
-  prenom: string;
-  nom: string;
-  avatar?: string;
-  role?: Role;
-  statut?: StatutUtilisateur;
-  isVerified?: boolean;
-}
-
-export type MediaType = 'image' | 'video';
-
-export interface MediaItem {
-  type: MediaType;
-  url: string;
-  thumbnailUrl?: string;
-}
-
-export interface Mention {
-  type: 'utilisateur' | 'projet';
-  id: string;
-  display: string;
-}
-
-export interface Publication {
-  _id: string;
-  auteur: Auteur;
-  auteurType: 'Utilisateur' | 'Projet';
-  type: 'post' | 'annonce' | 'update' | 'editorial' | 'live-extrait';
-  contenu: string;
-  media?: string; // LEGACY - rétrocompatibilité
-  medias: MediaItem[]; // Nouveau format multi-média
-  mentions?: Mention[];
-  nbLikes: number;
-  nbCommentaires: number;
-  aLike: boolean;
-  dateCreation: string;
-}
-
-export interface Commentaire {
-  _id: string;
-  auteur: Auteur;
-  contenu: string;
-  nbLikes: number;
-  aLike: boolean;
-  reponseA?: string;
-  reponses?: Commentaire[];
-  modifie?: boolean;
-  dateCreation: string;
-}
-
-export interface PaginationData {
-  page: number;
-  limit: number;
-  total: number;
-  pages: number;
-}
+// Re-exports pour compatibilite des imports existants
+export type { Auteur, MediaType, MediaItem, Mention, Publication, Commentaire, RaisonSignalement, MentionUtilisateur, MentionProjet } from '../types/publication';
+export type { PaginationData } from '../types/projet';
 
 // ============ PUBLICATIONS ============
 
@@ -214,17 +161,6 @@ export const toggleLikeCommentaire = async (
 
 // ============ SIGNALEMENT ============
 
-// Raisons de signalement (alignées avec le backend)
-export type RaisonSignalement =
-  | 'spam'
-  | 'harcelement'
-  | 'contenu_inapproprie'
-  | 'fausse_info'
-  | 'nudite'
-  | 'violence'
-  | 'haine'
-  | 'autre';
-
 /**
  * Signaler un contenu (publication ou publicite)
  * POST /api/reports
@@ -272,20 +208,6 @@ export const modifierAvatar = async (
 };
 
 // ============ MENTIONS ============
-
-export interface MentionUtilisateur {
-  _id: string;
-  prenom: string;
-  nom: string;
-  avatar?: string;
-}
-
-export interface MentionProjet {
-  _id: string;
-  nom: string;
-  logo?: string;
-  categorie?: string;
-}
 
 /**
  * Rechercher des utilisateurs (amis) et projets pour autocomplete @mention

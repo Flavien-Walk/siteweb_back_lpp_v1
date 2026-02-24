@@ -15,24 +15,9 @@ import { API_URL, STORAGE_KEYS, TIMEOUTS } from '../constantes/config';
 // Clé pour le fallback AsyncStorage du token
 const TOKEN_FALLBACK_KEY = 'lpp_token_fallback';
 
-// Types pour les réponses API
-export interface ReponseAPI<T = unknown> {
-  succes: boolean;
-  message?: string;
-  data?: T;
-  erreurs?: Record<string, string>;
-  /** Delta gamification renvoyé par le backend après une action trackée */
-  gamification?: any;
-}
-
-// Type pour les événements de restriction de compte
-export type AccountRestrictionType = 'ACCOUNT_BANNED' | 'ACCOUNT_SUSPENDED';
-export interface AccountRestrictionInfo {
-  type: AccountRestrictionType;
-  message: string;
-  reason?: string;
-  suspendedUntil?: string;
-}
+// Types — source de verite dans types/api.ts
+export type { ReponseAPI, AccountRestrictionType, AccountRestrictionInfo } from '../types/api';
+import type { ReponseAPI, AccountRestrictionInfo } from '../types/api';
 
 // ============================================
 // TOKEN MANAGEMENT - Cache mémoire + persistance

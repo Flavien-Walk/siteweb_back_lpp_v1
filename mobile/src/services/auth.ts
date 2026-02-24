@@ -3,78 +3,15 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { setToken, removeToken, getToken, ReponseAPI } from './api';
+import api, { setToken, removeToken, getToken } from './api';
 import { STORAGE_KEYS } from '../constantes/config';
 
-// Types
-export type Role = 'user' | 'modo_test' | 'modo' | 'admin_modo' | 'admin' | 'super_admin';
-export type StatutUtilisateur = 'visiteur' | 'entrepreneur';
+// Types — source de verite dans types/
+import type { ReponseAPI } from '../types/api';
+import type { Utilisateur, StatutUtilisateur, DonneesConnexion, DonneesInscription, ReponseAuth, SanctionInfo, SanctionHistoryItem, ModerationStatus } from '../types/utilisateur';
 
-// Permissions disponibles pour le staff
-export type Permission =
-  | 'reports:view'
-  | 'reports:process'
-  | 'reports:escalate'
-  | 'users:view'
-  | 'users:warn'
-  | 'users:suspend'
-  | 'users:ban'
-  | 'users:unban'
-  | 'users:edit_roles'
-  | 'content:hide'
-  | 'content:delete'
-  | 'audit:view'
-  | 'audit:export'
-  | 'config:view'
-  | 'config:edit'
-  | 'staff:chat';
-
-export interface Utilisateur {
-  id: string;
-  prenom: string;
-  nom: string;
-  email: string;
-  avatar?: string;
-  bio?: string;
-  role: Role;
-  statut?: StatutUtilisateur;
-  provider: 'local' | 'google' | 'facebook' | 'apple';
-  profilPublic?: boolean;
-  emailVerifie: boolean;
-  dateInscription?: string;
-  nbAmis?: number;
-  projetsSuivis?: number;
-  // Champs staff (renvoyés par /api/auth/moi si staff)
-  isStaff?: boolean;
-  permissions?: Permission[];
-  // Certification (badge Verifie) — calculé depuis lppPlus.status === 'active'
-  isVerified?: boolean;
-  // Abonnement LPP+
-  lppPlus?: {
-    status: 'inactive' | 'active' | 'canceled';
-    currentPeriodEnd: string | null;
-    cancelAtPeriodEnd: boolean;
-  };
-}
-
-interface DonneesConnexion {
-  email: string;
-  motDePasse: string;
-}
-
-interface DonneesInscription {
-  prenom: string;
-  nom: string;
-  email: string;
-  motDePasse: string;
-  confirmationMotDePasse: string;
-  cguAcceptees: boolean;
-}
-
-interface ReponseAuth {
-  token: string;
-  utilisateur: Utilisateur;
-}
+// Re-exports pour compatibilite des imports existants
+export type { Role, StatutUtilisateur, Permission, Utilisateur, SanctionInfo, SanctionHistoryItem, ModerationStatus } from '../types/utilisateur';
 
 /**
  * Normalise les données utilisateur de l'API
@@ -175,25 +112,6 @@ export const getMoi = async (): Promise<ReponseAPI<{ utilisateur: Utilisateur }>
 
   return reponse as ReponseAPI<{ utilisateur: Utilisateur }>;
 };
-
-/**
- * Type pour les infos de sanction
- */
-export interface SanctionInfo {
-  isRestricted: boolean;
-  type?: 'ACCOUNT_BANNED' | 'ACCOUNT_SUSPENDED';
-  reason?: string;
-  bannedAt?: string;
-  suspendedUntil?: string;
-  notificationId?: string;
-  notificationDate?: string;
-  actorRole?: string; // Rôle du staff qui a pris la décision
-  postId?: string;
-  postSnapshot?: {
-    contenu?: string;
-    mediaUrl?: string;
-  };
-}
 
 /**
  * Récupérer les informations de sanction
@@ -368,46 +286,12 @@ export const setUtilisateurLocal = async (utilisateur: Utilisateur | any): Promi
 };
 
 /**
- * Type pour un item de l'historique des sanctions
- */
-export interface SanctionHistoryItem {
-  type: 'ban' | 'suspend' | 'warn' | 'unban' | 'unsuspend' | 'unwarn';
-  createdAt: string;
-  titre: string;
-  message: string;
-  reason?: string;
-  actorRole?: string;
-  suspendedUntil?: string;
-  postSnapshot?: {
-    contenu?: string;
-    mediaUrl?: string;
-  };
-}
-
-/**
  * Récupérer l'historique des sanctions de l'utilisateur connecté
  * Accessible même si le compte est banni/suspendu
  */
 export const getMySanctions = async (): Promise<ReponseAPI<{ sanctions: SanctionHistoryItem[] }>> => {
   return await api.get<{ sanctions: SanctionHistoryItem[] }>('/auth/my-sanctions', true);
 };
-
-/**
- * Type pour le statut de modération
- */
-export interface ModerationStatus {
-  status: 'active' | 'suspended' | 'banned';
-  warnCountSinceLastAutoSuspension: number;
-  warningsBeforeNextSanction: number;
-  autoSuspensionsCount: number;
-  nextAutoAction: 'suspend' | 'ban';
-  // Infos supplémentaires si suspendu
-  suspendedUntil?: string;
-  suspendReason?: string;
-  // Infos supplémentaires si banni
-  bannedAt?: string;
-  banReason?: string;
-}
 
 /**
  * Récupérer le statut de modération de l'utilisateur connecté
