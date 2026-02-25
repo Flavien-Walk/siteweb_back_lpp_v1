@@ -8,6 +8,7 @@ import Utilisateur from '../../models/Utilisateur.js';
 import Projet from '../../models/Projet.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 import { emitNewNotification } from '../../socket/index.js';
+import { emitEngagementEvent } from '../../utils/engagementHelper.js';
 
 /**
  * POST /api/publications/:id/like
@@ -98,6 +99,19 @@ export const toggleLikePublication = async (
     if (!dejaLike) {
       gamification = await applyGamificationEvent(userId.toString(), 'like_post', id).catch(() => null);
     }
+
+    // Engagement tracking: si la publication est liee a un projet, tracker le like/unlike
+    try {
+      const pubForEngagement = await Publication.findById(id).select('projet').lean() as any;
+      if (pubForEngagement?.projet) {
+        emitEngagementEvent({
+          actorId: userId,
+          eventType: dejaLike ? 'unlike' : 'like',
+          targetType: 'projet',
+          targetId: pubForEngagement.projet,
+        });
+      }
+    } catch { /* silent */ }
 
     res.json({
       succes: true,

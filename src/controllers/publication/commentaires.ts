@@ -8,6 +8,7 @@ import Notification from '../../models/Notification.js';
 import Utilisateur from '../../models/Utilisateur.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 import { emitNewNotification } from '../../socket/index.js';
+import { emitEngagementEvent } from '../../utils/engagementHelper.js';
 
 // Schéma pour créer un commentaire
 const schemaCreerCommentaire = z.object({
@@ -206,6 +207,16 @@ export const ajouterCommentaire = async (
 
     // Gamification: XP pour commentaire
     const gamification = await applyGamificationEvent(userId.toString(), 'comment_post', id).catch(() => null);
+
+    // Engagement tracking: si la publication est liee a un projet
+    if (publication.projet) {
+      emitEngagementEvent({
+        actorId: userId,
+        eventType: 'comment',
+        targetType: 'projet',
+        targetId: publication.projet,
+      });
+    }
 
     res.status(201).json({
       succes: true,

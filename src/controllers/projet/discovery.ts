@@ -5,6 +5,7 @@ import Utilisateur from '../../models/Utilisateur.js';
 import Notification from '../../models/Notification.js';
 import { applyGamificationEvent } from '../../services/gamificationEngine.js';
 import { escapeRegex } from '../../utils/strings.js';
+import { emitEngagementEvent } from '../../utils/engagementHelper.js';
 
 /**
  * GET /api/projets
@@ -136,6 +137,13 @@ export const detailProjet = async (req: Request, res: Response): Promise<void> =
     let gamification = null;
     if (userId && !isOwner) {
       gamification = await applyGamificationEvent(userId.toString(), 'view_project', req.params.id).catch(() => null);
+      // Engagement tracking (fire-and-forget)
+      emitEngagementEvent({
+        actorId: userId,
+        eventType: 'click',
+        targetType: 'projet',
+        targetId: projet._id,
+      });
     }
 
     res.json({
@@ -250,6 +258,14 @@ export const toggleSuivreProjet = async (req: Request, res: Response): Promise<v
     if (isNewFollow) {
       gamification = await applyGamificationEvent(userId.toString(), 'follow_project', req.params.id).catch(() => null);
     }
+
+    // Engagement tracking (fire-and-forget)
+    emitEngagementEvent({
+      actorId: userId,
+      eventType: isNewFollow ? 'follow' : 'unfollow',
+      targetType: 'projet',
+      targetId: projet._id,
+    });
 
     res.json({
       succes: true,

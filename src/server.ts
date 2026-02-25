@@ -9,6 +9,7 @@ import { connecterMongo, fermerMongo } from './config/mongo.js';
 import { initializeSocket, getConnectedUsersCount } from './socket/index.js';
 import { purgeAutoBlocks } from './middlewares/security/index.js';
 import { startSubscriptionCron } from './services/subscriptionCron.js';
+import { startTrendingRefresh, stopTrendingRefresh } from './services/trending/index.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -75,6 +76,9 @@ const demarrerServeur = async (): Promise<void> => {
     // Démarrer le cron job LPP+
     startSubscriptionCron();
 
+    // Démarrer le refresh periodique du trending
+    startTrendingRefresh();
+
     // Démarrer le serveur
     serveur.listen(PORT, () => {
       console.log('');
@@ -92,6 +96,7 @@ const demarrerServeur = async (): Promise<void> => {
     // Gestion de l'arrêt propre du serveur
     const arreterProprement = async (signal: string): Promise<void> => {
       console.log(`\n⚠️ Signal ${signal} reçu. Arrêt en cours...`);
+      stopTrendingRefresh();
 
       serveur.close(async () => {
         console.log('✅ Serveur HTTP fermé');

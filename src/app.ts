@@ -26,6 +26,9 @@ import activityRoutes from './routes/activityRoutes.js';
 import supportTicketRoutes from './routes/supportTicketRoutes.js';
 import gamificationRoutes from './routes/gamificationRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import eventRoutes from './routes/eventRoutes.js';
+import trendingRoutes from './routes/trendingRoutes.js';
+import recommendationRoutes from './routes/recommendationRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
 import { securityMonitor, checkBlockedIP, sanitizeQueryParams } from './middlewares/security/index.js';
@@ -140,6 +143,9 @@ export const creerApp = (): Application => {
   app.use('/api/support', supportTicketRoutes);
   app.use('/api/gamification', gamificationRoutes);
   app.use('/api/subscriptions', subscriptionRoutes);
+  app.use('/api/events', eventRoutes);
+  app.use('/api/trending', trendingRoutes);
+  app.use('/api/recommendations', recommendationRoutes);
 
   // ============================================
   // GESTION DES ERREURS
