@@ -1,0 +1,86 @@
+/**
+ * EtatVideRecommandations — Etat vide pour la section "Pour Toi"
+ */
+
+import React from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
+import { espacements, rayons, typographie } from '../constantes/theme';
+
+interface Props {
+  message?: string;
+  onRetry?: () => void;
+}
+
+const EtatVideRecommandations: React.FC<Props> = ({ message, onRetry }) => {
+  const { couleurs } = useTheme();
+
+  return (
+    <View style={[styles.container, { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure }]}>
+      <View style={[styles.iconContainer, { backgroundColor: couleurs.primaire + '15' }]}>
+        <Ionicons name="sparkles-outline" size={40} color={couleurs.primaire} />
+      </View>
+      <Text style={[styles.title, { color: couleurs.texte }]}>
+        {message || 'Recommandations en preparation'}
+      </Text>
+      <Text style={[styles.subtitle, { color: couleurs.texteSecondaire }]}>
+        Explorez et interagissez avec des projets pour personnaliser votre feed.
+      </Text>
+      {onRetry && (
+        <Pressable
+          style={[styles.retryBtn, { backgroundColor: couleurs.primaire }]}
+          onPress={onRetry}
+        >
+          <Ionicons name="refresh" size={16} color="#FFFFFF" />
+          <Text style={styles.retryText}>Recharger</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    padding: espacements.xxl,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    marginVertical: espacements.lg,
+  },
+  iconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espacements.lg,
+  },
+  title: {
+    fontSize: typographie.tailles.lg,
+    fontWeight: typographie.poids.bold,
+    textAlign: 'center',
+    marginBottom: espacements.sm,
+  },
+  subtitle: {
+    fontSize: typographie.tailles.sm,
+    textAlign: 'center',
+    lineHeight: typographie.tailles.sm * typographie.hauteurLigne.relaxed,
+    marginBottom: espacements.lg,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    paddingHorizontal: espacements.lg,
+    paddingVertical: espacements.sm,
+    borderRadius: rayons.md,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.semibold,
+  },
+});
+
+export default React.memo(EtatVideRecommandations);

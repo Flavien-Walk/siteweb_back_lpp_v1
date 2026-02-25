@@ -32,7 +32,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { espacements, rayons } from '../../src/constantes/theme';
+import { espacements, rayons, typographie } from '../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
@@ -107,7 +107,7 @@ import {
   formatLiveDuration,
   formatViewerCount,
 } from '../../src/services/live';
-import { LiveCard } from '../../src/composants';
+import { LiveCard, PourToiSection, TendancesSection } from '../../src/composants';
 import OnboardingFlow from '../../src/composants/CoachMark';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -253,6 +253,7 @@ export default function Accueil() {
 
   const [rafraichissement, setRafraichissement] = useState(false);
   const [ongletActif, setOngletActif] = useState<OngletActif>('feed');
+  const [decouvrirSubTab, setDecouvrirSubTab] = useState<'pourtoi' | 'tendances' | 'explorer'>('pourtoi');
   const [recherche, setRecherche] = useState('');
   const [fabOuvert, setFabOuvert] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -3271,25 +3272,68 @@ export default function Accueil() {
             if (onglet.key === 'decouvrir') {
               return (
                 <View key="decouvrir" style={styles.pageContainer}>
-                  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContent}
-                    keyboardShouldPersistTaps="handled"
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={rafraichissement}
-                        onRefresh={handleRafraichissement}
-                        tintColor={couleurs.primaire}
-                      />
-                    }
-                  >
-                    {renderDecouvrirContent()}
-                    <View style={styles.footer}>
-                      <Text style={styles.footerLogo}>LPP</Text>
-                      <Text style={styles.footerText}>La Premiere Pierre</Text>
-                      <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
-                    </View>
-                  </ScrollView>
+                  {/* Sub-tabs: Pour toi | Tendances | Explorer */}
+                  <View style={[styles.decouvrirSubTabs, { borderBottomColor: couleurs.bordure }]}>
+                    {([
+                      { key: 'pourtoi' as const, label: 'Pour toi', icon: 'sparkles' as const },
+                      { key: 'tendances' as const, label: 'Tendances', icon: 'flame' as const },
+                      { key: 'explorer' as const, label: 'Explorer', icon: 'compass' as const },
+                    ]).map(tab => {
+                      const isActiveTab = decouvrirSubTab === tab.key;
+                      return (
+                        <Pressable
+                          key={tab.key}
+                          style={[
+                            styles.decouvrirSubTab,
+                            isActiveTab && { borderBottomColor: couleurs.primaire, borderBottomWidth: 2 },
+                          ]}
+                          onPress={() => setDecouvrirSubTab(tab.key)}
+                        >
+                          <Ionicons
+                            name={tab.icon}
+                            size={14}
+                            color={isActiveTab ? couleurs.primaire : couleurs.texteMuted}
+                          />
+                          <Text style={[
+                            styles.decouvrirSubTabText,
+                            { color: isActiveTab ? couleurs.primaire : couleurs.texteMuted },
+                            isActiveTab && { fontWeight: '700' as any },
+                          ]}>
+                            {tab.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  {/* Sub-tab content */}
+                  {decouvrirSubTab === 'pourtoi' && (
+                    <PourToiSection isActive={ongletActif === 'decouvrir' && decouvrirSubTab === 'pourtoi'} />
+                  )}
+                  {decouvrirSubTab === 'tendances' && (
+                    <TendancesSection isActive={ongletActif === 'decouvrir' && decouvrirSubTab === 'tendances'} />
+                  )}
+                  {decouvrirSubTab === 'explorer' && (
+                    <ScrollView
+                      showsVerticalScrollIndicator={false}
+                      contentContainerStyle={styles.scrollContent}
+                      keyboardShouldPersistTaps="handled"
+                      refreshControl={
+                        <RefreshControl
+                          refreshing={rafraichissement}
+                          onRefresh={handleRafraichissement}
+                          tintColor={couleurs.primaire}
+                        />
+                      }
+                    >
+                      {renderDecouvrirContent()}
+                      <View style={styles.footer}>
+                        <Text style={styles.footerLogo}>LPP</Text>
+                        <Text style={styles.footerText}>La Premiere Pierre</Text>
+                        <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
+                      </View>
+                    </ScrollView>
+                  )}
                 </View>
               );
             }
@@ -4681,6 +4725,25 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   heroStatDivider: {
     width: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+
+  // ========== DECOUVRIR SUB-TABS ==========
+  decouvrirSubTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    paddingHorizontal: espacements.sm,
+  },
+  decouvrirSubTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: espacements.xs,
+    paddingVertical: espacements.md,
+  },
+  decouvrirSubTabText: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.medium,
   },
 
   // ========== DECOUVRIR REFONTE ==========
