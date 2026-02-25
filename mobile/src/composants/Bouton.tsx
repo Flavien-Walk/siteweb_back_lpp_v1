@@ -1,8 +1,8 @@
 /**
- * Composant Bouton réutilisable avec animation
+ * Composant Bouton r\u00e9utilisable avec animation
  */
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   Pressable,
   Text,
@@ -13,7 +13,8 @@ import {
   Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { couleurs, espacements, rayons, typographie } from '../constantes/theme';
+import { espacements, rayons, typographie } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 
 interface BoutonProps {
@@ -37,6 +38,9 @@ const Bouton: React.FC<BoutonProps> = ({
   icone,
   style,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const estDesactive = desactive || chargement;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -195,7 +199,7 @@ const Bouton: React.FC<BoutonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   touchable: {
     borderRadius: rayons.lg,
     overflow: 'hidden',

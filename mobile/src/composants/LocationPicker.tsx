@@ -4,7 +4,7 @@
  * Affiche uniquement le label (ville), pas les coordonnées exactes
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
-import { useTheme } from '../contexts/ThemeContext';
+import { espacements, typographie, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 // Interface pour la localisation story
 export interface StoryLocation {
@@ -31,7 +31,8 @@ interface LocationPickerProps {
 }
 
 const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleAddLocation = async () => {
@@ -103,7 +104,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+      <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
         Localisation (optionnel)
       </Text>
 
@@ -113,14 +114,14 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
           style={[
             styles.locationBadge,
             {
-              backgroundColor: themeColors.fondCard,
+              backgroundColor: couleurs.fondCard,
               borderColor: couleurs.primaire,
             },
           ]}
         >
           <Ionicons name="location" size={16} color={couleurs.primaire} />
           <Text
-            style={[styles.locationText, { color: themeColors.texte }]}
+            style={[styles.locationText, { color: couleurs.texte }]}
             numberOfLines={1}
           >
             {value.label}
@@ -130,7 +131,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
             onPress={handleRemoveLocation}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="close-circle" size={20} color={themeColors.texteSecondaire} />
+            <Ionicons name="close-circle" size={20} color={couleurs.texteSecondaire} />
           </Pressable>
         </View>
       ) : (
@@ -139,8 +140,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
           style={[
             styles.addButton,
             {
-              backgroundColor: themeColors.fondCard,
-              borderColor: themeColors.bordure,
+              backgroundColor: couleurs.fondCard,
+              borderColor: couleurs.bordure,
             },
           ]}
           onPress={handleAddLocation}
@@ -150,8 +151,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
             <ActivityIndicator size="small" color={couleurs.primaire} />
           ) : (
             <>
-              <Ionicons name="location-outline" size={20} color={themeColors.texte} />
-              <Text style={[styles.addButtonText, { color: themeColors.texte }]}>
+              <Ionicons name="location-outline" size={20} color={couleurs.texte} />
+              <Text style={[styles.addButtonText, { color: couleurs.texte }]}>
                 Ajouter une localisation
               </Text>
             </>
@@ -162,7 +163,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginVertical: espacements.md,
   },

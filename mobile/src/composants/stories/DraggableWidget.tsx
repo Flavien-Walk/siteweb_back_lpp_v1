@@ -3,7 +3,7 @@
  * Utilise PanResponder pour le drag & drop
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import {
   Animated,
   PanResponder,
@@ -13,7 +13,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, rayons } from '../../constantes/theme';
+import { rayons } from '../../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../contexts/ThemeContext';
 import { StoryWidget, WidgetTransform } from '../../types/storyWidgets';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -39,6 +40,8 @@ const DraggableWidget: React.FC<DraggableWidgetProps> = ({
   children,
   containerHeight = SCREEN_HEIGHT * 0.5,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const containerWidth = SCREEN_WIDTH;
 
   // Position animée
@@ -142,7 +145,7 @@ const DraggableWidget: React.FC<DraggableWidgetProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     position: 'absolute',
     alignItems: 'center',

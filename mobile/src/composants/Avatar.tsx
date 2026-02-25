@@ -15,7 +15,8 @@ import {
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { couleurs, typographie } from '../constantes/theme';
+import { typographie } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 interface AvatarProps {
   uri?: string | null;
@@ -24,13 +25,13 @@ interface AvatarProps {
   taille?: number;
   style?: ViewStyle;
   gradientColors?: readonly [string, string];
-  /** Callback appelé au clic sur l'avatar (rend l'avatar cliquable) */
+  /** Callback appel\u00e9 au clic sur l'avatar (rend l'avatar cliquable) */
   onPress?: () => void;
 }
 
 /**
  * Composant Avatar avec fallback automatique
- * Gère les erreurs de chargement iOS (URLs Google, CORS, etc.)
+ * G\u00e8re les erreurs de chargement iOS (URLs Google, CORS, etc.)
  */
 const Avatar: React.FC<AvatarProps> = ({
   uri,
@@ -38,13 +39,17 @@ const Avatar: React.FC<AvatarProps> = ({
   nom = '',
   taille = 50,
   style,
-  gradientColors = [couleurs.primaire, couleurs.primaireDark],
+  gradientColors,
   onPress,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+  const resolvedGradientColors = gradientColors ?? [couleurs.primaire, couleurs.primaireDark];
+
   const [erreurImage, setErreurImage] = useState(false);
   const [imageKey, setImageKey] = useState(0);
 
-  // Reset l'état d'erreur quand l'URI change
+  // Reset l'\u00e9tat d'erreur quand l'URI change
   useEffect(() => {
     setErreurImage(false);
     setImageKey(prev => prev + 1);
@@ -70,20 +75,20 @@ const Avatar: React.FC<AvatarProps> = ({
     };
   }, [prenom, nom, taille]);
 
-  // Callback pour gérer les erreurs de chargement
+  // Callback pour g\u00e9rer les erreurs de chargement
   const handleError = useCallback(() => {
     console.log('Avatar: Erreur chargement image:', uri);
     setErreurImage(true);
   }, [uri]);
 
-  // Callback pour gérer le chargement réussi
+  // Callback pour g\u00e9rer le chargement r\u00e9ussi
   const handleLoad = useCallback(() => {
     setErreurImage(false);
   }, []);
 
-  // Vérifier si l'URL est valide (pas un fichier local temporaire)
+  // V\u00e9rifier si l'URL est valide (pas un fichier local temporaire)
   const isValidUrl = (url: unknown): boolean => {
-    // Vérification de type robuste (url peut être un objet Story, null, undefined, etc.)
+    // V\u00e9rification de type robuste (url peut \u00eatre un objet Story, null, undefined, etc.)
     if (!url || typeof url !== 'string' || url.length === 0) return false;
     // Les fichiers locaux temporaires (file://) ne sont pas persistants
     if (url.startsWith('file://')) return false;
@@ -91,10 +96,10 @@ const Avatar: React.FC<AvatarProps> = ({
     return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
   };
 
-  // Vérifier si on doit afficher l'image
+  // V\u00e9rifier si on doit afficher l'image
   const afficherImage = isValidUrl(uri) && !erreurImage;
 
-  // Normaliser l'URL pour iOS (certaines URLs nécessitent des ajustements)
+  // Normaliser l'URL pour iOS (certaines URLs n\u00e9cessitent des ajustements)
   const getImageUri = (): string => {
     if (!uri || !isValidUrl(uri)) return '';
 
@@ -110,9 +115,9 @@ const Avatar: React.FC<AvatarProps> = ({
       normalizedUri = uri.replace('http://', 'https://');
     }
 
-    // Pour les URLs Google, ajouter des paramètres pour éviter les problèmes de cache
+    // Pour les URLs Google, ajouter des param\u00e8tres pour \u00e9viter les probl\u00e8mes de cache
     if (normalizedUri.includes('googleusercontent.com')) {
-      // Forcer une taille d'image appropriée
+      // Forcer une taille d'image appropri\u00e9e
       if (!normalizedUri.includes('=s')) {
         normalizedUri = normalizedUri.replace(/=s\d+/, `=s${taille * 2}`);
         if (!normalizedUri.includes('=s')) {
@@ -142,7 +147,7 @@ const Avatar: React.FC<AvatarProps> = ({
     />
   ) : (
     <LinearGradient
-      colors={[...gradientColors]}
+      colors={[...resolvedGradientColors]}
       style={[styles.placeholder, containerStyle]}
     >
       <Text style={[styles.initiales, { fontSize: tailleFonte }]}>
@@ -172,7 +177,7 @@ const Avatar: React.FC<AvatarProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   image: {
     backgroundColor: couleurs.fondCard,
   },

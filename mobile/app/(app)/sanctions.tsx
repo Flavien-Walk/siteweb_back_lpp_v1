@@ -24,7 +24,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import { getMySanctions, SanctionHistoryItem } from '../../src/services/auth';
-import { espacements, rayons, typographie, couleurs as defaultCouleurs } from '../../src/constantes/theme';
+import { espacements, rayons, typographie } from '../../src/constantes/theme';
 
 // Mapping des roles vers des labels lisibles
 const roleLabels: Record<string, string> = {
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
 
 export default function SanctionsScreen() {
   const { couleurs } = useTheme();
-  const colors = couleurs || defaultCouleurs;
+  const colors = couleurs;
   const { tokenReady, userHydrated, isAuthenticated } = useUser();
 
   const [sanctions, setSanctions] = useState<SanctionHistoryItem[]>([]);
@@ -428,11 +428,11 @@ export default function SanctionsScreen() {
   const getTypeColors = (colorType: 'danger' | 'warning' | 'success') => {
     switch (colorType) {
       case 'danger':
-        return { main: colors.erreur || defaultCouleurs.danger, light: 'rgba(255, 77, 109, 0.15)' };
+        return { main: colors.erreur, light: 'rgba(255, 77, 109, 0.15)' };
       case 'warning':
-        return { main: colors.attention || defaultCouleurs.warning, light: 'rgba(255, 189, 89, 0.15)' };
+        return { main: colors.attention, light: 'rgba(255, 189, 89, 0.15)' };
       case 'success':
-        return { main: colors.succes || defaultCouleurs.succes, light: 'rgba(0, 214, 143, 0.15)' };
+        return { main: colors.succes, light: 'rgba(0, 214, 143, 0.15)' };
     }
   };
 
@@ -575,11 +575,11 @@ export default function SanctionsScreen() {
           </View>
           <View style={styles.errorContainer}>
             <View style={styles.errorIcon}>
-              <Ionicons name="alert-circle-outline" size={40} color={colors.erreur || defaultCouleurs.danger} />
+              <Ionicons name="alert-circle-outline" size={40} color={colors.erreur} />
             </View>
-            <Text style={[styles.errorText, { color: colors.erreur || defaultCouleurs.danger }]}>{error}</Text>
+            <Text style={[styles.errorText, { color: colors.erreur }]}>{error}</Text>
             <Pressable style={[styles.retryButton, { backgroundColor: colors.primaire }]} onPress={() => fetchSanctions()}>
-              <Text style={[styles.retryButtonText, { color: colors.blanc || '#FFFFFF' }]}>Reessayer</Text>
+              <Text style={[styles.retryButtonText, { color: colors.blanc }]}>Reessayer</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -604,7 +604,7 @@ export default function SanctionsScreen() {
         {sanctions.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={[styles.emptyIcon, { backgroundColor: 'rgba(0, 214, 143, 0.15)' }]}>
-              <Ionicons name="checkmark-circle-outline" size={40} color={colors.succes || defaultCouleurs.succes} />
+              <Ionicons name="checkmark-circle-outline" size={40} color={colors.succes} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.texte }]}>Aucune sanction</Text>
             <Text style={[styles.emptyText, { color: colors.texteSecondaire }]}>

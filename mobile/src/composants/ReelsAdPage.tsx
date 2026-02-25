@@ -27,7 +27,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 
-import { couleurs, espacements, rayons } from '../constantes/theme';
+import { espacements, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { AdItem, trackAdEvent } from '../services/ads';
 import { videoRegistry } from '../stores/videoRegistry';
 import { videoPlaybackStore } from '../stores/videoPlaybackStore';
@@ -47,6 +48,8 @@ export default function ReelsAdPage({
   isActive,
   onClose,
 }: ReelsAdPageProps) {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
   const videoIdRef = useRef(`reels-ad-${ad._id}`);
@@ -310,7 +313,7 @@ export default function ReelsAdPage({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,

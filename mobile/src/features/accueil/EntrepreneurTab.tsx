@@ -82,13 +82,15 @@ const EntrepreneurTab: React.FC<EntrepreneurTabProps> = ({
               : 'Gerez vos startups et projets'}
           </Text>
         </View>
-        <Pressable
-          style={[styles.entrepreneurCreateBtn, { backgroundColor: couleurs.primaire }]}
-          onPress={() => router.push('/entrepreneur/nouveau-projet')}
-        >
-          <Ionicons name="add" size={20} color="#FFFFFF" />
-          <Text style={styles.entrepreneurCreateBtnText}>Creer</Text>
-        </Pressable>
+        {hasProjects && (
+          <Pressable
+            style={[styles.entrepreneurCreateBtn, { backgroundColor: couleurs.primaire }]}
+            onPress={() => router.push('/entrepreneur/nouveau-projet')}
+          >
+            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Text style={styles.entrepreneurCreateBtnText}>Creer</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Liste des projets */}

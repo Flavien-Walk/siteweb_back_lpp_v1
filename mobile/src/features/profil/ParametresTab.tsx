@@ -232,6 +232,10 @@ export default function ParametresTab(props: ParametresTabProps) {
         afficherMessage('erreur', 'Veuillez entrer votre adresse email');
         return;
       }
+      if (emailSuppression.trim().toLowerCase() !== utilisateur?.email?.trim().toLowerCase()) {
+        afficherMessage('erreur', 'L\'adresse email ne correspond pas a votre compte');
+        return;
+      }
     } else {
       if (!motDePasseSuppression) {
         afficherMessage('erreur', 'Veuillez entrer votre mot de passe');

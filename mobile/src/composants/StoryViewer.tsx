@@ -7,7 +7,7 @@
  * - Support photo et vidéo
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,7 +30,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from './Avatar';
-import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
+import { espacements, typographie, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { Story, formatTempsRestant, markStorySeen, getStoryViewers, supprimerStory, StoryViewer as StoryViewerType } from '../services/stories';
 import { getFilterOverlay, FilterPreset } from '../utils/imageFilters';
 import { StoryWidget } from '../types/storyWidgets';
@@ -68,6 +69,8 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   onStoryDeleted,
 }) => {
   const insets = useSafeAreaInsets();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const videoRef = useRef<Video>(null);
 
   // États
@@ -756,7 +759,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',

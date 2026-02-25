@@ -3,7 +3,7 @@
  * Affiche jusqu'a 3 quetes rapides avec progression instantanee.
  */
 
-import React, { memo, useCallback, useRef, useEffect } from 'react';
+import React, { memo, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,13 +14,16 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { couleurs, espacements, rayons } from '../constantes/theme';
+import { espacements, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { useGamification } from '../contexts/GamificationContext';
 import type { QuestProgress } from '../services/gamification';
 
 // === QUEST CARD ===
 
 const QuestCard = memo(({ quest, index }: { quest: QuestProgress; index: number }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -134,6 +137,8 @@ const QuestCard = memo(({ quest, index }: { quest: QuestProgress; index: number 
 // === COMPOSANT PRINCIPAL ===
 
 function QuickQuests() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { state } = useGamification();
 
   if (!state || state.quickQuests.length === 0) return null;
@@ -173,7 +178,7 @@ export default memo(QuickQuests);
 
 // === STYLES ===
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginBottom: espacements.md,
   },
@@ -222,7 +227,7 @@ const styles = StyleSheet.create({
 
   // Quest card
   questCard: {
-    backgroundColor: couleurs.fondElevated,
+    backgroundColor: couleurs.fondTertiaire,
     borderRadius: rayons.md,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -292,7 +297,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   xpBadgeDone: {
-    backgroundColor: couleurs.succesLight,
+    backgroundColor: couleurs.succes + '25',
   },
   xpText: {
     fontSize: 11,

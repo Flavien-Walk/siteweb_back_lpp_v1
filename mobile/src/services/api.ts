@@ -326,12 +326,17 @@ export const requeteAPI = async <T>(
       memoryToken = null;
       await hydrateToken();
 
-      // Si on a un token apres rehydratation, retenter
+      // Si on a un token apres rehydratation, retenter UNE SEULE FOIS
       if (memoryToken) {
         if (__DEV__) console.log('[API:requete] Token rehydrate, retry...');
-        isRetrying401 = false;
-        // Retenter la requete (recursive, mais avec flag reset)
-        return requeteAPI<T>(endpoint, options);
+        // NE PAS reset isRetrying401 avant le retry pour empecher les boucles infinies
+        // (ex: DELETE /profil avec mauvais mot de passe renvoie 401 != token expire)
+        try {
+          const retryResult = await requeteAPI<T>(endpoint, options);
+          return retryResult;
+        } finally {
+          isRetrying401 = false;
+        }
       } else {
         if (__DEV__) console.log('[API:requete] Pas de token apres rehydratation');
         console.log('[NAV] redirect login because AUTH_TOKEN_EXPIRED (no token after rehydrate)');

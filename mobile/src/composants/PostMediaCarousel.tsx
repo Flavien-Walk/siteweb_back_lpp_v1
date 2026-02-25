@@ -17,7 +17,8 @@ import {
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, rayons, espacements } from '../constantes/theme';
+import { rayons, espacements } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { MediaItem } from '../services/publications';
 import { videoPlaybackStore, useVideoPlaybackSession, useIsPostActive } from '../stores/videoPlaybackStore';
 import { videoRegistry } from '../stores/videoRegistry';
@@ -85,6 +86,8 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
   liked,
   onDoubleTapLike,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showPlayButton, setShowPlayButton] = useState(!autoPlayVideos);
@@ -345,6 +348,8 @@ const MediaItemRenderer: React.FC<MediaItemRendererProps> = React.memo(({
 
 // PaginationDot avec Animated natif React Native
 const PaginationDot: React.FC<{ isActive: boolean }> = React.memo(({ isActive }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const widthAnim = useRef(new Animated.Value(isActive ? 24 : 8)).current;
   const opacityAnim = useRef(new Animated.Value(isActive ? 1 : 0.5)).current;
 
@@ -391,6 +396,8 @@ const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
   liked,
   onDoubleTapLike,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   // Track sync positions per video URL for resync after fullscreen
@@ -512,7 +519,7 @@ const PostMediaCarousel: React.FC<PostMediaCarouselProps> = React.memo(({
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     position: 'relative',
     backgroundColor: couleurs.fondCard,

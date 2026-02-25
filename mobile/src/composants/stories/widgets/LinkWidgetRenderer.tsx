@@ -2,11 +2,12 @@
  * LinkWidgetRenderer - Affiche un lien cliquable sur la story
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinkWidget } from '../../../types/storyWidgets';
-import { couleurs, espacements, rayons, typographie } from '../../../constantes/theme';
+import { espacements, rayons, typographie } from '../../../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../../contexts/ThemeContext';
 
 interface LinkWidgetRendererProps {
   widget: LinkWidget;
@@ -19,6 +20,9 @@ const LinkWidgetRenderer: React.FC<LinkWidgetRendererProps> = ({
   isEditing = false,
   onPress,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const handlePress = async () => {
     if (isEditing) return;
 
@@ -78,7 +82,7 @@ const LinkWidgetRenderer: React.FC<LinkWidgetRendererProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   // Style Pill
   pillContainer: {
     flexDirection: 'row',

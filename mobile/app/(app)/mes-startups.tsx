@@ -22,7 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { couleurs, espacements, rayons } from '../../src/constantes/theme';
+import { espacements, rayons } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useGamification } from '../../src/contexts/GamificationContext';
 import { SwipeableScreen } from '../../src/composants';
 import { SkeletonList } from '../../src/composants/SkeletonLoader';
@@ -36,7 +37,7 @@ import {
 // === CONSTANTES ===
 
 const CATEGORIES: { value: CategorieProjet | 'all'; label: string; icon: string; color: string }[] = [
-  { value: 'all', label: 'Tout', icon: 'apps', color: couleurs.primaire },
+  { value: 'all', label: 'Tout', icon: 'apps', color: '#6366F1' },
   { value: 'tech', label: 'Tech', icon: 'hardware-chip', color: '#3B82F6' },
   { value: 'food', label: 'Food', icon: 'restaurant', color: '#F97316' },
   { value: 'sante', label: 'Sante', icon: 'medkit', color: '#EF4444' },
@@ -63,6 +64,8 @@ type SortKey = typeof SORT_OPTIONS[number]['key'];
 // === STATS HEADER ===
 
 const StatsHeader = memo(({ projets }: { projets: Projet[] }) => {
+  const { couleurs } = useTheme();
+  const s = useMemo(() => createStyles(couleurs), [couleurs]);
   const categoryBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
     projets.forEach(p => { counts[p.categorie] = (counts[p.categorie] || 0) + 1; });
@@ -103,7 +106,10 @@ const StatsHeader = memo(({ projets }: { projets: Projet[] }) => {
 
 // === EMPTY STATE ===
 
-const EmptyState = memo(({ onDiscover }: { onDiscover: () => void }) => (
+const EmptyState = memo(({ onDiscover }: { onDiscover: () => void }) => {
+  const { couleurs } = useTheme();
+  const s = useMemo(() => createStyles(couleurs), [couleurs]);
+  return (
   <View style={s.emptyContainer}>
     <View style={s.emptyIconWrap}>
       <LinearGradient colors={[couleurs.primaire, couleurs.secondaire]} style={s.emptyIconGradient}>
@@ -121,7 +127,8 @@ const EmptyState = memo(({ onDiscover }: { onDiscover: () => void }) => (
       </LinearGradient>
     </Pressable>
   </View>
-));
+  );
+});
 
 // === PROJET CARD ===
 
@@ -136,6 +143,8 @@ const ProjetCardCompact = memo(({
   onUnfollow: (id: string) => void;
   onNavigate: (id: string) => void;
 }) => {
+  const { couleurs } = useTheme();
+  const s = useMemo(() => createStyles(couleurs), [couleurs]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -264,6 +273,8 @@ const ProjetCardCompact = memo(({
 // === ECRAN PRINCIPAL ===
 
 export default function MesStartupsScreen() {
+  const { couleurs } = useTheme();
+  const s = useMemo(() => createStyles(couleurs), [couleurs]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { applyDelta } = useGamification();
@@ -500,7 +511,7 @@ export default function MesStartupsScreen() {
 
 // === STYLES ===
 
-const s = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,
@@ -561,7 +572,7 @@ const s = StyleSheet.create({
   statsCard: {
     borderRadius: rayons.lg,
     overflow: 'hidden',
-    backgroundColor: couleurs.fondElevated,
+    backgroundColor: couleurs.fondTertiaire,
     borderWidth: 1,
     borderColor: couleurs.bordure,
     padding: espacements.lg,
@@ -692,7 +703,7 @@ const s = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: couleurs.fondElevated,
+    backgroundColor: couleurs.fondTertiaire,
     borderRadius: rayons.lg,
     borderWidth: 1,
     borderColor: couleurs.bordure,

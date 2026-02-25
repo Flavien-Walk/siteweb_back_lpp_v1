@@ -4,7 +4,7 @@
  * Stocke dans AsyncStorage les flows deja vus.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { couleurs, espacements, rayons } from '../constantes/theme';
+import { espacements, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const STORAGE_PREFIX = '@lpp_coachmark_';
@@ -84,6 +85,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   forceShow = false,
   delay = 800,
 }) => {
+  const { couleurs } = useTheme();
+  const s = useMemo(() => createStyles(couleurs), [couleurs]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -220,7 +223,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
 // === STYLES ===
 
-const s = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',

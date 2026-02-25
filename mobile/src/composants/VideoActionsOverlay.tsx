@@ -4,7 +4,7 @@
  * Design premium : icônes épurées avec ombre pour lisibilité, sans fond noir
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements } from '../constantes/theme';
+import { espacements } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 interface VideoActionsOverlayProps {
   /** Post est liké par l'utilisateur */
@@ -60,6 +61,9 @@ export default function VideoActionsOverlay({
   onMore,
   visible = true,
 }: VideoActionsOverlayProps) {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   if (!visible) return null;
 
   return (
@@ -148,7 +152,7 @@ export default function VideoActionsOverlay({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     position: 'absolute',
     right: espacements.md,

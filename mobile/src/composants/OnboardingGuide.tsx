@@ -4,7 +4,7 @@
  * Interrompable (Plus tard) et reprenable.
  */
 
-import React, { memo, useCallback, useRef, useEffect } from 'react';
+import React, { memo, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,10 +15,13 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { couleurs, espacements, rayons } from '../constantes/theme';
+import { espacements, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { useGamification } from '../contexts/GamificationContext';
 
 function OnboardingGuide() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const router = useRouter();
   const { state, dismissOnboarding } = useGamification();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -130,9 +133,9 @@ function OnboardingGuide() {
 
 export default memo(OnboardingGuide);
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
-    backgroundColor: couleurs.fondElevated,
+    backgroundColor: couleurs.fondTertiaire,
     borderRadius: rayons.lg,
     borderWidth: 1,
     borderColor: couleurs.primaire + '25',

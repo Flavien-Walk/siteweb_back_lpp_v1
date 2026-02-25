@@ -213,9 +213,14 @@ export const supprimerCompte = async (
   });
 
   if (reponse.succes) {
-    // Nettoyage local uniquement — pas d'appel serveur car le compte est supprime
+    // Nettoyage COMPLET — supprimer toutes les donnees locales du compte
     await removeToken();
-    await AsyncStorage.removeItem(STORAGE_KEYS.UTILISATEUR);
+    // Supprimer toutes les cles @lpp_* (theme, onboarding, recherche, etc.)
+    const allKeys = await AsyncStorage.getAllKeys();
+    const lppKeys = allKeys.filter(k => k.startsWith('@lpp_') || k === STORAGE_KEYS.UTILISATEUR);
+    if (lppKeys.length > 0) {
+      await AsyncStorage.multiRemove(lppKeys);
+    }
   }
 
   return reponse;

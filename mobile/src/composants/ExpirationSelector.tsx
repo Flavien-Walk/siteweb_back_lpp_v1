@@ -3,11 +3,11 @@
  * Pills horizontaux pour choisir combien de temps la story reste en ligne
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
-import { useTheme } from '../contexts/ThemeContext';
+import { espacements, typographie, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 // Durees disponibles en minutes
 export type ExpirationMinutes = 7 | 15 | 60 | 360 | 1440;
@@ -31,13 +31,14 @@ interface ExpirationSelectorProps {
 }
 
 const ExpirationSelector: React.FC<ExpirationSelectorProps> = ({ value, onChange }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
-        <Ionicons name="time-outline" size={18} color={themeColors.texteSecondaire} />
-        <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+        <Ionicons name="time-outline" size={18} color={couleurs.texteSecondaire} />
+        <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
           Duree de vie
         </Text>
       </View>
@@ -56,10 +57,10 @@ const ExpirationSelector: React.FC<ExpirationSelectorProps> = ({ value, onChange
                 {
                   backgroundColor: isSelected
                     ? couleurs.primaire
-                    : themeColors.fondCard,
+                    : couleurs.fondCard,
                   borderColor: isSelected
                     ? couleurs.primaire
-                    : themeColors.bordure,
+                    : couleurs.bordure,
                 },
               ]}
               onPress={() => onChange(option.value)}
@@ -68,7 +69,7 @@ const ExpirationSelector: React.FC<ExpirationSelectorProps> = ({ value, onChange
                 style={[
                   styles.optionLabel,
                   {
-                    color: isSelected ? couleurs.blanc : themeColors.texte,
+                    color: isSelected ? couleurs.blanc : couleurs.texte,
                     fontWeight: isSelected
                       ? typographie.poids.bold
                       : typographie.poids.medium,
@@ -85,7 +86,7 @@ const ExpirationSelector: React.FC<ExpirationSelectorProps> = ({ value, onChange
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginVertical: espacements.md,
   },

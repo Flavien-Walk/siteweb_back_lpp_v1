@@ -4,7 +4,7 @@
  * L'utilisateur prouve la propriété (mot de passe ou code email) pour lier Google
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Bouton, ChampTexte, KeyboardView } from '../../src/composants';
-import { couleurs, espacements, typographie, rayons } from '../../src/constantes/theme';
+import { espacements, typographie, rayons } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import {
   confirmerLiaisonGoogle,
   envoyerCodeLiaison,
@@ -31,6 +32,8 @@ const COOLDOWN_SECONDS = 60;
 type Mode = 'choice' | 'password' | 'code';
 
 export default function LierCompte() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { setUtilisateur } = useAuth();
   const { linkToken, email } = useLocalSearchParams<{ linkToken: string; email: string }>();
 
@@ -301,7 +304,7 @@ export default function LierCompte() {
                 keyboardType="number-pad"
                 maxLength={index === 0 ? CODE_LENGTH : 1}
                 selectTextOnFocus
-                placeholderTextColor={couleurs.textePlaceholder}
+                placeholderTextColor={couleurs.texteMuted}
                 placeholder="·"
               />
             ))}
@@ -365,7 +368,7 @@ export default function LierCompte() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

@@ -2,9 +2,10 @@
  * Composant de chargement
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
-import { couleurs, typographie, espacements } from '../constantes/theme';
+import { typographie, espacements } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 interface ChargementProps {
   message?: string;
@@ -16,13 +17,17 @@ interface ChargementProps {
 const Chargement: React.FC<ChargementProps> = ({
   message,
   taille = 'large',
-  couleur = couleurs.primaire,
+  couleur,
   pleinEcran = false,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+  const resolvedCouleur = couleur ?? couleurs.primaire;
+
   if (pleinEcran) {
     return (
       <View style={styles.pleinEcran}>
-        <ActivityIndicator size={taille} color={couleur} />
+        <ActivityIndicator size={taille} color={resolvedCouleur} />
         {message && <Text style={styles.message}>{message}</Text>}
       </View>
     );
@@ -30,13 +35,13 @@ const Chargement: React.FC<ChargementProps> = ({
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size={taille} color={couleur} />
+      <ActivityIndicator size={taille} color={resolvedCouleur} />
       {message && <Text style={styles.message}>{message}</Text>}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',

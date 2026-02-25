@@ -1,9 +1,9 @@
 /**
- * ImageViewerModal - Visionneuse image plein écran style Instagram
- * Même expérience que VideoPlayerModal : actions overlay, double-tap like, commentaires
+ * ImageViewerModal - Visionneuse image plein ecran style Instagram
+ * Meme experience que VideoPlayerModal : actions overlay, double-tap like, commentaires
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Image,
@@ -23,7 +23,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { couleurs } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { useDoubleTap } from '../hooks/useDoubleTap';
 import HeartAnimation from './HeartAnimation';
 import VideoActionsOverlay from './VideoActionsOverlay';
@@ -40,7 +40,7 @@ interface ImageViewerModalProps {
   onClose: () => void;
   /** ID du post parent (pour commentaires) */
   postId?: string;
-  /** Post est liké par l'utilisateur */
+  /** Post est like par l'utilisateur */
   liked?: boolean;
   /** Nombre de likes */
   likesCount?: number;
@@ -69,11 +69,13 @@ export default function ImageViewerModal({
   onComments,
   onShare,
 }: ImageViewerModalProps) {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const [showControls, setShowControls] = useState(true);
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [localCommentsCount, setLocalCommentsCount] = useState(commentsCount);
-  // OPTIMISTIC UI: Local state pour like instantané
+  // OPTIMISTIC UI: Local state pour like instantane
   const [localLiked, setLocalLiked] = useState(liked);
   const [localLikesCount, setLocalLikesCount] = useState(likesCount);
 
@@ -126,9 +128,9 @@ export default function ImageViewerModal({
     }
   }, [showControls, controlsOpacity]);
 
-  // OPTIMISTIC UI: Handler pour like avec mise à jour immédiate
+  // OPTIMISTIC UI: Handler pour like avec mise a jour immediate
   const handleLike = useCallback(() => {
-    // Optimistic update immédiat
+    // Optimistic update immediat
     setLocalLiked(prev => !prev);
     setLocalLikesCount(prev => localLiked ? prev - 1 : prev + 1);
     // Appeler le callback parent
@@ -201,7 +203,7 @@ export default function ImageViewerModal({
             }),
           ]).start(() => {
             // Fermer d'abord — ne PAS reset les valeurs ici
-            // Le useEffect sur visible les remettra à zéro à la réouverture
+            // Le useEffect sur visible les remettra a zero a la reouverture
             isSwipeClosing.current = false;
             handleClose();
           });
@@ -231,7 +233,7 @@ export default function ImageViewerModal({
     if (visible) {
       translateY.setValue(0);
       isSwipeClosing.current = false;
-      // Fade-in fluide à l'ouverture (remplace animationType="fade" du Modal)
+      // Fade-in fluide a l'ouverture (remplace animationType="fade" du Modal)
       backgroundOpacity.setValue(0);
       Animated.timing(backgroundOpacity, {
         toValue: 1,
@@ -275,7 +277,7 @@ export default function ImageViewerModal({
           </View>
         )}
 
-        {/* Overlay gradient haut - masqué quand comments ouverts */}
+        {/* Overlay gradient haut - masque quand comments ouverts */}
         {!commentsOpen && (
           <Animated.View
             style={[styles.gradientTop, { opacity: controlsOpacity }]}
@@ -288,7 +290,7 @@ export default function ImageViewerModal({
           </Animated.View>
         )}
 
-        {/* Overlay gradient bas - masqué quand comments ouverts */}
+        {/* Overlay gradient bas - masque quand comments ouverts */}
         {!commentsOpen && (
           <Animated.View
             style={[styles.gradientBottom, { opacity: controlsOpacity }]}
@@ -330,7 +332,7 @@ export default function ImageViewerModal({
           size={120}
         />
 
-        {/* Actions Overlay - masqué quand comments ouverts (sauf si external via onComments) */}
+        {/* Actions Overlay - masque quand comments ouverts (sauf si external via onComments) */}
         {!commentsOpen && (onLike || postId || onShare) && (
           <VideoActionsOverlay
             liked={localLiked}
@@ -361,7 +363,7 @@ export default function ImageViewerModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   modalBackground: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000',

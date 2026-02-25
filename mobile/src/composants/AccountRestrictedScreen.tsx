@@ -8,7 +8,7 @@
  * - "Se deconnecter": action volontaire qui supprime le token
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { AccountRestrictionInfo } from '../services/api';
 import { getSanctionInfo, SanctionInfo } from '../services/auth';
-import { couleurs, typographie, espacements, rayons } from '../constantes/theme';
+import { typographie, espacements, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 // Mapping des rôles vers des labels lisibles
 const roleLabels: Record<string, string> = {
@@ -49,6 +50,9 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   onRetry,
   onLogout,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const [sanctionDetails, setSanctionDetails] = useState<SanctionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -57,8 +61,8 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   const isBanned = restriction.type === 'ACCOUNT_BANNED';
 
   // Couleurs selon le type de sanction
-  const statusColor = isBanned ? couleurs.danger : couleurs.warning;
-  const statusColorLight = isBanned ? couleurs.dangerLight : couleurs.accentLight;
+  const statusColor = isBanned ? couleurs.danger : couleurs.attention;
+  const statusColorLight = isBanned ? couleurs.dangerLight : 'rgba(255, 189, 89, 0.15)';
 
   // Charger les details de la sanction au montage
   useEffect(() => {
@@ -128,7 +132,7 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[couleurs.fond, couleurs.fondElevated, couleurs.fond]}
+        colors={[couleurs.fond, couleurs.fondSecondaire, couleurs.fond]}
         style={StyleSheet.absoluteFill}
       />
       <SafeAreaView style={styles.safeArea}>
@@ -271,7 +275,7 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
                 <Ionicons
                   name="hourglass-outline"
                   size={20}
-                  color={couleurs.warning}
+                  color={couleurs.attention}
                 />
                 <View style={styles.suspensionTextContainer}>
                   <Text style={styles.suspensionLabel}>Fin de suspension</Text>
@@ -362,7 +366,7 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,
@@ -501,7 +505,7 @@ const styles = StyleSheet.create({
   suspensionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: couleurs.accentLight,
+    backgroundColor: 'rgba(255, 189, 89, 0.15)',
     borderRadius: rayons.lg,
     padding: espacements.lg,
     marginBottom: espacements.lg,
@@ -531,7 +535,7 @@ const styles = StyleSheet.create({
   },
   retryMessage: {
     fontSize: typographie.tailles.sm,
-    color: couleurs.warning,
+    color: couleurs.attention,
     textAlign: 'center',
     marginBottom: espacements.md,
   },

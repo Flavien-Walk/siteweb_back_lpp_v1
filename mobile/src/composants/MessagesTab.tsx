@@ -23,7 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 
-import { couleurs, espacements, rayons, typographie } from '../constantes/theme';
+import { espacements, rayons, typographie } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import Avatar from './Avatar';
@@ -56,6 +57,8 @@ const CONVERSATION_ITEM_HEIGHT = 80; // 56px avatar + 24px padding
 const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewConversation }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { utilisateur } = useUser();
   const { onNewMessage, isConnected: socketConnected } = useSocket();
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
@@ -502,7 +505,7 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
         <TextInput
           style={styles.searchInput}
           placeholder="Rechercher..."
-          placeholderTextColor={couleurs.textePlaceholder}
+          placeholderTextColor={couleurs.texteMuted}
           value={recherche}
           onChangeText={setRecherche}
         />
@@ -662,7 +665,7 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
               <TextInput
                 style={styles.groupNameInput}
                 placeholder="Nom du groupe"
-                placeholderTextColor={couleurs.textePlaceholder}
+                placeholderTextColor={couleurs.texteMuted}
                 value={nomGroupe}
                 onChangeText={setNomGroupe}
               />
@@ -697,7 +700,7 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
             <TextInput
               style={styles.modalSearchInput}
               placeholder="Rechercher un utilisateur..."
-              placeholderTextColor={couleurs.textePlaceholder}
+              placeholderTextColor={couleurs.texteMuted}
               value={rechercheUtilisateur}
               onChangeText={setRechercheUtilisateur}
               autoFocus
@@ -879,7 +882,7 @@ const MessagesTab: React.FC<MessagesTabProps> = memo(({ isActive = true, onNewCo
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

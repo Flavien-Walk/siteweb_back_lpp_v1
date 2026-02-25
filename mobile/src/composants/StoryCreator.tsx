@@ -4,7 +4,7 @@
  * UI inspirée d'Instagram : actions en bas, design épuré
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -31,8 +31,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
-import { useTheme } from '../contexts/ThemeContext';
+import { espacements, typographie, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { creerStory, TypeStory, FilterPreset, StoryLocation } from '../services/stories';
 import DurationSelector, { StoryDuration } from './DurationSelector';
 import ExpirationSelector, { ExpirationMinutes } from './ExpirationSelector';
@@ -89,7 +89,8 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   parentSlideAnim,
 }) => {
   const insets = useSafeAreaInsets();
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   const [selectedMedia, setSelectedMedia] = useState<SelectedMedia | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -549,7 +550,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
     <Pressable
       style={({ pressed }) => [
         styles.actionButton,
-        { backgroundColor: themeColors.fondCard },
+        { backgroundColor: couleurs.fondCard },
         pressed && styles.actionButtonPressed,
       ]}
       onPress={onPress}
@@ -558,16 +559,16 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
         <Ionicons name={icon} size={22} color={couleurs.blanc} />
       </View>
       <View style={styles.actionTextContainer}>
-        <Text style={[styles.actionLabel, { color: themeColors.texte }]}>
+        <Text style={[styles.actionLabel, { color: couleurs.texte }]}>
           {label}
         </Text>
         {sublabel && (
-          <Text style={[styles.actionSublabel, { color: themeColors.texteSecondaire }]}>
+          <Text style={[styles.actionSublabel, { color: couleurs.texteSecondaire }]}>
             {sublabel}
           </Text>
         )}
       </View>
-      <Ionicons name="chevron-forward" size={20} color={themeColors.texteSecondaire} />
+      <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
     </Pressable>
   );
 
@@ -615,7 +616,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
             style={[
               styles.container,
               {
-                backgroundColor: themeColors.fond,
+                backgroundColor: couleurs.fond,
                 transform: [{ translateX }],
               },
             ]}
@@ -626,7 +627,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
                 styles.header,
                 {
                   paddingTop: insets.top + espacements.sm,
-                  borderBottomColor: themeColors.bordure,
+                  borderBottomColor: couleurs.bordure,
                 },
               ]}
             >
@@ -635,10 +636,10 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
                 onPress={handleClose}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close" size={28} color={themeColors.texte} />
+                <Ionicons name="close" size={28} color={couleurs.texte} />
               </Pressable>
 
-          <Text style={[styles.headerTitle, { color: themeColors.texte }]}>
+          <Text style={[styles.headerTitle, { color: couleurs.texte }]}>
             Nouvelle story
           </Text>
 
@@ -745,7 +746,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
               </View>
 
               {/* V2 - Options de personnalisation */}
-              <View style={[styles.optionsContainer, { backgroundColor: themeColors.fond }]}>
+              <View style={[styles.optionsContainer, { backgroundColor: couleurs.fond }]}>
                 {/* V4 - Toolbar pour ajouter des widgets */}
                 <WidgetToolbar
                   onAddWidget={handleAddWidget}
@@ -780,13 +781,13 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
                   colors={[couleurs.primaireLight, 'transparent']}
                   style={styles.illustrationGlow}
                 />
-                <View style={[styles.illustrationCircle, { borderColor: themeColors.bordure }]}>
+                <View style={[styles.illustrationCircle, { borderColor: couleurs.bordure }]}>
                   <Ionicons name="sparkles" size={40} color={couleurs.primaire} />
                 </View>
-                <Text style={[styles.illustrationTitle, { color: themeColors.texte }]}>
+                <Text style={[styles.illustrationTitle, { color: couleurs.texte }]}>
                   Partagez un moment
                 </Text>
-                <Text style={[styles.illustrationSubtitle, { color: themeColors.texteSecondaire }]}>
+                <Text style={[styles.illustrationSubtitle, { color: couleurs.texteSecondaire }]}>
                   Visible par vos amis pendant 24h
                 </Text>
               </View>
@@ -820,8 +821,8 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
 
               {/* Footer info */}
               <View style={[styles.footerInfo, { paddingBottom: insets.bottom + espacements.lg }]}>
-                <Ionicons name="shield-checkmark-outline" size={16} color={themeColors.texteMuted} />
-                <Text style={[styles.footerText, { color: themeColors.texteMuted }]}>
+                <Ionicons name="shield-checkmark-outline" size={16} color={couleurs.texteMuted} />
+                <Text style={[styles.footerText, { color: couleurs.texteMuted }]}>
                   Seuls vos amis peuvent voir vos stories
                 </Text>
               </View>
@@ -872,7 +873,7 @@ const StoryCreator: React.FC<StoryCreatorProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   swipeContainer: {
     flex: 1,
     backgroundColor: '#000',

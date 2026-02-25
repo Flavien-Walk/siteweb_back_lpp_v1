@@ -2,7 +2,7 @@
  * EmojiPicker - Sélecteur d'emoji pour les stories
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,8 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, rayons, typographie } from '../../../constantes/theme';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { espacements, rayons, typographie } from '../../../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../../contexts/ThemeContext';
 
 // Emojis populaires par catégorie
 const EMOJI_CATEGORIES = {
@@ -40,7 +40,8 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
   onClose,
   onSelect,
 }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const [selectedCategory, setSelectedCategory] = useState<keyof typeof EMOJI_CATEGORIES>('recent');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -69,14 +70,14 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <View style={[styles.sheet, { backgroundColor: themeColors.fond }]}>
+        <View style={[styles.sheet, { backgroundColor: couleurs.fond }]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: themeColors.texte }]}>
+            <Text style={[styles.title, { color: couleurs.texte }]}>
               Choisir un emoji
             </Text>
             <Pressable onPress={onClose}>
-              <Ionicons name="close" size={24} color={themeColors.texte} />
+              <Ionicons name="close" size={24} color={couleurs.texte} />
             </Pressable>
           </View>
 
@@ -101,7 +102,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
                 <Ionicons
                   name={cat.icon}
                   size={20}
-                  color={selectedCategory === cat.key ? couleurs.blanc : themeColors.texteSecondaire}
+                  color={selectedCategory === cat.key ? couleurs.blanc : couleurs.texteSecondaire}
                 />
               </Pressable>
             ))}
@@ -127,7 +128,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',

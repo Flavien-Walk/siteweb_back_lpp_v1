@@ -1,7 +1,8 @@
 import { StyleSheet } from 'react-native';
-import { couleurs, espacements, rayons, typographie } from '../../constantes/theme';
+import { ThemeCouleurs } from '../../contexts/ThemeContext';
+import { espacements, rayons, typographie } from '../../constantes/theme';
 
-export default StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,
@@ -445,3 +446,5 @@ export default StyleSheet.create({
     borderColor: couleurs.primaire,
   },
 });
+
+export default createStyles;

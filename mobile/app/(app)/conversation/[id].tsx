@@ -27,10 +27,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 
-import { couleurs, espacements } from '../../../src/constantes/theme';
-import styles from '../../../src/features/conversation/conversation.styles';
+import { espacements } from '../../../src/constantes/theme';
+import createStyles from '../../../src/features/conversation/conversation.styles';
 import KeyboardView from '../../../src/composants/KeyboardView';
 import { useUser } from '../../../src/contexts/UserContext';
+import { useTheme } from '../../../src/contexts/ThemeContext';
 import { Avatar, VideoPlayerModal, ImageViewerModal, HeartAnimation, SwipeableScreen } from '../../../src/composants';
 import { ANIMATION_CONFIG } from '../../../src/hooks/useAnimations';
 import { useDoubleTap } from '../../../src/hooks/useDoubleTap';
@@ -110,6 +111,8 @@ interface SwipeableMessageProps {
 }
 
 const SwipeableMessage = memo(({ children, onSwipeReply }: SwipeableMessageProps) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const translateX = useRef(new Animated.Value(0)).current;
 
   // Animated event optimisé avec useNativeDriver
@@ -202,6 +205,8 @@ export default function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { utilisateur } = useUser();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   const inputContainerRef = useRef<View>(null);
 
@@ -829,7 +834,7 @@ export default function ConversationScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={draftMedia ? 'Ajouter une légende...' : 'Message...'}
-                placeholderTextColor={couleurs.textePlaceholder}
+                placeholderTextColor={couleurs.texteMuted}
                 value={messageTexte}
                 onChangeText={handleTextChange}
                 multiline

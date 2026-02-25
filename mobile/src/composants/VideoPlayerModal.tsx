@@ -1,9 +1,9 @@
 /**
- * VideoPlayerModal - Lecteur vidéo plein écran style Instagram/LinkedIn
- * Composant partagé pour garantir la même expérience sur toutes les pages
+ * VideoPlayerModal - Lecteur video plein ecran style Instagram/LinkedIn
+ * Composant partage pour garantir la meme experience sur toutes les pages
  */
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import * as Haptics from 'expo-haptics';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { couleurs } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { videoPlaybackStore } from '../stores/videoPlaybackStore';
 import { videoRegistry } from '../stores/videoRegistry';
 import { useDoubleTap } from '../hooks/useDoubleTap';
@@ -44,20 +44,20 @@ interface VideoPlayerModalProps {
   visible: boolean;
   videoUrl: string | null;
   onClose: (finalPositionMillis?: number) => void;
-  /** Image de preview affichée avant le chargement */
+  /** Image de preview affichee avant le chargement */
   posterUrl?: string;
-  /** Lecture automatique (défaut: true) - ignoré si initialShouldPlay est fourni */
+  /** Lecture automatique (defaut: true) - ignore si initialShouldPlay est fourni */
   autoPlay?: boolean;
-  /** Position initiale en millisecondes (pour continuité avec preview) */
+  /** Position initiale en millisecondes (pour continuite avec preview) */
   initialPositionMillis?: number;
-  /** État de lecture initial (pour continuité avec preview) */
+  /** Etat de lecture initial (pour continuite avec preview) */
   initialShouldPlay?: boolean;
   /** Origine de l'ouverture pour analytics */
   origin?: VideoOrigin;
   /** ID du post parent (pour tracking et registry) */
   postId?: string;
   // Props pour interactions Instagram-like
-  /** Post est liké par l'utilisateur */
+  /** Post est like par l'utilisateur */
   liked?: boolean;
   /** Nombre de likes */
   likesCount?: number;
@@ -92,6 +92,8 @@ export default function VideoPlayerModal({
   onComments,
   onShare,
 }: VideoPlayerModalProps) {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
@@ -99,11 +101,11 @@ export default function VideoPlayerModal({
   const [videoPosition, setVideoPosition] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
-  // Comments sheet state - géré en interne, pas besoin de callback parent
+  // Comments sheet state - gere en interne, pas besoin de callback parent
   const [commentsOpen, setCommentsOpen] = useState(false);
   // Track comments count locally for live updates
   const [localCommentsCount, setLocalCommentsCount] = useState(commentsCount);
-  // OPTIMISTIC UI: Local state pour like instantané
+  // OPTIMISTIC UI: Local state pour like instantane
   const [localLiked, setLocalLiked] = useState(liked);
   const [localLikesCount, setLocalLikesCount] = useState(likesCount);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,7 +129,7 @@ export default function VideoPlayerModal({
     setLocalCommentsCount(commentsCount);
   }, [commentsCount]);
 
-  // Sync localLiked et localLikesCount avec les props (quand parent se met à jour)
+  // Sync localLiked et localLikesCount avec les props (quand parent se met a jour)
   useEffect(() => {
     setLocalLiked(liked);
   }, [liked]);
@@ -268,9 +270,9 @@ export default function VideoPlayerModal({
     }
   };
 
-  // OPTIMISTIC UI: Handler pour like avec mise à jour immédiate
+  // OPTIMISTIC UI: Handler pour like avec mise a jour immediate
   const handleLike = useCallback(() => {
-    // Optimistic update immédiat
+    // Optimistic update immediat
     setLocalLiked(prev => !prev);
     setLocalLikesCount(prev => localLiked ? prev - 1 : prev + 1);
     // Appeler le callback parent
@@ -279,7 +281,7 @@ export default function VideoPlayerModal({
     }
   }, [onLike, localLiked]);
 
-  // Double-tap like handler - toggle like (même comportement que le feed)
+  // Double-tap like handler - toggle like (meme comportement que le feed)
   const handleDoubleTapLike = useCallback(() => {
     // Animation coeur
     setShowHeartAnimation(true);
@@ -342,7 +344,7 @@ export default function VideoPlayerModal({
             }),
           ]).start(() => {
             // Fermer d'abord — ne PAS reset les valeurs ici
-            // Le useEffect sur visible les remettra à zéro à la réouverture
+            // Le useEffect sur visible les remettra a zero a la reouverture
             isSwipeClosing.current = false;
             handleClose();
           });
@@ -373,7 +375,7 @@ export default function VideoPlayerModal({
     if (visible) {
       translateY.setValue(0);
       isSwipeClosing.current = false;
-      // Fade-in fluide à l'ouverture (remplace animationType="fade" du Modal)
+      // Fade-in fluide a l'ouverture (remplace animationType="fade" du Modal)
       backgroundOpacity.setValue(0);
       Animated.timing(backgroundOpacity, {
         toValue: 1,
@@ -384,10 +386,10 @@ export default function VideoPlayerModal({
   }, [visible, translateY, backgroundOpacity]);
 
   // ============================================================
-  // COMMENTS SHEET CALLBACKS - Pause/Resume vidéo selon mode READ/WRITE
+  // COMMENTS SHEET CALLBACKS - Pause/Resume video selon mode READ/WRITE
   // ============================================================
   const handleCommentsBeginTyping = useCallback(async () => {
-    // Mode WRITE: Mettre la vidéo en pause
+    // Mode WRITE: Mettre la video en pause
     if (__DEV__) {
       console.log('🎬 [VIDEO] Comments WRITE mode → pausing video');
     }
@@ -400,7 +402,7 @@ export default function VideoPlayerModal({
   }, []);
 
   const handleCommentsEndTyping = useCallback(async () => {
-    // Mode READ: Reprendre la lecture (si vidéo n'était pas finie)
+    // Mode READ: Reprendre la lecture (si video n'etait pas finie)
     if (__DEV__) {
       console.log('🎬 [VIDEO] Comments READ mode → resuming video');
     }
@@ -519,7 +521,7 @@ export default function VideoPlayerModal({
           </View>
         )}
 
-        {/* Overlay gradient haut - masqué quand comments ouverts */}
+        {/* Overlay gradient haut - masque quand comments ouverts */}
         {!commentsOpen && (
           <Animated.View
             style={[styles.videoGradientTop, { opacity: controlsOpacity }]}
@@ -532,7 +534,7 @@ export default function VideoPlayerModal({
           </Animated.View>
         )}
 
-        {/* Overlay gradient bas - masqué quand comments ouverts */}
+        {/* Overlay gradient bas - masque quand comments ouverts */}
         {!commentsOpen && (
           <Animated.View
             style={[styles.videoGradientBottom, { opacity: controlsOpacity }]}
@@ -545,7 +547,7 @@ export default function VideoPlayerModal({
           </Animated.View>
         )}
 
-        {/* Bouton fermer - TOUJOURS visible (même avec comments) */}
+        {/* Bouton fermer - TOUJOURS visible (meme avec comments) */}
         <Animated.View
           style={[styles.videoCloseContainer, { opacity: commentsOpen ? 1 : controlsOpacity }]}
           pointerEvents={commentsOpen || showControls ? 'auto' : 'none'}
@@ -559,7 +561,7 @@ export default function VideoPlayerModal({
           </Pressable>
         </Animated.View>
 
-        {/* Zone de tap pour toggle les controles / double-tap like - désactivé quand comments ouverts */}
+        {/* Zone de tap pour toggle les controles / double-tap like - desactive quand comments ouverts */}
         {!commentsOpen && (
           <Pressable
             style={styles.videoCenterControl}
@@ -593,7 +595,7 @@ export default function VideoPlayerModal({
           size={120}
         />
 
-        {/* Actions Overlay - masqué quand comments ouverts (sauf si external via onComments) */}
+        {/* Actions Overlay - masque quand comments ouverts (sauf si external via onComments) */}
         {!commentsOpen && (onLike || postId || onShare) && (
           <VideoActionsOverlay
             liked={localLiked}
@@ -607,7 +609,7 @@ export default function VideoPlayerModal({
           />
         )}
 
-        {/* Controles bas - masqués quand comments ouverts */}
+        {/* Controles bas - masques quand comments ouverts */}
         {!commentsOpen && (
           <Animated.View
             style={[styles.videoBottomControls, { opacity: controlsOpacity }]}
@@ -665,7 +667,7 @@ export default function VideoPlayerModal({
           </Animated.View>
         )}
 
-        {/* Comments Sheet - rendu EN DERNIER pour être au-dessus de tout */}
+        {/* Comments Sheet - rendu EN DERNIER pour etre au-dessus de tout */}
         <UnifiedCommentsSheet
           postId={postId || null}
           visible={commentsOpen}
@@ -684,7 +686,7 @@ export default function VideoPlayerModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   modalBackground: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000',

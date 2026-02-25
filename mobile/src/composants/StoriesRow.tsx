@@ -12,9 +12,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import StoryCircle from './StoryCircle';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { useUser } from '../contexts/UserContext';
-import { espacements, couleurs } from '../constantes/theme';
+import { espacements } from '../constantes/theme';
 import {
   getStoriesActives,
   getMesStories,
@@ -35,7 +35,8 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
   refreshing = false,
   onRefresh,
 }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { utilisateur } = useUser();
 
   const [storiesParUtilisateur, setStoriesParUtilisateur] = useState<StoriesGroupeesParUtilisateur[]>([]);
@@ -106,7 +107,7 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.fond }]}>
+    <View style={[styles.container, { backgroundColor: couleurs.fond }]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -161,7 +162,7 @@ const StoriesRow: React.FC<StoriesRowProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     paddingVertical: espacements.md,
     borderBottomWidth: 1,

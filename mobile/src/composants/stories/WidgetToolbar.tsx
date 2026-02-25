@@ -2,11 +2,11 @@
  * WidgetToolbar - Barre d'outils pour ajouter des widgets sur les stories
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Pressable, StyleSheet, ScrollView, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, rayons, typographie } from '../../constantes/theme';
-import { useTheme } from '../../contexts/ThemeContext';
+import { espacements, rayons, typographie } from '../../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../contexts/ThemeContext';
 import { StoryWidgetType } from '../../types/storyWidgets';
 
 interface WidgetOption {
@@ -30,13 +30,14 @@ interface WidgetToolbarProps {
 }
 
 const WidgetToolbar: React.FC<WidgetToolbarProps> = ({ onAddWidget, disabled = false }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
-        <Ionicons name="add-circle-outline" size={18} color={themeColors.texteSecondaire} />
-        <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+        <Ionicons name="add-circle-outline" size={18} color={couleurs.texteSecondaire} />
+        <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
           Ajouter un element
         </Text>
       </View>
@@ -51,8 +52,8 @@ const WidgetToolbar: React.FC<WidgetToolbarProps> = ({ onAddWidget, disabled = f
             style={[
               styles.button,
               {
-                backgroundColor: themeColors.fondCard,
-                borderColor: themeColors.bordure,
+                backgroundColor: couleurs.fondCard,
+                borderColor: couleurs.bordure,
                 opacity: disabled ? 0.5 : 1,
               },
             ]}
@@ -60,7 +61,7 @@ const WidgetToolbar: React.FC<WidgetToolbarProps> = ({ onAddWidget, disabled = f
             disabled={disabled}
           >
             <Ionicons name={option.icon} size={22} color={couleurs.primaire} />
-            <Text style={[styles.buttonLabel, { color: themeColors.texte }]}>
+            <Text style={[styles.buttonLabel, { color: couleurs.texte }]}>
               {option.label}
             </Text>
           </Pressable>
@@ -70,7 +71,7 @@ const WidgetToolbar: React.FC<WidgetToolbarProps> = ({ onAddWidget, disabled = f
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginVertical: espacements.md,
   },

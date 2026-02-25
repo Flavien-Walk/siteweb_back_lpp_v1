@@ -32,7 +32,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 
-import { couleurs } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import {
   Publication,
   getPublications,
@@ -54,6 +54,8 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DISMISS_THRESHOLD = SCREEN_WIDTH * 0.3;
 
 export default function ReelsScreen() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const router = useRouter();
   const params = useLocalSearchParams<{ initialIndex?: string; videoPublicationIds?: string; initialPositionMillis?: string }>();
   const flatListRef = useRef<FlatList<ReelsItem>>(null);
@@ -416,7 +418,7 @@ export default function ReelsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
@@ -444,3 +446,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+

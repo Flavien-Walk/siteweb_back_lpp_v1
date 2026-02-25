@@ -1,8 +1,10 @@
 import { Stack } from 'expo-router';
 import { Platform } from 'react-native';
-import { couleurs } from '../../../src/constantes/theme';
+import { useTheme } from '../../../src/contexts/ThemeContext';
 
 export default function ProjetLayout() {
+  const { couleurs } = useTheme();
+
   return (
     <Stack
       screenOptions={{

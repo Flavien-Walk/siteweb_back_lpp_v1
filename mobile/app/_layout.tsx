@@ -2,7 +2,6 @@
  * Layout racine de l'application
  */
 
-import { useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
@@ -13,7 +12,6 @@ import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { UserProvider, useUser } from '../src/contexts/UserContext';
 import { GamificationProvider } from '../src/contexts/GamificationContext';
 import { SocketProvider } from '../src/contexts/SocketContext';
-import SplashScreen from '../src/composants/SplashScreen';
 import AccountRestrictedScreen from '../src/composants/AccountRestrictedScreen';
 import ErrorBoundary from '../src/composants/ErrorBoundary';
 import XpToast from '../src/composants/XpToast';
@@ -32,14 +30,9 @@ function SocketWrapper({ children }: { children: React.ReactNode }) {
 function AppContent() {
   const { couleurs, isDark } = useTheme();
   const { accountRestriction, retryRestriction, logoutFromRestriction } = useUser();
-  const [showSplash, setShowSplash] = useState(true);
 
-  const handleSplashFinish = () => {
-    setShowSplash(false);
-  };
-
-  // Si le compte est restreint et que le splash est terminé, afficher l'écran de restriction
-  if (accountRestriction && !showSplash) {
+  // Si le compte est restreint, afficher l'écran de restriction
+  if (accountRestriction) {
     return (
       <>
         <StatusBar style="light" />
@@ -55,7 +48,6 @@ function AppContent() {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
       <Stack
         screenOptions={{
           headerShown: false,

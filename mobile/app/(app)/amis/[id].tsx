@@ -2,7 +2,7 @@
  * Page Liste d'Amis - Affiche les amis d'un utilisateur
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,12 +16,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { couleurs, espacements, rayons, typographie } from '../../../src/constantes/theme';
+import { espacements, rayons, typographie } from '../../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../../src/contexts/ThemeContext';
 import { Avatar } from '../../../src/composants';
 import AppBadge from '../../../src/composants/AppBadge';
 import { getAmisUtilisateur, ProfilUtilisateur } from '../../../src/services/utilisateurs';
 
 export default function ListeAmisPage() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -91,7 +94,7 @@ export default function ListeAmisPage() {
       </View>
       <Ionicons name="chevron-forward" size={20} color={couleurs.texteSecondaire} />
     </Pressable>
-  ), [naviguerVersProfil, couleurs]);
+  ), [naviguerVersProfil, couleurs, styles]);
 
   // Chargement
   if (chargement) {
@@ -189,7 +192,7 @@ export default function ListeAmisPage() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

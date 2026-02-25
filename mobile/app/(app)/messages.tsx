@@ -21,8 +21,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 
-import { couleurs } from '../../src/constantes/theme';
-import styles from '../../src/features/messagerie/messages.styles';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import createStyles from '../../src/features/messagerie/messages.styles';
 import { Avatar, AnimatedPressable, SkeletonList, NotificationBadge } from '../../src/composants';
 import { Conversation } from '../../src/services/messagerie';
 import { useMessages } from '../../src/features/messagerie/useMessages';
@@ -30,6 +30,8 @@ import { useMessages } from '../../src/features/messagerie/useMessages';
 export default function Messages() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { couleurs } = useTheme();
+  const styles = React.useMemo(() => createStyles(couleurs), [couleurs]);
 
   const {
     // Refs
@@ -238,7 +240,7 @@ export default function Messages() {
         <TextInput
           style={styles.searchInput}
           placeholder="Rechercher une conversation..."
-          placeholderTextColor={couleurs.textePlaceholder}
+          placeholderTextColor={couleurs.texteMuted}
           value={recherche}
           onChangeText={setRecherche}
         />
@@ -399,7 +401,7 @@ export default function Messages() {
               <TextInput
                 style={styles.groupNameInput}
                 placeholder="Nom du groupe"
-                placeholderTextColor={couleurs.textePlaceholder}
+                placeholderTextColor={couleurs.texteMuted}
                 value={nomGroupe}
                 onChangeText={setNomGroupe}
               />
@@ -436,7 +438,7 @@ export default function Messages() {
             <TextInput
               style={styles.modalSearchInput}
               placeholder="Rechercher un utilisateur..."
-              placeholderTextColor={couleurs.textePlaceholder}
+              placeholderTextColor={couleurs.texteMuted}
               value={rechercheUtilisateur}
               onChangeText={setRechercheUtilisateur}
               autoFocus

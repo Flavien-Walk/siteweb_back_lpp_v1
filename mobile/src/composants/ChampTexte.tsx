@@ -1,8 +1,8 @@
 /**
- * Composant ChampTexte (Input) réutilisable avec animations
+ * Composant ChampTexte (Input) r\u00e9utilisable avec animations
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   TextInput,
@@ -13,7 +13,8 @@ import {
   ViewStyle,
   Animated,
 } from 'react-native';
-import { couleurs, espacements, rayons, typographie } from '../constantes/theme';
+import { espacements, rayons, typographie } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 
 interface ChampTexteProps {
@@ -53,6 +54,9 @@ const ChampTexte: React.FC<ChampTexteProps> = ({
   numberOfLines = 1,
   style,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const [estFocus, setEstFocus] = useState(false);
 
   // Animations
@@ -71,7 +75,7 @@ const ChampTexte: React.FC<ChampTexteProps> = ({
   }, [estFocus, borderColorAnim]);
 
   // Animation d'erreur (shake + fade in)
-  // Note: shake utilise useNativeDriver: false car le même View a des animations de couleur
+  // Note: shake utilise useNativeDriver: false car le m\u00eame View a des animations de couleur
   useEffect(() => {
     if (erreur && erreur !== prevErreur.current) {
       // Shake animation
@@ -140,7 +144,7 @@ const ChampTexte: React.FC<ChampTexteProps> = ({
           value={valeur}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={couleurs.textePlaceholder}
+          placeholderTextColor={couleurs.texteMuted}
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
@@ -178,7 +182,7 @@ const ChampTexte: React.FC<ChampTexteProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginBottom: espacements.lg,
   },

@@ -2,7 +2,7 @@
  * LinkEditorSheet - Modal pour configurer un widget lien
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, rayons, typographie } from '../../../constantes/theme';
+import { espacements, rayons, typographie } from '../../../constantes/theme';
 import KeyboardView from '../../KeyboardView';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { useTheme, ThemeCouleurs } from '../../../contexts/ThemeContext';
 
 export interface LinkEditorData {
   url: string;
@@ -43,7 +43,8 @@ const LinkEditorSheet: React.FC<LinkEditorSheetProps> = ({
   onSave,
   initialData,
 }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const [url, setUrl] = useState(initialData?.url || '');
   const [label, setLabel] = useState(initialData?.label || '');
   const [style, setStyle] = useState<'pill' | 'arrow' | 'swipe'>(initialData?.style || 'pill');
@@ -84,34 +85,34 @@ const LinkEditorSheet: React.FC<LinkEditorSheetProps> = ({
       <KeyboardView style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
 
-        <View style={[styles.sheet, { backgroundColor: themeColors.fond }]}>
+        <View style={[styles.sheet, { backgroundColor: couleurs.fond }]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: themeColors.texte }]}>
+            <Text style={[styles.title, { color: couleurs.texte }]}>
               Ajouter un lien
             </Text>
             <Pressable onPress={onClose}>
-              <Ionicons name="close" size={24} color={themeColors.texte} />
+              <Ionicons name="close" size={24} color={couleurs.texte} />
             </Pressable>
           </View>
 
           <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
             {/* URL Input */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 URL du lien
               </Text>
               <TextInput
                 style={[
                   styles.input,
                   {
-                    backgroundColor: themeColors.fondCard,
-                    borderColor: themeColors.bordure,
-                    color: themeColors.texte,
+                    backgroundColor: couleurs.fondCard,
+                    borderColor: couleurs.bordure,
+                    color: couleurs.texte,
                   },
                 ]}
                 placeholder="https://exemple.com"
-                placeholderTextColor={themeColors.texteSecondaire}
+                placeholderTextColor={couleurs.texteSecondaire}
                 value={url}
                 onChangeText={setUrl}
                 autoCapitalize="none"
@@ -122,20 +123,20 @@ const LinkEditorSheet: React.FC<LinkEditorSheetProps> = ({
 
             {/* Label Input */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 Texte du bouton (optionnel)
               </Text>
               <TextInput
                 style={[
                   styles.input,
                   {
-                    backgroundColor: themeColors.fondCard,
-                    borderColor: themeColors.bordure,
-                    color: themeColors.texte,
+                    backgroundColor: couleurs.fondCard,
+                    borderColor: couleurs.bordure,
+                    color: couleurs.texte,
                   },
                 ]}
                 placeholder="Voir le lien"
-                placeholderTextColor={themeColors.texteSecondaire}
+                placeholderTextColor={couleurs.texteSecondaire}
                 value={label}
                 onChangeText={setLabel}
                 maxLength={30}
@@ -144,7 +145,7 @@ const LinkEditorSheet: React.FC<LinkEditorSheetProps> = ({
 
             {/* Style Selector */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 Style d'affichage
               </Text>
               <View style={styles.styleOptions}>
@@ -157,11 +158,11 @@ const LinkEditorSheet: React.FC<LinkEditorSheetProps> = ({
                         backgroundColor:
                           style === option.value
                             ? couleurs.primaire
-                            : themeColors.fondCard,
+                            : couleurs.fondCard,
                         borderColor:
                           style === option.value
                             ? couleurs.primaire
-                            : themeColors.bordure,
+                            : couleurs.bordure,
                       },
                     ]}
                     onPress={() => setStyle(option.value)}
@@ -169,13 +170,13 @@ const LinkEditorSheet: React.FC<LinkEditorSheetProps> = ({
                     <Ionicons
                       name={option.icon}
                       size={20}
-                      color={style === option.value ? couleurs.blanc : themeColors.texte}
+                      color={style === option.value ? couleurs.blanc : couleurs.texte}
                     />
                     <Text
                       style={[
                         styles.styleLabel,
                         {
-                          color: style === option.value ? couleurs.blanc : themeColors.texte,
+                          color: style === option.value ? couleurs.blanc : couleurs.texte,
                         },
                       ]}
                     >
@@ -206,7 +207,7 @@ const LinkEditorSheet: React.FC<LinkEditorSheetProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',

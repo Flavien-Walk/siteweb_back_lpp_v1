@@ -3,10 +3,10 @@
  * Pills horizontaux pour choisir la durée d'affichage (5s/7s/10s/15s)
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
-import { useTheme } from '../contexts/ThemeContext';
+import { espacements, typographie, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 export type StoryDuration = 5 | 7 | 10 | 15;
 
@@ -18,11 +18,12 @@ interface DurationSelectorProps {
 }
 
 const DurationSelector: React.FC<DurationSelectorProps> = ({ value, onChange }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+      <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
         Durée d'affichage
       </Text>
       <View style={styles.pillsContainer}>
@@ -36,10 +37,10 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ value, onChange }) 
                 {
                   backgroundColor: isSelected
                     ? couleurs.primaire
-                    : themeColors.fondCard,
+                    : couleurs.fondCard,
                   borderColor: isSelected
                     ? couleurs.primaire
-                    : themeColors.bordure,
+                    : couleurs.bordure,
                 },
               ]}
               onPress={() => onChange(duration)}
@@ -48,7 +49,7 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ value, onChange }) 
                 style={[
                   styles.pillText,
                   {
-                    color: isSelected ? couleurs.blanc : themeColors.texte,
+                    color: isSelected ? couleurs.blanc : couleurs.texte,
                     fontWeight: isSelected
                       ? typographie.poids.semibold
                       : typographie.poids.normal,
@@ -65,7 +66,7 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ value, onChange }) 
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginVertical: espacements.md,
   },

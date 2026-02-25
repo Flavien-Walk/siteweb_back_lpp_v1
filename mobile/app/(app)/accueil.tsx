@@ -63,6 +63,7 @@ import { Story } from '../../src/services/stories';
 import { ANIMATION_CONFIG } from '../../src/hooks/useAnimations';
 import { useAutoRefresh, useNotificationsRefresh } from '../../src/hooks/useAutoRefresh';
 import OnboardingFlow from '../../src/composants/CoachMark';
+import ThemeSelectionModal from '../../src/composants/ThemeSelectionModal';
 // Composants extraits (Phase 6)
 import DecouvrirTab from '../../src/features/accueil/DecouvrirTab';
 import LiveTab from '../../src/features/accueil/LiveTab';
@@ -1691,6 +1692,8 @@ export default function Accueil() {
         theme="light"
         initialCount={commentsSheetCount}
       />
+      {/* Choix du theme a la premiere connexion */}
+      <ThemeSelectionModal delay={800} />
       {/* Onboarding premiere session - flow sequentiel */}
       <OnboardingFlow
         id="onboarding_v1"

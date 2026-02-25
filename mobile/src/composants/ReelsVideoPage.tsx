@@ -38,7 +38,8 @@ import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 
-import { couleurs, espacements } from '../constantes/theme';
+import { espacements } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { Publication, toggleLikePublication } from '../services/publications';
 import { videoRegistry } from '../stores/videoRegistry';
 import { videoPlaybackStore } from '../stores/videoPlaybackStore';
@@ -71,6 +72,8 @@ export default function ReelsVideoPage({
   onOverlayToggle,
   closeOverlayRef,
 }: ReelsVideoPageProps) {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const videoRef = useRef<Video>(null);
@@ -599,7 +602,7 @@ export default function ReelsVideoPage({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,

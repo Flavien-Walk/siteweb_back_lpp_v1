@@ -2,17 +2,20 @@
  * TimeWidgetRenderer - Affiche l'heure actuelle sur la story
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TimeWidget } from '../../../types/storyWidgets';
-import { couleurs, espacements, rayons, typographie } from '../../../constantes/theme';
+import { espacements, rayons, typographie } from '../../../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../../contexts/ThemeContext';
 
 interface TimeWidgetRendererProps {
   widget: TimeWidget;
 }
 
 const TimeWidgetRenderer: React.FC<TimeWidgetRendererProps> = ({ widget }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const [time, setTime] = useState(new Date());
 
   // Mettre à jour l'heure toutes les minutes
@@ -91,7 +94,7 @@ const TimeWidgetRenderer: React.FC<TimeWidgetRendererProps> = ({ widget }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   // Style Minimal
   minimalContainer: {
     alignItems: 'center',

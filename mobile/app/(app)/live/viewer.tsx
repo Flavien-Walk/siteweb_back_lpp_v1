@@ -3,14 +3,17 @@
  * TODO: Implémenter le viewer Agora quand la feature sera activée
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, typographie } from '../../../src/constantes/theme';
+import { espacements, typographie } from '../../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../../src/contexts/ThemeContext';
 import { Bouton } from '../../../src/composants';
 
 export default function LiveViewerScreen() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const router = useRouter();
   const params = useLocalSearchParams<{ channelName?: string; hostName?: string }>();
 
@@ -38,7 +41,7 @@ export default function LiveViewerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

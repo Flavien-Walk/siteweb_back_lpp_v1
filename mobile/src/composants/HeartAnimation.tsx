@@ -1,12 +1,12 @@
 /**
  * HeartAnimation - Animation de coeur style Instagram pour double-tap like
- * Pop + fade out au centre de la vidéo
+ * Pop + fade out au centre de la video
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 interface HeartAnimationProps {
   visible: boolean;
@@ -19,6 +19,8 @@ export default function HeartAnimation({
   onAnimationEnd,
   size = 100,
 }: HeartAnimationProps) {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -70,7 +72,7 @@ export default function HeartAnimation({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -78,7 +80,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   heart: {
-    // Ombre légère pour visibilité sur fond clair/foncé
+    // Ombre legere pour visibilite sur fond clair/fonce
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,

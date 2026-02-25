@@ -37,7 +37,7 @@ import {
   type TicketCategory,
   type TicketStatus,
 } from '../../src/services/support';
-import { espacements, rayons, typographie, couleurs as defaultCouleurs } from '../../src/constantes/theme';
+import { espacements, rayons, typographie } from '../../src/constantes/theme';
 
 type ViewMode = 'list' | 'create' | 'detail';
 
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
 
 export default function SupportScreen() {
   const { couleurs } = useTheme();
-  const colors = couleurs || defaultCouleurs;
+  const colors = couleurs;
   const { tokenReady, userHydrated, isAuthenticated } = useUser();
   const insets = useSafeAreaInsets();
 
@@ -404,7 +404,7 @@ export default function SupportScreen() {
     return (
       <ScreenWrapper>
         <View style={[styles.container, { backgroundColor: colors.fond }]}>
-          <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[colors.fond, colors.fondSecondaire, colors.fond]} style={StyleSheet.absoluteFill} />
           <SafeAreaView style={styles.safeArea} edges={['top']}>
             <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
               <Pressable style={styles.backButton} onPress={() => router.back()}>
@@ -427,7 +427,7 @@ export default function SupportScreen() {
     return (
       <ScreenWrapper>
         <View style={[styles.container, { backgroundColor: colors.fond }]}>
-          <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[colors.fond, colors.fondSecondaire, colors.fond]} style={StyleSheet.absoluteFill} />
           <SafeAreaView style={styles.safeArea} edges={['top']}>
             <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
               <Pressable style={styles.backButton} onPress={handleBack}>
@@ -456,7 +456,7 @@ export default function SupportScreen() {
                         styles.categoryBtn,
                         {
                           borderColor: category === cat ? colors.primaire : colors.bordure,
-                          backgroundColor: category === cat ? colors.primaireLight || 'rgba(124, 92, 255, 0.15)' : 'transparent',
+                          backgroundColor: category === cat ? colors.primaireLight : 'transparent',
                         },
                       ]}
                       onPress={() => setCategory(cat)}
@@ -485,17 +485,17 @@ export default function SupportScreen() {
                   disabled={!canSubmit || isSubmitting}
                 >
                   {isSubmitting ? (
-                    <ActivityIndicator size="small" color={colors.blanc || '#FFF'} />
+                    <ActivityIndicator size="small" color={colors.blanc} />
                   ) : (
                     <>
-                      <Ionicons name="send" size={18} color={colors.blanc || '#FFF'} />
-                      <Text style={[styles.submitBtnText, { color: colors.blanc || '#FFF' }]}>Envoyer</Text>
+                      <Ionicons name="send" size={18} color={colors.blanc} />
+                      <Text style={[styles.submitBtnText, { color: colors.blanc }]}>Envoyer</Text>
                     </>
                   )}
                 </Pressable>
 
                 {error && (
-                  <Text style={[styles.errorText, { color: colors.erreur || colors.danger, marginTop: espacements.lg, textAlign: 'center' }]}>
+                  <Text style={[styles.errorText, { color: colors.erreur, marginTop: espacements.lg, textAlign: 'center' }]}>
                     {error}
                   </Text>
                 )}
@@ -515,7 +515,7 @@ export default function SupportScreen() {
     return (
       <ScreenWrapper>
         <View style={[styles.container, { backgroundColor: colors.fond, paddingTop: insets.top }]}>
-          <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[colors.fond, colors.fondSecondaire, colors.fond]} style={StyleSheet.absoluteFill} />
           <KeyboardView>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
@@ -595,7 +595,7 @@ export default function SupportScreen() {
           {/* Input bar or closed banner */}
           {isClosed ? (
             <View style={[styles.closedBanner, { borderTopColor: colors.bordure, paddingBottom: insets.bottom || espacements.md }]}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.succes || defaultCouleurs.succes} />
+              <Ionicons name="checkmark-circle" size={18} color={colors.succes} />
               <Text style={[styles.closedText, { color: colors.texteSecondaire }]}>
                 Ce ticket est termine
               </Text>
@@ -617,9 +617,9 @@ export default function SupportScreen() {
                 disabled={!replyMessage.trim() || isSubmitting}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator size="small" color={colors.blanc || '#FFF'} />
+                  <ActivityIndicator size="small" color={colors.blanc} />
                 ) : (
-                  <Ionicons name="send" size={18} color={colors.blanc || '#FFF'} />
+                  <Ionicons name="send" size={18} color={colors.blanc} />
                 )}
               </Pressable>
             </View>
@@ -645,7 +645,7 @@ export default function SupportScreen() {
   return (
     <ScreenWrapper>
       <View style={[styles.container, { backgroundColor: colors.fond }]}>
-        <LinearGradient colors={[colors.fond, colors.fondSecondaire || colors.fond, colors.fond]} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={[colors.fond, colors.fondSecondaire, colors.fond]} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={[styles.header, { borderBottomColor: colors.bordure }]}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
@@ -656,7 +656,7 @@ export default function SupportScreen() {
 
         {tickets.length === 0 && !isLoading ? (
           <View style={styles.emptyContainer}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.primaireLight || 'rgba(124, 92, 255, 0.15)' }]}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.primaireLight }]}>
               <Ionicons name="chatbubble-ellipses-outline" size={40} color={colors.primaire} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.texte }]}>Aucun ticket</Text>
@@ -667,8 +667,8 @@ export default function SupportScreen() {
               style={[styles.submitBtn, { backgroundColor: colors.primaire, marginTop: espacements.xl }]}
               onPress={() => setViewMode('create')}
             >
-              <Ionicons name="add" size={20} color={colors.blanc || '#FFF'} />
-              <Text style={[styles.submitBtnText, { color: colors.blanc || '#FFF' }]}>Nouveau ticket</Text>
+              <Ionicons name="add" size={20} color={colors.blanc} />
+              <Text style={[styles.submitBtnText, { color: colors.blanc }]}>Nouveau ticket</Text>
             </Pressable>
           </View>
         ) : (
@@ -689,8 +689,8 @@ export default function SupportScreen() {
               style={[styles.newTicketBtn, { backgroundColor: colors.primaire }]}
               onPress={() => setViewMode('create')}
             >
-              <Ionicons name="add-circle-outline" size={20} color={colors.blanc || '#FFF'} />
-              <Text style={[styles.newTicketText, { color: colors.blanc || '#FFF' }]}>Nouveau ticket</Text>
+              <Ionicons name="add-circle-outline" size={20} color={colors.blanc} />
+              <Text style={[styles.newTicketText, { color: colors.blanc }]}>Nouveau ticket</Text>
             </Pressable>
 
             {/* Status filters */}
@@ -709,7 +709,7 @@ export default function SupportScreen() {
                       styles.filterChip,
                       {
                         backgroundColor: isActive
-                          ? (filterColor?.bg || colors.primaireLight || 'rgba(124, 92, 255, 0.15)')
+                          ? (filterColor?.bg || colors.primaireLight)
                           : 'transparent',
                         borderColor: isActive
                           ? (filterColor?.text || colors.primaire)

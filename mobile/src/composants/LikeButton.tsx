@@ -1,9 +1,9 @@
 /**
- * LikeButton - Bouton like animé style Instagram
+ * LikeButton - Bouton like anime style Instagram
  * Animation de coeur avec bounce et scale
  */
 
-import React, { useRef, useCallback, useEffect, memo } from 'react';
+import React, { useRef, useCallback, useEffect, memo, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,23 +14,24 @@ import {
   StyleProp,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, typographie } from '../constantes/theme';
+import { espacements, typographie } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 
 interface LikeButtonProps {
-  /** État liké ou non */
+  /** Etat like ou non */
   isLiked: boolean;
   /** Nombre de likes */
   count: number;
   /** Callback au clic */
   onPress: () => void;
-  /** Taille de l'icône (défaut: 22) */
+  /** Taille de l'icone (defaut: 22) */
   size?: number;
   /** Afficher le compteur */
   showCount?: boolean;
-  /** Style personnalisé */
+  /** Style personnalise */
   style?: StyleProp<ViewStyle>;
-  /** Désactivé */
+  /** Desactive */
   disabled?: boolean;
 }
 
@@ -43,6 +44,8 @@ const LikeButton: React.FC<LikeButtonProps> = ({
   style,
   disabled = false,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fillAnim = useRef(new Animated.Value(isLiked ? 1 : 0)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
@@ -71,7 +74,7 @@ const LikeButton: React.FC<LikeButtonProps> = ({
         tension: 100,
         friction: 3,
       }),
-      // Retour à la normale
+      // Retour a la normale
       Animated.spring(scaleAnim, {
         toValue: 1,
         useNativeDriver: true,
@@ -141,7 +144,7 @@ const LikeButton: React.FC<LikeButtonProps> = ({
           },
         ]}
       >
-        {/* Coeur plein (visible quand liké) */}
+        {/* Coeur plein (visible quand like) */}
         <Animated.View
           style={[
             styles.heartIcon,
@@ -212,6 +215,8 @@ export const LikeButtonCompact: React.FC<LikeButtonCompactProps> = memo(({
   size = 18,
   disabled = false,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePress = useCallback(() => {
@@ -279,6 +284,8 @@ export const DoubleTapLike: React.FC<DoubleTapLikeProps> = memo(({
   children,
   style,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const lastTap = useRef<number | null>(null);
   const heartScale = useRef(new Animated.Value(0)).current;
   const heartOpacity = useRef(new Animated.Value(0)).current;
@@ -288,7 +295,7 @@ export const DoubleTapLike: React.FC<DoubleTapLikeProps> = memo(({
     const DOUBLE_TAP_DELAY = 300;
 
     if (lastTap.current && now - lastTap.current < DOUBLE_TAP_DELAY) {
-      // Double tap détecté
+      // Double tap detecte
       onDoubleTap();
 
       // Animation du grand coeur
@@ -342,7 +349,7 @@ export const DoubleTapLike: React.FC<DoubleTapLikeProps> = memo(({
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',

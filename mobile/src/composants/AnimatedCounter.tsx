@@ -3,7 +3,7 @@
  * Pour les statistiques, likes, followers, etc.
  */
 
-import React, { useRef, useEffect, useState, memo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -13,25 +13,26 @@ import {
   ViewStyle,
   StyleProp,
 } from 'react-native';
-import { couleurs, typographie } from '../constantes/theme';
+import { typographie } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { ANIMATION_CONFIG } from '../hooks/useAnimations';
 
 interface AnimatedCounterProps {
-  /** Valeur à afficher */
+  /** Valeur \u00e0 afficher */
   value: number;
   /** Style du texte */
   textStyle?: StyleProp<TextStyle>;
   /** Style du conteneur */
   style?: StyleProp<ViewStyle>;
-  /** Préfixe (ex: "+") */
+  /** Pr\u00e9fixe (ex: "+") */
   prefix?: string;
   /** Suffixe (ex: "k") */
   suffix?: string;
-  /** Formater les grands nombres (1000 → 1k) */
+  /** Formater les grands nombres (1000 \u2192 1k) */
   formatLarge?: boolean;
-  /** Animation au montage (comptage de 0 à N) */
+  /** Animation au montage (comptage de 0 \u00e0 N) */
   animateOnMount?: boolean;
-  /** Durée de l'animation de montage en ms */
+  /** Dur\u00e9e de l'animation de montage en ms */
   mountDuration?: number;
 }
 
@@ -57,6 +58,9 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = memo(({
   animateOnMount = false,
   mountDuration = 1000,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const [displayValue, setDisplayValue] = useState(animateOnMount ? 0 : value);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const translateYAnim = useRef(new Animated.Value(0)).current;
@@ -170,6 +174,9 @@ export const StatCounter: React.FC<StatCounterProps> = memo(({
   formatLarge = true,
   animateOnMount = true,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   return (
     <View style={[styles.statContainer, style]}>
       <AnimatedCounter
@@ -184,7 +191,7 @@ export const StatCounter: React.FC<StatCounterProps> = memo(({
 });
 
 /**
- * Badge de notification avec compteur animé
+ * Badge de notification avec compteur anim\u00e9
  */
 interface NotificationBadgeProps {
   count: number;
@@ -197,6 +204,9 @@ export const NotificationBadge: React.FC<NotificationBadgeProps> = memo(({
   style,
   maxCount = 99,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -272,6 +282,9 @@ export const ChangeCounter: React.FC<ChangeCounterProps> = memo(({
   style,
   textStyle,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const slideAnim = useRef(new Animated.Value(20)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -293,7 +306,7 @@ export const ChangeCounter: React.FC<ChangeCounterProps> = memo(({
         }),
       ]).start();
 
-      // Disparition après 2 secondes
+      // Disparition apr\u00e8s 2 secondes
       const timeout = setTimeout(() => {
         Animated.parallel([
           Animated.timing(slideAnim, {
@@ -341,7 +354,7 @@ export const ChangeCounter: React.FC<ChangeCounterProps> = memo(({
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     overflow: 'hidden',
   },

@@ -2,11 +2,12 @@
  * MentionWidgetRenderer - Affiche une mention @utilisateur sur la story
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MentionWidget } from '../../../types/storyWidgets';
-import { couleurs, espacements, rayons, typographie } from '../../../constantes/theme';
+import { espacements, rayons, typographie } from '../../../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../../contexts/ThemeContext';
 
 interface MentionWidgetRendererProps {
   widget: MentionWidget;
@@ -19,6 +20,9 @@ const MentionWidgetRenderer: React.FC<MentionWidgetRendererProps> = ({
   isEditing = false,
   onPress,
 }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
+
   const handlePress = () => {
     if (!isEditing && onPress) {
       onPress(widget.data.userId);
@@ -35,7 +39,7 @@ const MentionWidgetRenderer: React.FC<MentionWidgetRendererProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -21,6 +21,7 @@ export interface ThemeCouleurs {
   fondSecondaire: string;
   fondTertiaire: string;
   fondCard: string;
+  fondElevated: string;
   texte: string;
   texteSecondaire: string;
   texteMuted: string;
@@ -31,6 +32,9 @@ export interface ThemeCouleurs {
   info: string;
   blanc: string;
   noir: string;
+  fondInput: string;
+  dangerLight: string;
+  succesLight: string;
   bordure: string;
   bordureLight: string;
   gradientPrimaire: readonly [string, string];
@@ -71,6 +75,7 @@ export const darkTheme: ThemeCouleurs = {
   fondSecondaire: '#1A1A24',
   fondTertiaire: '#252532',
   fondCard: '#1A1A24',
+  fondElevated: '#13131A',
   texte: '#FFFFFF',
   texteSecondaire: '#A1A1AA',
   texteMuted: '#71717A',
@@ -81,6 +86,9 @@ export const darkTheme: ThemeCouleurs = {
   info: '#3B82F6',
   blanc: '#FFFFFF',
   noir: '#000000',
+  fondInput: '#0D0D12',
+  dangerLight: 'rgba(239, 68, 68, 0.15)',
+  succesLight: 'rgba(16, 185, 129, 0.15)',
   bordure: 'rgba(255, 255, 255, 0.08)',
   bordureLight: 'rgba(255, 255, 255, 0.12)',
   gradientPrimaire: ['#6366F1', '#8B5CF6'] as const,
@@ -113,6 +121,7 @@ export const lightTheme: ThemeCouleurs = {
   fondSecondaire: '#F8FAFC',
   fondTertiaire: '#F1F5F9',
   fondCard: '#F8FAFC',
+  fondElevated: '#FFFFFF',
   texte: '#0F172A',
   texteSecondaire: '#64748B',
   texteMuted: '#94A3B8',
@@ -123,6 +132,9 @@ export const lightTheme: ThemeCouleurs = {
   info: '#3B82F6',
   blanc: '#FFFFFF',
   noir: '#000000',
+  fondInput: '#F1F5F9',
+  dangerLight: 'rgba(239, 68, 68, 0.1)',
+  succesLight: 'rgba(16, 185, 129, 0.1)',
   bordure: 'rgba(0, 0, 0, 0.08)',
   bordureLight: 'rgba(0, 0, 0, 0.12)',
   gradientPrimaire: ['#6366F1', '#8B5CF6'] as const,
@@ -151,7 +163,7 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [mode, setMode] = useState<ThemeMode>('dark');
+  const [mode, setMode] = useState<ThemeMode>('light');
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Charger le theme au demarrage

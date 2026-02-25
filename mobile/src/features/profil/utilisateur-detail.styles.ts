@@ -1,9 +1,10 @@
 import { StyleSheet, Platform, Dimensions } from 'react-native';
-import { couleurs, espacements, rayons, typographie } from '../../constantes/theme';
+import { espacements, rayons, typographie } from '../../constantes/theme';
+import { ThemeCouleurs } from '../../contexts/ThemeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export default StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,
@@ -383,7 +384,7 @@ export default StyleSheet.create({
   publicationImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: couleurs.fondElevated,
+    backgroundColor: couleurs.fondTertiaire,
   },
   videoBadge: {
     position: 'absolute',
@@ -643,3 +644,5 @@ export default StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+export default createStyles;

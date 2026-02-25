@@ -1,10 +1,10 @@
 /**
- * SplashScreen - Écran de chargement animé
+ * SplashScreen - Ecran de chargement anime
  * Design moderne avec effets 3D et animations fluides
- * La Première Pierre - LPP
+ * La Premiere Pierre - LPP
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { couleurs } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -28,12 +28,14 @@ const FloatingParticle = ({
   delay,
   startX,
   size,
-  duration
+  duration,
+  couleurs,
 }: {
   delay: number;
   startX: number;
   size: number;
   duration: number;
+  couleurs: ThemeCouleurs;
 }) => {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT + 50)).current;
   const translateX = useRef(new Animated.Value(0)).current;
@@ -101,8 +103,9 @@ const FloatingParticle = ({
   return (
     <Animated.View
       style={[
-        styles.particle,
         {
+          position: 'absolute',
+          backgroundColor: couleurs.primaire,
           left: startX,
           width: size,
           height: size,
@@ -119,11 +122,13 @@ const FloatingParticle = ({
 const OrbitalRing = ({
   size,
   delay,
-  clockwise = true
+  clockwise = true,
+  couleurs,
 }: {
   size: number;
   delay: number;
   clockwise?: boolean;
+  couleurs: ThemeCouleurs;
 }) => {
   const rotation = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -156,8 +161,13 @@ const OrbitalRing = ({
   return (
     <Animated.View
       style={[
-        styles.orbitalRing,
         {
+          position: 'absolute',
+          borderWidth: 1,
+          borderColor: 'rgba(124, 92, 255, 0.2)',
+          borderStyle: 'dashed',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
           width: size,
           height: size,
           borderRadius: size / 2,
@@ -166,12 +176,14 @@ const OrbitalRing = ({
         },
       ]}
     >
-      <View style={[styles.orbitalDot, { backgroundColor: couleurs.primaire }]} />
+      <View style={{ width: 8, height: 8, borderRadius: 4, marginLeft: -4, backgroundColor: couleurs.primaire }} />
     </Animated.View>
   );
 };
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   // Animations principales
   const logoScale = useRef(new Animated.Value(0)).current;
   const logoRotateY = useRef(new Animated.Value(0)).current;
@@ -189,7 +201,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   const stone3Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Séquence d'animation principale
+    // Sequence d'animation principale
     Animated.sequence([
       // Phase 1: Apparition du logo avec effet 3D
       Animated.parallel([
@@ -317,7 +329,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     }),
   }));
 
-  // Génération des particules
+  // Generation des particules
   const particles = Array.from({ length: 12 }, (_, i) => ({
     id: i,
     delay: i * 400,
@@ -336,7 +348,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
       >
         {/* Particules flottantes */}
         {particles.map((p) => (
-          <FloatingParticle key={p.id} {...p} />
+          <FloatingParticle key={p.id} {...p} couleurs={couleurs} />
         ))}
 
         {/* Effet de grille futuriste */}
@@ -349,7 +361,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           ))}
         </View>
 
-        {/* Glow effect derrière le logo */}
+        {/* Glow effect derriere le logo */}
         <Animated.View style={[styles.glowContainer, { opacity: glowPulse }]}>
           <LinearGradient
             colors={['transparent', 'rgba(124, 92, 255, 0.3)', 'transparent']}
@@ -361,9 +373,9 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 
         {/* Anneaux orbitaux */}
         <View style={styles.orbitalsContainer}>
-          <OrbitalRing size={200} delay={500} clockwise={true} />
-          <OrbitalRing size={260} delay={800} clockwise={false} />
-          <OrbitalRing size={320} delay={1100} clockwise={true} />
+          <OrbitalRing size={200} delay={500} clockwise={true} couleurs={couleurs} />
+          <OrbitalRing size={260} delay={800} clockwise={false} couleurs={couleurs} />
+          <OrbitalRing size={320} delay={1100} clockwise={true} couleurs={couleurs} />
         </View>
 
         {/* Logo principal avec effet 3D */}
@@ -400,7 +412,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
             <View style={styles.logoShine} />
           </Animated.View>
 
-          {/* Pierres 3D animées */}
+          {/* Pierres 3D animees */}
           <View style={styles.stonesContainer}>
             {stoneTransforms.map((transform, index) => (
               <Animated.View
@@ -444,7 +456,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
             },
           ]}
         >
-          <Text style={styles.title}>La Première Pierre</Text>
+          <Text style={styles.title}>La Premiere Pierre</Text>
         </Animated.View>
 
         {/* Sous-titre */}
@@ -486,7 +498,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
@@ -514,10 +526,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 1,
   },
-  particle: {
-    position: 'absolute',
-    backgroundColor: couleurs.primaire,
-  },
   glowContainer: {
     position: 'absolute',
     width: SCREEN_WIDTH,
@@ -534,20 +542,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  orbitalRing: {
-    position: 'absolute',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.2)',
-    borderStyle: 'dashed',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  orbitalDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginLeft: -4,
   },
   logoContainer: {
     alignItems: 'center',

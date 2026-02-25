@@ -2,7 +2,7 @@
  * TextEditorSheet - Modal pour configurer un widget texte
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { couleurs, espacements, rayons, typographie } from '../../../constantes/theme';
+import { espacements, rayons, typographie } from '../../../constantes/theme';
 import KeyboardView from '../../KeyboardView';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { useTheme, ThemeCouleurs } from '../../../contexts/ThemeContext';
 import { WIDGET_COLORS, TEXT_FONT_SIZES } from '../../../types/storyWidgets';
 
 export interface TextEditorData {
@@ -60,7 +60,8 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
   onSave,
   initialData,
 }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const [text, setText] = useState(initialData?.text || '');
   const [fontSize, setFontSize] = useState<TextEditorData['fontSize']>(initialData?.fontSize || 'medium');
   const [fontStyle, setFontStyle] = useState<TextEditorData['fontStyle']>(initialData?.fontStyle || 'default');
@@ -104,14 +105,14 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
       <KeyboardView style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
 
-        <View style={[styles.sheet, { backgroundColor: themeColors.fond }]}>
+        <View style={[styles.sheet, { backgroundColor: couleurs.fond }]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: themeColors.texte }]}>
+            <Text style={[styles.title, { color: couleurs.texte }]}>
               Ajouter du texte
             </Text>
             <Pressable onPress={onClose}>
-              <Ionicons name="close" size={24} color={themeColors.texte} />
+              <Ionicons name="close" size={24} color={couleurs.texte} />
             </Pressable>
           </View>
 
@@ -122,15 +123,15 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                 style={[
                   styles.textInput,
                   {
-                    backgroundColor: themeColors.fondCard,
-                    borderColor: themeColors.bordure,
-                    color: themeColors.texte,
+                    backgroundColor: couleurs.fondCard,
+                    borderColor: couleurs.bordure,
+                    color: couleurs.texte,
                     fontSize: TEXT_FONT_SIZES[fontSize],
                     textAlign,
                   },
                 ]}
                 placeholder="Votre texte..."
-                placeholderTextColor={themeColors.texteSecondaire}
+                placeholderTextColor={couleurs.texteSecondaire}
                 value={text}
                 onChangeText={setText}
                 multiline
@@ -140,7 +141,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
 
             {/* Font Size */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 Taille
               </Text>
               <View style={styles.optionRow}>
@@ -153,11 +154,11 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                         backgroundColor:
                           fontSize === size.value
                             ? couleurs.primaire
-                            : themeColors.fondCard,
+                            : couleurs.fondCard,
                         borderColor:
                           fontSize === size.value
                             ? couleurs.primaire
-                            : themeColors.bordure,
+                            : couleurs.bordure,
                       },
                     ]}
                     onPress={() => setFontSize(size.value)}
@@ -166,7 +167,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                       style={[
                         styles.optionText,
                         {
-                          color: fontSize === size.value ? couleurs.blanc : themeColors.texte,
+                          color: fontSize === size.value ? couleurs.blanc : couleurs.texte,
                         },
                       ]}
                     >
@@ -179,7 +180,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
 
             {/* Font Style */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 Style
               </Text>
               <View style={styles.optionRow}>
@@ -192,11 +193,11 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                         backgroundColor:
                           fontStyle === style.value
                             ? couleurs.primaire
-                            : themeColors.fondCard,
+                            : couleurs.fondCard,
                         borderColor:
                           fontStyle === style.value
                             ? couleurs.primaire
-                            : themeColors.bordure,
+                            : couleurs.bordure,
                       },
                     ]}
                     onPress={() => setFontStyle(style.value)}
@@ -205,7 +206,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                       style={[
                         styles.optionText,
                         {
-                          color: fontStyle === style.value ? couleurs.blanc : themeColors.texte,
+                          color: fontStyle === style.value ? couleurs.blanc : couleurs.texte,
                         },
                       ]}
                     >
@@ -218,7 +219,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
 
             {/* Text Align */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 Alignement
               </Text>
               <View style={styles.optionRow}>
@@ -231,11 +232,11 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                         backgroundColor:
                           textAlign === align.value
                             ? couleurs.primaire
-                            : themeColors.fondCard,
+                            : couleurs.fondCard,
                         borderColor:
                           textAlign === align.value
                             ? couleurs.primaire
-                            : themeColors.bordure,
+                            : couleurs.bordure,
                         transform: align.value === 'right' ? [{ scaleX: -1 }] : [],
                       },
                     ]}
@@ -244,7 +245,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                     <Ionicons
                       name={align.icon}
                       size={20}
-                      color={textAlign === align.value ? couleurs.blanc : themeColors.texte}
+                      color={textAlign === align.value ? couleurs.blanc : couleurs.texte}
                     />
                   </Pressable>
                 ))}
@@ -253,7 +254,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
 
             {/* Text Color */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 Couleur du texte
               </Text>
               <View style={styles.colorRow}>
@@ -273,7 +274,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
 
             {/* Background Color */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+              <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
                 Fond (optionnel)
               </Text>
               <View style={styles.colorRow}>
@@ -285,7 +286,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
                   ]}
                   onPress={() => setBackgroundColor('')}
                 >
-                  <Ionicons name="close" size={16} color={themeColors.texteSecondaire} />
+                  <Ionicons name="close" size={16} color={couleurs.texteSecondaire} />
                 </Pressable>
                 {WIDGET_COLORS.slice(0, 5).map((c) => (
                   <Pressable
@@ -321,7 +322,7 @@ const TextEditorSheet: React.FC<TextEditorSheetProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',

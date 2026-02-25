@@ -3,14 +3,16 @@
  * Se positionne en haut de l'ecran, apparait/disparait avec animation.
  */
 
-import React, { memo, useRef, useEffect } from 'react';
+import React, { memo, useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { couleurs } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import { useGamification } from '../contexts/GamificationContext';
 
 function XpToast() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { xpToast, hideXpToast } = useGamification();
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(-100)).current;
@@ -64,7 +66,7 @@ function XpToast() {
 
 export default memo(XpToast);
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     position: 'absolute',
     left: 0,

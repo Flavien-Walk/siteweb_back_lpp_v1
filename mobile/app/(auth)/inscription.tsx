@@ -3,7 +3,7 @@
  * Design moderne et épuré pour les 18-25 ans
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,11 +16,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Bouton, ChampTexte, KeyboardView } from '../../src/composants';
-import { couleurs, espacements, typographie, rayons } from '../../src/constantes/theme';
+import { espacements, typographie, rayons } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { inscription } from '../../src/services/auth';
 import { useAuth } from '../../src/contextes/AuthContexte';
 
 export default function Inscription() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { setUtilisateur } = useAuth();
   const [prenom, setPrenom] = useState('');
   const [nom, setNom] = useState('');
@@ -260,7 +263,7 @@ export default function Inscription() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

@@ -5,10 +5,12 @@
 
 import { Stack } from 'expo-router';
 import { Platform } from 'react-native';
-import { couleurs } from '../../src/constantes/theme';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import ErrorBoundary from '../../src/composants/ErrorBoundary';
 
 export default function AppLayout() {
+  const { couleurs } = useTheme();
+
   return (
     <ErrorBoundary>
     <Stack

@@ -3,7 +3,7 @@
  * Inspiré d'Instagram avec une hiérarchie visuelle claire
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-import { couleurs } from '../../../src/constantes/theme';
+import { useTheme } from '../../../src/contexts/ThemeContext';
 import { useUser } from '../../../src/contexts/UserContext';
 import { useSocket } from '../../../src/contexts/SocketContext';
 import { Avatar, StaffActions, SwipeableScreen } from '../../../src/composants';
@@ -44,12 +44,14 @@ import { getProjetsSuivisUtilisateur, Projet } from '../../../src/services/proje
 import StoryViewer from '../../../src/composants/StoryViewer';
 import { isUserVerified } from '../../../src/utils/userDisplay';
 import AppBadge from '../../../src/composants/AppBadge';
-import styles from '../../../src/features/profil/utilisateur-detail.styles';
+import createStyles from '../../../src/features/profil/utilisateur-detail.styles';
 import { getPublicGamification } from '../../../src/services/gamification';
 
 type OngletActivite = 'publications' | 'projets';
 
 export default function ProfilUtilisateurPage() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();

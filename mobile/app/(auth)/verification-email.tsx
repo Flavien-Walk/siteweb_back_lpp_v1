@@ -3,7 +3,7 @@
  * Code 6 chiffres envoyé par email après inscription
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Bouton, KeyboardView } from '../../src/composants';
-import { couleurs, espacements, typographie, rayons } from '../../src/constantes/theme';
+import { espacements, typographie, rayons } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { verifierEmail, renvoyerCodeVerification } from '../../src/services/auth';
 import { useAuth } from '../../src/contextes/AuthContexte';
 
@@ -23,6 +24,8 @@ const CODE_LENGTH = 6;
 const COOLDOWN_SECONDS = 60;
 
 export default function VerificationEmail() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { utilisateur, setUtilisateur, deconnexion } = useAuth();
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [chargement, setChargement] = useState(false);
@@ -190,7 +193,7 @@ export default function VerificationEmail() {
                 keyboardType="number-pad"
                 maxLength={index === 0 ? CODE_LENGTH : 1}
                 selectTextOnFocus
-                placeholderTextColor={couleurs.textePlaceholder}
+                placeholderTextColor={couleurs.texteMuted}
                 placeholder="·"
               />
             ))}
@@ -233,7 +236,7 @@ export default function VerificationEmail() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

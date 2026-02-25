@@ -3,7 +3,7 @@
  * Design moderne et épuré pour les 18-25 ans
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Bouton, ChampTexte, KeyboardView } from '../../src/composants';
-import { couleurs, espacements, typographie, rayons } from '../../src/constantes/theme';
+import { espacements, typographie, rayons } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { connexion } from '../../src/services/auth';
 import { connexionGoogle, connexionApple } from '../../src/services/oauth';
 import { useAuth } from '../../src/contextes/AuthContexte';
@@ -26,6 +27,8 @@ import { useAuth } from '../../src/contextes/AuthContexte';
 const { width } = Dimensions.get('window');
 
 export default function Connexion() {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { setUtilisateur } = useAuth();
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
@@ -246,7 +249,7 @@ export default function Connexion() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

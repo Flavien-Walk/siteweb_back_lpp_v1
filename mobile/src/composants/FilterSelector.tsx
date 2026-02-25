@@ -3,7 +3,7 @@
  * Carousel horizontal avec previews instantanées via overlays CSS
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,8 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { couleurs, espacements, typographie, rayons } from '../constantes/theme';
-import { useTheme } from '../contexts/ThemeContext';
+import { espacements, typographie, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import {
   FilterPreset,
   FILTER_LABELS,
@@ -35,11 +35,12 @@ const FilterSelector: React.FC<FilterSelectorProps> = ({
   value,
   onChange,
 }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: themeColors.texteSecondaire }]}>
+      <Text style={[styles.label, { color: couleurs.texteSecondaire }]}>
         Filtre
       </Text>
       <ScrollView
@@ -67,7 +68,7 @@ const FilterSelector: React.FC<FilterSelectorProps> = ({
                   {
                     borderColor: isSelected
                       ? couleurs.primaire
-                      : themeColors.bordure,
+                      : couleurs.bordure,
                     borderWidth: isSelected ? 2 : 1,
                   },
                 ]}
@@ -104,7 +105,7 @@ const FilterSelector: React.FC<FilterSelectorProps> = ({
                 style={[
                   styles.filterLabel,
                   {
-                    color: isSelected ? couleurs.primaire : themeColors.texte,
+                    color: isSelected ? couleurs.primaire : couleurs.texte,
                     fontWeight: isSelected
                       ? typographie.poids.semibold
                       : typographie.poids.normal,
@@ -121,7 +122,7 @@ const FilterSelector: React.FC<FilterSelectorProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     marginVertical: espacements.md,
   },

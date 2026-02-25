@@ -22,7 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { couleurs, espacements, rayons, typographie } from '../../src/constantes/theme';
+import { espacements, rayons, typographie } from '../../src/constantes/theme';
+import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import { useUser } from '../../src/contexts/UserContext';
 import { useSocket } from '../../src/contexts/SocketContext';
 import { Avatar, AnimatedPressable, SkeletonList, SwipeableScreen } from '../../src/composants';
@@ -50,6 +51,8 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
  * failOffsetY          : echoue si scroll vertical → FlatList scroll normalement
  */
 const SwipeLeftToDelete = React.memo(({ children, onDelete }: { children: React.ReactNode; onDelete: () => void }) => {
+  const { couleurs } = useTheme();
+  const swipeStyles = useMemo(() => createSwipeStyles(couleurs), [couleurs]);
   const translateX = useRef(new Animated.Value(0)).current;
 
   const gestureEvent = useMemo(
@@ -106,7 +109,7 @@ const SwipeLeftToDelete = React.memo(({ children, onDelete }: { children: React.
   );
 });
 
-const swipeStyles = StyleSheet.create({
+const createSwipeStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   deleteBg: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: couleurs.danger,
@@ -122,6 +125,8 @@ const swipeStyles = StyleSheet.create({
 export default function Notifications() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { refreshUser } = useUser();
   const { onNewNotification, onDemandeAmi, isConnected: socketConnected } = useSocket();
 
@@ -657,7 +662,7 @@ export default function Notifications() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: couleurs.fond,

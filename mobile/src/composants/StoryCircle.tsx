@@ -14,8 +14,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from './Avatar';
-import { couleurs, espacements, typographie } from '../constantes/theme';
-import { useTheme } from '../contexts/ThemeContext';
+import { espacements, typographie } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 
 interface StoryCircleProps {
   uri?: string | null;
@@ -47,7 +47,8 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
   onAddPress,
   style,
 }) => {
-  const { couleurs: themeColors } = useTheme();
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   // Memoize computed values
   const { borderWidth, innerSize, displayName, outerStyles, wrapperStyles } = useMemo(() => {
@@ -65,10 +66,10 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
         width: taille - bw * 2,
         height: taille - bw * 2,
         borderRadius: (taille - bw * 2) / 2,
-        backgroundColor: themeColors.fond,
+        backgroundColor: couleurs.fond,
       },
     };
-  }, [taille, prenom, themeColors.fond]);
+  }, [taille, prenom, couleurs.fond]);
 
   const handlePress = useCallback(() => {
     if (hasStory && onPress) {
@@ -103,7 +104,7 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
           </View>
         </View>
       ) : (
-        <View style={[styles.noBorder, outerStyles, { borderColor: themeColors.bordure }]}>
+        <View style={[styles.noBorder, outerStyles, { borderColor: couleurs.bordure }]}>
           <Avatar uri={uri} prenom={prenom} nom={nom} taille={taille - 4} />
         </View>
       )}
@@ -124,7 +125,7 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
 
       {/* Nom sous l'avatar */}
       <Text
-        style={[styles.name, { color: themeColors.texte }]}
+        style={[styles.name, { color: couleurs.texte }]}
         numberOfLines={1}
       >
         {isOwn ? 'Votre story' : displayName}
@@ -133,7 +134,7 @@ const StoryCircle: React.FC<StoryCircleProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     alignItems: 'center',
     marginRight: espacements.md,

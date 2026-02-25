@@ -45,7 +45,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { couleurs, espacements, rayons } from '../constantes/theme';
+import { espacements, rayons } from '../constantes/theme';
+import { useTheme, ThemeCouleurs } from '../contexts/ThemeContext';
 import {
   Commentaire,
   getCommentaires,
@@ -99,6 +100,8 @@ export default function UnifiedCommentsSheet({
   onBeginTyping,
   onEndTyping,
 }: UnifiedCommentsSheetProps) {
+  const { couleurs } = useTheme();
+  const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const insets = useSafeAreaInsets();
   const { applyDelta } = useGamification();
   const safeBottom = Math.max(insets.bottom, 12);
@@ -789,7 +792,7 @@ export default function UnifiedCommentsSheet({
   return sheetContent;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 9999,

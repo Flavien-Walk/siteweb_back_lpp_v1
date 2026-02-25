@@ -3,7 +3,6 @@
  * Gère le mapping des rôles techniques vers les labels UI
  */
 
-import { couleurs } from '../constantes/theme';
 import type { Role, StatutUtilisateur } from '../services/auth';
 
 // Types pour les icônes Ionicons
