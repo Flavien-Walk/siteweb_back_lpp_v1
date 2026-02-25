@@ -28,11 +28,12 @@ export const getRecommendedProjects = async (req: Request, res: Response): Promi
       limit: parseInt(limit as string, 10),
     });
 
-    // Ajouter estSuivi pour chaque projet
+    // Ajouter estSuivi et nbFollowers pour chaque projet
     const userIdStr = userId.toString();
     result.projets = result.projets.map((p: any) => ({
       ...p,
       estSuivi: (p.followers || []).some((f: any) => f.toString() === userIdStr),
+      nbFollowers: (p.followers || []).length,
       followers: undefined, // Ne pas exposer la liste des followers
     }));
 
