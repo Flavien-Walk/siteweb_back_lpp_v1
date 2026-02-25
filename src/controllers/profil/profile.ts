@@ -42,6 +42,7 @@ const schemaModifierProfil = z.object({
     .trim()
     .optional(),
   profilPublic: z.boolean().optional(),
+  preferenceTheme: z.enum(['light', 'dark']).optional(),
 });
 
 // Schema de validation pour le changement de mot de passe
@@ -123,6 +124,7 @@ export const modifierProfil = async (
           statut: utilisateur.statut,
           provider: utilisateur.provider,
           profilPublic: utilisateur.profilPublic ?? true,
+          preferenceTheme: utilisateur.preferenceTheme || 'light',
         },
       },
       ...(gamification ? { gamification } : {}),

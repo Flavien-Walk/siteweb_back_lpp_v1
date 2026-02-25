@@ -121,6 +121,7 @@ export interface IUtilisateur extends Document {
   statut?: StatutUtilisateur;
   cguAcceptees: boolean;
   profilPublic: boolean;
+  preferenceTheme?: 'light' | 'dark';
   // Système d'amis
   amis: mongoose.Types.ObjectId[];
   demandesAmisRecues: mongoose.Types.ObjectId[];
@@ -252,6 +253,11 @@ const utilisateurSchema = new Schema<IUtilisateur>(
     profilPublic: {
       type: Boolean,
       default: true,
+    },
+    preferenceTheme: {
+      type: String,
+      enum: ['light', 'dark'],
+      default: 'light',
     },
     // Verification email
     emailVerifie: {

@@ -218,6 +218,7 @@ export const exchangeOAuthCode = async (
           statut: utilisateur.statut,
           provider: utilisateur.provider,
           profilPublic: utilisateur.profilPublic ?? true,
+          preferenceTheme: utilisateur.preferenceTheme || 'light',
           nbAmis: utilisateur.amis?.length || 0,
           emailVerifie: utilisateur.emailVerifie,
           isStaff,
