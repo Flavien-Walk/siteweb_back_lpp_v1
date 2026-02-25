@@ -3,10 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import mongoSanitize from 'express-mongo-sanitize';
-import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import { corsOptions } from './config/cors.js';
+import { applyRateLimiters } from './config/rateLimiters.js';
 
 import authRoutes from './routes/authRoutes.js';
 import projetRoutes from './routes/projetRoutes.js';
@@ -28,7 +28,7 @@ import gamificationRoutes from './routes/gamificationRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
-import { securityMonitor, checkBlockedIP, sanitizeQueryParams, hideAdminRoutes, invalidateBlockedIPCache, purgeAutoBlocks } from './middlewares/securityMonitor.js';
+import { securityMonitor, checkBlockedIP, sanitizeQueryParams, invalidateBlockedIPCache, purgeAutoBlocks } from './middlewares/securityMonitor.js';
 import BlockedIP from './models/BlockedIP.js';
 import BannedDevice, { generateDeviceFingerprint } from './models/BannedDevice.js';
 
@@ -58,108 +58,8 @@ export const creerApp = (): Application => {
   app.options('*', cors());
 
   // ============================================
-  // RATE LIMITING
+  // RATE LIMITING (config centralisee dans config/rateLimiters.ts)
   // ============================================
-
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300, // max 300 requêtes par fenêtre (mobile fait beaucoup d'appels)
-    message: {
-      succes: false,
-      message: 'Trop de requêtes. Veuillez réessayer dans quelques minutes.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    // SEC-AUTH-04: Activer la validation trust proxy pour que l'IP soit correcte
-    // trustProxy: false desactivait la validation, permettant le spoofing via X-Forwarded-For
-    validate: { trustProxy: true },
-  });
-
-  const limiterAuth = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // max 10 tentatives par fenêtre
-    message: {
-      succes: false,
-      message: 'Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-  // VULN-03: Rate limiter strict pour inscription (3 comptes par heure par IP)
-  const limiterInscription = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 heure
-    max: 3, // max 3 inscriptions par heure par IP
-    message: {
-      succes: false,
-      message: 'Trop de tentatives d\'inscription. Veuillez réessayer plus tard.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-  // Rate limiter spécifique pour les actions admin/modération
-  // Plus restrictif pour éviter les abus
-  const limiterAdmin = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200, // max 200 requêtes par fenêtre (consultation intensive possible)
-    message: {
-      succes: false,
-      message: 'Trop de requêtes admin. Veuillez réessayer dans quelques minutes.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-  // Rate limiter strict pour les actions de modération (sanctions)
-  const limiterModerationActions = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 heure
-    max: 50, // max 50 actions de sanction par heure
-    message: {
-      succes: false,
-      message: 'Trop d\'actions de modération. Veuillez patienter.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-  // P0-4: Rate limiter pour heartbeat /auth/moi
-  // Mobile fait un call toutes les 90s, donc ~40/h normal
-  // 20/min permet usage normal + marge, bloque abus
-  const limiterHeartbeat = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 20, // max 20 requêtes par minute (très généreux)
-    message: {
-      succes: false,
-      message: 'Trop de requêtes heartbeat. Veuillez patienter.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-  // Rate limiter pour les opérations d'écriture (publications, messages, amis)
-  const limiterWrite = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 30, // max 30 créations par fenêtre
-    message: {
-      succes: false,
-      message: 'Trop de requêtes. Veuillez réessayer dans quelques minutes.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-  // Rate limiter pour les messages (plus permissif car usage intensif)
-  const limiterMessages = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 60, // max 60 messages par fenêtre
-    message: {
-      succes: false,
-      message: 'Trop de messages envoyés. Veuillez patienter.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
 
   // Route de sante AVANT les checks securite (monitoring / health check doit toujours repondre)
   app.get('/api/sante', (_req, res) => {
@@ -227,69 +127,7 @@ export const creerApp = (): Application => {
   // PENTEST-01: Sanitisation des query params (strip operateurs MongoDB $gt, $ne, etc.)
   app.use('/api/', sanitizeQueryParams);
 
-  app.use('/api/', limiter);
-  app.use('/api/auth/connexion', limiterAuth);
-  app.use('/api/auth/inscription', limiterInscription);
-  app.use('/api/auth/moi', limiterHeartbeat); // P0-4: Rate limit sur heartbeat
-  app.use('/api/auth/renvoyer-code', rateLimit({
-    windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 3,
-    message: {
-      succes: false,
-      message: 'Trop de demandes de code. Reessayez dans quelques minutes.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  }));
-
-  // Rate limiter strict pour les endpoints de liaison de compte OAuth
-  app.use('/api/auth/link/', rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // max 5 tentatives par fenetre
-    message: {
-      succes: false,
-      message: 'Trop de tentatives de liaison. Reessayez dans quelques minutes.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  }));
-
-  // PENTEST-02: Rate limit strict sur endpoints publics de lecture (anti-scraping)
-  const limiterPublicRead = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 30, // max 30 req/min par IP sur les endpoints publics
-    message: {
-      succes: false,
-      message: 'Trop de requetes. Veuillez patienter.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-  app.use('/api/projets', limiterPublicRead);
-  app.use('/api/feed', limiterPublicRead);
-  app.use('/api/utilisateurs', limiterPublicRead);
-
-  // PENTEST-03: Masquer existence des routes admin (404 au lieu de 401 sans token)
-  app.use('/api/admin/', hideAdminRoutes);
-  app.use('/api/moderation/', hideAdminRoutes);
-
-  app.use('/api/admin/', limiterAdmin);
-  app.use('/api/moderation/', limiterAdmin);
-  // Actions de sanction spécifiques (warn, suspend, ban)
-  app.use('/api/moderation/users/:id/warn', limiterModerationActions);
-  app.use('/api/moderation/users/:id/suspend', limiterModerationActions);
-  app.use('/api/moderation/users/:id/ban', limiterModerationActions);
-  // Opérations d'écriture
-  app.use('/api/publications', limiterWrite);
-  app.use('/api/projets/entrepreneur', limiterWrite);
-  app.use('/api/utilisateurs/:id/demande-ami', limiterWrite);
-  app.use('/api/messagerie/envoyer', limiterMessages);
-  app.use('/api/messagerie/groupes', limiterWrite);
-  // RED-13: Rate limit on story view tracking
-  app.use('/api/stories/:id/seen', limiterWrite);
-  // RED-08: Rate limit on live join/leave
-  app.use('/api/live/:id/join', limiterWrite);
-  app.use('/api/live/:id/leave', limiterWrite);
+  applyRateLimiters(app);
 
   // ============================================
   // MIDDLEWARES DE PARSING
