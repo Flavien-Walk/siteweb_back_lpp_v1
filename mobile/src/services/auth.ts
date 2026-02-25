@@ -36,6 +36,8 @@ const normaliserUtilisateur = (data: any): Utilisateur => {
     // Champs staff
     isStaff: data.isStaff ?? false,
     permissions: data.permissions || [],
+    // Onboarding interets
+    onboardingInterets: data.onboardingInterets || undefined,
     // LPP+
     isVerified: data.isVerified ?? false,
     lppPlus: data.lppPlus || { status: 'inactive', currentPeriodEnd: null, cancelAtPeriodEnd: false },

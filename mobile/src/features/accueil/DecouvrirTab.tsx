@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { espacements, rayons, typographie } from '../../constantes/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Projet,
   CategorieProjet,
@@ -25,10 +26,12 @@ import {
   toggleSuivreProjet,
   getIncubateursActifs,
   IncubateurActif,
+  sauvegarderInteretsOnboarding,
 } from '../../services/projets';
 import { INCUBATEURS_FR } from '../../constantes/incubateurs';
 import { SkeletonList } from '../../composants/SkeletonLoader';
 import { PourToiSection, TendancesSection } from '../../composants';
+import { QuestionnaireInterets } from '../../composants/QuestionnaireInterets';
 
 // ============ PROPS ============
 
@@ -60,9 +63,30 @@ const SUB_TABS: { key: DecouvrirSubTab; label: string; icon: keyof typeof Ionico
   { key: 'explorer', label: 'Explorer', icon: 'compass' },
 ];
 
+const QUESTIONNAIRE_SKIP_KEY = '@lpp_questionnaire_skips';
+const MAX_SKIPS = 3;
+
 function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissement, onRefresh }: DecouvrirTabProps) {
   // Sub-tab state
   const [decouvrirSubTab, setDecouvrirSubTab] = useState<DecouvrirSubTab>('pourtoi');
+
+  // Questionnaire d'interets (premiere visite)
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
+
+  useEffect(() => {
+    // Verifier si le questionnaire doit etre affiche
+    if (utilisateur && !utilisateur.onboardingInterets?.completedAt) {
+      AsyncStorage.getItem(QUESTIONNAIRE_SKIP_KEY).then(val => {
+        const skipCount = val ? parseInt(val, 10) : 0;
+        if (skipCount < MAX_SKIPS) {
+          setShowQuestionnaire(true);
+        }
+      }).catch(() => {
+        // En cas d'erreur AsyncStorage, afficher quand meme
+        setShowQuestionnaire(true);
+      });
+    }
+  }, []);
 
   // DECOUVRIR_CATEGORIES utilise couleurs.primaire (dynamique selon le theme)
   const DECOUVRIR_CATEGORIES: { value: CategorieProjet | 'all'; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
@@ -362,6 +386,29 @@ function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissem
   // ---- Rendu ----
   return (
     <View style={{ flex: 1 }}>
+      {/* Questionnaire d'interets (premiere visite) */}
+      <QuestionnaireInterets
+        visible={showQuestionnaire}
+        onComplete={async (categories, maturites) => {
+          try {
+            await sauvegarderInteretsOnboarding(categories, maturites);
+            // Reset le compteur de skips
+            await AsyncStorage.removeItem(QUESTIONNAIRE_SKIP_KEY);
+          } catch (err) {
+            if (__DEV__) console.error('[DecouvrirTab] Erreur sauvegarde interets:', err);
+          }
+          setShowQuestionnaire(false);
+        }}
+        onSkip={async () => {
+          try {
+            const val = await AsyncStorage.getItem(QUESTIONNAIRE_SKIP_KEY);
+            const count = val ? parseInt(val, 10) : 0;
+            await AsyncStorage.setItem(QUESTIONNAIRE_SKIP_KEY, String(count + 1));
+          } catch {}
+          setShowQuestionnaire(false);
+        }}
+      />
+
       {/* Sub-tabs: Pour toi | Tendances | Explorer */}
       <View style={[styles.decouvrirSubTabs || localStyles.decouvrirSubTabs, { borderBottomColor: couleurs.bordure }]}>
         {SUB_TABS.map(tab => {

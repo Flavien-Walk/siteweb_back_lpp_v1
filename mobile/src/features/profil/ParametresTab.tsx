@@ -26,9 +26,11 @@ import {
   StatutUtilisateur,
 } from '../../services/auth';
 import AppBadge from '../../composants/AppBadge';
+import { QuestionnaireInterets } from '../../composants/QuestionnaireInterets';
+import { sauvegarderInteretsOnboarding } from '../../services/projets';
 import { useTheme } from '../../contexts/ThemeContext';
 
-type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
+type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite' | 'interets';
 
 interface ParametresTabProps {
   couleurs: any;
@@ -714,6 +716,71 @@ export default function ParametresTab(props: ParametresTabProps) {
     </View>
   );
 
+  // Section Centres d'interet (questionnaire d'onboarding)
+  const [showInteretsModal, setShowInteretsModal] = useState(false);
+
+  const renderInteretsSection = () => {
+    const hasInterets = !!utilisateur?.onboardingInterets?.completedAt;
+    return (
+      <View style={styles.parametresContent}>
+        <Text style={styles.parametresTitle}>Centres d'interet</Text>
+        <Text style={styles.parametresDescription}>
+          Ces preferences personnalisent les recommandations de ton onglet "Pour Toi".
+        </Text>
+
+        {hasInterets && (
+          <View style={[styles.rgpdCard, { marginBottom: 16 }]}>
+            <Text style={[styles.rgpdText, { marginBottom: 8 }]}>
+              Categories : {utilisateur.onboardingInterets.categories?.join(', ') || 'Aucune'}
+            </Text>
+            <Text style={styles.rgpdText}>
+              Maturites : {utilisateur.onboardingInterets.maturites?.join(', ') || 'Aucune'}
+            </Text>
+          </View>
+        )}
+
+        <Pressable
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            paddingVertical: 12,
+            borderRadius: 12,
+            borderWidth: 1.5,
+            borderColor: couleurs.primaire,
+          }}
+          onPress={() => setShowInteretsModal(true)}
+        >
+          <Ionicons name={hasInterets ? 'pencil-outline' : 'add-outline'} size={18} color={couleurs.primaire} />
+          <Text style={{ color: couleurs.primaire, fontSize: 14, fontWeight: '600' }}>
+            {hasInterets ? 'Modifier mes preferences' : 'Definir mes preferences'}
+          </Text>
+        </Pressable>
+
+        <QuestionnaireInterets
+          visible={showInteretsModal}
+          initialCategories={utilisateur?.onboardingInterets?.categories || []}
+          initialMaturites={utilisateur?.onboardingInterets?.maturites || []}
+          onComplete={async (categories, maturites) => {
+            try {
+              const reponse = await sauvegarderInteretsOnboarding(categories, maturites);
+              if (reponse.succes && reponse.data) {
+                updateUser(reponse.data.utilisateur);
+              } else {
+                await refreshUser();
+              }
+            } catch {
+              await refreshUser();
+            }
+            setShowInteretsModal(false);
+          }}
+          onSkip={() => setShowInteretsModal(false)}
+        />
+      </View>
+    );
+  };
+
   const renderConfidentialiteSection = () => (
     <View style={styles.parametresContent}>
       <Text style={styles.parametresTitle}>Confidentialite et RGPD</Text>
@@ -840,6 +907,8 @@ export default function ParametresTab(props: ParametresTabProps) {
         return renderApparenceSection();
       case 'securite':
         return renderSecuriteSection();
+      case 'interets':
+        return renderInteretsSection();
       case 'confidentialite':
         return renderConfidentialiteSection();
       default:
@@ -883,6 +952,7 @@ export default function ParametresTab(props: ParametresTabProps) {
       {/* Menu des sections */}
       <View style={styles.menu}>
         {renderMenuItem('person-outline', 'Profil', 'profil', 'Modifiez vos informations')}
+        {renderMenuItem('sparkles-outline', 'Centres d\'interet', 'interets', 'Preferences de decouverte')}
         {renderMenuItem('color-palette-outline', 'Apparence', 'apparence', 'Theme et personnalisation')}
         {renderMenuItem('lock-closed-outline', 'Securite', 'securite', 'Mot de passe et connexion')}
         {renderMenuItem('shield-checkmark-outline', 'Confidentialite', 'confidentialite', 'RGPD et suppression')}

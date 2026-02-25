@@ -221,6 +221,18 @@ export const getRecommandations = async (
   return api.get(`/recommendations/projects?page=${page}&limit=${limit}`, true);
 };
 
+// ============ ONBOARDING INTERETS ============
+
+/**
+ * Sauvegarder les preferences d'onboarding (categories + maturites)
+ */
+export const sauvegarderInteretsOnboarding = async (
+  categories: string[],
+  maturites: string[]
+): Promise<ReponseAPI<{ utilisateur: Utilisateur }>> => {
+  return api.post('/recommendations/onboarding-interests', { categories, maturites }, true);
+};
+
 // ============ TENDANCES V2 (scoring algorithmique) ============
 
 export interface ProjetTendance extends Projet {

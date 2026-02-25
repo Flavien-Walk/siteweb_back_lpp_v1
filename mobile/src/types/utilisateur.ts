@@ -43,6 +43,11 @@ export interface Utilisateur {
   permissions?: Permission[];
   isVerified?: boolean;
   preferenceTheme?: 'light' | 'dark';
+  onboardingInterets?: {
+    categories: string[];
+    maturites: string[];
+    completedAt?: string;
+  };
   lppPlus?: {
     status: 'inactive' | 'active' | 'canceled';
     currentPeriodEnd: string | null;
