@@ -5,7 +5,7 @@
 
 import rateLimit from 'express-rate-limit';
 import type { Application } from 'express';
-import { hideAdminRoutes } from '../middlewares/securityMonitor.js';
+import { hideAdminRoutes } from '../middlewares/security/index.js';
 
 // ============================================
 // DEFINITIONS DES RATE LIMITERS

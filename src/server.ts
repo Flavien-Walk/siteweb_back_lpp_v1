@@ -7,7 +7,7 @@ import http from 'http';
 import { creerApp } from './app.js';
 import { connecterMongo, fermerMongo } from './config/mongo.js';
 import { initializeSocket, getConnectedUsersCount } from './socket/index.js';
-import { purgeAutoBlocks } from './middlewares/securityMonitor.js';
+import { purgeAutoBlocks } from './middlewares/security/index.js';
 import { startSubscriptionCron } from './services/subscriptionCron.js';
 
 const PORT = process.env.PORT || 5000;

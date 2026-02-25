@@ -28,7 +28,7 @@ import gamificationRoutes from './routes/gamificationRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
-import { securityMonitor, checkBlockedIP, sanitizeQueryParams, invalidateBlockedIPCache, purgeAutoBlocks } from './middlewares/securityMonitor.js';
+import { securityMonitor, checkBlockedIP, sanitizeQueryParams, invalidateBlockedIPCache, purgeAutoBlocks } from './middlewares/security/index.js';
 import BlockedIP from './models/BlockedIP.js';
 import BannedDevice, { generateDeviceFingerprint } from './models/BannedDevice.js';
 

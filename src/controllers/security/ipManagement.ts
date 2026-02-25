@@ -5,7 +5,7 @@
 import { Request, Response, NextFunction } from 'express';
 import SecurityEvent from '../../models/SecurityEvent.js';
 import BlockedIP from '../../models/BlockedIP.js';
-import { invalidateBlockedIPCache } from '../../middlewares/securityMonitor.js';
+import { invalidateBlockedIPCache } from '../../middlewares/security/index.js';
 
 /**
  * GET /api/admin/security/investigate/:ip
