@@ -17,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { espacements, rayons, typographie } from '../../constantes/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Projet,
   CategorieProjet,
@@ -28,10 +27,12 @@ import {
   IncubateurActif,
   sauvegarderInteretsOnboarding,
 } from '../../services/projets';
+import { CATEGORIE_COLORS, MATURITE_COLORS } from '../../constantes/projets';
 import { INCUBATEURS_FR } from '../../constantes/incubateurs';
 import { SkeletonList } from '../../composants/SkeletonLoader';
-import { PourToiSection, TendancesSection } from '../../composants';
+import { PourToiSection } from '../../composants';
 import { QuestionnaireInterets } from '../../composants/QuestionnaireInterets';
+import { useUser } from '../../contexts/UserContext';
 
 // ============ PROPS ============
 
@@ -42,6 +43,7 @@ interface DecouvrirTabProps {
   applyDelta: (delta: any) => void;
   rafraichissement: boolean;
   onRefresh: () => void;
+  isActive?: boolean;
 }
 
 // ============ CONSTANTES ============
@@ -55,38 +57,23 @@ const MATURITE_LABELS: Record<string, { label: string; color: string }> = {
 
 // ============ COMPOSANT PRINCIPAL ============
 
-type DecouvrirSubTab = 'pourtoi' | 'tendances' | 'explorer';
+type DecouvrirSubTab = 'pourtoi' | 'explorer';
 
 const SUB_TABS: { key: DecouvrirSubTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'pourtoi', label: 'Pour toi', icon: 'sparkles' },
-  { key: 'tendances', label: 'Tendances', icon: 'flame' },
   { key: 'explorer', label: 'Explorer', icon: 'compass' },
+  { key: 'pourtoi', label: 'Pour toi', icon: 'sparkles' },
 ];
 
-const QUESTIONNAIRE_SKIP_KEY = '@lpp_questionnaire_skips';
-const MAX_SKIPS = 3;
-
 function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissement, onRefresh }: DecouvrirTabProps) {
+  const { updateUser } = useUser();
+
   // Sub-tab state
-  const [decouvrirSubTab, setDecouvrirSubTab] = useState<DecouvrirSubTab>('pourtoi');
+  const [decouvrirSubTab, setDecouvrirSubTab] = useState<DecouvrirSubTab>('explorer');
 
-  // Questionnaire d'interets (premiere visite)
+  // Questionnaire d'interets (ouvert depuis bandeau ou parametres)
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
-
-  useEffect(() => {
-    // Verifier si le questionnaire doit etre affiche
-    if (utilisateur && !utilisateur.onboardingInterets?.completedAt) {
-      AsyncStorage.getItem(QUESTIONNAIRE_SKIP_KEY).then(val => {
-        const skipCount = val ? parseInt(val, 10) : 0;
-        if (skipCount < MAX_SKIPS) {
-          setShowQuestionnaire(true);
-        }
-      }).catch(() => {
-        // En cas d'erreur AsyncStorage, afficher quand meme
-        setShowQuestionnaire(true);
-      });
-    }
-  }, []);
+  // Bandeau dismiss (state local = revient au prochain redemarrage)
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // DECOUVRIR_CATEGORIES utilise couleurs.primaire (dynamique selon le theme)
   const DECOUVRIR_CATEGORIES: { value: CategorieProjet | 'all'; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
@@ -295,12 +282,38 @@ function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissem
     // Seuls les zones cliquables specifiques ont un onPress
     return (
       <View style={styles.startupCard}>
-        {/* Zone image cliquable vers fiche */}
-        <Pressable onPress={handleVoirFiche}>
+        {/* Zone image cliquable vers fiche + badges */}
+        <Pressable onPress={handleVoirFiche} style={{ position: 'relative' }}>
           <Image
             source={{ uri: projet.image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop' }}
             style={styles.startupImage}
           />
+          {/* Badge categorie en haut a droite */}
+          {projet.categorie && (
+            <View style={{
+              position: 'absolute', top: 10, right: 10,
+              backgroundColor: CATEGORIE_COLORS[projet.categorie] || '#6B7280',
+              paddingHorizontal: 12, paddingVertical: 5,
+              borderRadius: 14,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 3, elevation: 4,
+            }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>{projet.categorie}</Text>
+            </View>
+          )}
+          {/* Badge maturite en bas a gauche */}
+          {projet.maturite && (
+            <View style={{
+              position: 'absolute', bottom: 10, left: 10,
+              backgroundColor: (MATURITE_COLORS[projet.maturite] || '#9CA3AF') + 'E6',
+              paddingHorizontal: 12, paddingVertical: 5,
+              borderRadius: 14,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 3, elevation: 4,
+            }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>
+                {MATURITE_LABELS[projet.maturite]?.label || projet.maturite}
+              </Text>
+            </View>
+          )}
         </Pressable>
         <View style={styles.startupContent}>
           {/* Zone header cliquable vers fiche */}
@@ -324,20 +337,11 @@ function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissem
                   <Text style={styles.startupTagText}>{tag}</Text>
                 </View>
               ))}
-              {projet.categorie && (
-                <View style={[styles.startupTag, { backgroundColor: couleurs.primaire + '20' }]}>
-                  <Text style={[styles.startupTagText, { color: couleurs.primaire }]}>{projet.categorie}</Text>
-                </View>
-              )}
             </View>
             <View style={styles.startupStats}>
               <View style={styles.startupStat}>
                 <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
                 <Text style={styles.startupStatText}>{nbFollowers} abonnes</Text>
-              </View>
-              <View style={styles.startupStat}>
-                <Ionicons name="trending-up-outline" size={14} color={couleurs.texteSecondaire} />
-                <Text style={styles.startupStatText}>{projet.maturite}</Text>
               </View>
             </View>
           </Pressable>
@@ -386,28 +390,68 @@ function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissem
   // ---- Rendu ----
   return (
     <View style={{ flex: 1 }}>
-      {/* Questionnaire d'interets (premiere visite) */}
+      {/* Questionnaire d'interets (ouvert depuis bandeau) */}
       <QuestionnaireInterets
         visible={showQuestionnaire}
         onComplete={async (categories, maturites) => {
           try {
-            await sauvegarderInteretsOnboarding(categories, maturites);
-            // Reset le compteur de skips
-            await AsyncStorage.removeItem(QUESTIONNAIRE_SKIP_KEY);
+            const res = await sauvegarderInteretsOnboarding(categories, maturites);
+            if (res.succes && res.data?.utilisateur) {
+              await updateUser(res.data.utilisateur);
+            }
           } catch (err) {
             if (__DEV__) console.error('[DecouvrirTab] Erreur sauvegarde interets:', err);
           }
           setShowQuestionnaire(false);
         }}
-        onSkip={async () => {
-          try {
-            const val = await AsyncStorage.getItem(QUESTIONNAIRE_SKIP_KEY);
-            const count = val ? parseInt(val, 10) : 0;
-            await AsyncStorage.setItem(QUESTIONNAIRE_SKIP_KEY, String(count + 1));
-          } catch {}
+        onSkip={() => {
           setShowQuestionnaire(false);
         }}
       />
+
+      {/* Bandeau d'invitation si questionnaire non rempli */}
+      {!bannerDismissed && !utilisateur?.onboardingInterets?.completedAt && (
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: espacements.md,
+          paddingVertical: espacements.sm,
+          backgroundColor: couleurs.primaire + '12',
+          borderBottomWidth: 1,
+          borderBottomColor: couleurs.primaire + '30',
+          gap: espacements.sm,
+        }}>
+          <Ionicons name="sparkles" size={16} color={couleurs.primaire} />
+          <Text style={{
+            flex: 1,
+            fontSize: typographie.tailles.sm,
+            color: couleurs.texte,
+            lineHeight: 18,
+          }}>
+            Personnalise tes recommandations
+          </Text>
+          <Pressable
+            style={{
+              backgroundColor: couleurs.primaire,
+              borderRadius: rayons.md,
+              paddingHorizontal: espacements.md,
+              paddingVertical: espacements.xs,
+            }}
+            onPress={() => setShowQuestionnaire(true)}
+          >
+            <Text style={{
+              fontSize: typographie.tailles.xs,
+              fontWeight: typographie.poids.semibold as any,
+              color: '#FFFFFF',
+            }}>
+              Remplir
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => setBannerDismissed(true)} hitSlop={8}>
+            <Ionicons name="close" size={18} color={couleurs.texteSecondaire} />
+          </Pressable>
+        </View>
+      )}
 
       {/* Sub-tabs: Pour toi | Tendances | Explorer */}
       <View style={[styles.decouvrirSubTabs || localStyles.decouvrirSubTabs, { borderBottomColor: couleurs.bordure }]}>
@@ -442,9 +486,6 @@ function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissem
       {/* Sub-tab content */}
       {decouvrirSubTab === 'pourtoi' && (
         <PourToiSection isActive={decouvrirSubTab === 'pourtoi'} />
-      )}
-      {decouvrirSubTab === 'tendances' && (
-        <TendancesSection isActive={decouvrirSubTab === 'tendances'} />
       )}
       {decouvrirSubTab === 'explorer' && (
     <ScrollView

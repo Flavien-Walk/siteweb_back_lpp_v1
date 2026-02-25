@@ -43,6 +43,26 @@ export const MATURITES: { value: MaturiteProjet; label: string; description: str
   { value: 'croissance', label: 'Croissance', description: 'Scaling en cours' },
 ];
 
+// Couleurs par categorie (pour badges sur les cartes)
+export const CATEGORIE_COLORS: Record<string, string> = {
+  tech: '#3B82F6',
+  food: '#F97316',
+  sante: '#EF4444',
+  education: '#8B5CF6',
+  energie: '#F59E0B',
+  culture: '#EC4899',
+  environnement: '#10B981',
+  autre: '#6B7280',
+};
+
+// Couleurs par maturite (pour badges sur les cartes)
+export const MATURITE_COLORS: Record<string, string> = {
+  idee: '#9CA3AF',
+  prototype: '#F59E0B',
+  lancement: '#3B82F6',
+  croissance: '#10B981',
+};
+
 export const TYPES_LIENS: { value: TypeLien; label: string; icon: string; placeholder: string }[] = [
   { value: 'site', label: 'Site web', icon: 'globe-outline', placeholder: 'https://monsite.com' },
   { value: 'fundraising', label: 'Levee de fonds', icon: 'cash-outline', placeholder: 'https://wiseed.com/...' },

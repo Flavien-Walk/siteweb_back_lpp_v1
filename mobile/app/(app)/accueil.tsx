@@ -1554,6 +1554,7 @@ export default function Accueil() {
                     applyDelta={applyDelta}
                     rafraichissement={rafraichissement}
                     onRefresh={handleRafraichissement}
+                    isActive={ongletActif === 'decouvrir'}
                   />
                 </View>
               );

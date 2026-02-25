@@ -79,12 +79,8 @@ export { default as NextAction } from './NextAction';
 export { default as AppBadge } from './AppBadge';
 export type { AppBadgeProps } from './AppBadge';
 
-// Recommandations & Tendances
+// Recommandations
 export { default as CarteProjetPourToi } from './CarteProjetPourToi';
-export { default as CarteProjetTendance } from './CarteProjetTendance';
 export { default as SkeletonPourToi } from './SkeletonPourToi';
-export { default as SkeletonTendances } from './SkeletonTendances';
 export { default as EtatVideRecommandations } from './EtatVideRecommandations';
-export { default as EtatVideTendances } from './EtatVideTendances';
 export { default as PourToiSection } from './PourToiSection';
-export { default as TendancesSection } from './TendancesSection';

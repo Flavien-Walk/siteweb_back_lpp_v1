@@ -1,6 +1,6 @@
 /**
  * CarteProjetPourToi — Carte recommandation personnalisee "Pour Toi"
- * Affiche un projet recommande avec label source et bouton suivre
+ * Layout identique a Explorer (image + contenu vertical) avec label source
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,31 +12,29 @@ import { espacements, rayons, typographie } from '../constantes/theme';
 import { ProjetRecommande, toggleSuivreProjet } from '../services/projets';
 import { trackClick, trackImpression } from '../services/engagement';
 import { useGamification } from '../contexts/GamificationContext';
+import { useUser } from '../contexts/UserContext';
+import { CATEGORIE_COLORS, MATURITE_COLORS, MATURITES } from '../constantes/projets';
 
 interface Props {
   projet: ProjetRecommande;
   onFollowChange?: (projetId: string, estSuivi: boolean, nbFollowers: number) => void;
 }
 
-const MATURITE_LABELS: Record<string, { label: string; color: string }> = {
-  idee: { label: 'Idee', color: '#3B82F6' },
-  prototype: { label: 'Prototype', color: '#8B5CF6' },
-  lancement: { label: 'Lancement', color: '#F59E0B' },
-  croissance: { label: 'Croissance', color: '#10B981' },
-};
-
 const CarteProjetPourToi: React.FC<Props> = ({ projet, onFollowChange }) => {
   const { couleurs } = useTheme();
   const { applyDelta } = useGamification();
+  const { utilisateur } = useUser();
   const [suivi, setSuivi] = useState(projet.estSuivi);
-  const [nbFollowers, setNbFollowers] = useState(projet.nbFollowers);
+  const [nbFollowers, setNbFollowers] = useState(projet.nbFollowers ?? projet.followersCount ?? 0);
   const [enCours, setEnCours] = useState(false);
   const [impressionTracked, setImpressionTracked] = useState(false);
+
+  const isOwnProject = utilisateur?.id === (projet as any).porteur?._id;
 
   useEffect(() => {
     if (!enCours) {
       setSuivi(projet.estSuivi);
-      setNbFollowers(projet.nbFollowers);
+      setNbFollowers(projet.nbFollowers ?? projet.followersCount ?? 0);
     }
   }, [projet._id, projet.estSuivi, projet.nbFollowers, enCours]);
 
@@ -50,6 +48,10 @@ const CarteProjetPourToi: React.FC<Props> = ({ projet, onFollowChange }) => {
   const handlePress = () => {
     trackClick(projet._id);
     router.push({ pathname: '/(app)/projet/[id]', params: { id: projet._id } });
+  };
+
+  const handleContacter = () => {
+    router.push({ pathname: '/(app)/projet/[id]', params: { id: projet._id, action: 'contact' } });
   };
 
   const handleToggleSuivre = async () => {
@@ -84,97 +86,121 @@ const CarteProjetPourToi: React.FC<Props> = ({ projet, onFollowChange }) => {
     }
   };
 
-  const mat = MATURITE_LABELS[projet.maturite] || MATURITE_LABELS.idee;
+  const matLabel = MATURITES.find(m => m.value === projet.maturite)?.label || projet.maturite;
 
   return (
     <View
-      style={[styles.container, { backgroundColor: couleurs.fondCard, borderColor: couleurs.bordure }]}
+      style={[styles.card, { backgroundColor: couleurs.fondSecondaire, borderColor: couleurs.bordure }]}
       onLayout={handleLayout}
     >
-      {/* Label source */}
-      {projet.recommendationLabel && (
-        <View style={[styles.sourceLabel, { backgroundColor: couleurs.primaire + '12' }]}>
-          <Ionicons
-            name={projet.recommendationSource === 'exploration' ? 'compass' : 'sparkles'}
-            size={12}
-            color={couleurs.primaire}
-          />
-          <Text style={[styles.sourceLabelText, { color: couleurs.primaire }]} numberOfLines={1}>
-            {projet.recommendationLabel}
-          </Text>
-        </View>
-      )}
-
-      {/* Image */}
-      <Pressable onPress={handlePress}>
+      {/* Image + badges */}
+      <Pressable onPress={handlePress} style={{ position: 'relative' }}>
         <Image
           source={{ uri: projet.image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop' }}
           style={styles.image}
         />
+        {projet.categorie && (
+          <View style={[styles.badgeImage, styles.badgeTopRight, { backgroundColor: CATEGORIE_COLORS[projet.categorie] || '#6B7280' }]}>
+            <Text style={styles.badgeText}>{projet.categorie}</Text>
+          </View>
+        )}
+        {projet.maturite && (
+          <View style={[styles.badgeImage, styles.badgeBottomLeft, { backgroundColor: (MATURITE_COLORS[projet.maturite] || '#9CA3AF') + 'DD' }]}>
+            <Text style={styles.badgeText}>{matLabel}</Text>
+          </View>
+        )}
       </Pressable>
 
-      {/* Contenu */}
       <View style={styles.content}>
-        <Pressable onPress={handlePress}>
-          <Text style={[styles.nom, { color: couleurs.texte }]} numberOfLines={1}>{projet.nom}</Text>
-          <Text style={[styles.pitch, { color: couleurs.texteSecondaire }]} numberOfLines={2}>
-            {projet.pitch || projet.description}
-          </Text>
+        {/* Label source recommandation */}
+        {projet.recommendationLabel && (
+          <View style={[styles.sourceLabel, { backgroundColor: couleurs.primaire + '12' }]}>
+            <Ionicons
+              name={projet.recommendationSource === 'exploration' ? 'compass' : 'sparkles'}
+              size={11}
+              color={couleurs.primaire}
+            />
+            <Text style={[styles.sourceLabelText, { color: couleurs.primaire }]} numberOfLines={1}>
+              {projet.recommendationLabel}
+            </Text>
+          </View>
+        )}
 
-          {/* Tags */}
-          <View style={styles.tags}>
-            {projet.tags?.slice(0, 3).map((tag, i) => (
-              <View key={i} style={[styles.tag, { backgroundColor: couleurs.fondSecondaire }]}>
-                <Text style={[styles.tagText, { color: couleurs.texteSecondaire }]}>{tag}</Text>
+        <Pressable onPress={handlePress}>
+          <View style={styles.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.nom, { color: couleurs.texte }]} numberOfLines={1}>{projet.nom}</Text>
+              <View style={styles.location}>
+                <Ionicons name="location-outline" size={12} color={couleurs.texteSecondaire} />
+                <Text style={[styles.ville, { color: couleurs.texteSecondaire }]}>
+                  {(projet as any).localisation?.ville || 'France'}
+                </Text>
               </View>
-            ))}
-            {projet.categorie && (
-              <View style={[styles.tag, { backgroundColor: couleurs.primaire + '18' }]}>
-                <Text style={[styles.tagText, { color: couleurs.primaire }]}>{projet.categorie}</Text>
-              </View>
+            </View>
+            {(projet as any).logo && (
+              <Image source={{ uri: (projet as any).logo }} style={styles.logo} />
             )}
           </View>
 
-          {/* Stats */}
+          <Text style={[styles.description, { color: couleurs.texteSecondaire }]} numberOfLines={2}>
+            {projet.pitch || projet.description}
+          </Text>
+
+          <View style={styles.tags}>
+            {projet.tags?.slice(0, 3).map((tag, i) => (
+              <View key={i} style={[styles.tag, { backgroundColor: couleurs.fondTertiaire || couleurs.fondSecondaire }]}>
+                <Text style={[styles.tagText, { color: couleurs.texteSecondaire }]}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+
           <View style={styles.stats}>
             <View style={styles.stat}>
-              <Ionicons name="people-outline" size={13} color={couleurs.texteSecondaire} />
-              <Text style={[styles.statText, { color: couleurs.texteSecondaire }]}>{nbFollowers}</Text>
-            </View>
-            <View style={[styles.maturiteBadge, { backgroundColor: mat.color + '20' }]}>
-              <Text style={[styles.maturiteText, { color: mat.color }]}>{mat.label}</Text>
+              <Ionicons name="people-outline" size={14} color={couleurs.texteSecondaire} />
+              <Text style={[styles.statText, { color: couleurs.texteSecondaire }]}>{nbFollowers} abonnes</Text>
             </View>
           </View>
         </Pressable>
 
         {/* Actions */}
         <View style={styles.actions}>
-          <Pressable
-            style={[
-              styles.btnSuivre,
-              suivi
-                ? { backgroundColor: couleurs.primaire + '15', borderColor: couleurs.primaire }
-                : { backgroundColor: couleurs.primaire, borderColor: couleurs.primaire },
-              enCours && { opacity: 0.6 },
-            ]}
-            onPress={handleToggleSuivre}
-            disabled={enCours}
-          >
-            <Ionicons
-              name={suivi ? 'checkmark' : 'add'}
-              size={16}
-              color={suivi ? couleurs.primaire : '#FFFFFF'}
-            />
-            <Text style={[styles.btnSuivreText, { color: suivi ? couleurs.primaire : '#FFFFFF' }]}>
-              {suivi ? 'Suivi' : 'Suivre'}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.btnSecondary, { borderColor: couleurs.bordure }]}
-            onPress={handlePress}
-          >
-            <Ionicons name="eye-outline" size={16} color={couleurs.texteSecondaire} />
-          </Pressable>
+          {isOwnProject ? (
+            <Pressable
+              style={[styles.btnPrimary, { backgroundColor: 'transparent', borderWidth: 1, borderColor: couleurs.primaire }]}
+              onPress={handlePress}
+            >
+              <Ionicons name="briefcase" size={18} color={couleurs.primaire} />
+              <Text style={[styles.btnPrimaryText, { color: couleurs.primaire }]}>Mon projet</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                style={[
+                  styles.btnPrimary,
+                  { backgroundColor: couleurs.primaire },
+                  suivi && { backgroundColor: 'transparent', borderWidth: 1, borderColor: couleurs.primaire },
+                  enCours && { opacity: 0.6 },
+                ]}
+                onPress={handleToggleSuivre}
+                disabled={enCours}
+              >
+                <Ionicons
+                  name={suivi ? 'checkmark' : 'add'}
+                  size={18}
+                  color={suivi ? couleurs.primaire : couleurs.blanc || '#FFFFFF'}
+                />
+                <Text style={[styles.btnPrimaryText, { color: suivi ? couleurs.primaire : couleurs.blanc || '#FFFFFF' }]}>
+                  {suivi ? 'Suivi' : 'Suivre'}
+                </Text>
+              </Pressable>
+              <Pressable style={[styles.btnSecondary, { borderColor: couleurs.bordure }]} onPress={handleContacter}>
+                <Ionicons name="chatbubble-outline" size={18} color={couleurs.texte} />
+              </Pressable>
+              <Pressable style={[styles.btnSecondary, { borderColor: couleurs.bordure }]} onPress={handlePress}>
+                <Ionicons name="eye-outline" size={18} color={couleurs.texte} />
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
     </View>
@@ -182,103 +208,142 @@ const CarteProjetPourToi: React.FC<Props> = ({ projet, onFollowChange }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     borderRadius: rayons.lg,
+    marginBottom: espacements.md,
     borderWidth: 1,
     overflow: 'hidden',
-    marginBottom: espacements.md,
-  },
-  sourceLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espacements.xs,
-    paddingHorizontal: espacements.md,
-    paddingVertical: espacements.sm,
-  },
-  sourceLabelText: {
-    fontSize: typographie.tailles.xs,
-    fontWeight: typographie.poids.medium,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   image: {
     width: '100%',
-    height: 160,
+    height: 140,
+  },
+  badgeImage: {
+    position: 'absolute',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeTopRight: {
+    top: 8,
+    right: 8,
+  },
+  badgeBottomLeft: {
+    bottom: 8,
+    left: 8,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
   },
   content: {
     padding: espacements.md,
   },
-  nom: {
-    fontSize: typographie.tailles.lg,
-    fontWeight: typographie.poids.bold,
+  sourceLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: espacements.xs,
+    paddingHorizontal: espacements.sm,
+    paddingVertical: 3,
+    borderRadius: rayons.full,
     marginBottom: espacements.xs,
   },
-  pitch: {
-    fontSize: typographie.tailles.sm,
-    lineHeight: typographie.tailles.sm * typographie.hauteurLigne.normal,
+  sourceLabelText: {
+    fontSize: 11,
+    fontWeight: typographie.poids.medium,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: espacements.xs,
+  },
+  nom: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  location: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacements.xs,
+    marginTop: 2,
+  },
+  ville: {
+    fontSize: 12,
+  },
+  logo: {
+    width: 36,
+    height: 36,
+    borderRadius: rayons.sm,
+    marginLeft: espacements.sm,
+  },
+  description: {
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: espacements.sm,
   },
   tags: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: espacements.xs,
     marginBottom: espacements.sm,
+    flexWrap: 'wrap',
   },
   tag: {
     paddingHorizontal: espacements.sm,
     paddingVertical: 3,
-    borderRadius: rayons.full,
+    borderRadius: 50,
   },
   tagText: {
     fontSize: 11,
-    fontWeight: typographie.poids.medium,
+    fontWeight: '500',
   },
   stats: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: espacements.md,
-    marginBottom: espacements.md,
+    marginBottom: espacements.sm,
+    paddingBottom: espacements.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(128,128,128,0.2)',
   },
   stat: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: espacements.xs,
   },
   statText: {
-    fontSize: typographie.tailles.xs,
-  },
-  maturiteBadge: {
-    paddingHorizontal: espacements.sm,
-    paddingVertical: 2,
-    borderRadius: rayons.full,
-  },
-  maturiteText: {
-    fontSize: 11,
-    fontWeight: typographie.poids.semibold,
+    fontSize: 12,
   },
   actions: {
     flexDirection: 'row',
     gap: espacements.sm,
   },
-  btnSuivre: {
+  btnPrimary: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: espacements.xs,
-    paddingVertical: espacements.sm,
+    paddingVertical: 10,
     borderRadius: rayons.md,
-    borderWidth: 1,
+    gap: espacements.xs,
   },
-  btnSuivreText: {
-    fontSize: typographie.tailles.sm,
-    fontWeight: typographie.poids.semibold,
+  btnPrimaryText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   btnSecondary: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: rayons.md,
     borderWidth: 1,
+    borderRadius: rayons.md,
   },
 });
 

@@ -17,6 +17,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -120,7 +122,10 @@ export const QuestionnaireInterets: React.FC<QuestionnaireInteretsProps> = ({
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
+      statusBarTranslucent={Platform.OS === 'android'}
     >
+      <StatusBar barStyle="light-content" backgroundColor={couleurs.fond} />
+      <View style={{ flex: 1, backgroundColor: couleurs.fond, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0 }}>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {/* Header */}
         <View style={styles.header}>
@@ -289,6 +294,7 @@ export const QuestionnaireInterets: React.FC<QuestionnaireInteretsProps> = ({
           )}
         </View>
       </SafeAreaView>
+      </View>
     </Modal>
   );
 };
