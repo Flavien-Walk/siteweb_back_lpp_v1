@@ -6,6 +6,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
+import { corsOptions } from './config/cors.js';
 
 import authRoutes from './routes/authRoutes.js';
 import projetRoutes from './routes/projetRoutes.js';
@@ -52,69 +53,8 @@ export const creerApp = (): Application => {
   // Compression gzip pour réduire la taille des réponses
   app.use(compression());
 
-  // ============================================
-  // CORS CONFIGURATION (SÉCURISÉE)
-  // ============================================
-  //
-  // Origins autorisées (JAMAIS de "*"):
-  // 1. CLIENT_URL - Frontend production (Vercel)
-  // 2. LOCAL_MODERATION_ORIGINS - Outil modération local (staff uniquement)
-  // 3. Previews Vercel du projet frontend
-  // ============================================
-
-  // Origins de production
-  const prodOrigins = [
-    process.env.CLIENT_URL, // ex: https://siteweb-front-lpp-v100.vercel.app
-  ].filter(Boolean) as string[];
-
-  // Origins de l'outil de modération local (ex: "http://localhost:5173,http://127.0.0.1:5173")
-  // Défini via variable d'environnement pour ne pas exposer en dur
-  const localModerationOrigins = process.env.LOCAL_MODERATION_ORIGINS
-    ? process.env.LOCAL_MODERATION_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
-    : [];
-
-  // Toutes les origins autorisées
-  const allowedOrigins = [...prodOrigins, ...localModerationOrigins];
-
-  // Regex pour les previews Vercel du projet frontend
-  const vercelPreviewRegex =
-    /^https:\/\/siteweb-front-lpp-v100-[a-z0-9-]+\.vercel\.app$/i;
-
-  // Log au démarrage (debug uniquement)
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[CORS] Origins autorisées:', allowedOrigins);
-    console.log('[CORS] Outil modération local:', localModerationOrigins.length > 0 ? 'ACTIVÉ' : 'DÉSACTIVÉ');
-  }
-
-  app.use(
-    cors({
-      origin: (origin, cb) => {
-        // Requêtes sans Origin (apps mobiles natives, Postman en dev)
-        if (!origin) {
-          return cb(null, true);
-        }
-
-        // Origins explicitement autorisées
-        if (allowedOrigins.includes(origin)) {
-          return cb(null, true);
-        }
-
-        // Previews Vercel du frontend
-        if (vercelPreviewRegex.test(origin)) {
-          return cb(null, true);
-        }
-
-        // Origin non autorisée - REFUSER
-        console.warn(`[CORS] Origin refusée: ${origin}`);
-        return cb(new Error(`Origin non autorisée: ${origin}`));
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Event-Id'], // P0-1: X-Event-Id pour idempotency
-    })
-  );
-
-  // Important : répondre aux requêtes preflight OPTIONS
+  // CORS - configuration centralisee dans config/cors.ts
+  app.use(cors(corsOptions));
   app.options('*', cors());
 
   // ============================================

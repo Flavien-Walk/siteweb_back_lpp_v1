@@ -25,6 +25,7 @@ import mongoose from 'mongoose';
 import Message, { Conversation } from '../models/Message.js';
 import Notification from '../models/Notification.js';
 import Utilisateur from '../models/Utilisateur.js';
+import { socketCorsOptions } from '../config/cors.js';
 
 // Types
 interface AuthPayload {
@@ -124,39 +125,8 @@ function checkRateLimit(
  * Initialiser Socket.io sur le serveur HTTP
  */
 export function initializeSocket(httpServer: HttpServer): Server {
-  // CORS: même whitelist que app.ts (JAMAIS de "*")
-  const prodOrigins = [
-    process.env.CLIENT_URL,
-  ].filter(Boolean) as string[];
-
-  const localModerationOrigins = process.env.LOCAL_MODERATION_ORIGINS
-    ? process.env.LOCAL_MODERATION_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
-    : [];
-
-  const allowedOrigins = [...prodOrigins, ...localModerationOrigins];
-
-  const vercelPreviewRegex =
-    /^https:\/\/siteweb-front-lpp-v100-[a-z0-9-]+\.vercel\.app$/i;
-
   io = new Server(httpServer, {
-    cors: {
-      origin: (origin, cb) => {
-        // Apps mobiles natives (pas d'origin header)
-        if (!origin) {
-          return cb(null, true);
-        }
-        if (allowedOrigins.includes(origin)) {
-          return cb(null, true);
-        }
-        if (vercelPreviewRegex.test(origin)) {
-          return cb(null, true);
-        }
-        console.warn(`[SOCKET] Origin refusée: ${origin}`);
-        return cb(new Error(`Origin non autorisée: ${origin}`));
-      },
-      methods: ['GET', 'POST'],
-      credentials: true,
-    },
+    cors: socketCorsOptions,
     transports: ['websocket', 'polling'],
     pingTimeout: 60000,
     pingInterval: 25000,
