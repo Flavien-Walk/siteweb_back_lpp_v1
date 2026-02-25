@@ -6,24 +6,7 @@ import AuditLog from '../../models/AuditLog.js';
 import { applyGamificationEvent } from '../../services/gamificationEngine.js';
 import { INCUBATEURS_FR } from '../../constants/incubateurs.js';
 import mongoose from 'mongoose';
-
-// =====================================================
-// HELPERS
-// =====================================================
-
-/**
- * Vérifie si l'utilisateur est membre de l'équipe du projet
- */
-const isTeamMember = (projet: IProjet, userId: mongoose.Types.ObjectId): boolean => {
-  return projet.equipe.some((m) => m.utilisateur && m.utilisateur.equals(userId));
-};
-
-/**
- * Vérifie si l'utilisateur peut modifier le projet (owner ou membre équipe)
- */
-const canEditProject = (projet: IProjet, userId: mongoose.Types.ObjectId): boolean => {
-  return projet.porteur.equals(userId) || isTeamMember(projet, userId);
-};
+import { canEditProject } from '../../utils/projetHelpers.js';
 
 // =====================================================
 // ENDPOINTS ENTREPRENEUR

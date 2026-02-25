@@ -16,7 +16,7 @@ const schemaCreerTicket = z.object({
   message: z.string().min(10, 'Le message doit faire au moins 10 caracteres').max(2000, 'Le message ne peut pas depasser 2000 caracteres').trim(),
 });
 
-const schemaAjouterMessage = z.object({
+export const schemaAjouterMessage = z.object({
   content: z.string().min(1, 'Le message ne peut pas etre vide').max(2000, 'Le message ne peut pas depasser 2000 caracteres').trim(),
 });
 

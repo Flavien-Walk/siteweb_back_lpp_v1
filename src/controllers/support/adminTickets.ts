@@ -5,14 +5,11 @@ import SupportTicket from '../../models/SupportTicket.js';
 import Notification from '../../models/Notification.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 import { stripHtml } from '../../utils/strings.js';
+import { schemaAjouterMessage } from './userTickets.js';
 
 // ============================================
 // SCHEMAS DE VALIDATION
 // ============================================
-
-const schemaAjouterMessage = z.object({
-  content: z.string().min(1, 'Le message ne peut pas etre vide').max(2000, 'Le message ne peut pas depasser 2000 caracteres').trim(),
-});
 
 const schemaChangerStatut = z.object({
   status: z.enum(['en_attente', 'en_cours', 'termine']),

@@ -42,3 +42,6 @@ Thumbs.db
 
 # Fichier Windows parasite
 nul
+
+# Fichiers binaires non-code
+*.pptx

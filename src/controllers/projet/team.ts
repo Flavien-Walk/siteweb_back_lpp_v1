@@ -4,33 +4,7 @@ import Projet, { IProjet, IMembreEquipe, IDocumentProjet, IMediaGalerie } from '
 import Utilisateur from '../../models/Utilisateur.js';
 import AuditLog from '../../models/AuditLog.js';
 import { uploadPublicationMedias, uploadPublicationMedia, isBase64MediaDataUrl } from '../../utils/cloudinary.js';
-
-// =====================================================
-// HELPERS
-// =====================================================
-
-/**
- * Vérifie si deux utilisateurs sont amis
- */
-const isFriend = async (userIdA: mongoose.Types.ObjectId, userIdB: mongoose.Types.ObjectId): Promise<boolean> => {
-  const user = await Utilisateur.findById(userIdA).select('amis');
-  if (!user) return false;
-  return user.amis.some((amiId) => amiId.equals(userIdB));
-};
-
-/**
- * Vérifie si l'utilisateur est membre de l'équipe du projet
- */
-const isTeamMember = (projet: IProjet, userId: mongoose.Types.ObjectId): boolean => {
-  return projet.equipe.some((m) => m.utilisateur && m.utilisateur.equals(userId));
-};
-
-/**
- * Vérifie si l'utilisateur peut modifier le projet (owner ou membre équipe)
- */
-const canEditProject = (projet: IProjet, userId: mongoose.Types.ObjectId): boolean => {
-  return projet.porteur.equals(userId) || isTeamMember(projet, userId);
-};
+import { isFriend, isTeamMember, canEditProject } from '../../utils/projetHelpers.js';
 
 /**
  * PATCH /api/projets/entrepreneur/:id/equipe
