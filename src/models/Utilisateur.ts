@@ -122,6 +122,7 @@ export interface IUtilisateur extends Document {
   cguAcceptees: boolean;
   profilPublic: boolean;
   preferenceTheme?: 'light' | 'dark';
+  onboardingInterets?: { categories: string[]; maturites: string[]; completedAt?: Date };
   // Système d'amis
   amis: mongoose.Types.ObjectId[];
   demandesAmisRecues: mongoose.Types.ObjectId[];
@@ -258,6 +259,21 @@ const utilisateurSchema = new Schema<IUtilisateur>(
       type: String,
       enum: ['light', 'dark'],
       default: 'light',
+    },
+    // Onboarding interets (questionnaire decouvrir)
+    onboardingInterets: {
+      categories: [{
+        type: String,
+        enum: ['tech', 'food', 'sante', 'education', 'energie', 'culture', 'environnement', 'autre'],
+      }],
+      maturites: [{
+        type: String,
+        enum: ['idee', 'prototype', 'lancement', 'croissance'],
+      }],
+      completedAt: {
+        type: Date,
+        default: null,
+      },
     },
     // Verification email
     emailVerifie: {

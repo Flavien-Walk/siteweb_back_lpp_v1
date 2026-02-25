@@ -274,6 +274,7 @@ export const moi = async (
           dateCreation: utilisateur.dateCreation,
           nbAmis: utilisateur.amis?.length || 0,
           emailVerifie: utilisateur.emailVerifie,
+          onboardingInterets: (utilisateur as any).onboardingInterets || null,
           // Données staff (pour mobile et moderation tool)
           isStaff,
           permissions: effectivePermissions,

@@ -25,6 +25,9 @@ export interface IUserPreferences extends Document {
   // Projets deja recommandes (pour diversite)
   recentlyRecommended: IRecentItem[];
 
+  // Preferences de maturite (depuis onboarding)
+  maturitePreferences: string[];
+
   // Nombre total d'interactions (pour detecter cold start)
   totalInteractions: number;
 
@@ -79,6 +82,12 @@ const userPreferencesSchema = new Schema<IUserPreferences>(
 
     recentlyRecommended: {
       type: [recentItemSchema],
+      default: [],
+    },
+
+    maturitePreferences: {
+      type: [String],
+      enum: ['idee', 'prototype', 'lancement', 'croissance'],
       default: [],
     },
 

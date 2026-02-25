@@ -48,6 +48,10 @@ export async function candidateFromInterests(
   if (topTags.length > 0) orConditions.push({ tags: { $in: topTags } });
   filter.$or = orConditions;
 
+  if ((prefs as any).maturitePreferences && (prefs as any).maturitePreferences.length > 0) {
+    filter.maturite = { $in: (prefs as any).maturitePreferences };
+  }
+
   const projets = await Projet.find(filter)
     .select('_id categorie tags')
     .sort({ dateMiseAJour: -1 })

@@ -8,7 +8,7 @@ import EngagementEvent from '../../models/EngagementEvent.js';
 import Projet from '../../models/Projet.js';
 import UserPreferences, { IUserPreferences } from '../../models/UserPreferences.js';
 import Utilisateur from '../../models/Utilisateur.js';
-import { generateCandidates, generateColdStartCandidates } from './candidateGenerators/index.js';
+import { generateCandidates, generateColdStartCandidates, generateWarmStartCandidates } from './candidateGenerators/index.js';
 import { RECO_CONFIG } from './config.js';
 import { rankCandidates, RankedProject } from './ranker.js';
 
@@ -18,7 +18,7 @@ export interface RecommendationResult {
   projets: any[];
   pagination: { page: number; limit: number; total: number };
   meta: {
-    strategy: 'personalized' | 'cold_start';
+    strategy: 'personalized' | 'cold_start' | 'warm_start';
     explorationRate: number;
     candidateCount: number;
   };
@@ -58,6 +58,10 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+export function invalidateUserCache(userId: any): void {
+  recoCache.delete(userId.toString());
+}
+
 // === FONCTIONS PRINCIPALES ===
 
 /**
@@ -83,11 +87,19 @@ export async function getRecommendations(
   const isColdStart = (prefs.totalInteractions || 0) < RECO_CONFIG.coldStart.threshold;
 
   let ranked: RankedProject[];
+  let strategy: 'personalized' | 'cold_start' | 'warm_start';
+  const hasOnboardingPrefs = prefs.categoryAffinities && prefs.categoryAffinities.size > 0;
 
-  if (isColdStart) {
+  if (isColdStart && hasOnboardingPrefs) {
+    // Warm start : interets onboarding + trending + recents + exploration
+    const candidates = await generateWarmStartCandidates(prefs, new Set());
+    ranked = await rankCandidates(candidates, userId, prefs, Math.max(totalNeeded, 50));
+    strategy = 'warm_start';
+  } else if (isColdStart) {
     // Cold start : trending + recents + exploration
     const candidates = await generateColdStartCandidates(new Set());
     ranked = await rankCandidates(candidates, userId, prefs, Math.max(totalNeeded, 50));
+    strategy = 'cold_start';
   } else {
     // Personnalise : toutes les sources
     // Les follows sont stockes dans Projet.followers[], pas dans l'utilisateur
@@ -101,6 +113,7 @@ export async function getRecommendations(
 
     const candidates = await generateCandidates(userId, prefs, followedProjetIds);
     ranked = await rankCandidates(candidates, userId, prefs, Math.max(totalNeeded, 50));
+    strategy = 'personalized';
   }
 
   // Mettre en cache
@@ -109,7 +122,7 @@ export async function getRecommendations(
   // Mettre a jour recentlyRecommended (fire-and-forget)
   updateRecentlyRecommended(userId, ranked.slice(0, limit).map(r => r.projetId)).catch(() => {});
 
-  return buildResult(ranked, page, limit, isColdStart ? 'cold_start' : 'personalized');
+  return buildResult(ranked, page, limit, strategy);
 }
 
 /**
@@ -191,7 +204,7 @@ async function buildResult(
   ranked: RankedProject[],
   page: number,
   limit: number,
-  strategy: 'personalized' | 'cold_start'
+  strategy: 'personalized' | 'cold_start' | 'warm_start'
 ): Promise<RecommendationResult> {
   const start = (page - 1) * limit;
   const pageItems = ranked.slice(start, start + limit);

@@ -108,3 +108,41 @@ export async function generateColdStartCandidates(
 
   return [...candidateMap.values()];
 }
+
+/**
+ * Genere des candidats pour le warm start (onboarding complete, peu d'interactions)
+ * Utilise interests + trending + recency + exploration (PAS follows ni similarUsers)
+ */
+export async function generateWarmStartCandidates(
+  prefs: any,
+  excludeIds: Set<string>
+): Promise<MergedCandidate[]> {
+  const [interests, recency, trending, exploration] = await Promise.all([
+    candidateFromInterests(prefs, excludeIds).catch(() => []),
+    candidateFromRecency(excludeIds).catch(() => []),
+    candidateFromTrending(prefs, excludeIds).catch(() => []),
+    candidateFromExploration(prefs, excludeIds).catch(() => []),
+  ]);
+
+  // Same merge/dedup logic as generateCandidates
+  const candidateMap = new Map<string, MergedCandidate>();
+  const allCandidates = [...interests, ...trending, ...recency, ...exploration];
+
+  for (const candidate of allCandidates) {
+    const existing = candidateMap.get(candidate.projetId);
+    if (existing) {
+      existing.sources.push({ source: candidate.source, score: candidate.sourceScore });
+      if (candidate.sourceScore > existing.bestSourceScore) {
+        existing.bestSourceScore = candidate.sourceScore;
+      }
+    } else {
+      candidateMap.set(candidate.projetId, {
+        projetId: candidate.projetId,
+        sources: [{ source: candidate.source, score: candidate.sourceScore }],
+        bestSourceScore: candidate.sourceScore,
+      });
+    }
+  }
+
+  return [...candidateMap.values()];
+}
