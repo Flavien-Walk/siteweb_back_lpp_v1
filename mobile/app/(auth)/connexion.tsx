@@ -27,7 +27,7 @@ import { useAuth } from '../../src/contextes/AuthContexte';
 const { width } = Dimensions.get('window');
 
 export default function Connexion() {
-  const { couleurs } = useTheme();
+  const { couleurs, setTheme } = useTheme();
   const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { setUtilisateur } = useAuth();
   const [email, setEmail] = useState('');
@@ -65,6 +65,10 @@ export default function Connexion() {
       const reponse = await connexion({ email: email.toLowerCase().trim(), motDePasse });
 
       if (reponse.succes && reponse.data) {
+        // Restaurer le theme du compte
+        if (reponse.data.utilisateur.preferenceTheme) {
+          setTheme(reponse.data.utilisateur.preferenceTheme);
+        }
         setUtilisateur(reponse.data.utilisateur);
         if (!reponse.data.utilisateur.emailVerifie) {
           router.replace('/(auth)/verification-email');
@@ -94,6 +98,10 @@ export default function Connexion() {
         : await connexionApple();
 
       if (result.succes && result.utilisateur) {
+        // Restaurer le theme du compte
+        if (result.utilisateur.preferenceTheme) {
+          setTheme(result.utilisateur.preferenceTheme);
+        }
         setUtilisateur(result.utilisateur);
         if (!result.utilisateur.emailVerifie) {
           router.replace('/(auth)/verification-email');

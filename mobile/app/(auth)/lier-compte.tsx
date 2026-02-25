@@ -32,7 +32,7 @@ const COOLDOWN_SECONDS = 60;
 type Mode = 'choice' | 'password' | 'code';
 
 export default function LierCompte() {
-  const { couleurs } = useTheme();
+  const { couleurs, setTheme } = useTheme();
   const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { setUtilisateur } = useAuth();
   const { linkToken, email } = useLocalSearchParams<{ linkToken: string; email: string }>();
@@ -109,6 +109,9 @@ export default function LierCompte() {
       const reponse = await confirmerLiaisonGoogle(linkToken, motDePasse);
 
       if (reponse.succes && reponse.data) {
+        if (reponse.data.utilisateur.preferenceTheme) {
+          setTheme(reponse.data.utilisateur.preferenceTheme);
+        }
         setUtilisateur(reponse.data.utilisateur);
         router.replace('/(app)/accueil');
       } else {
@@ -159,6 +162,9 @@ export default function LierCompte() {
       const reponse = await verifierCodeLiaison(linkToken, codeComplet);
 
       if (reponse.succes && reponse.data) {
+        if (reponse.data.utilisateur.preferenceTheme) {
+          setTheme(reponse.data.utilisateur.preferenceTheme);
+        }
         setUtilisateur(reponse.data.utilisateur);
         router.replace('/(app)/accueil');
       } else {

@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api';
 
 // Types
 export type ThemeMode = 'dark' | 'light';
@@ -59,6 +60,7 @@ interface ThemeContextType {
   couleurs: ThemeCouleurs;
   toggleTheme: () => void;
   setTheme: (mode: ThemeMode) => void;
+  resetTheme: () => void;
   isDark: boolean;
 }
 
@@ -184,9 +186,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
   };
 
-  const saveTheme = async (newMode: ThemeMode) => {
+  const saveTheme = async (newMode: ThemeMode, syncBackend = true) => {
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newMode);
+      // Sync avec le backend (fire-and-forget, non-bloquant)
+      if (syncBackend) {
+        api.patch('/profil', { preferenceTheme: newMode }, true).catch(() => {});
+      }
     } catch (error) {
       console.log('Erreur sauvegarde theme:', error);
     }
@@ -200,7 +206,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   const setTheme = useCallback((newMode: ThemeMode) => {
     setMode(newMode);
-    saveTheme(newMode);
+    saveTheme(newMode, false); // Pas de sync backend (appele au login, pas besoin de re-sauver)
+  }, []);
+
+  const resetTheme = useCallback(() => {
+    setMode('light');
+    saveTheme('light', false); // Pas de sync backend (le compte est deconnecte/supprime)
   }, []);
 
   // Memoize derived values
@@ -213,8 +224,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     couleurs,
     toggleTheme,
     setTheme,
+    resetTheme,
     isDark,
-  }), [mode, couleurs, toggleTheme, setTheme, isDark]);
+  }), [mode, couleurs, toggleTheme, setTheme, resetTheme, isDark]);
 
   // Ne pas render tant que le theme n'est pas charge
   if (!isLoaded) {

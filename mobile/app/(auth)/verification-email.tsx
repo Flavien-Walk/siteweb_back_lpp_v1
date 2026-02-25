@@ -24,7 +24,7 @@ const CODE_LENGTH = 6;
 const COOLDOWN_SECONDS = 60;
 
 export default function VerificationEmail() {
-  const { couleurs } = useTheme();
+  const { couleurs, resetTheme } = useTheme();
   const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { utilisateur, setUtilisateur, deconnexion } = useAuth();
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
@@ -137,6 +137,7 @@ export default function VerificationEmail() {
   };
 
   const handleDeconnexion = async () => {
+    resetTheme();
     await deconnexion();
     router.replace('/(auth)/connexion');
   };

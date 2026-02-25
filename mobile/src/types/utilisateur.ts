@@ -42,6 +42,7 @@ export interface Utilisateur {
   isStaff?: boolean;
   permissions?: Permission[];
   isVerified?: boolean;
+  preferenceTheme?: 'light' | 'dark';
   lppPlus?: {
     status: 'inactive' | 'active' | 'canceled';
     currentPeriodEnd: string | null;

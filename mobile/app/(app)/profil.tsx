@@ -48,7 +48,7 @@ import ParametresTab from '../../src/features/profil/ParametresTab';
 type Onglet = 'profil-public' | 'parametres';
 
 export default function Profil() {
-  const { couleurs, toggleTheme, isDark } = useTheme();
+  const { couleurs, toggleTheme, isDark, resetTheme } = useTheme();
   const { utilisateur, updateUser, logout, refreshUser } = useUser();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -252,6 +252,7 @@ export default function Profil() {
           text: 'Deconnecter',
           style: 'destructive',
           onPress: async () => {
+            resetTheme();
             await logout();
             router.replace('/(auth)/connexion');
           },

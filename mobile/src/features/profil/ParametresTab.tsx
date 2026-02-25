@@ -26,6 +26,7 @@ import {
   StatutUtilisateur,
 } from '../../services/auth';
 import AppBadge from '../../composants/AppBadge';
+import { useTheme } from '../../contexts/ThemeContext';
 
 type SectionParametres = 'profil' | 'apparence' | 'securite' | 'confidentialite';
 
@@ -63,6 +64,8 @@ export default function ParametresTab(props: ParametresTabProps) {
     logout,
     onStatutChanged,
   } = props;
+
+  const { resetTheme } = useTheme();
 
   // Section active
   const [sectionParametres, setSectionParametres] = useState<SectionParametres>('profil');
@@ -129,6 +132,7 @@ export default function ParametresTab(props: ParametresTabProps) {
           text: 'Deconnecter',
           style: 'destructive',
           onPress: async () => {
+            resetTheme();
             await logout();
             router.replace('/(auth)/connexion');
           },
@@ -262,6 +266,7 @@ export default function ParametresTab(props: ParametresTabProps) {
 
               if (reponse.succes) {
                 // Token et donnees locales deja nettoyes par supprimerCompte
+                resetTheme();
                 setChargement(false);
                 router.replace('/(auth)/connexion');
               } else {

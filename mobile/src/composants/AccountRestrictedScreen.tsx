@@ -50,7 +50,7 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
   onRetry,
   onLogout,
 }) => {
-  const { couleurs } = useTheme();
+  const { couleurs, resetTheme } = useTheme();
   const styles = useMemo(() => createStyles(couleurs), [couleurs]);
 
   const [sanctionDetails, setSanctionDetails] = useState<SanctionInfo | null>(null);
@@ -347,7 +347,7 @@ const AccountRestrictedScreen: React.FC<AccountRestrictedScreenProps> = ({
                 styles.button,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={onLogout}
+              onPress={() => { resetTheme(); onLogout(); }}
             >
               <LinearGradient
                 colors={couleurs.gradientPrimaire}
