@@ -9,54 +9,10 @@ import jwt from 'jsonwebtoken';
 import { schemaInscription, schemaConnexion } from '../../utils/validation.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 import { genererCodeVerification, envoyerEmailVerification } from '../../services/emailService.js';
+import { BruteForceGuard } from '../../utils/inMemoryRateLimit.js';
 
 // SEC-AUTH-03: Lockout brute force - 5 echecs = blocage 30 min
-const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 30 * 60 * 1000; // 30 minutes
-
-const checkLoginLockout = (email: string): { locked: boolean; remainingMs?: number } => {
-  const entry = loginAttempts.get(email);
-  if (!entry) return { locked: false };
-
-  const now = Date.now();
-  if (entry.lockedUntil > 0 && now < entry.lockedUntil) {
-    return { locked: true, remainingMs: entry.lockedUntil - now };
-  }
-
-  // Lockout expire, reset
-  if (entry.lockedUntil > 0 && now >= entry.lockedUntil) {
-    loginAttempts.delete(email);
-    return { locked: false };
-  }
-
-  return { locked: false };
-};
-
-const recordFailedLogin = (email: string): void => {
-  const entry = loginAttempts.get(email) || { count: 0, lockedUntil: 0 };
-  entry.count++;
-
-  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
-    entry.lockedUntil = Date.now() + LOCKOUT_DURATION;
-  }
-
-  loginAttempts.set(email, entry);
-};
-
-const clearLoginAttempts = (email: string): void => {
-  loginAttempts.delete(email);
-};
-
-// Nettoyage periodique des lockouts expires (eviter fuite memoire)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of loginAttempts.entries()) {
-    if (value.lockedUntil > 0 && now >= value.lockedUntil) {
-      loginAttempts.delete(key);
-    }
-  }
-}, 5 * 60 * 1000); // Nettoyer toutes les 5 min
+const loginGuard = new BruteForceGuard(5, 30 * 60 * 1000);
 
 /**
  * Inscription d'un nouvel utilisateur
@@ -149,7 +105,7 @@ export const connexion = async (
     const donnees = schemaConnexion.parse(req.body);
 
     // SEC-AUTH-03: Verifier lockout avant toute tentative
-    const lockoutStatus = checkLoginLockout(donnees.email);
+    const lockoutStatus = loginGuard.checkLockout(donnees.email);
     if (lockoutStatus.locked) {
       const minutesRestantes = Math.ceil((lockoutStatus.remainingMs || 0) / 60000);
       throw new ErreurAPI(
@@ -165,25 +121,25 @@ export const connexion = async (
 
     // Verifier si l'utilisateur existe
     if (!utilisateur) {
-      recordFailedLogin(donnees.email);
+      loginGuard.recordFailure(donnees.email);
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
     // SEC-AUTH-02: Message generique pour ne pas reveler le provider OAuth
     if (!utilisateur.motDePasse) {
-      recordFailedLogin(donnees.email);
+      loginGuard.recordFailure(donnees.email);
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
     // Verifier le mot de passe
     const motDePasseValide = await utilisateur.comparerMotDePasse(donnees.motDePasse);
     if (!motDePasseValide) {
-      recordFailedLogin(donnees.email);
+      loginGuard.recordFailure(donnees.email);
       throw new ErreurAPI('Email ou mot de passe incorrect.', 401);
     }
 
     // Connexion reussie: effacer le compteur d'echecs
-    clearLoginAttempts(donnees.email);
+    loginGuard.clear(donnees.email);
 
     // Vérifier si le compte est banni
     if (utilisateur.isBanned()) {

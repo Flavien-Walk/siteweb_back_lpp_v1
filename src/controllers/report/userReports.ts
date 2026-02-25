@@ -8,6 +8,7 @@ import Report, {
 } from '../../models/Report.js';
 import Publication from '../../models/Publication.js';
 import Commentaire from '../../models/Commentaire.js';
+import { InMemoryRateLimit } from '../../utils/inMemoryRateLimit.js';
 
 // ============ SCHEMAS DE VALIDATION ============
 
@@ -31,36 +32,7 @@ const schemaCreerReport = z.object({
 
 // ============ RATE LIMITING EN MÉMOIRE ============
 // Simple rate limit: 5 reports par user par 10 minutes
-const reportRateLimit = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW = 10 * 60 * 1000; // 10 minutes
-const RATE_LIMIT_MAX = 5;
-
-const checkReportRateLimit = (userId: string): boolean => {
-  const now = Date.now();
-  const userLimit = reportRateLimit.get(userId);
-
-  if (!userLimit || now > userLimit.resetAt) {
-    reportRateLimit.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-
-  if (userLimit.count >= RATE_LIMIT_MAX) {
-    return false;
-  }
-
-  userLimit.count++;
-  return true;
-};
-
-// Nettoyage périodique du rate limit (éviter fuite mémoire)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of reportRateLimit.entries()) {
-    if (now > value.resetAt) {
-      reportRateLimit.delete(key);
-    }
-  }
-}, 60 * 1000); // Nettoyer chaque minute
+const reportLimiter = new InMemoryRateLimit(5, 10 * 60 * 1000);
 
 // ============ CONTROLLERS UTILISATEUR ============
 
@@ -78,13 +50,15 @@ export const creerReport = async (
     const reporterId = req.utilisateur!._id;
 
     // Rate limiting
-    if (!checkReportRateLimit(reporterId.toString())) {
+    const reporterKey = reporterId.toString();
+    if (reportLimiter.isLimited(reporterKey)) {
       res.status(429).json({
         succes: false,
         message: 'Trop de signalements. Veuillez réessayer dans quelques minutes.',
       });
       return;
     }
+    reportLimiter.record(reporterKey);
 
     // Vérifier que la cible existe
     if (donnees.targetType === 'post') {
