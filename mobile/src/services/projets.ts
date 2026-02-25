@@ -7,7 +7,7 @@ import api from './api';
 
 // Types — source de verite dans types/projet.ts
 import type { ReponseAPI } from '../types/api';
-import type { Projet, ProjetFormData, FiltresProjets, StatsEntrepreneur, PaginationData, StatutProjet, DocumentProjet, VisibiliteDocument, Porteur, IncubateurActif } from '../types/projet';
+import type { Projet, ProjetFormData, FiltresProjets, StatsEntrepreneur, PaginationData, StatutProjet, DocumentProjet, VisibiliteDocument, Porteur, IncubateurActif, CategorieProjet } from '../types/projet';
 
 // Re-exports pour compatibilite des imports existants
 export type { MaturiteProjet, CategorieProjet, StatutProjet, VisibiliteDocument, RoleEquipe, TypeLien, Porteur, MembreEquipe, DocumentProjet, MediaGalerie, Metrique, LienProjet, Projet, ProjetFormData, StatsEntrepreneur, FiltresProjets, IncubateurActif, PaginationData } from '../types/projet';
@@ -194,4 +194,56 @@ export const getRepresentantsProjet = async (
  */
 export const getIncubateursActifs = async (): Promise<ReponseAPI<{ incubateurs: IncubateurActif[] }>> => {
   return api.get('/projets/incubateurs', true);
+};
+
+// ============ RECOMMANDATIONS ("Pour Toi") ============
+
+export interface ProjetRecommande extends Projet {
+  recommendationScore: number;
+  recommendationSource: string;
+  recommendationLabel: string;
+  followersCount: number;
+}
+
+export interface RecommandationMeta {
+  strategy: 'personalized' | 'cold_start';
+  explorationRate: number;
+  candidateCount: number;
+}
+
+/**
+ * Recuperer les projets recommandes ("Pour Toi")
+ */
+export const getRecommandations = async (
+  page = 1,
+  limit = 20
+): Promise<ReponseAPI<{ projets: ProjetRecommande[]; pagination: PaginationData; meta: RecommandationMeta }>> => {
+  return api.get(`/recommendations/projects?page=${page}&limit=${limit}`, true);
+};
+
+// ============ TENDANCES V2 (scoring algorithmique) ============
+
+export interface ProjetTendance extends Projet {
+  trendingScore?: number;
+  trendingRank?: number;
+}
+
+export interface TendanceMeta {
+  lastRefresh: string;
+  nextRefresh: string;
+}
+
+/**
+ * Recuperer les projets tendance v2 (algorithme de scoring)
+ */
+export const getProjetsTendanceV2 = async (
+  page = 1,
+  limit = 20,
+  categorie?: CategorieProjet
+): Promise<ReponseAPI<{ projets: ProjetTendance[]; pagination: PaginationData; meta: TendanceMeta }>> => {
+  const params = new URLSearchParams();
+  params.append('page', page.toString());
+  params.append('limit', limit.toString());
+  if (categorie) params.append('categorie', categorie);
+  return api.get(`/trending/projects?${params.toString()}`, true);
 };

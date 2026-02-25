@@ -24,7 +24,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { espacements, rayons } from '../../src/constantes/theme';
+import { espacements, rayons, typographie } from '../../src/constantes/theme';
 import { useTheme, ThemeCouleurs } from '../../src/contexts/ThemeContext';
 import createStyles from '../../src/features/accueil/accueil.styles';
 import { useUser } from '../../src/contexts/UserContext';
@@ -1728,3 +1728,4 @@ export default function Accueil() {
     </SafeAreaView>
   );
 }
+

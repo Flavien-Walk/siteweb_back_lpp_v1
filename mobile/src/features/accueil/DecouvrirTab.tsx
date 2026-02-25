@@ -1,6 +1,6 @@
 /**
  * DecouvrirTab - Onglet Decouvrir de l'ecran d'accueil
- * Recherche de projets/startups, filtres par categorie, tendances, incubateurs
+ * Sous-onglets: Pour Toi | Tendances | Explorer
  */
 
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
@@ -16,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { espacements, rayons } from '../../constantes/theme';
+import { espacements, rayons, typographie } from '../../constantes/theme';
 import {
   Projet,
   CategorieProjet,
@@ -28,6 +28,7 @@ import {
 } from '../../services/projets';
 import { INCUBATEURS_FR } from '../../constantes/incubateurs';
 import { SkeletonList } from '../../composants/SkeletonLoader';
+import { PourToiSection, TendancesSection } from '../../composants';
 
 // ============ PROPS ============
 
@@ -51,7 +52,18 @@ const MATURITE_LABELS: Record<string, { label: string; color: string }> = {
 
 // ============ COMPOSANT PRINCIPAL ============
 
+type DecouvrirSubTab = 'pourtoi' | 'tendances' | 'explorer';
+
+const SUB_TABS: { key: DecouvrirSubTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'pourtoi', label: 'Pour toi', icon: 'sparkles' },
+  { key: 'tendances', label: 'Tendances', icon: 'flame' },
+  { key: 'explorer', label: 'Explorer', icon: 'compass' },
+];
+
 function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissement, onRefresh }: DecouvrirTabProps) {
+  // Sub-tab state
+  const [decouvrirSubTab, setDecouvrirSubTab] = useState<DecouvrirSubTab>('pourtoi');
+
   // DECOUVRIR_CATEGORIES utilise couleurs.primaire (dynamique selon le theme)
   const DECOUVRIR_CATEGORIES: { value: CategorieProjet | 'all'; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
     { value: 'all', label: 'Tout', icon: 'apps', color: couleurs.primaire },
@@ -349,6 +361,45 @@ function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissem
 
   // ---- Rendu ----
   return (
+    <View style={{ flex: 1 }}>
+      {/* Sub-tabs: Pour toi | Tendances | Explorer */}
+      <View style={[styles.decouvrirSubTabs || localStyles.decouvrirSubTabs, { borderBottomColor: couleurs.bordure }]}>
+        {SUB_TABS.map(tab => {
+          const isActiveTab = decouvrirSubTab === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              style={[
+                styles.decouvrirSubTab || localStyles.decouvrirSubTab,
+                isActiveTab && { borderBottomColor: couleurs.primaire, borderBottomWidth: 2 },
+              ]}
+              onPress={() => setDecouvrirSubTab(tab.key)}
+            >
+              <Ionicons
+                name={tab.icon}
+                size={14}
+                color={isActiveTab ? couleurs.primaire : couleurs.texteMuted}
+              />
+              <Text style={[
+                styles.decouvrirSubTabText || localStyles.decouvrirSubTabText,
+                { color: isActiveTab ? couleurs.primaire : couleurs.texteMuted },
+                isActiveTab && { fontWeight: '700' as any },
+              ]}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Sub-tab content */}
+      {decouvrirSubTab === 'pourtoi' && (
+        <PourToiSection isActive={decouvrirSubTab === 'pourtoi'} />
+      )}
+      {decouvrirSubTab === 'tendances' && (
+        <TendancesSection isActive={decouvrirSubTab === 'tendances'} />
+      )}
+      {decouvrirSubTab === 'explorer' && (
     <ScrollView
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
@@ -572,7 +623,30 @@ function DecouvrirTab({ couleurs, styles, utilisateur, applyDelta, rafraichissem
         <Text style={styles.footerSubtext}>Reseau social des startups innovantes</Text>
       </View>
     </ScrollView>
+      )}
+    </View>
   );
 }
+
+// Styles locaux pour les sub-tabs (fallback si pas dans styles parent)
+const localStyles = {
+  decouvrirSubTabs: {
+    flexDirection: 'row' as const,
+    borderBottomWidth: 1,
+    paddingHorizontal: espacements.sm,
+  },
+  decouvrirSubTab: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: espacements.xs,
+    paddingVertical: espacements.md,
+  },
+  decouvrirSubTabText: {
+    fontSize: typographie.tailles.sm,
+    fontWeight: typographie.poids.medium as any,
+  },
+};
 
 export default DecouvrirTab;

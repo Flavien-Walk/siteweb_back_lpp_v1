@@ -898,6 +898,25 @@ const createStyles = (couleurs: ThemeCouleurs) => StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
 
+  // ========== DECOUVRIR SUB-TABS ==========
+  decouvrirSubTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    paddingHorizontal: espacements.sm,
+  },
+  decouvrirSubTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: espacements.xs,
+    paddingVertical: espacements.md,
+  },
+  decouvrirSubTabText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
   // ========== DECOUVRIR REFONTE ==========
   decouvrirSearchSection: {
     paddingHorizontal: espacements.lg,
