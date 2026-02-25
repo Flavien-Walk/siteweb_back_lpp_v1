@@ -36,9 +36,9 @@ Thumbs.db
 .claude/
 
 # Dossiers hors-périmètre backend (branches séparées)
-mobile/
-moderation/
-web/
+/mobile/
+/moderation/
+/web/
 
 # Fichier Windows parasite
 nul
