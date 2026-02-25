@@ -9,16 +9,11 @@ import AuditLog from '../models/AuditLog.js';
 import { applyGamificationEvent } from '../services/gamificationEngine.js';
 import { INCUBATEURS_FR } from '../constants/incubateurs.js';
 
+import { escapeRegex } from '../utils/strings.js';
+
 // =====================================================
 // HELPERS
 // =====================================================
-
-/**
- * Echappe les caracteres speciaux regex pour eviter les injections ReDoS
- */
-const escapeRegex = (str: string): string => {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
 
 /**
  * Vérifie si deux utilisateurs sont amis

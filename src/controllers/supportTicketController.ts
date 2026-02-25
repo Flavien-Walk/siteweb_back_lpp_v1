@@ -28,11 +28,7 @@ const schemaAssigner = z.object({
   assigneeId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), 'ID invalide'),
 });
 
-// ============================================
-// STRIP HTML (meme pattern que validation.ts)
-// ============================================
-const stripHtml = (val: string): string =>
-  val.replace(/<[^>]*>/g, '').replace(/javascript\s*:/gi, '').replace(/on\w+\s*=/gi, '');
+import { stripHtml } from '../utils/strings.js';
 
 // ============================================
 // ENDPOINTS UTILISATEUR

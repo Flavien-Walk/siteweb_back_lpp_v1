@@ -8,12 +8,7 @@ import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 import { isBase64DataUrl, isBase64VideoDataUrl, uploadPublicationMedia } from '../utils/cloudinary.js';
 import { emitNewMessage, forceLeaveConversation } from '../socket/index.js';
 
-/**
- * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
- */
-const escapeRegex = (str: string): string => {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
+import { escapeRegex } from '../utils/strings.js';
 
 // Schéma pour envoyer un message
 // Note: pour les médias (image/video), contenu peut être un base64 data URL (jusqu'à 25MB)

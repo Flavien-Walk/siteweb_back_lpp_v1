@@ -4,13 +4,7 @@ import Utilisateur from '../models/Utilisateur.js';
 import Notification from '../models/Notification.js';
 import { emitDemandeAmi, emitNewNotification } from '../socket/index.js';
 import { applyGamificationEvent } from '../services/gamificationEngine.js';
-
-/**
- * Echappe les caractères spéciaux regex pour éviter les injections ReDoS
- */
-const escapeRegex = (str: string): string => {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
+import { escapeRegex } from '../utils/strings.js';
 
 /**
  * GET /api/utilisateurs/recherche

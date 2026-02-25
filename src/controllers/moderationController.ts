@@ -15,11 +15,8 @@ import Evenement from '../models/Evenement.js';
 import { auditLogger } from '../utils/auditLogger.js';
 import { forceDisconnectUser } from '../socket/index.js';
 
-// Escape special regex characters to prevent ReDoS attacks
-const escapeRegex = (str: string): string => {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
 import { createSanctionNotification, createReverseSanctionNotification } from '../utils/sanctionNotification.js';
+import { escapeRegex } from '../utils/strings.js';
 import { ErreurAPI } from '../middlewares/gestionErreurs.js';
 
 // ============ SCHEMAS DE VALIDATION ============

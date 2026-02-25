@@ -1,8 +1,5 @@
 import { z } from 'zod';
-
-// PENTEST-04: Supprime les balises HTML et les patterns XSS des champs texte
-const stripHtml = (val: string): string =>
-  val.replace(/<[^>]*>/g, '').replace(/javascript\s*:/gi, '').replace(/on\w+\s*=/gi, '');
+import { stripHtml } from './strings.js';
 
 /**
  * Schéma de validation pour l'inscription
