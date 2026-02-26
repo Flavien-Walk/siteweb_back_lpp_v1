@@ -310,28 +310,28 @@ export default function CreerServiceScreen() {
 
         {renderStepIndicator()}
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
             {step === 0 && renderStep1()}
             {step === 1 && renderStep2()}
             {step === 2 && renderStep3()}
           </ScrollView>
-        </KeyboardAvoidingView>
 
-        <View style={[s.ctaBar, { paddingBottom: Math.max(insets.bottom, espacements.lg) }]}>
-          {step > 0 ? (
-            <Pressable style={s.prevButton} onPress={() => setStep(p => p - 1)}><Text style={s.prevButtonText}>Precedent</Text></Pressable>
-          ) : <View />}
-          {step < 2 ? (
-            <Pressable style={[s.ctaButton, !canProceed && s.ctaButtonDisabled]} onPress={() => setStep(p => p + 1)} disabled={!canProceed}>
-              <Text style={s.ctaButtonText}>Suivant</Text>
-            </Pressable>
-          ) : (
-            <Pressable style={[s.ctaButton, submitting && s.ctaButtonDisabled]} onPress={handleSubmit} disabled={submitting}>
-              {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.ctaButtonText}>Publier le service</Text>}
-            </Pressable>
-          )}
-        </View>
+          <View style={[s.ctaBar, { paddingBottom: Math.max(insets.bottom, espacements.lg) }]}>
+            {step > 0 ? (
+              <Pressable style={s.prevButton} onPress={() => setStep(p => p - 1)}><Text style={s.prevButtonText}>Precedent</Text></Pressable>
+            ) : <View />}
+            {step < 2 ? (
+              <Pressable style={[s.ctaButton, !canProceed && s.ctaButtonDisabled]} onPress={() => setStep(p => p + 1)} disabled={!canProceed}>
+                <Text style={s.ctaButtonText}>Suivant</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={[s.ctaButton, submitting && s.ctaButtonDisabled]} onPress={handleSubmit} disabled={submitting}>
+                {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.ctaButtonText}>Publier le service</Text>}
+              </Pressable>
+            )}
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </SwipeableScreen>
   );

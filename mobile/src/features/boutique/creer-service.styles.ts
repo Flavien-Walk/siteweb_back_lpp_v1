@@ -62,7 +62,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
     scrollContent: {
       paddingHorizontal: espacements.lg,
       paddingTop: espacements.md,
-      paddingBottom: 120,
+      paddingBottom: espacements.xl,
     },
 
     // === Section ===
@@ -276,6 +276,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       borderWidth: 1,
       borderColor: couleurs.bordure,
       padding: espacements.md,
+      paddingTop: 40,
       marginBottom: espacements.sm,
       position: 'relative',
     },
@@ -283,6 +284,8 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       position: 'absolute',
       top: espacements.sm,
       right: espacements.sm,
+      zIndex: 10,
+      padding: 4,
     },
     faqCard: {
       backgroundColor: couleurs.fondCard,
@@ -290,6 +293,7 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       borderWidth: 1,
       borderColor: couleurs.bordure,
       padding: espacements.md,
+      paddingTop: 40,
       marginBottom: espacements.sm,
       position: 'relative',
     },
@@ -297,6 +301,8 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       position: 'absolute',
       top: espacements.sm,
       right: espacements.sm,
+      zIndex: 10,
+      padding: 4,
     },
 
     // === Add Button ===
@@ -346,10 +352,6 @@ const createStyles = (couleurs: ThemeCouleurs) =>
 
     // === CTA Bar ===
     ctaBar: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
