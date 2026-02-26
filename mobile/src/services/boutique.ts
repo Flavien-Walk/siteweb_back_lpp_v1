@@ -211,6 +211,43 @@ export async function getMesServices(): Promise<ReponseAPI<{ services: Marketpla
 }
 
 /**
+ * Modifier un service marketplace (proprietaire uniquement)
+ */
+export async function modifierServiceMarketplace(
+  serviceId: string,
+  data: Partial<{
+    nom: string;
+    description: string;
+    descriptionLongue: string;
+    categorie: string;
+    prix: number | null;
+    image: string;
+    gallery: string[];
+    tags: string[];
+    delaiLivraison: string;
+    options: Array<{ label: string; description?: string; prix: number }>;
+    faq: Array<{ question: string; answer: string }>;
+  }>
+): Promise<ReponseAPI<{ service: MarketplaceProduct }>> {
+  try {
+    return api.patch<{ service: MarketplaceProduct }>(`/marketplace/services/${serviceId}`, data, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de la modification du service.' };
+  }
+}
+
+/**
+ * Supprimer (archiver) un service marketplace (proprietaire uniquement)
+ */
+export async function supprimerService(serviceId: string): Promise<ReponseAPI<null>> {
+  try {
+    return api.delete<null>(`/marketplace/services/${serviceId}`, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de la suppression du service.' };
+  }
+}
+
+/**
  * Contacter un vendeur — reutilise le systeme de messagerie existant
  */
 export async function contacterVendeur(

@@ -59,6 +59,10 @@ interface ProductDetailSheetProps {
   product: MarketplaceProduct | null;
   onClose: () => void;
   onContacter?: (product: MarketplaceProduct) => void;
+  onCommander?: (product: MarketplaceProduct, optionsSelectionnees: number[]) => void;
+  onSupprimer?: (product: MarketplaceProduct) => void;
+  onModifier?: (product: MarketplaceProduct) => void;
+  currentUserId?: string;
   couleurs: ThemeCouleurs;
 }
 
@@ -156,7 +160,7 @@ const reviewStyles = (couleurs: ThemeCouleurs) =>
 
 // ============ MAIN COMPONENT ============
 
-export default function ProductDetailSheet({ visible, product, onClose, onContacter, couleurs }: ProductDetailSheetProps) {
+export default function ProductDetailSheet({ visible, product, onClose, onContacter, onCommander, onSupprimer, onModifier, currentUserId, couleurs }: ProductDetailSheetProps) {
   const insets = useSafeAreaInsets();
   const s = createStyles(couleurs, insets);
   const [imgError, setImgError] = useState(false);
@@ -312,6 +316,7 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
 
   if (!product) return null;
 
+  const isOwner = currentUserId && product.createur.id === currentUserId;
   const displayedReviews = showAllReviews ? product.reviews : product.reviews.slice(0, 3);
   const DESC_LIMIT = 200;
   const needsTruncation = product.descriptionLongue.length > DESC_LIMIT;
@@ -351,6 +356,15 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                   {product.nom}
                 </Text>
                 <View style={s.headerRight}>
+                  {isOwner && onSupprimer && (
+                    <Pressable
+                      style={({ pressed }) => [s.headerAction, pressed && { opacity: 0.6 }]}
+                      hitSlop={8}
+                      onPress={() => onSupprimer(product)}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                    </Pressable>
+                  )}
                   <Pressable
                     style={({ pressed }) => [s.headerAction, pressed && { opacity: 0.6 }]}
                     hitSlop={8}
@@ -634,13 +648,28 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                 </Text>
                 <Text style={s.ctaPrice}>{formatPrice(totalPrice)}</Text>
               </View>
-              <Pressable
-                style={({ pressed }) => [s.ctaButton, pressed && { opacity: 0.85 }]}
-                onPress={() => onContacter?.(product)}
-              >
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#fff" />
-                <Text style={s.ctaButtonText}>Contacter</Text>
-              </Pressable>
+              {isOwner && onModifier ? (
+                <Pressable
+                  style={({ pressed }) => [s.ctaButton, pressed && { opacity: 0.85 }]}
+                  onPress={() => onModifier(product)}
+                >
+                  <Ionicons name="create-outline" size={18} color="#fff" />
+                  <Text style={s.ctaButtonText}>Modifier</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [s.ctaButton, pressed && { opacity: 0.85 }]}
+                  onPress={() => {
+                    const optIndices = product.options
+                      ?.map((opt, i) => selectedOptions.has(opt.id) ? i : -1)
+                      .filter(i => i !== -1) ?? [];
+                    onCommander?.(product, optIndices);
+                  }}
+                >
+                  <Ionicons name="cart-outline" size={18} color="#fff" />
+                  <Text style={s.ctaButtonText}>Commander</Text>
+                </Pressable>
+              )}
             </View>
 
           </Animated.View>

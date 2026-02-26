@@ -144,6 +144,50 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       color: couleurs.texteSecondaire,
     },
 
+    // === Delai Row ===
+    delaiRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: espacements.md,
+    },
+    delaiInput: {
+      width: 64,
+      backgroundColor: couleurs.fondCard,
+      borderRadius: rayons.md,
+      borderWidth: 1,
+      borderColor: couleurs.bordure,
+      paddingHorizontal: espacements.sm,
+      paddingVertical: espacements.md,
+      fontSize: 15,
+      fontWeight: '600' as const,
+      color: couleurs.texte,
+      textAlign: 'center' as const,
+    },
+    delaiChip: {
+      flex: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: couleurs.fondCard,
+      borderRadius: rayons.md,
+      borderWidth: 1,
+      borderColor: couleurs.bordure,
+      paddingVertical: espacements.md,
+    },
+    delaiChipSelected: {
+      backgroundColor: 'rgba(124, 92, 255, 0.15)',
+      borderColor: '#7C5CFF',
+    },
+    delaiChipText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: couleurs.texteSecondaire,
+    },
+    delaiChipTextSelected: {
+      color: '#7C5CFF',
+      fontWeight: '600' as const,
+    },
+
     // === Checkbox ===
     checkboxRow: {
       flexDirection: 'row',

@@ -9,7 +9,7 @@
  * Paiement mock — pret pour backend
  */
 
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReAnimated, { FadeInDown, FadeIn } from 'react-native-reanimated';
@@ -60,7 +60,9 @@ import {
   purchaseBundle,
   fetchMarketplaceProducts,
   contacterVendeur,
+  creerCommande,
   trackServiceView,
+  supprimerService,
 } from '../../src/services/boutique';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -205,9 +207,12 @@ export default function BoutiqueScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadMarketplace();
-  }, [loadMarketplace]);
+  // Recharger la marketplace a chaque focus (retour depuis creer-service, etc.)
+  useFocusEffect(
+    useCallback(() => {
+      loadMarketplace(selectedCategory === 'tous' ? undefined : selectedCategory);
+    }, [loadMarketplace, selectedCategory])
+  );
 
   // --- Marketplace Handlers ---
 
@@ -240,6 +245,51 @@ export default function BoutiqueScreen() {
     } catch {
       Alert.alert('Erreur', 'Impossible de contacter le vendeur.');
     }
+  }, [router]);
+
+  const handleCommander = useCallback(async (product: MarketplaceProduct, optionsSelectionnees: number[]) => {
+    try {
+      const res = await creerCommande(product.id, optionsSelectionnees);
+      if (res.succes) {
+        setProductSheetVisible(false);
+        setSelectedProduct(null);
+        Alert.alert('Commande envoyee', 'Votre commande a ete envoyee au vendeur.');
+      } else {
+        Alert.alert('Erreur', res.message || 'Impossible de passer la commande.');
+      }
+    } catch {
+      Alert.alert('Erreur', 'Impossible de passer la commande.');
+    }
+  }, []);
+
+  const handleSupprimerService = useCallback((product: MarketplaceProduct) => {
+    Alert.alert(
+      'Supprimer le service',
+      `Voulez-vous vraiment supprimer "${product.nom}" ? Cette action est irreversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await supprimerService(product.id);
+            if (res.succes) {
+              setProductSheetVisible(false);
+              setSelectedProduct(null);
+              loadMarketplace(selectedCategory === 'tous' ? undefined : selectedCategory);
+            } else {
+              Alert.alert('Erreur', res.message || 'Impossible de supprimer le service.');
+            }
+          },
+        },
+      ],
+    );
+  }, [loadMarketplace, selectedCategory]);
+
+  const handleModifierService = useCallback((product: MarketplaceProduct) => {
+    setProductSheetVisible(false);
+    setSelectedProduct(null);
+    router.push(`/(app)/creer-service?serviceId=${product.id}` as any);
   }, [router]);
 
   // --- Boost Goal Handlers ---
@@ -815,6 +865,10 @@ export default function BoutiqueScreen() {
         product={selectedProduct}
         onClose={handleCloseProductSheet}
         onContacter={handleContacterVendeur}
+        onCommander={handleCommander}
+        onSupprimer={handleSupprimerService}
+        onModifier={handleModifierService}
+        currentUserId={utilisateur?.id}
         couleurs={couleurs}
       />
     </SafeAreaView>

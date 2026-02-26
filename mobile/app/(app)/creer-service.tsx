@@ -6,9 +6,9 @@
  * Step 2: Medias et tags (image principale, gallery, tags)
  * Step 3: Options, FAQ et preview avant publication
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, SafeAreaView, Platform, Alert, Image, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,7 +17,7 @@ import { useUser } from '../../src/contexts/UserContext';
 import { espacements } from '../../src/constantes/theme';
 import createStyles from '../../src/features/boutique/creer-service.styles';
 import SwipeableScreen from '../../src/composants/SwipeableScreen';
-import { creerServiceMarketplace, MarketplaceCategory } from '../../src/services/boutique';
+import { creerServiceMarketplace, modifierServiceMarketplace, viewMarketplaceProduct, MarketplaceCategory } from '../../src/services/boutique';
 
 // ============ CONSTANTES ============
 const CATEGORIES = [
@@ -49,19 +49,22 @@ export default function CreerServiceScreen() {
   const { couleurs } = useTheme();
   const { utilisateur } = useUser();
   const router = useRouter();
+  const { serviceId } = useLocalSearchParams<{ serviceId?: string }>();
   const insets = useSafeAreaInsets();
   const s = createStyles(couleurs);
 
+  const isEditMode = !!serviceId;
+  const [loading, setLoading] = useState(isEditMode);
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   // Step 1
   const [nom, setNom] = useState('');
   const [description, setDescription] = useState('');
-  const [descriptionLongue, setDescriptionLongue] = useState('');
   const [categorie, setCategorie] = useState<MarketplaceCategory | ''>('');
   const [prix, setPrix] = useState('');
   const [surDevis, setSurDevis] = useState(false);
-  const [delaiLivraison, setDelaiLivraison] = useState('');
+  const [delaiNombre, setDelaiNombre] = useState('');
+  const [delaiUnite, setDelaiUnite] = useState<'heures' | 'jours' | 'semaines'>('jours');
   // Step 2
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [galleryUris, setGalleryUris] = useState<(string | null)[]>([]);
@@ -71,14 +74,47 @@ export default function CreerServiceScreen() {
   const [options, setOptions] = useState<OptionItem[]>([]);
   const [faqItems, setFaqItems] = useState<FaqItem[]>([]);
 
-  // Validation
-  const isStep1Valid = useCallback(() => (
-    nom.trim().length > 0 && description.trim().length > 0 && descriptionLongue.trim().length > 0 &&
-    categorie !== '' && delaiLivraison.trim().length > 0 &&
-    (surDevis || (prix.trim().length > 0 && !isNaN(parseFloat(prix))))
-  ), [nom, description, descriptionLongue, categorie, prix, surDevis, delaiLivraison]);
+  // Charger les donnees en mode edition
+  useEffect(() => {
+    if (!serviceId) return;
+    (async () => {
+      const res = await viewMarketplaceProduct(serviceId);
+      if (res.succes && res.data) {
+        const p = res.data.product;
+        setNom(p.nom);
+        setDescription(p.descriptionLongue || p.description || '');
+        setCategorie((p.categorie || '') as MarketplaceCategory);
+        if (p.prix === null || p.prix === undefined) { setSurDevis(true); } else { setPrix(String(p.prix)); }
+        if (p.delaiLivraison) {
+          const match = p.delaiLivraison.match(/^(\d+)\s*(heures?|jours?|semaines?)$/i);
+          if (match) {
+            setDelaiNombre(match[1]);
+            const u = match[2].toLowerCase();
+            setDelaiUnite(u.startsWith('heure') ? 'heures' : u.startsWith('semaine') ? 'semaines' : 'jours');
+          } else {
+            setDelaiNombre(p.delaiLivraison.replace(/\D/g, '') || p.delaiLivraison);
+          }
+        }
+        if (p.image) setImageUri(p.image);
+        if (p.gallery?.length) setGalleryUris(p.gallery);
+        if (p.tags?.length) setTags(p.tags);
+        if (p.options?.length) setOptions(p.options.map(o => ({ label: o.label, description: o.description || '', prix: String(o.prix) })));
+        if (p.faq?.length) setFaqItems(p.faq);
+      }
+      setLoading(false);
+    })();
+  }, [serviceId]);
 
-  const isStep2Valid = useCallback(() => imageUri !== null, [imageUri]);
+  // Validation
+  const delaiLivraison = delaiNombre.trim() ? `${delaiNombre} ${delaiUnite}` : '';
+
+  const isStep1Valid = useCallback(() => (
+    nom.trim().length > 0 && description.trim().length > 0 &&
+    categorie !== '' && delaiNombre.trim().length > 0 && !isNaN(Number(delaiNombre)) &&
+    (surDevis || (prix.trim().length > 0 && !isNaN(parseFloat(prix))))
+  ), [nom, description, categorie, prix, surDevis, delaiNombre]);
+
+  const isStep2Valid = useCallback(() => !!imageUri, [imageUri]);
 
   // Image handlers
   const handlePickMainImage = useCallback(async () => { const uri = await pickImage(); if (uri) setImageUri(uri); }, []);
@@ -115,20 +151,24 @@ export default function CreerServiceScreen() {
     if (!imageUri) return;
     setSubmitting(true);
     try {
-      const res = await creerServiceMarketplace({
-        nom, description, descriptionLongue, categorie: categorie as string,
+      const descCourte = description.length > 200 ? description.slice(0, 197) + '...' : description;
+      const payload = {
+        nom, description: descCourte, descriptionLongue: description, categorie: categorie as string,
         prix: surDevis ? null : parseFloat(prix), image: imageUri,
         gallery: galleryUris.filter(Boolean) as string[], tags, delaiLivraison,
         options: options.filter(o => o.label.trim()).map(o => ({ label: o.label, description: o.description, prix: parseFloat(o.prix) || 0 })),
         faq: faqItems.filter(f => f.question.trim() && f.answer.trim()),
-      });
+      };
+      const res = isEditMode
+        ? await modifierServiceMarketplace(serviceId!, payload)
+        : await creerServiceMarketplace(payload);
       if (res.succes) {
-        Alert.alert('Succes', 'Votre service a ete publie !', [{ text: 'OK', onPress: () => router.back() }]);
+        Alert.alert('Succes', isEditMode ? 'Service mis a jour !' : 'Votre service a ete publie !', [{ text: 'OK', onPress: () => router.back() }]);
       } else {
         Alert.alert('Erreur', res.message || 'Erreur lors de la publication.');
       }
     } catch { Alert.alert('Erreur', 'Erreur lors de la publication.'); } finally { setSubmitting(false); }
-  }, [nom, description, descriptionLongue, categorie, prix, surDevis, imageUri, galleryUris, tags, delaiLivraison, options, faqItems, router]);
+  }, [nom, description, categorie, prix, surDevis, imageUri, galleryUris, tags, delaiLivraison, options, faqItems, router, isEditMode, serviceId]);
 
   // ============ RENDER HELPERS ============
 
@@ -150,13 +190,9 @@ export default function CreerServiceScreen() {
       <TextInput style={s.input} value={nom} onChangeText={setNom} placeholder="Ex: Coaching business personnalise" placeholderTextColor={couleurs.texteMuted} maxLength={80} />
       <Text style={s.inputHelper}>{nom.length}/80 caracteres</Text>
 
-      <Text style={s.inputLabel}>Description courte *</Text>
-      <TextInput style={[s.input, s.inputMultiline]} value={description} onChangeText={setDescription} placeholder="Resume rapide de votre service" placeholderTextColor={couleurs.texteMuted} multiline maxLength={200} />
-      <Text style={s.inputHelper}>{description.length}/200 caracteres</Text>
-
-      <Text style={s.inputLabel}>Description detaillee *</Text>
-      <TextInput style={[s.input, s.inputMultiline, { minHeight: 120 }]} value={descriptionLongue} onChangeText={setDescriptionLongue} placeholder="Decrivez en detail ce que comprend votre service..." placeholderTextColor={couleurs.texteMuted} multiline maxLength={2000} />
-      <Text style={s.inputHelper}>{descriptionLongue.length}/2000 caracteres</Text>
+      <Text style={s.inputLabel}>Description *</Text>
+      <TextInput style={[s.input, s.inputMultiline, { minHeight: 120 }]} value={description} onChangeText={setDescription} placeholder="Decrivez en detail ce que comprend votre service..." placeholderTextColor={couleurs.texteMuted} multiline maxLength={2000} />
+      <Text style={s.inputHelper}>{description.length}/2000 caracteres</Text>
 
       <Text style={s.inputLabel}>Categorie *</Text>
       <View style={s.categoryGrid}>
@@ -180,7 +216,14 @@ export default function CreerServiceScreen() {
       )}
 
       <Text style={s.inputLabel}>Delai de livraison *</Text>
-      <TextInput style={s.input} value={delaiLivraison} onChangeText={setDelaiLivraison} placeholder="Ex: 3-5 jours" placeholderTextColor={couleurs.texteMuted} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: espacements.sm }}>
+        <TextInput style={[s.input, { flex: 1, marginBottom: 0 }]} value={delaiNombre} onChangeText={setDelaiNombre} placeholder="Ex: 3" placeholderTextColor={couleurs.texteMuted} keyboardType="number-pad" maxLength={4} />
+        {(['heures', 'jours', 'semaines'] as const).map(u => (
+          <Pressable key={u} style={[s.categoryChip, delaiUnite === u && s.categoryChipSelected, { paddingVertical: 10, paddingHorizontal: 14 }]} onPress={() => setDelaiUnite(u)}>
+            <Text style={[s.categoryChipText, delaiUnite === u && { color: '#7C5CFF', fontWeight: '600' }]}>{u}</Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 
@@ -304,12 +347,17 @@ export default function CreerServiceScreen() {
           <Pressable onPress={() => router.back()} style={s.backButton}>
             <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
           </Pressable>
-          <Text style={s.headerTitle}>Creer un service</Text>
+          <Text style={s.headerTitle}>{isEditMode ? 'Modifier le service' : 'Creer un service'}</Text>
           <View style={s.headerSpacer} />
         </View>
 
         {renderStepIndicator()}
 
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={couleurs.primaire} />
+          </View>
+        ) : (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
             {step === 0 && renderStep1()}
@@ -327,11 +375,12 @@ export default function CreerServiceScreen() {
               </Pressable>
             ) : (
               <Pressable style={[s.ctaButton, submitting && s.ctaButtonDisabled]} onPress={handleSubmit} disabled={submitting}>
-                {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.ctaButtonText}>Publier le service</Text>}
+                {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.ctaButtonText}>{isEditMode ? 'Mettre a jour' : 'Publier le service'}</Text>}
               </Pressable>
             )}
           </View>
         </KeyboardAvoidingView>
+        )}
       </SafeAreaView>
     </SwipeableScreen>
   );
