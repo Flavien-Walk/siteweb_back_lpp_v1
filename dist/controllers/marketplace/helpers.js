@@ -11,14 +11,13 @@ const MarketplaceService_js_1 = __importDefault(require("../../models/Marketplac
 const Message_js_1 = require("../../models/Message.js");
 /**
  * Calcule le temps de reponse moyen d'un vendeur (en minutes)
- * Basé sur les 30 dernieres conversations : temps entre un message entrant
+ * Base sur les 30 dernieres conversations : temps entre un message entrant
  * et la premiere reponse du vendeur
  */
 const computeAvgResponseTime = async (userId) => {
     try {
-        const { Conversation, Message } = Message_js_1;
         // Recuperer les 30 dernieres conversations du vendeur
-        const conversations = await Conversation.find({ participants: userId })
+        const conversations = await Message_js_1.Conversation.find({ participants: userId })
             .sort({ dateMiseAJour: -1 })
             .limit(30)
             .select('_id');
@@ -26,7 +25,7 @@ const computeAvgResponseTime = async (userId) => {
             return null;
         const convIds = conversations.map(c => c._id);
         // Recuperer les messages de ces conversations (derniers 500)
-        const messages = await Message.find({
+        const messages = await Message_js_1.Message.find({
             conversation: { $in: convIds },
             type: { $ne: 'systeme' },
         })
@@ -42,7 +41,7 @@ const computeAvgResponseTime = async (userId) => {
                 parConversation[convId] = [];
             parConversation[convId].push(msg);
         }
-        // Pour chaque conversation, trouver les paires (message entrant → reponse vendeur)
+        // Pour chaque conversation, trouver les paires (message entrant -> reponse vendeur)
         const delais = [];
         const userIdStr = userId.toString();
         for (const convMsgs of Object.values(parConversation)) {
@@ -132,10 +131,10 @@ const recomputeServiceStats = async (serviceId) => {
         const reviewStats = await MarketplaceReview_js_1.default.aggregate([
             { $match: { service: objectId } },
             { $group: {
-                _id: null,
-                noteGlobale: { $avg: '$note' },
-                nombreAvis: { $sum: 1 },
-            } },
+                    _id: null,
+                    noteGlobale: { $avg: '$note' },
+                    nombreAvis: { $sum: 1 },
+                } },
         ]);
         // Compter les commandes terminees
         const commandesRealisees = await MarketplaceOrder_js_1.default.countDocuments({
@@ -233,3 +232,4 @@ const formatServicePourMobile = async (service, reviews = []) => {
     };
 };
 exports.formatServicePourMobile = formatServicePourMobile;
+//# sourceMappingURL=helpers.js.map

@@ -29,6 +29,7 @@ import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import trendingRoutes from './routes/trendingRoutes.js';
 import recommendationRoutes from './routes/recommendationRoutes.js';
+import marketplaceRoutes from './routes/marketplaceRoutes.js';
 import { gestionErreurs, routeNonTrouvee } from './middlewares/gestionErreurs.js';
 import { configurerPassport } from './config/passport.js';
 import { securityMonitor, checkBlockedIP, sanitizeQueryParams } from './middlewares/security/index.js';
@@ -146,6 +147,7 @@ export const creerApp = (): Application => {
   app.use('/api/events', eventRoutes);
   app.use('/api/trending', trendingRoutes);
   app.use('/api/recommendations', recommendationRoutes);
+  app.use('/api/marketplace', marketplaceRoutes);
 
   // ============================================
   // GESTION DES ERREURS

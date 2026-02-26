@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.supprimerReview = exports.modifierReview = exports.getReviewsService = exports.creerReview = void 0;
 const MarketplaceReview_js_1 = __importDefault(require("../../models/MarketplaceReview.js"));
 const MarketplaceOrder_js_1 = __importDefault(require("../../models/MarketplaceOrder.js"));
-const { recomputeServiceStats } = require("./helpers.js");
+const helpers_js_1 = require("./helpers.js");
 /**
  * Creer un avis sur un service apres une commande terminee
  * POST /api/marketplace/reviews
@@ -61,7 +61,7 @@ const creerReview = async (req, res) => {
         commande.aReview = true;
         await commande.save();
         // Recalculer les stats du service
-        await recomputeServiceStats(commande.service);
+        await (0, helpers_js_1.recomputeServiceStats)(commande.service);
         return res.status(201).json({
             succes: true,
             data: { review },
@@ -78,7 +78,7 @@ const creerReview = async (req, res) => {
 exports.creerReview = creerReview;
 /**
  * Recuperer les avis d'un service (public)
- * GET /api/marketplace/services/:serviceId/reviews
+ * GET /api/marketplace/reviews/:serviceId
  */
 const getReviewsService = async (req, res) => {
     try {
@@ -96,7 +96,7 @@ const getReviewsService = async (req, res) => {
             .populate('auteur', 'prenom nom avatar')
             .lean();
         // Formater les avis pour le client
-        const formattedReviews = reviews.map(r => ({
+        const formattedReviews = reviews.map((r) => ({
             id: r._id.toString(),
             auteur: r.auteur
                 ? `${r.auteur.prenom || ''} ${(r.auteur.nom || '').charAt(0)}.`.trim()
@@ -132,14 +132,14 @@ const getReviewsService = async (req, res) => {
 exports.getReviewsService = getReviewsService;
 /**
  * Modifier un avis existant (proprietaire uniquement, dans les 7 jours)
- * PATCH /api/marketplace/reviews/:reviewId
+ * PATCH /api/marketplace/reviews/:id
  */
 const modifierReview = async (req, res) => {
     try {
-        const { reviewId } = req.params;
+        const { id } = req.params;
         const { note, commentaire } = req.body;
         // Recuperer l'avis
-        const review = await MarketplaceReview_js_1.default.findById(reviewId);
+        const review = await MarketplaceReview_js_1.default.findById(id);
         if (!review) {
             return res.status(404).json({
                 succes: false,
@@ -169,7 +169,7 @@ const modifierReview = async (req, res) => {
             review.commentaire = commentaire;
         await review.save();
         // Recalculer les stats du service
-        await recomputeServiceStats(review.service);
+        await (0, helpers_js_1.recomputeServiceStats)(review.service);
         return res.status(200).json({
             succes: true,
             data: { review },
@@ -186,13 +186,13 @@ const modifierReview = async (req, res) => {
 exports.modifierReview = modifierReview;
 /**
  * Supprimer un avis (proprietaire uniquement)
- * DELETE /api/marketplace/reviews/:reviewId
+ * DELETE /api/marketplace/reviews/:id
  */
 const supprimerReview = async (req, res) => {
     try {
-        const { reviewId } = req.params;
+        const { id } = req.params;
         // Recuperer l'avis
-        const review = await MarketplaceReview_js_1.default.findById(reviewId);
+        const review = await MarketplaceReview_js_1.default.findById(id);
         if (!review) {
             return res.status(404).json({
                 succes: false,
@@ -211,9 +211,9 @@ const supprimerReview = async (req, res) => {
         // Remettre le flag aReview a false sur la commande
         await MarketplaceOrder_js_1.default.findByIdAndUpdate(commandeId, { aReview: false });
         // Supprimer l'avis
-        await MarketplaceReview_js_1.default.findByIdAndDelete(reviewId);
+        await MarketplaceReview_js_1.default.findByIdAndDelete(id);
         // Recalculer les stats du service
-        await recomputeServiceStats(serviceId);
+        await (0, helpers_js_1.recomputeServiceStats)(serviceId);
         return res.status(200).json({
             succes: true,
             message: 'Avis supprime.',
@@ -228,3 +228,4 @@ const supprimerReview = async (req, res) => {
     }
 };
 exports.supprimerReview = supprimerReview;
+//# sourceMappingURL=reviews.js.map

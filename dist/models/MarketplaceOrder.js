@@ -33,141 +33,45 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TRANSITIONS_AUTORISEES = exports.QUI_PEUT_TRANSITIONNER = exports.ORDER_STATUTS = void 0;
+exports.QUI_PEUT_TRANSITIONNER = exports.TRANSITIONS_AUTORISEES = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-/**
- * Statuts possibles d'une commande marketplace
- */
-exports.ORDER_STATUTS = [
-    'en_attente', 'paye', 'en_cours', 'livre', 'termine', 'annule', 'litige',
-];
-/**
- * Qui peut effectuer quelle transition
- * 'acheteur' | 'vendeur' | 'both' | 'staff'
- */
-exports.QUI_PEUT_TRANSITIONNER = {
-    'en_attente->paye': 'acheteur',
-    'en_attente->annule': 'acheteur',
-    'paye->en_cours': 'vendeur',
-    'paye->annule': 'vendeur',
-    'en_cours->livre': 'vendeur',
-    'en_cours->litige': 'both',
-    'livre->termine': 'acheteur',
-    'livre->litige': 'acheteur',
-    'litige->termine': 'staff',
-    'litige->annule': 'staff',
-};
-/**
- * Transitions valides par statut
- */
 exports.TRANSITIONS_AUTORISEES = {
     en_attente: ['paye', 'annule'],
     paye: ['en_cours', 'annule'],
     en_cours: ['livre', 'litige'],
     livre: ['termine', 'litige'],
-    litige: ['termine', 'annule'],
     termine: [],
     annule: [],
+    litige: ['en_cours', 'annule'],
 };
-const historiqueSchema = new mongoose_1.Schema({
-    de: {
-        type: String,
-        enum: exports.ORDER_STATUTS,
-        required: true,
-    },
-    vers: {
-        type: String,
-        enum: exports.ORDER_STATUTS,
-        required: true,
-    },
-    date: {
-        type: Date,
-        default: Date.now,
-    },
-    par: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Utilisateur',
-        required: true,
-    },
-    commentaire: {
-        type: String,
-        maxlength: [500, "Le commentaire ne peut pas depasser 500 caracteres"],
-        default: null,
-    },
-}, { _id: false });
+exports.QUI_PEUT_TRANSITIONNER = {
+    paye: 'acheteur',
+    en_cours: 'vendeur',
+    livre: 'vendeur',
+    termine: 'acheteur',
+    annule: 'les_deux',
+    litige: 'les_deux',
+};
 const marketplaceOrderSchema = new mongoose_1.Schema({
-    service: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'MarketplaceService',
-        required: [true, "Le service est requis"],
-        index: true,
-    },
-    acheteur: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Utilisateur',
-        required: [true, "L'acheteur est requis"],
-        index: true,
-    },
-    vendeur: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Utilisateur',
-        required: [true, "Le vendeur est requis"],
-        index: true,
-    },
-    // Snapshot des infos service au moment de la commande
+    service: { type: mongoose_1.Schema.Types.ObjectId, ref: 'MarketplaceService', required: true },
+    acheteur: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+    vendeur: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
     serviceSnapshot: {
         nom: { type: String, required: true },
         prix: { type: Number, default: null },
         devise: { type: String, default: 'EUR' },
     },
-    optionsSelectionnees: [{
-        label: { type: String, required: true },
-        prix: { type: Number, required: true },
-        devise: { type: String, default: 'EUR' },
-    }],
-    montantTotal: {
-        type: Number,
-        required: [true, "Le montant total est requis"],
-        min: [0, "Le montant ne peut pas etre negatif"],
-    },
-    devise: {
-        type: String,
-        default: 'EUR',
-        enum: ['EUR'],
-    },
-    statut: {
-        type: String,
-        enum: {
-            values: exports.ORDER_STATUTS,
-            message: "Statut invalide: {VALUE}",
-        },
-        default: 'en_attente',
-        index: true,
-    },
-    historique: {
-        type: [historiqueSchema],
-        default: [],
-    },
-    aReview: {
-        type: Boolean,
-        default: false,
-    },
-    conversationId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Conversation',
-        default: null,
-    },
-}, {
-    timestamps: {
-        createdAt: 'dateCreation',
-        updatedAt: 'dateMiseAJour',
-    },
-});
-// Index composites
-marketplaceOrderSchema.index({ acheteur: 1, statut: 1 });
-marketplaceOrderSchema.index({ vendeur: 1, statut: 1 });
-marketplaceOrderSchema.index({ service: 1, statut: 1 });
+    optionsSelectionnees: [{ label: String, prix: Number, devise: { type: String, default: 'EUR' } }],
+    montantTotal: { type: Number, required: true },
+    devise: { type: String, default: 'EUR' },
+    statut: { type: String, enum: ['en_attente', 'paye', 'en_cours', 'livre', 'termine', 'annule', 'litige'], default: 'en_attente' },
+    historique: [{ de: String, vers: String, date: { type: Date, default: Date.now }, par: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur' }, commentaire: String }],
+    aReview: { type: Boolean, default: false },
+    conversationId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Conversation' },
+}, { timestamps: { createdAt: 'dateCreation', updatedAt: 'dateMiseAJour' } });
 marketplaceOrderSchema.index({ acheteur: 1, dateCreation: -1 });
 marketplaceOrderSchema.index({ vendeur: 1, dateCreation: -1 });
+marketplaceOrderSchema.index({ service: 1 });
 const MarketplaceOrder = mongoose_1.default.model('MarketplaceOrder', marketplaceOrderSchema);
 exports.default = MarketplaceOrder;
+//# sourceMappingURL=MarketplaceOrder.js.map

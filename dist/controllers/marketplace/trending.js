@@ -4,10 +4,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getTrending = void 0;
-const mongoose_1 = __importDefault(require("mongoose"));
 const MarketplaceEvent_js_1 = __importDefault(require("../../models/MarketplaceEvent.js"));
 const MarketplaceService_js_1 = __importDefault(require("../../models/MarketplaceService.js"));
-const { formatServicePourMobile } = require("./helpers.js");
+const helpers_js_1 = require("./helpers.js");
 /**
  * Recuperer les services tendance (public)
  * GET /api/marketplace/trending?periode=7&limit=10
@@ -91,7 +90,7 @@ const getTrending = async (req, res) => {
             const noteGlobale = service.statsCache?.noteGlobale || 0;
             const finalScore = item.score * (1 + noteGlobale / 10);
             // Formater le service pour le mobile
-            const formatted = await formatServicePourMobile(service);
+            const formatted = await (0, helpers_js_1.formatServicePourMobile)(service);
             resultats.push({
                 ...formatted,
                 _trendingScore: Math.round(finalScore * 100) / 100,
@@ -116,3 +115,4 @@ const getTrending = async (req, res) => {
     }
 };
 exports.getTrending = getTrending;
+//# sourceMappingURL=trending.js.map

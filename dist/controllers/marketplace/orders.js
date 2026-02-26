@@ -1,16 +1,43 @@
 "use strict";
-/**
- * Controller des commandes marketplace
- * CRUD et gestion du cycle de vie des commandes (transitions de statut).
- */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.changerStatutCommande = exports.getMesVentes = exports.getMesAchats = exports.creerCommande = void 0;
-const MarketplaceOrder_js_1 = require("../../models/MarketplaceOrder.js");
-const MarketplaceOrder = MarketplaceOrder_js_1.default;
-const { TRANSITIONS_AUTORISEES, QUI_PEUT_TRANSITIONNER } = MarketplaceOrder_js_1;
+const MarketplaceOrder_js_1 = __importStar(require("../../models/MarketplaceOrder.js"));
 const MarketplaceService_js_1 = __importDefault(require("../../models/MarketplaceService.js"));
 const MarketplaceEvent_js_1 = __importDefault(require("../../models/MarketplaceEvent.js"));
 const helpers_js_1 = require("./helpers.js");
@@ -65,7 +92,7 @@ const creerCommande = async (req, res) => {
             }
         }
         // Creer la commande
-        const commande = await MarketplaceOrder.create({
+        const commande = await MarketplaceOrder_js_1.default.create({
             service: service._id,
             acheteur: req.utilisateur._id,
             vendeur: service.createur,
@@ -78,10 +105,10 @@ const creerCommande = async (req, res) => {
             montantTotal,
             statut: 'en_attente',
             historique: [{
-                de: 'en_attente',
-                vers: 'en_attente',
-                par: req.utilisateur._id,
-            }],
+                    de: 'en_attente',
+                    vers: 'en_attente',
+                    par: req.utilisateur._id,
+                }],
         });
         // Tracker l'evenement analytics
         await MarketplaceEvent_js_1.default.create({
@@ -109,14 +136,14 @@ const getMesAchats = async (req, res) => {
         const skip = (page - 1) * limit;
         const filtre = { acheteur: req.utilisateur._id };
         const [commandes, total] = await Promise.all([
-            MarketplaceOrder.find(filtre)
+            MarketplaceOrder_js_1.default.find(filtre)
                 .sort({ dateCreation: -1 })
                 .skip(skip)
                 .limit(limit)
                 .populate('service', 'nom image')
                 .populate('vendeur', 'prenom nom avatar')
                 .lean(),
-            MarketplaceOrder.countDocuments(filtre),
+            MarketplaceOrder_js_1.default.countDocuments(filtre),
         ]);
         return res.json({
             succes: true,
@@ -149,14 +176,14 @@ const getMesVentes = async (req, res) => {
         const skip = (page - 1) * limit;
         const filtre = { vendeur: req.utilisateur._id };
         const [commandes, total] = await Promise.all([
-            MarketplaceOrder.find(filtre)
+            MarketplaceOrder_js_1.default.find(filtre)
                 .sort({ dateCreation: -1 })
                 .skip(skip)
                 .limit(limit)
                 .populate('service', 'nom image')
                 .populate('acheteur', 'prenom nom avatar')
                 .lean(),
-            MarketplaceOrder.countDocuments(filtre),
+            MarketplaceOrder_js_1.default.countDocuments(filtre),
         ]);
         return res.json({
             succes: true,
@@ -190,12 +217,12 @@ const changerStatutCommande = async (req, res) => {
             return res.status(400).json({ succes: false, message: "Le nouveau statut est requis" });
         }
         // Charger la commande
-        const commande = await MarketplaceOrder.findById(id);
+        const commande = await MarketplaceOrder_js_1.default.findById(id);
         if (!commande) {
             return res.status(404).json({ succes: false, message: "Commande introuvable" });
         }
         // Verifier que la transition est autorisee
-        const transitionsValides = TRANSITIONS_AUTORISEES[commande.statut];
+        const transitionsValides = MarketplaceOrder_js_1.TRANSITIONS_AUTORISEES[commande.statut];
         if (!transitionsValides || !transitionsValides.includes(nouveauStatut)) {
             return res.status(400).json({
                 succes: false,
@@ -204,7 +231,7 @@ const changerStatutCommande = async (req, res) => {
         }
         // Verifier que l'utilisateur a le droit d'effectuer cette transition
         const cle = commande.statut + '->' + nouveauStatut;
-        const regle = QUI_PEUT_TRANSITIONNER[cle];
+        const regle = MarketplaceOrder_js_1.QUI_PEUT_TRANSITIONNER[cle];
         let autorise = false;
         switch (regle) {
             case 'acheteur':
@@ -235,8 +262,9 @@ const changerStatutCommande = async (req, res) => {
         commande.historique.push({
             de: ancienStatut,
             vers: nouveauStatut,
+            date: new Date(),
             par: req.utilisateur._id,
-            commentaire: commentaire || null,
+            commentaire: commentaire || undefined,
         });
         await commande.save();
         // Si la commande est terminee, recalculer les stats du service
@@ -251,3 +279,4 @@ const changerStatutCommande = async (req, res) => {
     }
 };
 exports.changerStatutCommande = changerStatutCommande;
+//# sourceMappingURL=orders.js.map

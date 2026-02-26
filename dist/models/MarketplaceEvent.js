@@ -34,43 +34,15 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-/**
- * Evenements analytics marketplace
- * TTL: auto-suppression apres 90 jours
- */
 const marketplaceEventSchema = new mongoose_1.Schema({
-    service: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'MarketplaceService',
-        required: [true, "Le service est requis"],
-        index: true,
-    },
-    type: {
-        type: String,
-        enum: {
-            values: ['view', 'contact', 'order'],
-            message: "Type d'evenement invalide: {VALUE}",
-        },
-        required: [true, "Le type est requis"],
-        index: true,
-    },
-    utilisateur: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Utilisateur',
-        default: null,
-    },
-    date: {
-        type: Date,
-        default: Date.now,
-    },
-}, {
-    timestamps: false,
-});
-// TTL: auto-suppression apres 90 jours
+    service: { type: mongoose_1.Schema.Types.ObjectId, ref: 'MarketplaceService', required: true, index: true },
+    type: { type: String, enum: ['view', 'contact', 'order'], required: true, index: true },
+    utilisateur: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', default: null },
+    date: { type: Date, default: Date.now },
+}, { timestamps: false });
 marketplaceEventSchema.index({ date: 1 }, { expireAfterSeconds: 90 * 24 * 3600 });
-// Index composite pour aggregation trending
 marketplaceEventSchema.index({ service: 1, type: 1, date: -1 });
-// Index pour debounce (1 vue/user/service/heure)
 marketplaceEventSchema.index({ service: 1, utilisateur: 1, type: 1, date: -1 });
 const MarketplaceEvent = mongoose_1.default.model('MarketplaceEvent', marketplaceEventSchema);
 exports.default = MarketplaceEvent;
+//# sourceMappingURL=MarketplaceEvent.js.map

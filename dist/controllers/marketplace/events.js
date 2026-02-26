@@ -4,7 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.trackView = void 0;
-const mongoose_1 = __importDefault(require("mongoose"));
 const MarketplaceEvent_js_1 = __importDefault(require("../../models/MarketplaceEvent.js"));
 const MarketplaceService_js_1 = __importDefault(require("../../models/MarketplaceService.js"));
 /**
@@ -73,3 +72,4 @@ const trackView = async (req, res) => {
     }
 };
 exports.trackView = trackView;
+//# sourceMappingURL=events.js.map
