@@ -58,6 +58,7 @@ interface ProductDetailSheetProps {
   visible: boolean;
   product: MarketplaceProduct | null;
   onClose: () => void;
+  onContacter?: (product: MarketplaceProduct) => void;
   couleurs: ThemeCouleurs;
 }
 
@@ -155,7 +156,7 @@ const reviewStyles = (couleurs: ThemeCouleurs) =>
 
 // ============ MAIN COMPONENT ============
 
-export default function ProductDetailSheet({ visible, product, onClose, couleurs }: ProductDetailSheetProps) {
+export default function ProductDetailSheet({ visible, product, onClose, onContacter, couleurs }: ProductDetailSheetProps) {
   const insets = useSafeAreaInsets();
   const s = createStyles(couleurs, insets);
   const [imgError, setImgError] = useState(false);
@@ -478,6 +479,7 @@ export default function ProductDetailSheet({ visible, product, onClose, couleurs
                   </View>
                   <Pressable
                     style={({ pressed }) => [s.sellerContactBtn, pressed && { opacity: 0.85 }]}
+                    onPress={() => onContacter?.(product)}
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={16} color="#7C5CFF" />
                     <Text style={s.sellerContactText}>Contacter {product.createur.nom.split(' ')[0]}</Text>
@@ -634,7 +636,7 @@ export default function ProductDetailSheet({ visible, product, onClose, couleurs
               </View>
               <Pressable
                 style={({ pressed }) => [s.ctaButton, pressed && { opacity: 0.85 }]}
-                onPress={handleClose}
+                onPress={() => onContacter?.(product)}
               >
                 <Ionicons name="chatbubble-ellipses-outline" size={18} color="#fff" />
                 <Text style={s.ctaButtonText}>Contacter</Text>

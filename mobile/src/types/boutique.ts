@@ -142,3 +142,35 @@ export interface PriceBreakdown {
   hasWelcome: boolean;
   hasLppPlus: boolean;
 }
+
+// ============ MARKETPLACE ORDERS ============
+
+export type OrderStatut =
+  | 'en_attente'
+  | 'paye'
+  | 'en_cours'
+  | 'livre'
+  | 'termine'
+  | 'annule'
+  | 'litige';
+
+export interface MarketplaceOrder {
+  _id: string;
+  service: { _id: string; nom: string; image: string };
+  acheteur: { _id: string; prenom: string; nom: string; avatar?: string };
+  vendeur: { _id: string; prenom: string; nom: string; avatar?: string };
+  serviceSnapshot: { nom: string; prix: number | null; devise: string };
+  optionsSelectionnees: Array<{ label: string; prix: number; devise: string }>;
+  montantTotal: number;
+  devise: string;
+  statut: OrderStatut;
+  aReview: boolean;
+  dateCreation: string;
+}
+
+export interface MarketplacePagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}

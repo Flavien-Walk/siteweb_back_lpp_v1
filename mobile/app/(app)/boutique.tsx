@@ -21,6 +21,7 @@ import {
   Animated,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,12 +54,13 @@ import {
   MarketplaceProduct,
   MarketplaceCategory,
   MARKETPLACE_CATEGORIES,
-  MOCK_MARKETPLACE_PRODUCTS,
-  getMarketplaceProducts,
   formatPrice,
   calculateBundlePrice,
   subscribeCertification,
   purchaseBundle,
+  fetchMarketplaceProducts,
+  contacterVendeur,
+  trackServiceView,
 } from '../../src/services/boutique';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -97,7 +99,8 @@ export default function BoutiqueScreen() {
 
   // Marketplace
   const [selectedCategory, setSelectedCategory] = useState<MarketplaceCategory>('tous');
-  const [marketplaceProducts, setMarketplaceProducts] = useState<MarketplaceProduct[]>(MOCK_MARKETPLACE_PRODUCTS);
+  const [marketplaceProducts, setMarketplaceProducts] = useState<MarketplaceProduct[]>([]);
+  const [marketplaceLoading, setMarketplaceLoading] = useState(false);
 
   // Bottom sheet: Certification
   const [certSheetVisible, setCertSheetVisible] = useState(false);
@@ -188,28 +191,56 @@ export default function BoutiqueScreen() {
     [tabIndicatorPosition]
   );
 
-  // Simulate loading
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(timer);
+  // Chargement marketplace depuis API
+  const loadMarketplace = useCallback(async (cat?: MarketplaceCategory) => {
+    setMarketplaceLoading(true);
+    try {
+      const res = await fetchMarketplaceProducts(cat, 1, 40);
+      if (res.succes && res.data) {
+        setMarketplaceProducts(res.data.products);
+      }
+    } finally {
+      setMarketplaceLoading(false);
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadMarketplace();
+  }, [loadMarketplace]);
 
   // --- Marketplace Handlers ---
 
   const handleCategoryChange = useCallback((cat: MarketplaceCategory) => {
     setSelectedCategory(cat);
-    setMarketplaceProducts(getMarketplaceProducts(cat));
-  }, []);
+    loadMarketplace(cat === 'tous' ? undefined : cat);
+  }, [loadMarketplace]);
 
   const handleOpenProduct = useCallback((product: MarketplaceProduct) => {
     setSelectedProduct(product);
     setProductSheetVisible(true);
+    trackServiceView(product.id);
   }, []);
 
   const handleCloseProductSheet = useCallback(() => {
     setProductSheetVisible(false);
     setSelectedProduct(null);
   }, []);
+
+  const handleContacterVendeur = useCallback(async (product: MarketplaceProduct) => {
+    try {
+      const res = await contacterVendeur(product.createur.id);
+      if (res.succes && res.data) {
+        setProductSheetVisible(false);
+        setSelectedProduct(null);
+        router.push(`/(app)/conversation/${res.data.conversation._id}` as any);
+      } else {
+        Alert.alert('Erreur', res.message || 'Impossible de contacter le vendeur.');
+      }
+    } catch {
+      Alert.alert('Erreur', 'Impossible de contacter le vendeur.');
+    }
+  }, [router]);
 
   // --- Boost Goal Handlers ---
 
@@ -282,6 +313,15 @@ export default function BoutiqueScreen() {
   const renderMarketplaceHeader = useCallback(
     () => (
       <View>
+        {isEntrepreneur && (
+          <Pressable
+            style={s.creerServiceButton}
+            onPress={() => router.push('/(app)/creer-service' as any)}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#7C5CFF" />
+            <Text style={s.creerServiceText}>Proposer un service</Text>
+          </Pressable>
+        )}
         <Pressable style={s.searchBar}>
           <Ionicons name="search-outline" size={18} color={couleurs.texteSecondaire} />
           <Text style={s.searchPlaceholder}>Rechercher produits, services...</Text>
@@ -293,7 +333,7 @@ export default function BoutiqueScreen() {
         />
       </View>
     ),
-    [selectedCategory, handleCategoryChange, couleurs, s]
+    [selectedCategory, handleCategoryChange, couleurs, s, isEntrepreneur, router]
   );
 
   const renderMarketplaceItem = useCallback(
@@ -312,16 +352,22 @@ export default function BoutiqueScreen() {
   const renderEmptyState = useCallback(
     () => (
       <View style={s.emptyState}>
-        <View style={s.emptyIcon}>
-          <Ionicons name="storefront-outline" size={40} color={couleurs.texteMuted} />
-        </View>
-        <Text style={s.emptyTitle}>Aucun produit dans cette categorie</Text>
-        <Text style={s.emptySubtitle}>
-          Les entrepreneurs de la communaute proposeront bientot leurs produits et services ici.
-        </Text>
+        {marketplaceLoading ? (
+          <ActivityIndicator size="large" color={couleurs.primaire} />
+        ) : (
+          <>
+            <View style={s.emptyIcon}>
+              <Ionicons name="storefront-outline" size={40} color={couleurs.texteMuted} />
+            </View>
+            <Text style={s.emptyTitle}>Aucun produit dans cette categorie</Text>
+            <Text style={s.emptySubtitle}>
+              Les entrepreneurs de la communaute proposeront bientot leurs produits et services ici.
+            </Text>
+          </>
+        )}
       </View>
     ),
-    [couleurs, s]
+    [couleurs, s, marketplaceLoading]
   );
 
   const renderMarketplaceFooter = useCallback(
@@ -768,6 +814,7 @@ export default function BoutiqueScreen() {
         visible={productSheetVisible}
         product={selectedProduct}
         onClose={handleCloseProductSheet}
+        onContacter={handleContacterVendeur}
         couleurs={couleurs}
       />
     </SafeAreaView>

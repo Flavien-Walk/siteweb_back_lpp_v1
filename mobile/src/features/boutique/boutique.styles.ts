@@ -146,6 +146,25 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       lineHeight: 17,
     },
 
+    // === Créer un service (entrepreneur) ===
+    creerServiceButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: espacements.sm,
+      borderWidth: 1.5,
+      borderStyle: 'dashed',
+      borderColor: '#7C5CFF',
+      borderRadius: rayons.lg,
+      paddingVertical: espacements.md,
+      marginBottom: espacements.lg,
+    },
+    creerServiceText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#7C5CFF',
+    },
+
     // === Marketplace (FlatList) ===
     marketplaceContent: {
       paddingHorizontal: espacements.lg,
