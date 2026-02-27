@@ -43,6 +43,7 @@ import BoostGoalCard from '../../src/composants/BoostGoalCard';
 import BundleCard from '../../src/composants/BundleCard';
 import BoostFlowSheet from '../../src/composants/BoostFlowSheet';
 import ProductDetailSheet from '../../src/composants/ProductDetailSheet';
+import BriefModal from '../../src/composants/BriefModal';
 import CategoryFilterBar from '../../src/composants/CategoryFilterBar';
 import MarketplaceProductCard from '../../src/composants/MarketplaceProductCard';
 import {
@@ -123,6 +124,11 @@ export default function BoutiqueScreen() {
   // Bottom sheet: Product detail
   const [productSheetVisible, setProductSheetVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProduct | null>(null);
+
+  // Brief modal: commande
+  const [briefModalVisible, setBriefModalVisible] = useState(false);
+  const [pendingOrderProduct, setPendingOrderProduct] = useState<MarketplaceProduct | null>(null);
+  const [pendingOrderOptions, setPendingOrderOptions] = useState<number[]>([]);
 
   // === TAB BAR ANIMATION (pattern accueil.tsx) ===
 
@@ -247,20 +253,33 @@ export default function BoutiqueScreen() {
     }
   }, [router]);
 
-  const handleCommander = useCallback(async (product: MarketplaceProduct, optionsSelectionnees: number[]) => {
+  const handleCommander = useCallback((product: MarketplaceProduct, optionsSelectionnees: number[]) => {
+    // Fermer la fiche produit et ouvrir le brief
+    setProductSheetVisible(false);
+    setSelectedProduct(null);
+    setPendingOrderProduct(product);
+    setPendingOrderOptions(optionsSelectionnees);
+    setBriefModalVisible(true);
+  }, []);
+
+  const handleSubmitBrief = useCallback(async (brief: string) => {
+    if (!pendingOrderProduct) return;
     try {
-      const res = await creerCommande(product.id, optionsSelectionnees);
+      const res = await creerCommande(pendingOrderProduct.id, pendingOrderOptions, brief ? { message: brief } : undefined);
       if (res.succes) {
-        setProductSheetVisible(false);
-        setSelectedProduct(null);
-        Alert.alert('Commande envoyee', 'Votre commande a ete envoyee au vendeur.');
+        setBriefModalVisible(false);
+        setPendingOrderProduct(null);
+        Alert.alert('Demande envoyee !', 'Le vendeur va examiner votre demande.', [
+          { text: 'Voir mes commandes', onPress: () => router.push('/(app)/commandes' as any) },
+          { text: 'OK' },
+        ]);
       } else {
         Alert.alert('Erreur', res.message || 'Impossible de passer la commande.');
       }
     } catch {
       Alert.alert('Erreur', 'Impossible de passer la commande.');
     }
-  }, []);
+  }, [pendingOrderProduct, pendingOrderOptions, router]);
 
   const handleSupprimerService = useCallback((product: MarketplaceProduct) => {
     Alert.alert(
@@ -869,6 +888,15 @@ export default function BoutiqueScreen() {
         onSupprimer={handleSupprimerService}
         onModifier={handleModifierService}
         currentUserId={utilisateur?.id}
+        couleurs={couleurs}
+      />
+
+      {/* ====== BRIEF MODAL (avant commande) ====== */}
+      <BriefModal
+        visible={briefModalVisible}
+        onClose={() => { setBriefModalVisible(false); setPendingOrderProduct(null); }}
+        onSubmit={handleSubmitBrief}
+        serviceName={pendingOrderProduct?.nom || ''}
         couleurs={couleurs}
       />
     </SafeAreaView>

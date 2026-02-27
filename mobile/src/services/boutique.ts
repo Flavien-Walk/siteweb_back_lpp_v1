@@ -262,17 +262,20 @@ export async function contacterVendeur(
   }
 }
 
+// ============ API COMMANDES (WORKFLOW) ============
+
 /**
- * Creer une commande
+ * Creer une commande avec brief
  */
 export async function creerCommande(
   serviceId: string,
   optionsSelectionnees?: number[],
+  buyerBrief?: { message: string },
 ): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
   try {
     return api.post<{ commande: MarketplaceOrder }>(
       '/marketplace/orders',
-      { serviceId, optionsSelectionnees },
+      { serviceId, optionsSelectionnees, buyerBrief },
       true,
     );
   } catch {
@@ -280,24 +283,134 @@ export async function creerCommande(
   }
 }
 
-/**
- * Changer le statut d'une commande
- */
-export async function changerStatutCommande(
+/** Detail d'une commande */
+export async function getOrderDetail(
   commandeId: string,
-  statut: string,
-  commentaire?: string,
 ): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
   try {
-    return api.patch<{ commande: MarketplaceOrder }>(
-      `/marketplace/orders/${commandeId}/statut`,
-      { statut, commentaire },
-      true,
-    );
+    return api.get<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}`, true);
   } catch {
-    return { succes: false, message: 'Erreur lors du changement de statut.' };
+    return { succes: false, message: 'Erreur lors du chargement de la commande.' };
   }
 }
+
+/** Mes achats */
+export async function getMesAchats(
+  page = 1, limit = 20, statut?: string,
+): Promise<ReponseAPI<{ commandes: MarketplaceOrder[]; pagination: MarketplacePagination }>> {
+  try {
+    let url = `/marketplace/orders/achats?page=${page}&limit=${limit}`;
+    if (statut) url += `&statut=${statut}`;
+    return api.get<{ commandes: MarketplaceOrder[]; pagination: MarketplacePagination }>(url, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors du chargement des achats.' };
+  }
+}
+
+/** Mes ventes */
+export async function getMesVentes(
+  page = 1, limit = 20, statut?: string,
+): Promise<ReponseAPI<{ commandes: MarketplaceOrder[]; pagination: MarketplacePagination }>> {
+  try {
+    let url = `/marketplace/orders/ventes?page=${page}&limit=${limit}`;
+    if (statut) url += `&statut=${statut}`;
+    return api.get<{ commandes: MarketplaceOrder[]; pagination: MarketplacePagination }>(url, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors du chargement des ventes.' };
+  }
+}
+
+/** Vendeur accepte (→ en_cours auto) */
+export async function accepterCommande(
+  commandeId: string, commentaire?: string,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/accept`, { commentaire }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de l\'acceptation.' };
+  }
+}
+
+/** Vendeur refuse */
+export async function refuserCommande(
+  commandeId: string, commentaire?: string,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/refuse`, { commentaire }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors du refus.' };
+  }
+}
+
+/** Vendeur ajoute avancement */
+export async function ajouterProgression(
+  commandeId: string, title: string, message: string, percent: number,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/progress`, { title, message, percent }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de l\'ajout de l\'avancement.' };
+  }
+}
+
+/** Vendeur livre */
+export async function livrerCommande(
+  commandeId: string,
+  deliverables: Array<{ type: 'message' | 'file' | 'link'; content: string; file?: any }>,
+  marquerLivre = true,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/deliver`, { deliverables, marquerLivre }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de la livraison.' };
+  }
+}
+
+/** Acheteur valide */
+export async function validerCommande(
+  commandeId: string, commentaire?: string,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/complete`, { commentaire }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de la validation.' };
+  }
+}
+
+/** Acheteur demande revision */
+export async function demanderRevision(
+  commandeId: string, message: string,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/revision`, { message }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de la demande de revision.' };
+  }
+}
+
+/** Annuler */
+export async function annulerCommande(
+  commandeId: string, raison?: string,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/cancel`, { raison }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de l\'annulation.' };
+  }
+}
+
+/** Ouvrir litige */
+export async function ouvrirLitige(
+  commandeId: string, raison: string,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/dispute`, { raison }, true);
+  } catch {
+    return { succes: false, message: 'Erreur lors de l\'ouverture du litige.' };
+  }
+}
+
+// ============ API AVIS ============
 
 /**
  * Laisser un avis (acheteur, commande terminee)

@@ -146,26 +146,67 @@ export interface PriceBreakdown {
 // ============ MARKETPLACE ORDERS ============
 
 export type OrderStatut =
-  | 'en_attente'
-  | 'paye'
-  | 'en_cours'
-  | 'livre'
-  | 'termine'
-  | 'annule'
-  | 'litige';
+  | 'en_attente' | 'acceptee' | 'refusee'
+  | 'en_cours' | 'livre' | 'termine'
+  | 'annule' | 'litige';
+
+export interface OrderAttachment {
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+
+export interface OrderDeliverable {
+  _id: string;
+  type: 'message' | 'file' | 'link';
+  content: string;
+  file?: OrderAttachment;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface OrderProgressUpdate {
+  _id: string;
+  title: string;
+  message: string;
+  percent: number;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface OrderBuyerBrief {
+  message: string;
+  attachments: OrderAttachment[];
+  submittedAt: string;
+}
+
+export interface OrderHistorique {
+  de: string;
+  vers: string;
+  date: string;
+  par: string;
+  commentaire?: string;
+}
 
 export interface MarketplaceOrder {
   _id: string;
-  service: { _id: string; nom: string; image: string };
+  service: { _id: string; nom: string; image: string; categorie?: string };
   acheteur: { _id: string; prenom: string; nom: string; avatar?: string };
   vendeur: { _id: string; prenom: string; nom: string; avatar?: string };
-  serviceSnapshot: { nom: string; prix: number | null; devise: string };
+  serviceSnapshot: { nom: string; prix: number | null; devise: string; image?: string };
   optionsSelectionnees: Array<{ label: string; prix: number; devise: string }>;
   montantTotal: number;
   devise: string;
   statut: OrderStatut;
+  historique: OrderHistorique[];
+  buyerBrief: OrderBuyerBrief;
+  deliverables: OrderDeliverable[];
+  progressUpdates: OrderProgressUpdate[];
   aReview: boolean;
+  conversationId?: string;
   dateCreation: string;
+  dateMiseAJour: string;
 }
 
 export interface MarketplacePagination {
