@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.envoyerEmailLppRenouvellement = exports.envoyerEmailLppFin = exports.envoyerEmailLppReactivation = exports.envoyerEmailLppResiliation = exports.envoyerEmailLppActivation = exports.envoyerEmailVerification = exports.genererCodeVerification = void 0;
+exports.envoyerEmailCommandeTerminee = exports.envoyerEmailLivraison = exports.envoyerEmailCommandeAcceptee = exports.envoyerEmailNouvelleCommande = exports.envoyerEmailLppRenouvellement = exports.envoyerEmailLppFin = exports.envoyerEmailLppReactivation = exports.envoyerEmailLppResiliation = exports.envoyerEmailLppActivation = exports.envoyerEmailVerification = exports.genererCodeVerification = void 0;
 const resend_1 = require("resend");
 const crypto_1 = require("crypto");
 const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
@@ -223,4 +223,107 @@ const envoyerEmailLppRenouvellement = async (email, prenom, dateFinPeriode) => {
     console.log(`[EMAIL LPP+] Renouvellement envoye:`, JSON.stringify(result));
 };
 exports.envoyerEmailLppRenouvellement = envoyerEmailLppRenouvellement;
+// ============================================
+// EMAILS MARKETPLACE (COMMANDES)
+// ============================================
+/**
+ * Email nouvelle commande recue (→ vendeur)
+ */
+const envoyerEmailNouvelleCommande = async (email, prenom, serviceNom, acheteurPrenom, montant) => {
+    console.log(`[EMAIL MARKETPLACE] Envoi nouvelle commande vers ${email}`);
+    try {
+        const body = `
+      <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Tu as recu une nouvelle commande sur la marketplace.</p>
+      <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
+        <p style="color:#E0E0E0;font-size:14px;margin:0 0 4px;"><strong>Service :</strong> ${serviceNom}</p>
+        <p style="color:#E0E0E0;font-size:14px;margin:0 0 4px;"><strong>Acheteur :</strong> ${acheteurPrenom}</p>
+        <p style="color:#A855F7;font-size:16px;font-weight:700;margin:0;"><strong>Montant :</strong> ${montant}</p>
+      </div>
+      <p style="color:#A0A0B0;font-size:13px;margin:0;">Connecte-toi a l'application pour accepter ou refuser cette commande.</p>`;
+        await resend.emails.send({
+            from: FROM_EMAIL, to: email, replyTo: REPLY_TO,
+            subject: `Nouvelle commande - ${serviceNom}`,
+            html: lppEmailTemplate(prenom, 'Nouvelle commande recue', body),
+            text: `Salut ${prenom},\n\nTu as recu une nouvelle commande.\n\nService : ${serviceNom}\nAcheteur : ${acheteurPrenom}\nMontant : ${montant}\n\nConnecte-toi a l'app pour accepter ou refuser.\n\n— La Premiere Pierre`,
+        });
+    }
+    catch (err) {
+        console.error('[EMAIL MARKETPLACE] Erreur envoi nouvelle commande:', err);
+    }
+};
+exports.envoyerEmailNouvelleCommande = envoyerEmailNouvelleCommande;
+/**
+ * Email commande acceptee (→ acheteur)
+ */
+const envoyerEmailCommandeAcceptee = async (email, prenom, serviceNom, vendeurPrenom) => {
+    console.log(`[EMAIL MARKETPLACE] Envoi commande acceptee vers ${email}`);
+    try {
+        const body = `
+      <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Ta commande a ete acceptee. Le vendeur va commencer a travailler dessus.</p>
+      <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
+        <p style="color:#E0E0E0;font-size:14px;margin:0 0 4px;"><strong>Service :</strong> ${serviceNom}</p>
+        <p style="color:#E0E0E0;font-size:14px;margin:0;"><strong>Vendeur :</strong> ${vendeurPrenom}</p>
+      </div>
+      <p style="color:#A0A0B0;font-size:13px;margin:0;">Tu seras notifie a chaque avancement. Tu peux suivre ta commande dans l'application.</p>`;
+        await resend.emails.send({
+            from: FROM_EMAIL, to: email, replyTo: REPLY_TO,
+            subject: `Commande acceptee - ${serviceNom}`,
+            html: lppEmailTemplate(prenom, 'Commande acceptee', body),
+            text: `Salut ${prenom},\n\nTa commande "${serviceNom}" a ete acceptee par ${vendeurPrenom}.\n\nTu seras notifie a chaque avancement.\n\n— La Premiere Pierre`,
+        });
+    }
+    catch (err) {
+        console.error('[EMAIL MARKETPLACE] Erreur envoi commande acceptee:', err);
+    }
+};
+exports.envoyerEmailCommandeAcceptee = envoyerEmailCommandeAcceptee;
+/**
+ * Email livraison (→ acheteur)
+ */
+const envoyerEmailLivraison = async (email, prenom, serviceNom, vendeurPrenom) => {
+    console.log(`[EMAIL MARKETPLACE] Envoi livraison vers ${email}`);
+    try {
+        const body = `
+      <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">${vendeurPrenom} a livre ta commande. Verifie les livrables et valide la commande.</p>
+      <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
+        <p style="color:#E0E0E0;font-size:14px;margin:0;"><strong>Service :</strong> ${serviceNom}</p>
+      </div>
+      <p style="color:#A0A0B0;font-size:13px;margin:0;">Connecte-toi a l'application pour verifier les livrables et valider ou demander une revision.</p>`;
+        await resend.emails.send({
+            from: FROM_EMAIL, to: email, replyTo: REPLY_TO,
+            subject: `Livraison recue - ${serviceNom}`,
+            html: lppEmailTemplate(prenom, 'Livraison recue', body),
+            text: `Salut ${prenom},\n\n${vendeurPrenom} a livre ta commande "${serviceNom}".\n\nConnecte-toi a l'app pour verifier et valider.\n\n— La Premiere Pierre`,
+        });
+    }
+    catch (err) {
+        console.error('[EMAIL MARKETPLACE] Erreur envoi livraison:', err);
+    }
+};
+exports.envoyerEmailLivraison = envoyerEmailLivraison;
+/**
+ * Email commande terminee (→ vendeur)
+ */
+const envoyerEmailCommandeTerminee = async (email, prenom, serviceNom, acheteurPrenom) => {
+    console.log(`[EMAIL MARKETPLACE] Envoi commande terminee vers ${email}`);
+    try {
+        const body = `
+      <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">${acheteurPrenom} a valide ta livraison. La commande est terminee.</p>
+      <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
+        <p style="color:#10B981;font-size:16px;font-weight:700;margin:0;">&#10003; Commande terminee</p>
+        <p style="color:#E0E0E0;font-size:14px;margin:4px 0 0;"><strong>Service :</strong> ${serviceNom}</p>
+      </div>
+      <p style="color:#A0A0B0;font-size:13px;margin:0;">Merci pour ton travail !</p>`;
+        await resend.emails.send({
+            from: FROM_EMAIL, to: email, replyTo: REPLY_TO,
+            subject: `Commande terminee - ${serviceNom}`,
+            html: lppEmailTemplate(prenom, 'Commande terminee', body),
+            text: `Salut ${prenom},\n\n${acheteurPrenom} a valide ta livraison pour "${serviceNom}". La commande est terminee.\n\nMerci pour ton travail !\n\n— La Premiere Pierre`,
+        });
+    }
+    catch (err) {
+        console.error('[EMAIL MARKETPLACE] Erreur envoi commande terminee:', err);
+    }
+};
+exports.envoyerEmailCommandeTerminee = envoyerEmailCommandeTerminee;
 //# sourceMappingURL=emailService.js.map

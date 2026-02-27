@@ -5,8 +5,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ouvrirLitige = exports.annulerCommande = exports.demanderRevision = exports.validerCommande = exports.livrerCommande = exports.ajouterProgression = exports.refuserCommande = exports.accepterCommande = void 0;
 const MarketplaceOrder_js_1 = __importDefault(require("../../models/MarketplaceOrder.js"));
+const Utilisateur_js_1 = __importDefault(require("../../models/Utilisateur.js"));
 const orderStateMachine_js_1 = require("../../services/marketplace/orderStateMachine.js");
 const helpers_js_1 = require("./helpers.js");
+const orderNotifications_js_1 = require("./orderNotifications.js");
+/** Mini-profil pour les notifs */
+async function getUserProfil(userId) {
+    const u = await Utilisateur_js_1.default.findById(userId).select('prenom nom avatar').lean();
+    if (!u)
+        return { _id: userId.toString(), prenom: 'Utilisateur', nom: '' };
+    return { _id: u._id.toString(), prenom: u.prenom, nom: u.nom, avatar: u.avatar };
+}
 // ============ HELPERS ============
 /**
  * Charge une commande + verifie que le user est partie prenante
@@ -64,6 +73,10 @@ async function transitionStatut(req, res, versStatut, opts) {
         if (versStatut === 'termine') {
             await (0, helpers_js_1.recomputeServiceStats)(commande.service);
         }
+        // Callback post-save (notifications)
+        if (opts?.afterSave) {
+            opts.afterSave(commande, userId);
+        }
         return res.json({ succes: true, data: { commande } });
     }
     catch (error) {
@@ -90,6 +103,8 @@ const accepterCommande = async (req, res) => {
         commande.statut = 'en_cours';
         commande.historique.push({ de: ancien, vers: 'acceptee', date: new Date(), par: userId, commentaire: req.body.commentaire || undefined }, { de: 'acceptee', vers: 'en_cours', date: new Date(), par: userId, commentaire: 'Demarrage automatique' });
         await commande.save();
+        // Notification → acheteur
+        getUserProfil(userId).then(vendeur => (0, orderNotifications_js_1.notifierCommandeAcceptee)(commande._id.toString(), commande.serviceSnapshot.nom, vendeur, commande.acheteur.toString()));
         return res.json({ succes: true, data: { commande } });
     }
     catch (error) {
@@ -103,7 +118,11 @@ exports.accepterCommande = accepterCommande;
  * Vendeur refuse la commande
  */
 const refuserCommande = async (req, res) => {
-    return transitionStatut(req, res, 'refusee');
+    return transitionStatut(req, res, 'refusee', {
+        afterSave: (commande, userId) => {
+            getUserProfil(userId).then(vendeur => (0, orderNotifications_js_1.notifierCommandeRefusee)(commande._id.toString(), commande.serviceSnapshot.nom, vendeur, commande.acheteur.toString()));
+        },
+    });
 };
 exports.refuserCommande = refuserCommande;
 /**
@@ -137,6 +156,8 @@ const ajouterProgression = async (req, res) => {
             createdBy: userId,
         });
         await commande.save();
+        // Notification → acheteur
+        getUserProfil(userId).then(vendeur => (0, orderNotifications_js_1.notifierProgressionAjoutee)(commande._id.toString(), commande.serviceSnapshot.nom, vendeur, commande.acheteur.toString(), percent));
         return res.json({ succes: true, data: { commande } });
     }
     catch (error) {
@@ -202,6 +223,10 @@ const livrerCommande = async (req, res) => {
             });
         }
         await commande.save();
+        // Notification → acheteur si livre
+        if (commande.statut === 'livre') {
+            getUserProfil(userId).then(vendeur => (0, orderNotifications_js_1.notifierCommandeLivree)(commande._id.toString(), commande.serviceSnapshot.nom, vendeur, commande.acheteur.toString()));
+        }
         return res.json({ succes: true, data: { commande } });
     }
     catch (error) {
@@ -216,7 +241,11 @@ exports.livrerCommande = livrerCommande;
  * Acheteur valide la livraison → termine
  */
 const validerCommande = async (req, res) => {
-    return transitionStatut(req, res, 'termine');
+    return transitionStatut(req, res, 'termine', {
+        afterSave: (commande, userId) => {
+            getUserProfil(userId).then(acheteur => (0, orderNotifications_js_1.notifierCommandeTerminee)(commande._id.toString(), commande.serviceSnapshot.nom, acheteur, commande.vendeur.toString()));
+        },
+    });
 };
 exports.validerCommande = validerCommande;
 /**
@@ -227,6 +256,9 @@ const demanderRevision = async (req, res) => {
     const { message } = req.body;
     return transitionStatut(req, res, 'en_cours', {
         commentaire: message || 'Revision demandee par l\'acheteur',
+        afterSave: (commande, userId) => {
+            getUserProfil(userId).then(acheteur => (0, orderNotifications_js_1.notifierRevisionDemandee)(commande._id.toString(), commande.serviceSnapshot.nom, acheteur, commande.vendeur.toString()));
+        },
     });
 };
 exports.demanderRevision = demanderRevision;
@@ -236,7 +268,15 @@ exports.demanderRevision = demanderRevision;
  * Annuler la commande (regles strictes)
  */
 const annulerCommande = async (req, res) => {
-    return transitionStatut(req, res, 'annule');
+    return transitionStatut(req, res, 'annule', {
+        afterSave: (commande, userId) => {
+            // Notifier l'autre partie
+            const autreId = userId.equals(commande.acheteur)
+                ? commande.vendeur.toString()
+                : commande.acheteur.toString();
+            getUserProfil(userId).then(acteur => (0, orderNotifications_js_1.notifierCommandeAnnulee)(commande._id.toString(), commande.serviceSnapshot.nom, acteur, autreId));
+        },
+    });
 };
 exports.annulerCommande = annulerCommande;
 /**
@@ -248,7 +288,15 @@ const ouvrirLitige = async (req, res) => {
     if (!raison || raison.trim().length < 10) {
         return res.status(400).json({ succes: false, message: 'La raison du litige doit contenir au moins 10 caracteres' });
     }
-    return transitionStatut(req, res, 'litige', { commentaire: raison });
+    return transitionStatut(req, res, 'litige', {
+        commentaire: raison,
+        afterSave: (commande, userId) => {
+            const autreId = userId.equals(commande.acheteur)
+                ? commande.vendeur.toString()
+                : commande.acheteur.toString();
+            getUserProfil(userId).then(acteur => (0, orderNotifications_js_1.notifierLitige)(commande._id.toString(), commande.serviceSnapshot.nom, acteur, autreId));
+        },
+    });
 };
 exports.ouvrirLitige = ouvrirLitige;
 //# sourceMappingURL=orderActions.js.map

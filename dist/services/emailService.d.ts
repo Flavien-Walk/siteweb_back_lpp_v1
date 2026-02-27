@@ -27,4 +27,20 @@ export declare const envoyerEmailLppFin: (email: string, prenom: string) => Prom
  * Email de renouvellement LPP+
  */
 export declare const envoyerEmailLppRenouvellement: (email: string, prenom: string, dateFinPeriode: string) => Promise<void>;
+/**
+ * Email nouvelle commande recue (→ vendeur)
+ */
+export declare const envoyerEmailNouvelleCommande: (email: string, prenom: string, serviceNom: string, acheteurPrenom: string, montant: string) => Promise<void>;
+/**
+ * Email commande acceptee (→ acheteur)
+ */
+export declare const envoyerEmailCommandeAcceptee: (email: string, prenom: string, serviceNom: string, vendeurPrenom: string) => Promise<void>;
+/**
+ * Email livraison (→ acheteur)
+ */
+export declare const envoyerEmailLivraison: (email: string, prenom: string, serviceNom: string, vendeurPrenom: string) => Promise<void>;
+/**
+ * Email commande terminee (→ vendeur)
+ */
+export declare const envoyerEmailCommandeTerminee: (email: string, prenom: string, serviceNom: string, acheteurPrenom: string) => Promise<void>;
 //# sourceMappingURL=emailService.d.ts.map

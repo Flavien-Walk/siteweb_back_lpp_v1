@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import MarketplaceOrder from '../../models/MarketplaceOrder.js';
 import MarketplaceService from '../../models/MarketplaceService.js';
 import MarketplaceEvent from '../../models/MarketplaceEvent.js';
+import { notifierNouvelleCommande } from './orderNotifications.js';
 
 /**
  * POST /api/marketplace/orders
@@ -89,6 +90,16 @@ export const creerCommande = async (req: Request, res: Response) => {
       type: 'order',
       utilisateur: (req as any).utilisateur._id,
     });
+
+    // Notification + email → vendeur
+    const user = (req as any).utilisateur;
+    notifierNouvelleCommande(
+      commande._id.toString(),
+      service.nom,
+      { _id: user._id.toString(), prenom: user.prenom, nom: user.nom, avatar: user.avatar },
+      service.createur.toString(),
+      montantTotal > 0 ? `${montantTotal.toFixed(2)} EUR` : undefined,
+    );
 
     return res.status(201).json({ succes: true, data: { commande } });
   } catch (error) {

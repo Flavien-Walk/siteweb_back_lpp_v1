@@ -7,6 +7,7 @@ exports.getMesVentes = exports.getMesAchats = exports.getOrderDetail = exports.c
 const MarketplaceOrder_js_1 = __importDefault(require("../../models/MarketplaceOrder.js"));
 const MarketplaceService_js_1 = __importDefault(require("../../models/MarketplaceService.js"));
 const MarketplaceEvent_js_1 = __importDefault(require("../../models/MarketplaceEvent.js"));
+const orderNotifications_js_1 = require("./orderNotifications.js");
 /**
  * POST /api/marketplace/orders
  * Creer une nouvelle commande avec brief acheteur.
@@ -82,6 +83,9 @@ const creerCommande = async (req, res) => {
             type: 'order',
             utilisateur: req.utilisateur._id,
         });
+        // Notification + email → vendeur
+        const user = req.utilisateur;
+        (0, orderNotifications_js_1.notifierNouvelleCommande)(commande._id.toString(), service.nom, { _id: user._id.toString(), prenom: user.prenom, nom: user.nom, avatar: user.avatar }, service.createur.toString(), montantTotal > 0 ? `${montantTotal.toFixed(2)} EUR` : undefined);
         return res.status(201).json({ succes: true, data: { commande } });
     }
     catch (error) {
