@@ -233,7 +233,7 @@ const createStyles = (couleurs: any) =>
     filtreChipActive: { backgroundColor: 'rgba(124,92,255,0.12)', borderColor: '#7C5CFF' },
     filtreText: { fontSize: 13, fontWeight: '500', color: couleurs.texteMuted, lineHeight: 18 },
     filtreTextActive: { color: '#7C5CFF', fontWeight: '600' },
-    list: { paddingHorizontal: espacements.lg, paddingBottom: 100 },
+    list: { paddingHorizontal: espacements.lg, paddingBottom: 100, flexGrow: 1 },
     loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
     emptyTitle: { fontSize: 16, fontWeight: '600', color: couleurs.texte },

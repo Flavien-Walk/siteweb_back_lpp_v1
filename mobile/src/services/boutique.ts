@@ -18,7 +18,7 @@ import type { ReponseAPI } from '../types/api';
 import type { LppPlusSubscription, UserSubscription, MarketplaceProduct, MarketplaceCategory, MarketplaceOrder, MarketplacePagination } from '../types/boutique';
 
 // Re-exports types pour compatibilite des imports existants
-export type { SubscriptionStatus, LppPlusSubscription, CertificationBenefit, CertificationPlan, UserSubscription, BoostGoalType, BoostIntensity, BoostGoal, BoostBundle, MarketplaceCategory, ProductReview, ProductOption, MarketplaceProduct, MarketplaceCategoryItem, PriceBreakdown, MarketplaceOrder, OrderStatut, MarketplacePagination } from '../types/boutique';
+export type { SubscriptionStatus, LppPlusSubscription, CertificationBenefit, CertificationPlan, UserSubscription, BoostGoalType, BoostIntensity, BoostGoal, BoostBundle, MarketplaceCategory, ProductReview, ProductOption, MarketplaceProduct, MarketplaceCategoryItem, PriceBreakdown, MarketplaceOrder, OrderStatut, MarketplacePagination, RevisionInfo } from '../types/boutique';
 
 // Re-exports constantes + helpers pour compatibilite des imports existants
 export { CERTIFICATION_PLAN, BOOST_GOALS, BOOST_BUNDLES, WELCOME_DISCOUNT, LPP_PLUS_DISCOUNT, MARKETPLACE_CATEGORIES, MOCK_MARKETPLACE_PRODUCTS, calculatePrice, calculateBundlePrice, formatPrice, getMarketplaceProducts, formatProductPrice, getCategoryLabel } from '../constantes/boutique';
@@ -356,7 +356,7 @@ export async function ajouterProgression(
 /** Vendeur livre */
 export async function livrerCommande(
   commandeId: string,
-  deliverables: Array<{ type: 'message' | 'file' | 'link'; content: string; file?: any }>,
+  deliverables: Array<{ type: 'message' | 'file' | 'link'; content?: string; base64?: string; fileName?: string; mimeType?: string; file?: any }>,
   marquerLivre = true,
 ): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
   try {

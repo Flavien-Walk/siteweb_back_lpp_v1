@@ -126,6 +126,8 @@ export interface MarketplaceProduct {
   reviews: ProductReview[];
   options?: ProductOption[];
   faq?: { question: string; answer: string }[];
+  accepteRevisions?: boolean;
+  revisionsIncluses?: number;
 }
 
 export interface MarketplaceCategoryItem {
@@ -216,6 +218,14 @@ export interface OrderDeadline {
   deadlineHistory?: OrderDeadlineHistory[];
 }
 
+export interface RevisionInfo {
+  accepteRevisions: boolean;
+  revisionsIncluses: number;
+  revisionsUtilisees: number;
+  revisionsRestantes: number;
+  peutDemanderRevision: boolean;
+}
+
 export interface MarketplaceOrder {
   _id: string;
   service: { _id: string; nom: string; image: string; categorie?: string };
@@ -233,6 +243,7 @@ export interface MarketplaceOrder {
   aReview: boolean;
   conversationId?: string;
   deadline?: OrderDeadline;
+  revisionInfo?: RevisionInfo;
   dateCreation: string;
   dateMiseAJour: string;
 }

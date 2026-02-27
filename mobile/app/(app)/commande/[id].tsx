@@ -2,11 +2,13 @@
  * Ecran detail commande — workflow complet acheteur/vendeur
  * Timeline + brief + avancement + livrables + actions contextuelles
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, Pressable, SafeAreaView, Platform,
   ActivityIndicator, Alert, Image, TextInput, StyleSheet,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,8 +58,17 @@ export default function CommandeDetailScreen() {
   const [reviewNote, setReviewNote] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
 
+  // Delivery files + link
+  const [deliverFiles, setDeliverFiles] = useState<{uri: string; name: string; size: number; mimeType: string; base64: string}[]>([]);
+  const [deliverLink, setDeliverLink] = useState('');
+
+  // Revision inline
+  const [showRevisionInput, setShowRevisionInput] = useState(false);
+  const [revisionMotif, setRevisionMotif] = useState('');
+
   // Deadline prolongation
   const [showProlongation, setShowProlongation] = useState(false);
+  const revisionPrompted = useRef(false);
 
   const loadCommande = useCallback(async () => {
     if (!id) return;
@@ -115,26 +126,55 @@ export default function CommandeDetailScreen() {
     ]);
   };
 
+  const handlePickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.length) return;
+      const file = result.assets[0];
+      const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const mimeType = file.mimeType || 'application/octet-stream';
+      const dataUri = `data:${mimeType};base64,${base64}`;
+      setDeliverFiles(prev => [...prev, { uri: file.uri, name: file.name, size: file.size || 0, mimeType, base64: dataUri }]);
+    } catch {
+      Alert.alert('Erreur', 'Impossible de charger le fichier.');
+    }
+  };
+
   const handleLivrer = () => {
-    if (!deliverMessage.trim()) {
-      Alert.alert('Erreur', 'Ajoutez un message de livraison.');
+    if (!deliverMessage.trim() && deliverFiles.length === 0 && !deliverLink.trim()) {
+      Alert.alert('Erreur', 'Ajoutez au moins un message, fichier ou lien.');
       return;
     }
+    const deliverables: Array<{ type: 'message' | 'file' | 'link'; content?: string; base64?: string; fileName?: string; mimeType?: string }> = [];
+    if (deliverMessage.trim()) {
+      deliverables.push({ type: 'message', content: deliverMessage.trim() });
+    }
+    for (const f of deliverFiles) {
+      deliverables.push({ type: 'file', base64: f.base64, fileName: f.name, mimeType: f.mimeType });
+    }
+    if (deliverLink.trim()) {
+      deliverables.push({ type: 'link', content: deliverLink.trim() });
+    }
     doAction(
-      () => livrerCommande(id!, [{ type: 'message', content: deliverMessage.trim() }], true),
+      () => livrerCommande(id!, deliverables, true),
       'Commande livree !',
     );
     setDeliverMessage('');
+    setDeliverFiles([]);
+    setDeliverLink('');
     setShowDeliverInput(false);
   };
 
   const handleValider = () => doAction(() => validerCommande(id!), 'Commande terminee !');
 
   const handleRevision = () => {
-    Alert.alert('Demander une revision', 'Le vendeur sera notifie.', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Confirmer', onPress: () => doAction(() => demanderRevision(id!, 'Revision demandee'), 'Revision demandee.') },
-    ]);
+    if (!revisionMotif.trim() || revisionMotif.trim().length < 5) {
+      Alert.alert('Erreur', 'Le motif doit contenir au moins 5 caracteres.');
+      return;
+    }
+    doAction(() => demanderRevision(id!, revisionMotif.trim()), 'Revision demandee.');
+    setRevisionMotif('');
+    setShowRevisionInput(false);
   };
 
   const handleAnnuler = () => {
@@ -306,6 +346,26 @@ export default function CommandeDetailScreen() {
             <View style={s.actionsCard}>
               <Text style={s.actionsTitle}>Gestion</Text>
 
+              {/* Bandeau revision reçue — proposer d'ajuster le délai */}
+              {(() => {
+                const lastHist = commande.historique?.[commande.historique.length - 1];
+                if (lastHist?.de === 'livre' && lastHist?.vers === 'en_cours' && !revisionPrompted.current) {
+                  return (
+                    <Pressable
+                      style={[s.waitingCard, { backgroundColor: '#F59E0B15', marginBottom: espacements.md }]}
+                      onPress={() => { revisionPrompted.current = true; setShowProlongation(true); }}
+                    >
+                      <Ionicons name="timer-outline" size={18} color="#F59E0B" />
+                      <Text style={[s.waitingText, { color: '#F59E0B', fontSize: 13 }]}>
+                        Revision recue — Ajuster le delai ?
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color="#F59E0B" />
+                    </Pressable>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Avancement inline */}
               {!showProgressInput ? (
                 <Pressable style={s.outlineBtn} onPress={() => setShowProgressInput(true)}>
@@ -329,17 +389,48 @@ export default function CommandeDetailScreen() {
                   <Text style={s.primaryBtnText}>Livrer la commande</Text>
                 </Pressable>
               ) : (
-                <View style={s.inlineForm}>
+                <View style={{ gap: espacements.sm }}>
                   <TextInput
-                    style={[s.inlineInput, { flex: 1, minHeight: 60 }]}
+                    style={[s.inlineInput, { minHeight: 60 }]}
                     value={deliverMessage}
                     onChangeText={setDeliverMessage}
                     placeholder="Message de livraison..."
                     placeholderTextColor={couleurs.texteMuted}
                     multiline
                   />
-                  <Pressable style={s.inlineSubmit} onPress={handleLivrer}>
-                    <Ionicons name="paper-plane" size={16} color="#fff" />
+                  {/* Fichiers joints */}
+                  {deliverFiles.map((f, i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: couleurs.fond, borderRadius: rayons.sm, padding: 8 }}>
+                      <Ionicons name="document-outline" size={16} color="#8B5CF6" />
+                      <Text style={{ flex: 1, fontSize: 12, color: couleurs.texte }} numberOfLines={1}>{f.name}</Text>
+                      <Text style={{ fontSize: 11, color: couleurs.texteMuted }}>{(f.size / 1024).toFixed(0)} Ko</Text>
+                      <Pressable onPress={() => setDeliverFiles(prev => prev.filter((_, j) => j !== i))}>
+                        <Ionicons name="close-circle" size={18} color="#EF4444" />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Pressable style={[s.outlineBtn, { flex: 1, marginBottom: 0 }]} onPress={handlePickFile}>
+                      <Ionicons name="attach-outline" size={16} color="#8B5CF6" />
+                      <Text style={[s.outlineBtnText, { color: '#8B5CF6' }]}>Fichier</Text>
+                    </Pressable>
+                  </View>
+                  <TextInput
+                    style={s.inlineInput}
+                    value={deliverLink}
+                    onChangeText={setDeliverLink}
+                    placeholder="Lien (optionnel)"
+                    placeholderTextColor={couleurs.texteMuted}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                  />
+                  <Pressable style={s.primaryBtn} onPress={handleLivrer} disabled={actionLoading}>
+                    {actionLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+                      <>
+                        <Ionicons name="paper-plane" size={16} color="#fff" />
+                        <Text style={s.primaryBtnText}>Envoyer la livraison</Text>
+                      </>
+                    )}
                   </Pressable>
                 </View>
               )}
@@ -351,20 +442,57 @@ export default function CommandeDetailScreen() {
             <View style={s.actionsCard}>
               <Text style={s.actionsTitle}>Livraison recue</Text>
               <Text style={s.actionsSubtitle}>Verifiez les livrables puis validez</Text>
-              <View style={s.actionsRow}>
-                <Pressable style={s.outlineBtn} onPress={handleRevision}>
-                  <Ionicons name="refresh-outline" size={16} color="#F59E0B" />
-                  <Text style={[s.outlineBtnText, { color: '#F59E0B' }]}>Revision</Text>
-                </Pressable>
-                <Pressable style={s.acceptBtn} onPress={handleValider} disabled={actionLoading}>
-                  {actionLoading ? <ActivityIndicator color="#fff" size="small" /> : (
-                    <>
-                      <Ionicons name="checkmark-done" size={18} color="#fff" />
-                      <Text style={s.acceptBtnText}>Valider</Text>
-                    </>
-                  )}
-                </Pressable>
-              </View>
+
+              {/* Revision inline */}
+              {commande.revisionInfo?.peutDemanderRevision !== false ? (
+                !showRevisionInput ? (
+                  <Pressable style={[s.outlineBtn, { marginBottom: espacements.md }]} onPress={() => setShowRevisionInput(true)}>
+                    <Ionicons name="refresh-outline" size={16} color="#F59E0B" />
+                    <Text style={[s.outlineBtnText, { color: '#F59E0B' }]}>
+                      Revision{commande.revisionInfo ? ` (${commande.revisionInfo.revisionsRestantes}/${commande.revisionInfo.revisionsIncluses})` : ''}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <View style={{ gap: espacements.sm, marginBottom: espacements.md }}>
+                    <TextInput
+                      style={[s.inlineInput, { minHeight: 60 }]}
+                      value={revisionMotif}
+                      onChangeText={setRevisionMotif}
+                      placeholder="Motif de la revision (obligatoire)..."
+                      placeholderTextColor={couleurs.texteMuted}
+                      multiline
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable style={[s.outlineBtn, { flex: 1, marginBottom: 0 }]} onPress={() => { setShowRevisionInput(false); setRevisionMotif(''); }}>
+                        <Text style={[s.outlineBtnText, { color: couleurs.texteMuted }]}>Annuler</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.primaryBtn, { flex: 1, backgroundColor: '#F59E0B' }, (!revisionMotif.trim() || revisionMotif.trim().length < 5) && { opacity: 0.5 }]}
+                        onPress={handleRevision}
+                        disabled={!revisionMotif.trim() || revisionMotif.trim().length < 5 || actionLoading}
+                      >
+                        {actionLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+                          <Text style={s.primaryBtnText}>Envoyer</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                )
+              ) : (
+                <View style={[s.waitingCard, { backgroundColor: '#EF444415', marginBottom: espacements.md }]}>
+                  <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                  <Text style={[s.waitingText, { color: '#EF4444', fontSize: 13 }]}>Revisions epuisees — vous pouvez ouvrir un litige</Text>
+                </View>
+              )}
+
+              <Pressable style={s.acceptBtn} onPress={handleValider} disabled={actionLoading}>
+                {actionLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+                  <>
+                    <Ionicons name="checkmark-done" size={18} color="#fff" />
+                    <Text style={s.acceptBtnText}>Valider la livraison</Text>
+                  </>
+                )}
+              </Pressable>
             </View>
           )}
 

@@ -7,7 +7,7 @@
  * Step 3: Options, FAQ et preview avant publication
  */
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, SafeAreaView, Platform, Alert, Image, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, ScrollView, Pressable, SafeAreaView, Platform, Alert, Image, KeyboardAvoidingView, ActivityIndicator, Switch } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -73,6 +73,8 @@ export default function CreerServiceScreen() {
   // Step 3
   const [options, setOptions] = useState<OptionItem[]>([]);
   const [faqItems, setFaqItems] = useState<FaqItem[]>([]);
+  const [accepteRevisions, setAccepteRevisions] = useState(true);
+  const [revisionsIncluses, setRevisionsIncluses] = useState('2');
 
   // Charger les donnees en mode edition
   useEffect(() => {
@@ -100,6 +102,8 @@ export default function CreerServiceScreen() {
         if (p.tags?.length) setTags(p.tags);
         if (p.options?.length) setOptions(p.options.map(o => ({ label: o.label, description: o.description || '', prix: String(o.prix) })));
         if (p.faq?.length) setFaqItems(p.faq);
+        if (p.accepteRevisions !== undefined) setAccepteRevisions(p.accepteRevisions);
+        if (p.revisionsIncluses !== undefined) setRevisionsIncluses(String(p.revisionsIncluses));
       }
       setLoading(false);
     })();
@@ -158,6 +162,8 @@ export default function CreerServiceScreen() {
         gallery: galleryUris.filter(Boolean) as string[], tags, delaiLivraison,
         options: options.filter(o => o.label.trim()).map(o => ({ label: o.label, description: o.description, prix: parseFloat(o.prix) || 0 })),
         faq: faqItems.filter(f => f.question.trim() && f.answer.trim()),
+        accepteRevisions,
+        revisionsIncluses: parseInt(revisionsIncluses) || 2,
       };
       const res = isEditMode
         ? await modifierServiceMarketplace(serviceId!, payload)
@@ -168,7 +174,7 @@ export default function CreerServiceScreen() {
         Alert.alert('Erreur', res.message || 'Erreur lors de la publication.');
       }
     } catch { Alert.alert('Erreur', 'Erreur lors de la publication.'); } finally { setSubmitting(false); }
-  }, [nom, description, categorie, prix, surDevis, imageUri, galleryUris, tags, delaiLivraison, options, faqItems, router, isEditMode, serviceId]);
+  }, [nom, description, categorie, prix, surDevis, imageUri, galleryUris, tags, delaiLivraison, options, faqItems, accepteRevisions, revisionsIncluses, router, isEditMode, serviceId]);
 
   // ============ RENDER HELPERS ============
 
@@ -317,6 +323,37 @@ export default function CreerServiceScreen() {
         <Text style={s.addButtonText}>Ajouter une question</Text>
       </Pressable>
 
+      {/* Revisions */}
+      <Text style={[s.inputLabel, { marginTop: espacements.lg }]}>Revisions</Text>
+      <View style={[s.previewCard, { gap: espacements.md }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontSize: 14, color: couleurs.texte }}>Accepter les revisions</Text>
+          <Switch
+            value={accepteRevisions}
+            onValueChange={setAccepteRevisions}
+            trackColor={{ false: couleurs.bordure, true: '#7C5CFF50' }}
+            thumbColor={accepteRevisions ? '#7C5CFF' : couleurs.texteMuted}
+          />
+        </View>
+        {accepteRevisions && (
+          <>
+            <Text style={{ fontSize: 13, color: couleurs.texteMuted }}>Nombre de revisions incluses</Text>
+            <TextInput
+              style={s.input}
+              value={revisionsIncluses}
+              onChangeText={setRevisionsIncluses}
+              placeholder="2"
+              placeholderTextColor={couleurs.texteMuted}
+              keyboardType="number-pad"
+              maxLength={2}
+            />
+            <Text style={{ fontSize: 11, color: couleurs.texteMuted, fontStyle: 'italic' }}>
+              Au-dela de cette limite, l'acheteur ne pourra pas demander de revision supplementaire et devra ouvrir un litige si necessaire.
+            </Text>
+          </>
+        )}
+      </View>
+
       <Text style={[s.inputLabel, { marginTop: espacements.lg }]}>Recapitulatif</Text>
       <View style={s.previewCard}>
         {[
@@ -324,6 +361,7 @@ export default function CreerServiceScreen() {
           ['Categorie', CATEGORIES.find(c => c.id === categorie)?.label || '—'],
           ['Prix', surDevis ? 'Sur devis' : prix ? `${prix} EUR` : '—'],
           ['Delai', delaiLivraison || '—'],
+          ['Revisions', accepteRevisions ? `${revisionsIncluses} incluse(s)` : 'Non acceptees'],
           ['Image', imageUri ? 'Ajoutee' : 'Manquante'],
           ['Gallery', `${galleryUris.length} image(s)`],
           ['Tags', `${tags.length} tag(s)`],
