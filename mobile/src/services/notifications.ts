@@ -28,7 +28,17 @@ export type TypeNotification =
   // Broadcast (notifications envoyées par l'équipe)
   | 'broadcast'
   // Support
-  | 'support_reponse';
+  | 'support_reponse'
+  // Marketplace — commandes
+  | 'commande_nouvelle'
+  | 'commande_acceptee'
+  | 'commande_refusee'
+  | 'commande_en_cours'
+  | 'commande_livree'
+  | 'commande_terminee'
+  | 'commande_annulee'
+  | 'commande_litige'
+  | 'commande_revision';
 
 export interface Notification {
   _id: string;
@@ -65,6 +75,9 @@ export interface Notification {
     // Données support
     ticketId?: string;
     ticketSubject?: string;
+    // Données marketplace/commande
+    commandeId?: string;
+    serviceNom?: string;
   };
 }
 

@@ -24,7 +24,7 @@ import {
   getOrderDetail, accepterCommande, refuserCommande,
   livrerCommande, validerCommande, demanderRevision,
   annulerCommande, ouvrirLitige, ajouterProgression,
-  contacterVendeur,
+  contacterVendeur, creerReview,
 } from '../../../src/services/boutique';
 import type { MarketplaceOrder, OrderStatut } from '../../../src/types/boutique';
 
@@ -48,6 +48,11 @@ export default function CommandeDetailScreen() {
   const [showProgressInput, setShowProgressInput] = useState(false);
   const [progressTitle, setProgressTitle] = useState('');
   const [progressPercent, setProgressPercent] = useState('');
+
+  // Review inline
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewNote, setReviewNote] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
 
   const loadCommande = useCallback(async () => {
     if (!id) return;
@@ -162,6 +167,28 @@ export default function CommandeDetailScreen() {
     const res = await contacterVendeur(otherId);
     if (res.succes && res.data) {
       router.push(`/(app)/conversation/${res.data.conversation._id}` as any);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewComment.trim()) {
+      Alert.alert('Erreur', 'Ajoutez un commentaire.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await creerReview(id!, reviewNote, reviewComment.trim());
+      if (res.succes) {
+        Alert.alert('Merci !', 'Votre avis a ete publie.');
+        setShowReviewForm(false);
+        await loadCommande();
+      } else {
+        Alert.alert('Erreur', res.message || 'Impossible de publier l\'avis.');
+      }
+    } catch {
+      Alert.alert('Erreur', 'Impossible de publier l\'avis.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -322,6 +349,13 @@ export default function CommandeDetailScreen() {
             </View>
           )}
 
+          {isAcheteur && statut === 'en_cours' && (
+            <View style={[s.waitingCard, { backgroundColor: '#3B82F615' }]}>
+              <Ionicons name="construct-outline" size={20} color="#3B82F6" />
+              <Text style={[s.waitingText, { color: '#3B82F6' }]}>Le vendeur travaille sur votre commande</Text>
+            </View>
+          )}
+
           {/* Actions secondaires */}
           {['en_attente', 'en_cours'].includes(statut) && (
             <Pressable style={s.dangerBtn} onPress={handleAnnuler}>
@@ -332,6 +366,53 @@ export default function CommandeDetailScreen() {
             <Pressable style={s.dangerBtn} onPress={handleLitige}>
               <Text style={s.dangerBtnText}>Signaler un probleme</Text>
             </Pressable>
+          )}
+
+          {/* === REVIEW (acheteur, commande terminee, pas encore d'avis) === */}
+          {isAcheteur && statut === 'termine' && !commande.aReview && (
+            <View style={s.actionsCard}>
+              {!showReviewForm ? (
+                <Pressable style={s.primaryBtn} onPress={() => setShowReviewForm(true)}>
+                  <Ionicons name="star-outline" size={16} color="#fff" />
+                  <Text style={s.primaryBtnText}>Laisser un avis</Text>
+                </Pressable>
+              ) : (
+                <>
+                  <Text style={s.actionsTitle}>Votre avis</Text>
+                  <View style={s.starsRow}>
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <Pressable key={n} onPress={() => setReviewNote(n)}>
+                        <Ionicons
+                          name={n <= reviewNote ? 'star' : 'star-outline'}
+                          size={28}
+                          color="#F59E0B"
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                  <TextInput
+                    style={[s.inlineInput, { minHeight: 60, marginVertical: espacements.md }]}
+                    value={reviewComment}
+                    onChangeText={setReviewComment}
+                    placeholder="Votre commentaire..."
+                    placeholderTextColor={couleurs.texteMuted}
+                    multiline
+                  />
+                  <Pressable style={s.primaryBtn} onPress={handleSubmitReview} disabled={actionLoading}>
+                    {actionLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+                      <Text style={s.primaryBtnText}>Publier l'avis</Text>
+                    )}
+                  </Pressable>
+                </>
+              )}
+            </View>
+          )}
+
+          {isAcheteur && statut === 'termine' && commande.aReview && (
+            <View style={[s.waitingCard, { backgroundColor: '#10B98115' }]}>
+              <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+              <Text style={[s.waitingText, { color: '#10B981' }]}>Avis publie</Text>
+            </View>
           )}
 
           <View style={{ height: 40 }} />
@@ -419,6 +500,8 @@ const createStyles = (couleurs: any) =>
       padding: espacements.lg, marginBottom: espacements.lg,
     },
     waitingText: { flex: 1, fontSize: 14, fontWeight: '600', color: '#F59E0B' },
+    // Stars review
+    starsRow: { flexDirection: 'row', gap: 4, justifyContent: 'center', marginVertical: espacements.sm },
     // Danger
     dangerBtn: {
       alignItems: 'center', paddingVertical: espacements.md, marginBottom: espacements.sm,

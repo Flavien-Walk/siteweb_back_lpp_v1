@@ -31,6 +31,17 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       textAlign: 'center',
     },
     headerSpacer: { width: 40 },
+    headerRight: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 2,
+    },
+    headerIconBtn: {
+      width: 38,
+      height: 38,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
     billingButton: {
       width: 40,
       height: 40,

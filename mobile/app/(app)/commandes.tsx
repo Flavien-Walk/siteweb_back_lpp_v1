@@ -20,9 +20,17 @@ import { getMesAchats, getMesVentes } from '../../src/services/boutique';
 import type { MarketplaceOrder, OrderStatut } from '../../src/types/boutique';
 import { StyleSheet } from 'react-native';
 
-const FILTRES: { label: string; value: string }[] = [
+const FILTRES_ACHATS: { label: string; value: string }[] = [
   { label: 'Toutes', value: '' },
   { label: 'En attente', value: 'en_attente' },
+  { label: 'En cours', value: 'en_cours' },
+  { label: 'Livrees', value: 'livre' },
+  { label: 'Terminees', value: 'termine' },
+];
+
+const FILTRES_VENTES: { label: string; value: string }[] = [
+  { label: 'Toutes', value: '' },
+  { label: 'A traiter', value: 'en_attente' },
   { label: 'En cours', value: 'en_cours' },
   { label: 'Livrees', value: 'livre' },
   { label: 'Terminees', value: 'termine' },
@@ -41,6 +49,9 @@ export default function CommandesScreen() {
   const [commandes, setCommandes] = useState<MarketplaceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingVentesCount, setPendingVentesCount] = useState(0);
+
+  const filtres = tab === 'ventes' ? FILTRES_VENTES : FILTRES_ACHATS;
 
   const loadCommandes = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -50,11 +61,18 @@ export default function CommandesScreen() {
       if (res.succes && res.data) {
         setCommandes(res.data.commandes);
       }
+      // Compter les ventes en attente (pour le badge)
+      if (isEntrepreneur) {
+        const pendRes = await getMesVentes(1, 1, 'en_attente');
+        if (pendRes.succes && pendRes.data?.pagination) {
+          setPendingVentesCount(pendRes.data.pagination.total);
+        }
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tab, filtre]);
+  }, [tab, filtre, isEntrepreneur]);
 
   useFocusEffect(
     useCallback(() => { loadCommandes(); }, [loadCommandes])
@@ -97,7 +115,7 @@ export default function CommandesScreen() {
         {isEntrepreneur && (
           <View style={s.tabsRow}>
             {(['achats', 'ventes'] as const).map(t => (
-              <Pressable key={t} style={[s.tab, tab === t && s.tabActive]} onPress={() => setTab(t)}>
+              <Pressable key={t} style={[s.tab, tab === t && s.tabActive]} onPress={() => { setTab(t); setFiltre(''); }}>
                 <Ionicons
                   name={t === 'achats' ? 'bag-outline' : 'storefront-outline'}
                   size={16}
@@ -106,6 +124,11 @@ export default function CommandesScreen() {
                 <Text style={[s.tabText, tab === t && s.tabTextActive]}>
                   {t === 'achats' ? 'Mes achats' : 'Mes ventes'}
                 </Text>
+                {t === 'ventes' && pendingVentesCount > 0 && (
+                  <View style={s.tabBadge}>
+                    <Text style={s.tabBadgeText}>{pendingVentesCount}</Text>
+                  </View>
+                )}
               </Pressable>
             ))}
           </View>
@@ -114,7 +137,7 @@ export default function CommandesScreen() {
         {/* Filtres statut */}
         <FlatList
           horizontal
-          data={FILTRES}
+          data={filtres}
           keyExtractor={item => item.value}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.filtresRow}
@@ -178,6 +201,12 @@ const createStyles = (couleurs: any) =>
     tabActive: { backgroundColor: couleurs.fond },
     tabText: { fontSize: 14, fontWeight: '500', color: couleurs.texteMuted },
     tabTextActive: { color: '#7C5CFF', fontWeight: '600' },
+    tabBadge: {
+      minWidth: 18, height: 18, borderRadius: 9,
+      backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+      paddingHorizontal: 4,
+    },
+    tabBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
     filtresRow: { paddingHorizontal: espacements.lg, gap: 8, marginBottom: espacements.md },
     filtreChip: {
       paddingVertical: 6, paddingHorizontal: 14,

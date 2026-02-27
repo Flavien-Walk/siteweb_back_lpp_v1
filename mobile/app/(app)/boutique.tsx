@@ -463,7 +463,9 @@ export default function BoutiqueScreen() {
             <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
           </Pressable>
           <Text style={s.headerTitle}>Boutique</Text>
-          <View style={s.headerSpacer} />
+          <View style={s.headerRight}>
+            <View style={s.headerIconBtn} />
+          </View>
         </View>
         {isEntrepreneur && (
           <View style={s.tabBar}>
@@ -500,17 +502,24 @@ export default function BoutiqueScreen() {
           <Ionicons name="arrow-back" size={24} color={couleurs.texte} />
         </Pressable>
         <Text style={s.headerTitle}>Boutique</Text>
-        {isLppPlus ? (
+        <View style={s.headerRight}>
           <Pressable
-            onPress={() => router.push('/(app)/facturation')}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={s.billingButton}
+            onPress={() => router.push('/(app)/commandes' as any)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={s.headerIconBtn}
           >
-            <Ionicons name="receipt-outline" size={20} color={couleurs.primaire} />
+            <Ionicons name="bag-handle-outline" size={20} color={couleurs.texte} />
           </Pressable>
-        ) : (
-          <View style={s.headerSpacer} />
-        )}
+          {isLppPlus && (
+            <Pressable
+              onPress={() => router.push('/(app)/facturation')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={s.headerIconBtn}
+            >
+              <Ionicons name="receipt-outline" size={20} color={couleurs.primaire} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {isEntrepreneur ? (

@@ -229,6 +229,11 @@ export default function Notifications() {
         pathname: '/(app)/support',
         params: { ticketId: notif.data.ticketId },
       });
+    } else if (notif.type.startsWith('commande_') && notif.data?.commandeId) {
+      router.push({
+        pathname: '/(app)/commande/[id]',
+        params: { id: notif.data.commandeId },
+      } as any);
     }
   };
 
@@ -346,6 +351,24 @@ export default function Notifications() {
         return 'megaphone';
       case 'support_reponse':
         return 'headset';
+      case 'commande_nouvelle':
+        return 'bag-add';
+      case 'commande_acceptee':
+        return 'checkmark-circle';
+      case 'commande_refusee':
+        return 'close-circle';
+      case 'commande_en_cours':
+        return 'construct';
+      case 'commande_livree':
+        return 'gift';
+      case 'commande_terminee':
+        return 'checkmark-done-circle';
+      case 'commande_annulee':
+        return 'ban';
+      case 'commande_litige':
+        return 'warning';
+      case 'commande_revision':
+        return 'refresh-circle';
       case 'systeme':
       default:
         return 'notifications';
@@ -403,6 +426,25 @@ export default function Notifications() {
         return '#7C5CFF'; // Violet primaire
       case 'support_reponse':
         return '#3B82F6'; // Bleu
+      // Marketplace — commandes
+      case 'commande_nouvelle':
+        return '#7C5CFF'; // Violet
+      case 'commande_acceptee':
+        return '#10B981'; // Vert
+      case 'commande_refusee':
+        return '#EF4444'; // Rouge
+      case 'commande_en_cours':
+        return '#3B82F6'; // Bleu
+      case 'commande_livree':
+        return '#8B5CF6'; // Violet
+      case 'commande_terminee':
+        return '#10B981'; // Vert
+      case 'commande_annulee':
+        return '#6B7280'; // Gris
+      case 'commande_litige':
+        return '#EF4444'; // Rouge
+      case 'commande_revision':
+        return '#F59E0B'; // Orange
       default:
         return couleurs.texteSecondaire;
     }
