@@ -128,7 +128,7 @@ export default function Notifications() {
   const { couleurs } = useTheme();
   const styles = useMemo(() => createStyles(couleurs), [couleurs]);
   const { refreshUser } = useUser();
-  const { onNewNotification, onDemandeAmi, isConnected: socketConnected } = useSocket();
+  const { onNewNotification, onDemandeAmi, isConnected: socketConnected, markNotificationRead, markAllNotificationsRead, decrementDemandesAmis } = useSocket();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -202,6 +202,8 @@ export default function Notifications() {
         setNotifications(prev =>
           prev.map(n => (n._id === notif._id ? { ...n, lue: true } : n))
         );
+        // Décrémenter le compteur socket pour que le badge se mette à jour
+        markNotificationRead();
       } catch (error) {
         console.error('Erreur marquage:', error);
       }
@@ -243,6 +245,8 @@ export default function Notifications() {
       const reponse = await marquerToutesLues();
       if (reponse.succes) {
         setNotifications(prev => prev.map(n => ({ ...n, lue: true })));
+        // Reset le compteur socket pour que le badge disparaisse
+        markAllNotificationsRead();
       }
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de marquer les notifications comme lues');
@@ -252,9 +256,15 @@ export default function Notifications() {
   // Supprimer une notification
   const handleSupprimer = async (notifId: string) => {
     try {
+      // Vérifier si la notif était non lue avant de la supprimer
+      const notifSupprimee = notifications.find(n => n._id === notifId);
       const reponse = await supprimerNotification(notifId);
       if (reponse.succes) {
         setNotifications(prev => prev.filter(n => n._id !== notifId));
+        // Si elle était non lue, décrémenter le compteur
+        if (notifSupprimee && !notifSupprimee.lue) {
+          markNotificationRead();
+        }
       }
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de supprimer la notification');
@@ -271,6 +281,9 @@ export default function Notifications() {
       if (reponse.succes) {
         // Supprimer la notification après acceptation
         setNotifications(prev => prev.filter(n => n._id !== notif._id));
+        // Décrémenter les badges (notification + demande ami)
+        if (!notif.lue) markNotificationRead();
+        decrementDemandesAmis();
         // Rafraîchir les données utilisateur pour mettre à jour nbAmis
         refreshUser();
         Alert.alert('Succès', `Vous êtes maintenant ami avec ${notif.data.userPrenom} !`);
@@ -298,6 +311,9 @@ export default function Notifications() {
       if (reponse.succes) {
         // Supprimer la notification après refus
         setNotifications(prev => prev.filter(n => n._id !== notif._id));
+        // Décrémenter les badges (notification + demande ami)
+        if (!notif.lue) markNotificationRead();
+        decrementDemandesAmis();
       } else {
         Alert.alert('Erreur', reponse.message || 'Impossible de refuser la demande');
       }
@@ -369,6 +385,10 @@ export default function Notifications() {
         return 'warning';
       case 'commande_revision':
         return 'refresh-circle';
+      case 'commande_deadline_extended':
+        return 'timer-outline';
+      case 'commande_en_retard':
+        return 'alert-circle';
       case 'systeme':
       default:
         return 'notifications';
@@ -445,6 +465,10 @@ export default function Notifications() {
         return '#EF4444'; // Rouge
       case 'commande_revision':
         return '#F59E0B'; // Orange
+      case 'commande_deadline_extended':
+        return '#3B82F6'; // Bleu
+      case 'commande_en_retard':
+        return '#EF4444'; // Rouge
       default:
         return couleurs.texteSecondaire;
     }

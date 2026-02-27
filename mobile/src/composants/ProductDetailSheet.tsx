@@ -91,7 +91,7 @@ const ReviewCard = memo(({ review, couleurs }: { review: ProductReview; couleurs
           <Image source={{ uri: review.avatar }} style={s.avatar} />
         ) : (
           <View style={s.avatarFallback}>
-            <Text style={s.avatarInitial}>{review.auteur[0]}</Text>
+            <Text style={s.avatarInitial}>{(review.auteur || '?')[0]}</Text>
           </View>
         )}
         <View style={s.headerInfo}>
@@ -317,12 +317,16 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
   if (!product) return null;
 
   const isOwner = currentUserId && product.createur.id === currentUserId;
-  const displayedReviews = showAllReviews ? product.reviews : product.reviews.slice(0, 3);
+  const reviews = product.reviews || [];
+  const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 3);
   const DESC_LIMIT = 200;
-  const needsTruncation = product.descriptionLongue.length > DESC_LIMIT;
+  const descLongue = product.descriptionLongue || '';
+  const needsTruncation = descLongue.length > DESC_LIMIT;
   const displayDesc = descExpanded || !needsTruncation
-    ? product.descriptionLongue
-    : product.descriptionLongue.slice(0, DESC_LIMIT) + '...';
+    ? descLongue
+    : descLongue.slice(0, DESC_LIMIT) + '...';
+  const createurNom = product.createur?.nom || '';
+  const noteGlobale = product.noteGlobale ?? 0;
 
   return (
     <Modal
@@ -348,7 +352,8 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                 <Pressable
                   style={({ pressed }) => [s.headerBack, pressed && { opacity: 0.6 }]}
                   onPress={handleClose}
-                  hitSlop={12}
+                  hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                  android_ripple={{ color: 'rgba(0,0,0,0.1)', borderless: true, radius: 20 }}
                 >
                   <Ionicons name="chevron-back" size={24} color={couleurs.texte} />
                 </Pressable>
@@ -428,22 +433,22 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                 <View style={s.statsRow}>
                   <View style={s.statChip}>
                     <Ionicons name="star" size={13} color="#F59E0B" />
-                    <Text style={s.statChipText}>{product.noteGlobale.toFixed(1)}</Text>
-                    <Text style={s.statChipMuted}>({product.nombreAvis})</Text>
+                    <Text style={s.statChipText}>{noteGlobale.toFixed(1)}</Text>
+                    <Text style={s.statChipMuted}>({product.nombreAvis ?? 0})</Text>
                   </View>
                   <View style={s.statChip}>
                     <Ionicons name="bag-check-outline" size={13} color={couleurs.texteSecondaire} />
-                    <Text style={s.statChipText}>{product.commandesRealisees} ventes</Text>
+                    <Text style={s.statChipText}>{product.commandesRealisees ?? 0} ventes</Text>
                   </View>
                   <View style={s.statChip}>
                     <Ionicons name="time-outline" size={13} color={couleurs.texteSecondaire} />
-                    <Text style={s.statChipText}>{product.delaiLivraison}</Text>
+                    <Text style={s.statChipText}>{product.delaiLivraison || '-'}</Text>
                   </View>
                 </View>
 
                 {/* 3. Tags */}
                 <View style={s.tags}>
-                  {product.tags.map((tag, i) => (
+                  {(product.tags || []).map((tag, i) => (
                     <View key={i} style={s.tag}>
                       <Text style={s.tagText}>{tag}</Text>
                     </View>
@@ -460,34 +465,34 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                       <Image source={{ uri: product.createur.avatar }} style={s.sellerAvatar} />
                     ) : (
                       <View style={s.sellerAvatarFallback}>
-                        <Text style={s.sellerAvatarInitial}>{product.createur.nom[0]}</Text>
+                        <Text style={s.sellerAvatarInitial}>{createurNom[0] || '?'}</Text>
                       </View>
                     )}
                     <View style={s.sellerInfo}>
-                      <Text style={s.sellerName}>{product.createur.nom}</Text>
-                      <Text style={s.sellerSince}>Membre depuis {product.createur.membreDepuis}</Text>
+                      <Text style={s.sellerName}>{createurNom || 'Vendeur'}</Text>
+                      <Text style={s.sellerSince}>Membre depuis {product.createur?.membreDepuis || ''}</Text>
                     </View>
                     <View style={s.sellerRatingBadge}>
                       <Ionicons name="star" size={12} color="#F59E0B" />
-                      <Text style={s.sellerRatingText}>{product.createur.note.toFixed(1)}</Text>
+                      <Text style={s.sellerRatingText}>{(product.createur?.note ?? 0).toFixed(1)}</Text>
                     </View>
                   </View>
                   <View style={s.sellerStats}>
                     <View style={s.sellerStatItem}>
                       <Ionicons name="chatbubble-outline" size={14} color="#7C5CFF" />
-                      <Text style={s.sellerStatValue}>{product.createur.tempsReponse}</Text>
+                      <Text style={s.sellerStatValue}>{product.createur?.tempsReponse || '-'}</Text>
                       <Text style={s.sellerStatLabel}>Reponse</Text>
                     </View>
                     <View style={s.sellerStatDivider} />
                     <View style={s.sellerStatItem}>
                       <Ionicons name="checkmark-done-outline" size={14} color="#10B981" />
-                      <Text style={s.sellerStatValue}>{product.createur.tauxCompletion}%</Text>
+                      <Text style={s.sellerStatValue}>{product.createur?.tauxCompletion ?? 0}%</Text>
                       <Text style={s.sellerStatLabel}>Completion</Text>
                     </View>
                     <View style={s.sellerStatDivider} />
                     <View style={s.sellerStatItem}>
                       <Ionicons name="bag-check-outline" size={14} color="#F59E0B" />
-                      <Text style={s.sellerStatValue}>{product.createur.ventesRealisees}</Text>
+                      <Text style={s.sellerStatValue}>{product.createur?.ventesRealisees ?? 0}</Text>
                       <Text style={s.sellerStatLabel}>Ventes</Text>
                     </View>
                   </View>
@@ -496,7 +501,7 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                     onPress={() => onContacter?.(product)}
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={16} color="#7C5CFF" />
-                    <Text style={s.sellerContactText}>Contacter {product.createur.nom.split(' ')[0]}</Text>
+                    <Text style={s.sellerContactText}>Contacter {createurNom.split(' ')[0] || 'le vendeur'}</Text>
                   </Pressable>
                 </View>
 
@@ -599,9 +604,9 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                   <View style={s.reviewsHeader}>
                     <Text style={s.sectionTitle}>Avis clients</Text>
                     <View style={s.reviewsSummary}>
-                      <StarRating note={product.noteGlobale} size={16} />
-                      <Text style={s.reviewsScore}>{product.noteGlobale.toFixed(1)}</Text>
-                      <Text style={s.reviewsCount}>({product.nombreAvis} avis)</Text>
+                      <StarRating note={noteGlobale} size={16} />
+                      <Text style={s.reviewsScore}>{noteGlobale.toFixed(1)}</Text>
+                      <Text style={s.reviewsCount}>({product.nombreAvis ?? 0} avis)</Text>
                     </View>
                   </View>
 
@@ -609,7 +614,7 @@ export default function ProductDetailSheet({ visible, product, onClose, onContac
                     <ReviewCard key={review.id} review={review} couleurs={couleurs} />
                   ))}
 
-                  {product.reviews.length > 3 && !showAllReviews && (
+                  {reviews.length > 3 && !showAllReviews && (
                     <Pressable style={s.showAllBtn} onPress={() => setShowAllReviews(true)}>
                       <Text style={s.showAllText}>
                         Voir les {product.nombreAvis} avis

@@ -87,17 +87,33 @@ export default function CommandesScreen() {
     router.push(`/(app)/commande/${commande._id}` as any);
   }, [router]);
 
-  const renderEmpty = () => (
-    <View style={s.empty}>
-      <Ionicons name="receipt-outline" size={48} color={couleurs.texteMuted} />
-      <Text style={s.emptyTitle}>Aucune commande</Text>
-      <Text style={s.emptySubtitle}>
-        {tab === 'achats'
-          ? 'Vos commandes apparaitront ici apres avoir commande un service.'
-          : 'Les commandes recues apparaitront ici.'}
-      </Text>
-    </View>
-  );
+  const renderEmpty = () => {
+    const hasFilter = filtre !== '';
+    const icon = tab === 'achats' ? 'bag-outline' : 'storefront-outline';
+    let title = '';
+    let subtitle = '';
+
+    if (hasFilter) {
+      title = 'Aucun resultat';
+      subtitle = tab === 'achats'
+        ? 'Aucun achat ne correspond a ce filtre.'
+        : 'Aucune vente ne correspond a ce filtre.';
+    } else if (tab === 'achats') {
+      title = 'Aucun achat';
+      subtitle = 'Vos achats apparaitront ici apres avoir commande un service sur la marketplace.';
+    } else {
+      title = 'Aucune vente';
+      subtitle = 'Les commandes de vos clients apparaitront ici.';
+    }
+
+    return (
+      <View style={s.empty}>
+        <Ionicons name={icon as any} size={48} color={couleurs.texteMuted} />
+        <Text style={s.emptyTitle}>{title}</Text>
+        <Text style={s.emptySubtitle}>{subtitle}</Text>
+      </View>
+    );
+  };
 
   return (
     <SwipeableScreen edgeWidth={50}>
@@ -138,7 +154,7 @@ export default function CommandesScreen() {
         <FlatList
           horizontal
           data={filtres}
-          keyExtractor={item => item.value}
+          keyExtractor={item => item.value || '_all'}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.filtresRow}
           renderItem={({ item }) => (
@@ -207,14 +223,15 @@ const createStyles = (couleurs: any) =>
       paddingHorizontal: 4,
     },
     tabBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-    filtresRow: { paddingHorizontal: espacements.lg, gap: 8, marginBottom: espacements.md },
+    filtresRow: { paddingHorizontal: espacements.lg, gap: 8, marginBottom: espacements.md, paddingVertical: 2 },
     filtreChip: {
-      paddingVertical: 6, paddingHorizontal: 14,
-      borderRadius: rayons.full, backgroundColor: couleurs.fondCard,
+      height: 34, paddingHorizontal: 14,
+      borderRadius: 17, backgroundColor: couleurs.fondCard,
       borderWidth: 1, borderColor: couleurs.bordure,
+      justifyContent: 'center' as const, alignItems: 'center' as const,
     },
-    filtreChipActive: { backgroundColor: 'rgba(124,92,255,0.15)', borderColor: '#7C5CFF' },
-    filtreText: { fontSize: 13, fontWeight: '500', color: couleurs.texteMuted },
+    filtreChipActive: { backgroundColor: 'rgba(124,92,255,0.12)', borderColor: '#7C5CFF' },
+    filtreText: { fontSize: 13, fontWeight: '500', color: couleurs.texteMuted, lineHeight: 18 },
     filtreTextActive: { color: '#7C5CFF', fontWeight: '600' },
     list: { paddingHorizontal: espacements.lg, paddingBottom: 100 },
     loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },

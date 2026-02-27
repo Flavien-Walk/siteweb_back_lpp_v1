@@ -410,6 +410,21 @@ export async function ouvrirLitige(
   }
 }
 
+/** Vendeur prolonge la deadline */
+export async function prolongerDeadline(
+  commandeId: string, secondsAdded: number, reason?: string,
+): Promise<ReponseAPI<{ commande: MarketplaceOrder }>> {
+  try {
+    return api.post<{ commande: MarketplaceOrder }>(
+      `/marketplace/orders/${commandeId}/extend-deadline`,
+      { secondsAdded, reason },
+      true,
+    );
+  } catch {
+    return { succes: false, message: 'Erreur lors de la prolongation du delai.' };
+  }
+}
+
 // ============ API AVIS ============
 
 /**

@@ -91,6 +91,9 @@ interface SocketContextType {
   // Actions
   connect: () => void;
   disconnect: () => void;
+  markNotificationRead: () => void;
+  markAllNotificationsRead: () => void;
+  decrementDemandesAmis: () => void;
   // Listeners
   onNewMessage: (callback: (event: MessageSocketEvent) => void) => () => void;
   onNewNotification: (callback: (event: NotificationSocketEvent) => void) => () => void;
@@ -375,6 +378,21 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     socketRef.current?.emit('get_unread_counts');
   }, []);
 
+  // Marquer une notification comme lue (decrement compteur)
+  const markNotificationRead = useCallback(() => {
+    setUnreadNotifications((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  // Marquer toutes les notifications comme lues (reset compteur)
+  const markAllNotificationsRead = useCallback(() => {
+    setUnreadNotifications(0);
+  }, []);
+
+  // Décrémenter le compteur de demandes d'amis
+  const decrementDemandesAmis = useCallback(() => {
+    setUnreadDemandesAmis((prev) => Math.max(0, prev - 1));
+  }, []);
+
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo<SocketContextType>(() => ({
     isConnected,
@@ -384,6 +402,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     unreadDemandesAmis,
     connect,
     disconnect,
+    markNotificationRead,
+    markAllNotificationsRead,
+    decrementDemandesAmis,
     onNewMessage,
     onNewNotification,
     onDemandeAmi,
@@ -400,6 +421,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, userId
     unreadDemandesAmis,
     connect,
     disconnect,
+    markNotificationRead,
+    markAllNotificationsRead,
+    decrementDemandesAmis,
     onNewMessage,
     onNewNotification,
     onDemandeAmi,

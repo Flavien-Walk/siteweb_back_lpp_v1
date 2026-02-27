@@ -189,6 +189,33 @@ export interface OrderHistorique {
   commentaire?: string;
 }
 
+export interface OrderDeadlineExtension {
+  requestedBy: string;
+  secondsAdded: number;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface OrderDeadlineHistory {
+  from: string;
+  to: string;
+  by: string;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface OrderDeadline {
+  acceptedAt?: string;
+  initialDeliverySeconds?: number;
+  currentDeadlineAt?: string;
+  remainingSeconds: number;
+  isLate: boolean;
+  lateSince?: string;
+  deadlineActive: boolean;
+  extensions?: OrderDeadlineExtension[];
+  deadlineHistory?: OrderDeadlineHistory[];
+}
+
 export interface MarketplaceOrder {
   _id: string;
   service: { _id: string; nom: string; image: string; categorie?: string };
@@ -205,6 +232,7 @@ export interface MarketplaceOrder {
   progressUpdates: OrderProgressUpdate[];
   aReview: boolean;
   conversationId?: string;
+  deadline?: OrderDeadline;
   dateCreation: string;
   dateMiseAJour: string;
 }

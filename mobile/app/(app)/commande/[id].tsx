@@ -19,12 +19,14 @@ import TimelineStatut from '../../../src/composants/commandes/TimelineStatut';
 import BlocBrief from '../../../src/composants/commandes/BlocBrief';
 import BlocAvancement from '../../../src/composants/commandes/BlocAvancement';
 import BlocLivraison from '../../../src/composants/commandes/BlocLivraison';
+import BlocDeadline from '../../../src/composants/commandes/BlocDeadline';
+import ModalProlongation from '../../../src/composants/commandes/ModalProlongation';
 import { formatPrice } from '../../../src/constantes/boutique';
 import {
   getOrderDetail, accepterCommande, refuserCommande,
   livrerCommande, validerCommande, demanderRevision,
   annulerCommande, ouvrirLitige, ajouterProgression,
-  contacterVendeur, creerReview,
+  contacterVendeur, creerReview, prolongerDeadline,
 } from '../../../src/services/boutique';
 import type { MarketplaceOrder, OrderStatut } from '../../../src/types/boutique';
 
@@ -53,6 +55,9 @@ export default function CommandeDetailScreen() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewNote, setReviewNote] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
+
+  // Deadline prolongation
+  const [showProlongation, setShowProlongation] = useState(false);
 
   const loadCommande = useCallback(async () => {
     if (!id) return;
@@ -192,6 +197,17 @@ export default function CommandeDetailScreen() {
     }
   };
 
+  const handleProlonger = useCallback(async (secondsAdded: number, reason?: string) => {
+    const res = await prolongerDeadline(id!, secondsAdded, reason);
+    if (res.succes) {
+      if (res.data?.commande) setCommande(res.data.commande);
+      else await loadCommande();
+      Alert.alert('Succes', 'Delai prolonge !');
+    } else {
+      throw new Error(res.message || 'Erreur');
+    }
+  }, [id, loadCommande]);
+
   if (loading || !commande) {
     return (
       <SafeAreaView style={s.container}>
@@ -202,8 +218,8 @@ export default function CommandeDetailScreen() {
     );
   }
 
-  const statut = commande.statut as OrderStatut;
-  const image = commande.serviceSnapshot.image || commande.service?.image;
+  const statut = (commande.statut || 'en_attente') as OrderStatut;
+  const image = commande.serviceSnapshot?.image || commande.service?.image;
 
   return (
     <SwipeableScreen edgeWidth={50}>
@@ -230,11 +246,11 @@ export default function CommandeDetailScreen() {
               </View>
             )}
             <View style={s.serviceInfo}>
-              <Text style={s.serviceName} numberOfLines={2}>{commande.serviceSnapshot.nom}</Text>
+              <Text style={s.serviceName} numberOfLines={2}>{commande.serviceSnapshot?.nom || 'Service'}</Text>
               <Text style={s.servicePrice}>
-                {commande.montantTotal > 0 ? formatPrice(commande.montantTotal) : 'Sur devis'}
+                {(commande.montantTotal ?? 0) > 0 ? formatPrice(commande.montantTotal) : 'Sur devis'}
               </Text>
-              {commande.optionsSelectionnees.length > 0 && (
+              {(commande.optionsSelectionnees?.length ?? 0) > 0 && (
                 <Text style={s.serviceOptions}>
                   + {commande.optionsSelectionnees.length} option(s)
                 </Text>
@@ -244,6 +260,16 @@ export default function CommandeDetailScreen() {
 
           {/* Timeline */}
           <TimelineStatut statut={statut} historique={commande.historique || []} couleurs={couleurs} />
+
+          {/* Deadline countdown */}
+          {commande.deadline && (commande.deadline.deadlineActive || commande.deadline.isLate) && (
+            <BlocDeadline
+              deadline={commande.deadline}
+              isVendeur={isVendeur}
+              onProlonger={() => setShowProlongation(true)}
+              couleurs={couleurs}
+            />
+          )}
 
           {/* Brief */}
           <BlocBrief brief={commande.buyerBrief} couleurs={couleurs} />
@@ -417,6 +443,14 @@ export default function CommandeDetailScreen() {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+
+        {/* Modal prolongation deadline */}
+        <ModalProlongation
+          visible={showProlongation}
+          onClose={() => setShowProlongation(false)}
+          onConfirm={handleProlonger}
+          couleurs={couleurs}
+        />
       </SafeAreaView>
     </SwipeableScreen>
   );

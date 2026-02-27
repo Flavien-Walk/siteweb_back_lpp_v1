@@ -59,10 +59,10 @@ export default memo(function MarketplaceProductCard({ product, onPress, couleurs
             />
           ) : (
             <View style={s.avatarFallback}>
-              <Text style={s.avatarInitial}>{product.createur.nom[0]}</Text>
+              <Text style={s.avatarInitial}>{(product.createur?.nom || '?')[0]}</Text>
             </View>
           )}
-          <Text style={s.creatorName} numberOfLines={1}>{product.createur.nom}</Text>
+          <Text style={s.creatorName} numberOfLines={1}>{product.createur?.nom || 'Vendeur'}</Text>
         </View>
 
         {/* Price */}

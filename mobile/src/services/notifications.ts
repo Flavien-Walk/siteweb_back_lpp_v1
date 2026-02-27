@@ -38,7 +38,9 @@ export type TypeNotification =
   | 'commande_terminee'
   | 'commande_annulee'
   | 'commande_litige'
-  | 'commande_revision';
+  | 'commande_revision'
+  | 'commande_deadline_extended'
+  | 'commande_en_retard';
 
 export interface Notification {
   _id: string;

@@ -27,14 +27,30 @@ interface Props {
   couleurs: ThemeCouleurs;
 }
 
+function formatMiniDeadline(remainingSeconds: number): string {
+  if (remainingSeconds >= 86400) return `${Math.ceil(remainingSeconds / 86400)}j`;
+  if (remainingSeconds >= 3600) return `${Math.ceil(remainingSeconds / 3600)}h`;
+  return `${Math.ceil(remainingSeconds / 60)}m`;
+}
+
 function CarteCommande({ commande, isVente, onPress, couleurs }: Props) {
   const s = createStyles(couleurs);
   const statutStyle = STATUT_STYLE[commande.statut] || STATUT_STYLE.en_attente;
   const autrePersonne = isVente ? commande.acheteur : commande.vendeur;
-  const image = commande.serviceSnapshot.image || commande.service?.image;
+  const prenomAutre = autrePersonne?.prenom || '';
+  const nomInitiale = autrePersonne?.nom ? autrePersonne.nom.charAt(0) + '.' : '';
+  const image = commande.serviceSnapshot?.image || commande.service?.image;
   const dateStr = new Date(commande.dateCreation).toLocaleDateString('fr-FR', {
     day: 'numeric', month: 'short', year: 'numeric',
   });
+
+  // Mini deadline badge
+  const dl = commande.deadline;
+  const showDeadlineBadge = dl && dl.deadlineActive;
+  const dlIsLate = dl?.isLate || (dl?.remainingSeconds != null && dl.remainingSeconds <= 0);
+  const dlLabel = dlIsLate ? 'EN RETARD' : dl ? formatMiniDeadline(dl.remainingSeconds) : '';
+  const dlColor = dlIsLate ? '#EF4444' : '#F59E0B';
+  const dlBg = dlIsLate ? '#EF444415' : '#F59E0B15';
 
   return (
     <Pressable style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]} onPress={() => onPress(commande)}>
@@ -49,19 +65,26 @@ function CarteCommande({ commande, isVente, onPress, couleurs }: Props) {
 
       {/* Content */}
       <View style={s.content}>
-        <Text style={s.nom} numberOfLines={1}>{commande.serviceSnapshot.nom}</Text>
+        <Text style={s.nom} numberOfLines={1}>{commande.serviceSnapshot?.nom || 'Service'}</Text>
         <View style={s.metaRow}>
           <Text style={s.meta}>
-            {isVente ? 'Acheteur' : 'Vendeur'} : {autrePersonne.prenom} {autrePersonne.nom.charAt(0)}.
+            {isVente ? 'Acheteur' : 'Vendeur'} : {prenomAutre} {nomInitiale}
           </Text>
           <Text style={s.date}>{dateStr}</Text>
         </View>
         <View style={s.bottomRow}>
-          <View style={[s.statutBadge, { backgroundColor: statutStyle.bg }]}>
-            <Text style={[s.statutText, { color: statutStyle.color }]}>{statutStyle.label}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[s.statutBadge, { backgroundColor: statutStyle.bg }]}>
+              <Text style={[s.statutText, { color: statutStyle.color }]}>{statutStyle.label}</Text>
+            </View>
+            {showDeadlineBadge && (
+              <View style={[s.statutBadge, { backgroundColor: dlBg }]}>
+                <Text style={[s.statutText, { color: dlColor }]}>{dlLabel}</Text>
+              </View>
+            )}
           </View>
           <Text style={s.prix}>
-            {commande.montantTotal > 0 ? formatPrice(commande.montantTotal) : 'Sur devis'}
+            {(commande.montantTotal ?? 0) > 0 ? formatPrice(commande.montantTotal) : 'Sur devis'}
           </Text>
         </View>
       </View>
