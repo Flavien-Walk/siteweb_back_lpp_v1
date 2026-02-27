@@ -8,6 +8,7 @@ import MarketplaceService from '../../models/MarketplaceService.js';
 import Utilisateur from '../../models/Utilisateur.js';
 import { isAutorise, validationsMetier } from '../../services/marketplace/orderStateMachine.js';
 import { parseDelaiLivraison, computeDeadline, validerExtension, formatDuree } from '../../services/marketplace/deadlineUtils.js';
+import { uploadDeliverable } from '../../utils/cloudinary.js';
 import { recomputeServiceStats } from './helpers.js';
 import {
   notifierCommandeAcceptee, notifierCommandeRefusee,
@@ -131,14 +132,19 @@ export const accepterCommande = async (req: Request, res: Response) => {
       { de: 'acceptee', vers: 'en_cours', date: new Date(), par: userId, commentaire: 'Demarrage automatique' },
     );
 
-    // Deadline: parse delaiLivraison du service et calculer la deadline
+    // Deadline + revision settings: parse du service
     try {
-      const service = await MarketplaceService.findById(commande.service).select('delaiLivraison').lean();
+      const service = await MarketplaceService.findById(commande.service).select('delaiLivraison accepteRevisions revisionsIncluses').lean();
       const seconds = parseDelaiLivraison(service?.delaiLivraison);
       const now = new Date();
       commande.acceptedAt = now;
       commande.initialDeliverySeconds = seconds;
       commande.currentDeadlineAt = computeDeadline(now, seconds);
+      // Snapshot revision settings
+      commande.revisionSettings = {
+        accepteRevisions: service?.accepteRevisions ?? true,
+        revisionsIncluses: service?.revisionsIncluses ?? 2,
+      };
     } catch (err) {
       console.error('[marketplace:orderActions] Erreur calcul deadline:', err);
       // Non-bloquant: on continue sans deadline
@@ -241,19 +247,37 @@ export const livrerCommande = async (req: Request, res: Response) => {
     const { deliverables, marquerLivre } = req.body;
     if (Array.isArray(deliverables) && deliverables.length > 0) {
       for (const d of deliverables) {
-        if (!d.type || !d.content) {
-          return res.status(400).json({ succes: false, message: 'Chaque livrable doit avoir type et content' });
-        }
         if (!['message', 'file', 'link'].includes(d.type)) {
           return res.status(400).json({ succes: false, message: 'Type de livrable invalide (message/file/link)' });
         }
-        commande.deliverables.push({
-          type: d.type,
-          content: d.content,
-          file: d.file || undefined,
-          createdAt: new Date(),
-          createdBy: userId,
-        });
+
+        if (d.type === 'file' && d.base64) {
+          // Upload fichier base64 sur Cloudinary
+          try {
+            const uploaded = await uploadDeliverable(d.base64, commande._id.toString());
+            commande.deliverables.push({
+              type: 'file',
+              content: d.fileName || 'fichier',
+              file: { url: uploaded.url, name: d.fileName || 'fichier', size: uploaded.size, mimeType: d.mimeType || 'application/octet-stream' },
+              createdAt: new Date(),
+              createdBy: userId,
+            });
+          } catch (err) {
+            console.error('[marketplace:orderActions] Erreur upload deliverable:', err);
+            return res.status(500).json({ succes: false, message: 'Erreur lors de l\'upload du fichier' });
+          }
+        } else {
+          if (!d.content) {
+            return res.status(400).json({ succes: false, message: 'Chaque livrable doit avoir un contenu' });
+          }
+          commande.deliverables.push({
+            type: d.type,
+            content: d.content,
+            file: d.file || undefined,
+            createdAt: new Date(),
+            createdBy: userId,
+          });
+        }
       }
     }
 
@@ -316,11 +340,38 @@ export const validerCommande = async (req: Request, res: Response) => {
 /**
  * POST /api/marketplace/orders/:id/revision
  * Acheteur demande une revision → retour en_cours
+ * Body: { message: string } — motif obligatoire
  */
 export const demanderRevision = async (req: Request, res: Response) => {
   const { message } = req.body;
+
+  // Motif obligatoire
+  if (!message || typeof message !== 'string' || message.trim().length < 5) {
+    return res.status(400).json({ succes: false, message: 'Le motif de la revision doit contenir au moins 5 caracteres' });
+  }
+
+  // Vérifier limites de révision
+  try {
+    const commande = await MarketplaceOrder.findById(req.params.id);
+    if (commande) {
+      const settings = commande.revisionSettings || { accepteRevisions: true, revisionsIncluses: 2 };
+      if (!settings.accepteRevisions) {
+        return res.status(403).json({ succes: false, message: 'Ce service n\'accepte pas les revisions' });
+      }
+      // Compter les révisions passées
+      const revisionsUtilisees = (commande.historique || []).filter(
+        (h: any) => h.de === 'livre' && h.vers === 'en_cours'
+      ).length;
+      if (revisionsUtilisees >= settings.revisionsIncluses) {
+        return res.status(403).json({ succes: false, message: `Nombre maximum de revisions atteint (${settings.revisionsIncluses}). Vous pouvez ouvrir un litige.` });
+      }
+    }
+  } catch (err) {
+    console.error('[marketplace:orderActions] Erreur check revision limits:', err);
+  }
+
   return transitionStatut(req, res, 'en_cours', {
-    commentaire: message || 'Revision demandee par l\'acheteur',
+    commentaire: message.trim(),
     afterSave: (commande, userId) => {
       getUserProfil(userId).then(acheteur =>
         notifierRevisionDemandee(commande._id.toString(), commande.serviceSnapshot.nom, acheteur, commande.vendeur.toString())

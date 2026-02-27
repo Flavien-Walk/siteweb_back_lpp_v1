@@ -74,6 +74,8 @@ export interface IMarketplaceOrder extends Document {
   progressUpdates: IProgressUpdate[];
   aReview: boolean;
   conversationId?: mongoose.Types.ObjectId;
+  // Revision settings (snapshot from service at accept)
+  revisionSettings: { accepteRevisions: boolean; revisionsIncluses: number };
   // Deadline
   acceptedAt?: Date;
   initialDeliverySeconds: number;
@@ -203,6 +205,14 @@ const marketplaceOrderSchema = new Schema<IMarketplaceOrder>({
   progressUpdates: { type: [progressUpdateSchema], default: [] },
   aReview: { type: Boolean, default: false },
   conversationId: { type: Schema.Types.ObjectId, ref: 'Conversation' },
+  // Revision settings (snapshot from service at accept)
+  revisionSettings: {
+    type: {
+      accepteRevisions: { type: Boolean, default: true },
+      revisionsIncluses: { type: Number, default: 2 },
+    },
+    default: { accepteRevisions: true, revisionsIncluses: 2 },
+  },
   // Deadline
   acceptedAt: { type: Date },
   initialDeliverySeconds: { type: Number, default: 259200 }, // 3 jours

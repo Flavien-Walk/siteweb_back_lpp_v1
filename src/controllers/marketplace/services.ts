@@ -49,6 +49,7 @@ export const creerService = async (req: Request, res: Response) => {
     const {
       nom, description, descriptionLongue, categorie,
       prix, image, gallery, tags, delaiLivraison, options, faq,
+      accepteRevisions, revisionsIncluses,
     } = req.body;
 
     // --- Validations ---
@@ -117,6 +118,8 @@ export const creerService = async (req: Request, res: Response) => {
       gallery: galleryUrls,
       tags: tags || [],
       delaiLivraison,
+      accepteRevisions: accepteRevisions !== undefined ? accepteRevisions : true,
+      revisionsIncluses: revisionsIncluses !== undefined ? Math.min(10, Math.max(0, parseInt(revisionsIncluses) || 2)) : 2,
       options: options || [],
       faq: faq || [],
       statut: 'actif',
@@ -160,6 +163,7 @@ export const modifierService = async (req: Request, res: Response) => {
     const champsModifiables = [
       'nom', 'description', 'descriptionLongue', 'categorie',
       'prix', 'tags', 'delaiLivraison', 'options', 'faq',
+      'accepteRevisions', 'revisionsIncluses',
     ];
 
     for (const champ of champsModifiables) {

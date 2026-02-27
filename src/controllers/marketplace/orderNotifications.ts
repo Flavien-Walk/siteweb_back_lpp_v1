@@ -12,6 +12,8 @@ import {
   envoyerEmailLivraison,
   envoyerEmailCommandeTerminee,
   envoyerEmailDeadlineExtended,
+  envoyerEmailLitigeInitiateur,
+  envoyerEmailLitigeReceveur,
 } from '../../services/emailService.js';
 
 /** Recupere l'email + prenom d'un user (pour les emails transactionnels) */
@@ -204,19 +206,29 @@ export function notifierCommandeAnnulee(
 }
 
 /**
- * Litige ouvert (→ l'autre partie)
+ * Litige ouvert (→ l'autre partie + emails aux deux)
  */
-export function notifierLitige(
+export async function notifierLitige(
   commandeId: string,
   serviceNom: string,
   acteur: { _id: string; prenom: string; nom: string; avatar?: string },
   destinataireId: string,
 ) {
-  return creerNotifCommande('commande_litige',
+  // Notif in-app → autre partie
+  await creerNotifCommande('commande_litige',
     'Litige ouvert',
     `${acteur.prenom} a ouvert un litige sur "${serviceNom}"`,
     { commandeId, serviceNom, acteur, destinataireId },
   );
+  // Emails aux deux parties
+  const initiateur = await getUserEmail(acteur._id);
+  const receveur = await getUserEmail(destinataireId);
+  if (initiateur) {
+    envoyerEmailLitigeInitiateur(initiateur.email, initiateur.prenom, serviceNom);
+  }
+  if (receveur) {
+    envoyerEmailLitigeReceveur(receveur.email, receveur.prenom, serviceNom, acteur.prenom);
+  }
 }
 
 /**

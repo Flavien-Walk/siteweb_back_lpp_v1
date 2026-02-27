@@ -399,4 +399,29 @@ export const uploadStoryMedia = async (
   }
 };
 
+/**
+ * Upload un fichier livrable (deliverable) sur Cloudinary
+ * Supporte tout type de fichier (PDF, doc, image, etc.)
+ * @param base64Data - Data URL base64 du fichier
+ * @param orderId - ID de la commande
+ */
+export const uploadDeliverable = async (
+  base64Data: string,
+  orderId: string,
+): Promise<{ url: string; size: number }> => {
+  try {
+    const result: UploadApiResponse = await cloudinary.uploader.upload(base64Data, {
+      folder: 'lpp/marketplace/deliverables',
+      public_id: `del_${orderId}_${Date.now()}`,
+      resource_type: 'auto',
+      overwrite: true,
+    });
+    return { url: result.secure_url, size: result.bytes || 0 };
+  } catch (error) {
+    const cloudinaryError = error as UploadApiErrorResponse;
+    console.error('Erreur upload deliverable Cloudinary:', cloudinaryError.message || error);
+    throw new Error(`Erreur lors de l'upload du fichier: ${cloudinaryError.message || 'Erreur inconnue'}`);
+  }
+};
+
 export default cloudinary;

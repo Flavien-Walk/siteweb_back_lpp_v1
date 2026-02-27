@@ -178,6 +178,20 @@ export const getOrderDetail = async (req: Request, res: Response) => {
       }
     }
 
+    // Revision info
+    const settings = (commande as any).revisionSettings || { accepteRevisions: true, revisionsIncluses: 2 };
+    const revisionsUtilisees = ((commande as any).historique || []).filter(
+      (h: any) => h.de === 'livre' && h.vers === 'en_cours'
+    ).length;
+    const revisionsRestantes = Math.max(0, settings.revisionsIncluses - revisionsUtilisees);
+    enriched.revisionInfo = {
+      accepteRevisions: settings.accepteRevisions,
+      revisionsIncluses: settings.revisionsIncluses,
+      revisionsUtilisees,
+      revisionsRestantes,
+      peutDemanderRevision: settings.accepteRevisions && revisionsRestantes > 0 && commande.statut === 'livre',
+    };
+
     return res.json({ succes: true, data: { commande: enriched } });
   } catch (error) {
     console.error('[marketplace:orders] Erreur getOrderDetail:', error);

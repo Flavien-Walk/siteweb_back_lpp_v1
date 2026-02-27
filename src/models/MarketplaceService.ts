@@ -34,6 +34,8 @@ export interface IMarketplaceService extends Document {
   gallery: string[];
   tags: string[];
   delaiLivraison: string;
+  accepteRevisions: boolean;
+  revisionsIncluses: number;
   options: IServiceOption[];
   faq: IServiceFaq[];
   statut: ServiceStatut;
@@ -54,6 +56,8 @@ const marketplaceServiceSchema = new Schema<IMarketplaceService>({
   gallery: { type: [String], default: [], validate: [(v: string[]) => v.length <= 5, 'Maximum 5 images'] },
   tags: { type: [String], default: [], validate: [(v: string[]) => v.length <= 8, 'Maximum 8 tags'] },
   delaiLivraison: { type: String, required: true },
+  accepteRevisions: { type: Boolean, default: true },
+  revisionsIncluses: { type: Number, default: 2, min: 0, max: 10 },
   options: { type: [{ label: String, description: String, prix: Number, devise: { type: String, default: 'EUR' } }], default: [], validate: [(v: any[]) => v.length <= 10, 'Maximum 10 options'] },
   faq: { type: [{ question: String, answer: String }], default: [] },
   statut: { type: String, enum: ['brouillon', 'actif', 'pause', 'archive'], default: 'actif' },

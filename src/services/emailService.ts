@@ -416,3 +416,56 @@ export const envoyerEmailDeadlineExtended = async (
     console.error('[EMAIL MARKETPLACE] Erreur envoi deadline extended:', err);
   }
 };
+
+// ======================== LITIGE ========================
+
+export const envoyerEmailLitigeInitiateur = async (
+  email: string,
+  prenom: string,
+  serviceNom: string,
+): Promise<void> => {
+  console.log(`[EMAIL MARKETPLACE] Envoi litige initiateur vers ${email}`);
+  try {
+    const body = `
+      <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">Ton litige a bien ete enregistre. Un moderateur LPP va examiner la situation.</p>
+      <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
+        <p style="color:#EF4444;font-size:16px;font-weight:700;margin:0;">&#9888; Litige ouvert</p>
+        <p style="color:#E0E0E0;font-size:14px;margin:4px 0 0;"><strong>Service :</strong> ${serviceNom}</p>
+      </div>
+      <p style="color:#A0A0B0;font-size:13px;margin:0;">Un moderateur interviendra sous 48h pour resoudre le litige. Tu recevras une notification des qu'une decision sera prise.</p>`;
+    await resend.emails.send({
+      from: FROM_EMAIL, to: email, replyTo: REPLY_TO,
+      subject: `Litige ouvert - ${serviceNom}`,
+      html: lppEmailTemplate(prenom, 'Litige ouvert', body),
+      text: `Salut ${prenom},\n\nTon litige concernant "${serviceNom}" a ete enregistre. Un moderateur LPP interviendra sous 48h.\n\n— La Premiere Pierre`,
+    });
+  } catch (err) {
+    console.error('[EMAIL MARKETPLACE] Erreur envoi litige initiateur:', err);
+  }
+};
+
+export const envoyerEmailLitigeReceveur = async (
+  email: string,
+  prenom: string,
+  serviceNom: string,
+  initiateurPrenom: string,
+): Promise<void> => {
+  console.log(`[EMAIL MARKETPLACE] Envoi litige receveur vers ${email}`);
+  try {
+    const body = `
+      <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">${initiateurPrenom} a ouvert un litige sur ta commande.</p>
+      <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
+        <p style="color:#EF4444;font-size:16px;font-weight:700;margin:0;">&#9888; Litige en cours</p>
+        <p style="color:#E0E0E0;font-size:14px;margin:4px 0 0;"><strong>Service :</strong> ${serviceNom}</p>
+      </div>
+      <p style="color:#A0A0B0;font-size:13px;margin:0;">Un moderateur LPP va examiner la situation et prendra contact avec toi si necessaire.</p>`;
+    await resend.emails.send({
+      from: FROM_EMAIL, to: email, replyTo: REPLY_TO,
+      subject: `Litige ouvert - ${serviceNom}`,
+      html: lppEmailTemplate(prenom, 'Litige en cours', body),
+      text: `Salut ${prenom},\n\n${initiateurPrenom} a ouvert un litige concernant "${serviceNom}". Un moderateur LPP va intervenir.\n\n— La Premiere Pierre`,
+    });
+  } catch (err) {
+    console.error('[EMAIL MARKETPLACE] Erreur envoi litige receveur:', err);
+  }
+};
