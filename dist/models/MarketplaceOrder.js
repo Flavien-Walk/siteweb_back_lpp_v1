@@ -35,23 +35,65 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QUI_PEUT_TRANSITIONNER = exports.TRANSITIONS_AUTORISEES = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
+// ============ STATE MACHINE ============
 exports.TRANSITIONS_AUTORISEES = {
-    en_attente: ['paye', 'annule'],
-    paye: ['en_cours', 'annule'],
-    en_cours: ['livre', 'litige'],
-    livre: ['termine', 'litige'],
+    en_attente: ['acceptee', 'refusee', 'annule'],
+    acceptee: ['en_cours', 'annule'],
+    refusee: [],
+    en_cours: ['livre', 'litige', 'annule'],
+    livre: ['termine', 'en_cours', 'litige'],
     termine: [],
     annule: [],
     litige: ['en_cours', 'annule'],
 };
+/**
+ * Qui peut effectuer chaque transition (cle = "de->vers")
+ * vendeur / acheteur / les_deux
+ */
 exports.QUI_PEUT_TRANSITIONNER = {
-    paye: 'acheteur',
-    en_cours: 'vendeur',
-    livre: 'vendeur',
-    termine: 'acheteur',
-    annule: 'les_deux',
-    litige: 'les_deux',
+    // Vendeur accepte / refuse
+    'en_attente->acceptee': 'vendeur',
+    'en_attente->refusee': 'vendeur',
+    'en_attente->annule': 'les_deux',
+    // Vendeur demarre
+    'acceptee->en_cours': 'vendeur',
+    'acceptee->annule': 'vendeur',
+    // Vendeur livre
+    'en_cours->livre': 'vendeur',
+    'en_cours->litige': 'les_deux',
+    'en_cours->annule': 'les_deux',
+    // Acheteur valide ou demande revision
+    'livre->termine': 'acheteur',
+    'livre->en_cours': 'acheteur', // revision
+    'livre->litige': 'les_deux',
+    // Resolution litige
+    'litige->en_cours': 'les_deux',
+    'litige->annule': 'les_deux',
 };
+// ============ SCHEMA ============
+const attachmentSchema = new mongoose_1.Schema({
+    url: { type: String, required: true },
+    name: { type: String, required: true },
+    size: { type: Number, default: 0 },
+    mimeType: { type: String, default: 'application/octet-stream' },
+}, { _id: false });
+const deliverableSchema = new mongoose_1.Schema({
+    type: { type: String, enum: ['message', 'file', 'link'], required: true },
+    content: { type: String, required: true },
+    file: {
+        type: { url: String, name: String, size: Number, mimeType: String },
+        default: undefined,
+    },
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+}, { _id: true });
+const progressUpdateSchema = new mongoose_1.Schema({
+    title: { type: String, required: true },
+    message: { type: String, default: '' },
+    percent: { type: Number, min: 0, max: 100, required: true },
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+}, { _id: true });
 const marketplaceOrderSchema = new mongoose_1.Schema({
     service: { type: mongoose_1.Schema.Types.ObjectId, ref: 'MarketplaceService', required: true },
     acheteur: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
@@ -60,18 +102,39 @@ const marketplaceOrderSchema = new mongoose_1.Schema({
         nom: { type: String, required: true },
         prix: { type: Number, default: null },
         devise: { type: String, default: 'EUR' },
+        image: { type: String },
     },
     optionsSelectionnees: [{ label: String, prix: Number, devise: { type: String, default: 'EUR' } }],
     montantTotal: { type: Number, required: true },
     devise: { type: String, default: 'EUR' },
-    statut: { type: String, enum: ['en_attente', 'paye', 'en_cours', 'livre', 'termine', 'annule', 'litige'], default: 'en_attente' },
-    historique: [{ de: String, vers: String, date: { type: Date, default: Date.now }, par: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur' }, commentaire: String }],
+    statut: {
+        type: String,
+        enum: ['en_attente', 'acceptee', 'refusee', 'en_cours', 'livre', 'termine', 'annule', 'litige'],
+        default: 'en_attente',
+    },
+    historique: [{
+            de: String, vers: String,
+            date: { type: Date, default: Date.now },
+            par: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur' },
+            commentaire: String,
+        }],
+    buyerBrief: {
+        type: {
+            message: { type: String, default: '' },
+            attachments: { type: [attachmentSchema], default: [] },
+            submittedAt: { type: Date, default: Date.now },
+        },
+        default: { message: '', attachments: [], submittedAt: new Date() },
+    },
+    deliverables: { type: [deliverableSchema], default: [] },
+    progressUpdates: { type: [progressUpdateSchema], default: [] },
     aReview: { type: Boolean, default: false },
     conversationId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Conversation' },
 }, { timestamps: { createdAt: 'dateCreation', updatedAt: 'dateMiseAJour' } });
 marketplaceOrderSchema.index({ acheteur: 1, dateCreation: -1 });
 marketplaceOrderSchema.index({ vendeur: 1, dateCreation: -1 });
 marketplaceOrderSchema.index({ service: 1 });
+marketplaceOrderSchema.index({ statut: 1 });
 const MarketplaceOrder = mongoose_1.default.model('MarketplaceOrder', marketplaceOrderSchema);
 exports.default = MarketplaceOrder;
 //# sourceMappingURL=MarketplaceOrder.js.map

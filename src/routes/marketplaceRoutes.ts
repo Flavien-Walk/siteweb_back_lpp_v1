@@ -10,113 +10,56 @@ const router = Router();
 // SERVICES
 // ============================================
 
-/**
- * GET /api/marketplace/mes-services
- * Liste des services de l'entrepreneur connecte
- * (AVANT la route :id pour eviter conflit)
- */
 router.get('/mes-services', verifierJwt, checkUserStatus, checkEntrepreneur, ctrl.getMesServices);
-
-/**
- * POST /api/marketplace/services
- * Creer un service (entrepreneur uniquement)
- */
 router.post('/services', verifierJwt, checkUserStatus, checkEntrepreneur, ctrl.creerService);
-
-/**
- * PATCH /api/marketplace/services/:id
- * Modifier un service (proprietaire uniquement)
- */
 router.patch('/services/:id', verifierJwt, checkUserStatus, checkEntrepreneur, ctrl.modifierService);
-
-/**
- * DELETE /api/marketplace/services/:id
- * Archiver un service (soft delete, proprietaire uniquement)
- */
 router.delete('/services/:id', verifierJwt, checkUserStatus, checkEntrepreneur, ctrl.archiverService);
-
-/**
- * GET /api/marketplace/services
- * Lister les services actifs (public)
- */
 router.get('/services', chargerUtilisateurOptionnel, ctrl.listerServices);
-
-/**
- * GET /api/marketplace/services/:id
- * Details d'un service (public)
- */
 router.get('/services/:id', chargerUtilisateurOptionnel, ctrl.getService);
 
 // ============================================
-// COMMANDES
+// COMMANDES — CRUD
 // ============================================
 
-/**
- * POST /api/marketplace/orders
- * Creer une commande
- */
 router.post('/orders', verifierJwt, checkUserStatus, ctrl.creerCommande);
-
-/**
- * GET /api/marketplace/orders/achats
- * Mes achats (acheteur)
- */
 router.get('/orders/achats', verifierJwt, checkUserStatus, ctrl.getMesAchats);
-
-/**
- * GET /api/marketplace/orders/ventes
- * Mes ventes (vendeur/entrepreneur)
- */
 router.get('/orders/ventes', verifierJwt, checkUserStatus, checkEntrepreneur, ctrl.getMesVentes);
+router.get('/orders/:id', verifierJwt, checkUserStatus, ctrl.getOrderDetail);
 
-/**
- * PATCH /api/marketplace/orders/:id/statut
- * Changer le statut d'une commande
- */
-router.patch('/orders/:id/statut', verifierJwt, checkUserStatus, ctrl.changerStatutCommande);
+// ============================================
+// COMMANDES — ACTIONS WORKFLOW
+// ============================================
+
+/** Vendeur : accepter / refuser */
+router.post('/orders/:id/accept', verifierJwt, checkUserStatus, ctrl.accepterCommande);
+router.post('/orders/:id/refuse', verifierJwt, checkUserStatus, ctrl.refuserCommande);
+
+/** Vendeur : avancement + livraison */
+router.post('/orders/:id/progress', verifierJwt, checkUserStatus, ctrl.ajouterProgression);
+router.post('/orders/:id/deliver', verifierJwt, checkUserStatus, ctrl.livrerCommande);
+
+/** Acheteur : valider / revision */
+router.post('/orders/:id/complete', verifierJwt, checkUserStatus, ctrl.validerCommande);
+router.post('/orders/:id/revision', verifierJwt, checkUserStatus, ctrl.demanderRevision);
+
+/** Les deux : annuler / litige */
+router.post('/orders/:id/cancel', verifierJwt, checkUserStatus, ctrl.annulerCommande);
+router.post('/orders/:id/dispute', verifierJwt, checkUserStatus, ctrl.ouvrirLitige);
 
 // ============================================
 // AVIS
 // ============================================
 
-/**
- * POST /api/marketplace/reviews
- * Laisser un avis (acheteur, commande terminee)
- */
 router.post('/reviews', verifierJwt, checkUserStatus, ctrl.creerReview);
-
-/**
- * GET /api/marketplace/reviews/:serviceId
- * Avis d'un service (public)
- */
 router.get('/reviews/:serviceId', ctrl.getReviewsService);
-
-/**
- * PATCH /api/marketplace/reviews/:id
- * Modifier un avis (auteur, < 7 jours)
- */
 router.patch('/reviews/:id', verifierJwt, checkUserStatus, ctrl.modifierReview);
-
-/**
- * DELETE /api/marketplace/reviews/:id
- * Supprimer un avis (auteur)
- */
 router.delete('/reviews/:id', verifierJwt, checkUserStatus, ctrl.supprimerReview);
 
 // ============================================
 // TRENDING + EVENTS
 // ============================================
 
-/**
- * GET /api/marketplace/trending
- * Services tendances
- */
 router.get('/trending', ctrl.getTrending);
-
-/**
- * POST /api/marketplace/events/view
- * Tracker une vue (public, debounce 1h)
- */
 router.post('/events/view', chargerUtilisateurOptionnel, ctrl.trackView);
 
 export default router;
