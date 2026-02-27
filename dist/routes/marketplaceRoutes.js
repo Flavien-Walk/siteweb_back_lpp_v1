@@ -67,6 +67,8 @@ router.post('/orders/:id/deliver', verifierJwt_js_1.verifierJwt, checkUserStatus
 /** Acheteur : valider / revision */
 router.post('/orders/:id/complete', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.validerCommande);
 router.post('/orders/:id/revision', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.demanderRevision);
+/** Vendeur : prolonger deadline */
+router.post('/orders/:id/extend-deadline', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.prolongerDeadline);
 /** Les deux : annuler / litige */
 router.post('/orders/:id/cancel', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.annulerCommande);
 router.post('/orders/:id/dispute', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.ouvrirLitige);

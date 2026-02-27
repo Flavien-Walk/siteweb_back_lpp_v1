@@ -7,6 +7,19 @@ export interface IHistorique {
     par: mongoose.Types.ObjectId;
     commentaire?: string;
 }
+export interface IDeadlineExtension {
+    requestedBy: mongoose.Types.ObjectId;
+    secondsAdded: number;
+    reason?: string;
+    createdAt: Date;
+}
+export interface IDeadlineHistory {
+    from: Date;
+    to: Date;
+    by: mongoose.Types.ObjectId;
+    reason?: string;
+    createdAt: Date;
+}
 export interface IDeliverable {
     type: 'message' | 'file' | 'link';
     content: string;
@@ -61,6 +74,13 @@ export interface IMarketplaceOrder extends Document {
     progressUpdates: IProgressUpdate[];
     aReview: boolean;
     conversationId?: mongoose.Types.ObjectId;
+    acceptedAt?: Date;
+    initialDeliverySeconds: number;
+    currentDeadlineAt?: Date;
+    isLate: boolean;
+    lateSince?: Date;
+    extensions: IDeadlineExtension[];
+    deadlineHistory: IDeadlineHistory[];
     dateCreation: Date;
     dateMiseAJour: Date;
 }

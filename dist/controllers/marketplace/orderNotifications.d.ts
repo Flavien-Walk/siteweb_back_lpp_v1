@@ -79,4 +79,22 @@ export declare function notifierProgressionAjoutee(commandeId: string, serviceNo
     nom: string;
     avatar?: string;
 }, acheteurId: string, percent: number): Promise<void>;
+/**
+ * Deadline prolongee (→ acheteur)
+ */
+export declare function notifierDeadlineExtended(commandeId: string, serviceNom: string, vendeur: {
+    _id: string;
+    prenom: string;
+    nom: string;
+    avatar?: string;
+}, acheteurId: string, dureeAjoutee: string): Promise<void>;
+/**
+ * Commande en retard (→ acheteur + vendeur)
+ */
+export declare function notifierCommandeEnRetard(commandeId: string, serviceNom: string, vendeur: {
+    _id: string;
+    prenom: string;
+    nom: string;
+    avatar?: string;
+}, acheteurId: string, vendeurId: string): Promise<void>;
 //# sourceMappingURL=orderNotifications.d.ts.map

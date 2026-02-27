@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.trackView = exports.getTrending = exports.supprimerReview = exports.modifierReview = exports.getReviewsService = exports.creerReview = exports.ouvrirLitige = exports.annulerCommande = exports.demanderRevision = exports.validerCommande = exports.livrerCommande = exports.ajouterProgression = exports.refuserCommande = exports.accepterCommande = exports.getOrderDetail = exports.getMesVentes = exports.getMesAchats = exports.creerCommande = exports.getMesServices = exports.getService = exports.listerServices = exports.archiverService = exports.modifierService = exports.creerService = void 0;
+exports.trackView = exports.getTrending = exports.supprimerReview = exports.modifierReview = exports.getReviewsService = exports.creerReview = exports.prolongerDeadline = exports.ouvrirLitige = exports.annulerCommande = exports.demanderRevision = exports.validerCommande = exports.livrerCommande = exports.ajouterProgression = exports.refuserCommande = exports.accepterCommande = exports.getOrderDetail = exports.getMesVentes = exports.getMesAchats = exports.creerCommande = exports.getMesServices = exports.getService = exports.listerServices = exports.archiverService = exports.modifierService = exports.creerService = void 0;
 var services_js_1 = require("./services.js");
 Object.defineProperty(exports, "creerService", { enumerable: true, get: function () { return services_js_1.creerService; } });
 Object.defineProperty(exports, "modifierService", { enumerable: true, get: function () { return services_js_1.modifierService; } });
@@ -22,6 +22,7 @@ Object.defineProperty(exports, "validerCommande", { enumerable: true, get: funct
 Object.defineProperty(exports, "demanderRevision", { enumerable: true, get: function () { return orderActions_js_1.demanderRevision; } });
 Object.defineProperty(exports, "annulerCommande", { enumerable: true, get: function () { return orderActions_js_1.annulerCommande; } });
 Object.defineProperty(exports, "ouvrirLitige", { enumerable: true, get: function () { return orderActions_js_1.ouvrirLitige; } });
+Object.defineProperty(exports, "prolongerDeadline", { enumerable: true, get: function () { return orderActions_js_1.prolongerDeadline; } });
 var reviews_js_1 = require("./reviews.js");
 Object.defineProperty(exports, "creerReview", { enumerable: true, get: function () { return reviews_js_1.creerReview; } });
 Object.defineProperty(exports, "getReviewsService", { enumerable: true, get: function () { return reviews_js_1.getReviewsService; } });

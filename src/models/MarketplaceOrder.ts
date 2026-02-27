@@ -15,6 +15,21 @@ export interface IHistorique {
   commentaire?: string;
 }
 
+export interface IDeadlineExtension {
+  requestedBy: mongoose.Types.ObjectId;
+  secondsAdded: number;
+  reason?: string;
+  createdAt: Date;
+}
+
+export interface IDeadlineHistory {
+  from: Date;
+  to: Date;
+  by: mongoose.Types.ObjectId;
+  reason?: string;
+  createdAt: Date;
+}
+
 export interface IDeliverable {
   type: 'message' | 'file' | 'link';
   content: string;
@@ -59,6 +74,14 @@ export interface IMarketplaceOrder extends Document {
   progressUpdates: IProgressUpdate[];
   aReview: boolean;
   conversationId?: mongoose.Types.ObjectId;
+  // Deadline
+  acceptedAt?: Date;
+  initialDeliverySeconds: number;
+  currentDeadlineAt?: Date;
+  isLate: boolean;
+  lateSince?: Date;
+  extensions: IDeadlineExtension[];
+  deadlineHistory: IDeadlineHistory[];
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -129,6 +152,21 @@ const progressUpdateSchema = new Schema({
   createdBy: { type: Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
 }, { _id: true });
 
+const extensionSchema = new Schema({
+  requestedBy: { type: Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+  secondsAdded: { type: Number, required: true },
+  reason: { type: String },
+  createdAt: { type: Date, default: Date.now },
+}, { _id: false });
+
+const deadlineHistorySchema = new Schema({
+  from: { type: Date, required: true },
+  to: { type: Date, required: true },
+  by: { type: Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+  reason: { type: String },
+  createdAt: { type: Date, default: Date.now },
+}, { _id: false });
+
 const marketplaceOrderSchema = new Schema<IMarketplaceOrder>({
   service: { type: Schema.Types.ObjectId, ref: 'MarketplaceService', required: true },
   acheteur: { type: Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
@@ -165,6 +203,14 @@ const marketplaceOrderSchema = new Schema<IMarketplaceOrder>({
   progressUpdates: { type: [progressUpdateSchema], default: [] },
   aReview: { type: Boolean, default: false },
   conversationId: { type: Schema.Types.ObjectId, ref: 'Conversation' },
+  // Deadline
+  acceptedAt: { type: Date },
+  initialDeliverySeconds: { type: Number, default: 259200 }, // 3 jours
+  currentDeadlineAt: { type: Date },
+  isLate: { type: Boolean, default: false },
+  lateSince: { type: Date },
+  extensions: { type: [extensionSchema], default: [] },
+  deadlineHistory: { type: [deadlineHistorySchema], default: [] },
 }, { timestamps: { createdAt: 'dateCreation', updatedAt: 'dateMiseAJour' } });
 
 marketplaceOrderSchema.index({ acheteur: 1, dateCreation: -1 });

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.envoyerEmailCommandeTerminee = exports.envoyerEmailLivraison = exports.envoyerEmailCommandeAcceptee = exports.envoyerEmailNouvelleCommande = exports.envoyerEmailLppRenouvellement = exports.envoyerEmailLppFin = exports.envoyerEmailLppReactivation = exports.envoyerEmailLppResiliation = exports.envoyerEmailLppActivation = exports.envoyerEmailVerification = exports.genererCodeVerification = void 0;
+exports.envoyerEmailDeadlineExtended = exports.envoyerEmailCommandeTerminee = exports.envoyerEmailLivraison = exports.envoyerEmailCommandeAcceptee = exports.envoyerEmailNouvelleCommande = exports.envoyerEmailLppRenouvellement = exports.envoyerEmailLppFin = exports.envoyerEmailLppReactivation = exports.envoyerEmailLppResiliation = exports.envoyerEmailLppActivation = exports.envoyerEmailVerification = exports.genererCodeVerification = void 0;
 const resend_1 = require("resend");
 const crypto_1 = require("crypto");
 const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
@@ -326,4 +326,29 @@ const envoyerEmailCommandeTerminee = async (email, prenom, serviceNom, acheteurP
     }
 };
 exports.envoyerEmailCommandeTerminee = envoyerEmailCommandeTerminee;
+/**
+ * Email deadline prolongee (→ acheteur)
+ */
+const envoyerEmailDeadlineExtended = async (email, prenom, serviceNom, vendeurPrenom, dureeAjoutee) => {
+    console.log(`[EMAIL MARKETPLACE] Envoi deadline prolongee vers ${email}`);
+    try {
+        const body = `
+      <p style="color:#A0A0B0;font-size:14px;margin:0 0 16px;">${vendeurPrenom} a prolonge le delai de livraison de ta commande.</p>
+      <div style="background:#0D0D12;border-radius:12px;padding:16px;margin:0 0 16px;">
+        <p style="color:#E0E0E0;font-size:14px;margin:0;"><strong>Service :</strong> ${serviceNom}</p>
+        <p style="color:#3B82F6;font-size:14px;margin:4px 0 0;"><strong>Prolongation :</strong> +${dureeAjoutee}</p>
+      </div>
+      <p style="color:#A0A0B0;font-size:13px;margin:0;">Connecte-toi a l'application pour suivre l'avancement de ta commande.</p>`;
+        await resend.emails.send({
+            from: FROM_EMAIL, to: email, replyTo: REPLY_TO,
+            subject: `Delai prolonge - ${serviceNom}`,
+            html: lppEmailTemplate(prenom, 'Delai prolonge', body),
+            text: `Salut ${prenom},\n\n${vendeurPrenom} a prolonge le delai de livraison de "${serviceNom}" de ${dureeAjoutee}.\n\nConnecte-toi a l'app pour suivre ta commande.\n\n— La Premiere Pierre`,
+        });
+    }
+    catch (err) {
+        console.error('[EMAIL MARKETPLACE] Erreur envoi deadline extended:', err);
+    }
+};
+exports.envoyerEmailDeadlineExtended = envoyerEmailDeadlineExtended;
 //# sourceMappingURL=emailService.js.map

@@ -3,10 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ouvrirLitige = exports.annulerCommande = exports.demanderRevision = exports.validerCommande = exports.livrerCommande = exports.ajouterProgression = exports.refuserCommande = exports.accepterCommande = void 0;
+exports.prolongerDeadline = exports.ouvrirLitige = exports.annulerCommande = exports.demanderRevision = exports.validerCommande = exports.livrerCommande = exports.ajouterProgression = exports.refuserCommande = exports.accepterCommande = void 0;
 const MarketplaceOrder_js_1 = __importDefault(require("../../models/MarketplaceOrder.js"));
+const MarketplaceService_js_1 = __importDefault(require("../../models/MarketplaceService.js"));
 const Utilisateur_js_1 = __importDefault(require("../../models/Utilisateur.js"));
 const orderStateMachine_js_1 = require("../../services/marketplace/orderStateMachine.js");
+const deadlineUtils_js_1 = require("../../services/marketplace/deadlineUtils.js");
 const helpers_js_1 = require("./helpers.js");
 const orderNotifications_js_1 = require("./orderNotifications.js");
 /** Mini-profil pour les notifs */
@@ -102,6 +104,19 @@ const accepterCommande = async (req, res) => {
         const ancien = commande.statut;
         commande.statut = 'en_cours';
         commande.historique.push({ de: ancien, vers: 'acceptee', date: new Date(), par: userId, commentaire: req.body.commentaire || undefined }, { de: 'acceptee', vers: 'en_cours', date: new Date(), par: userId, commentaire: 'Demarrage automatique' });
+        // Deadline: parse delaiLivraison du service et calculer la deadline
+        try {
+            const service = await MarketplaceService_js_1.default.findById(commande.service).select('delaiLivraison').lean();
+            const seconds = (0, deadlineUtils_js_1.parseDelaiLivraison)(service?.delaiLivraison);
+            const now = new Date();
+            commande.acceptedAt = now;
+            commande.initialDeliverySeconds = seconds;
+            commande.currentDeadlineAt = (0, deadlineUtils_js_1.computeDeadline)(now, seconds);
+        }
+        catch (err) {
+            console.error('[marketplace:orderActions] Erreur calcul deadline:', err);
+            // Non-bloquant: on continue sans deadline
+        }
         await commande.save();
         // Notification → acheteur
         getUserProfil(userId).then(vendeur => (0, orderNotifications_js_1.notifierCommandeAcceptee)(commande._id.toString(), commande.serviceSnapshot.nom, vendeur, commande.acheteur.toString()));
@@ -299,4 +314,70 @@ const ouvrirLitige = async (req, res) => {
     });
 };
 exports.ouvrirLitige = ouvrirLitige;
+// ============ DEADLINE ============
+/**
+ * POST /api/marketplace/orders/:id/extend-deadline
+ * Vendeur prolonge la deadline. Body: { secondsAdded: number, reason?: string }
+ */
+const prolongerDeadline = async (req, res) => {
+    try {
+        const commande = await loadOrder(req, res);
+        if (!commande)
+            return;
+        const userId = req.utilisateur._id;
+        // Vendeur seulement
+        if (!userId.equals(commande.vendeur)) {
+            return res.status(403).json({ succes: false, message: 'Seul le vendeur peut prolonger le delai' });
+        }
+        // Statut actif
+        if (!['acceptee', 'en_cours'].includes(commande.statut)) {
+            return res.status(400).json({ succes: false, message: 'Prolongation impossible dans ce statut' });
+        }
+        // Deadline doit exister
+        if (!commande.currentDeadlineAt) {
+            return res.status(400).json({ succes: false, message: 'Aucune deadline active sur cette commande' });
+        }
+        const { secondsAdded, reason } = req.body;
+        if (!secondsAdded || typeof secondsAdded !== 'number') {
+            return res.status(400).json({ succes: false, message: 'secondsAdded (number) est requis' });
+        }
+        // Validation min/max/count
+        const validation = (0, deadlineUtils_js_1.validerExtension)(secondsAdded, commande.extensions || []);
+        if (!validation.ok) {
+            return res.status(400).json({ succes: false, message: validation.message });
+        }
+        const ancienneDeadline = new Date(commande.currentDeadlineAt);
+        const nouvelleDeadline = new Date(ancienneDeadline.getTime() + secondsAdded * 1000);
+        // Mettre a jour
+        commande.currentDeadlineAt = nouvelleDeadline;
+        commande.extensions.push({
+            requestedBy: userId,
+            secondsAdded,
+            reason: reason || undefined,
+            createdAt: new Date(),
+        });
+        commande.deadlineHistory.push({
+            from: ancienneDeadline,
+            to: nouvelleDeadline,
+            by: userId,
+            reason: reason || undefined,
+            createdAt: new Date(),
+        });
+        // Si etait en retard et nouvelle deadline > maintenant → reset
+        if (commande.isLate && nouvelleDeadline.getTime() > Date.now()) {
+            commande.isLate = false;
+            commande.lateSince = undefined;
+        }
+        await commande.save();
+        // Notification → acheteur
+        const dureeStr = (0, deadlineUtils_js_1.formatDuree)(secondsAdded);
+        getUserProfil(userId).then(vendeur => (0, orderNotifications_js_1.notifierDeadlineExtended)(commande._id.toString(), commande.serviceSnapshot.nom, vendeur, commande.acheteur.toString(), dureeStr));
+        return res.json({ succes: true, data: { commande } });
+    }
+    catch (error) {
+        console.error('[marketplace:orderActions] Erreur prolongerDeadline:', error);
+        return res.status(500).json({ succes: false, message: 'Erreur serveur' });
+    }
+};
+exports.prolongerDeadline = prolongerDeadline;
 //# sourceMappingURL=orderActions.js.map

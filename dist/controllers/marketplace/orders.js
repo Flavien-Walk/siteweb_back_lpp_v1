@@ -7,6 +7,7 @@ exports.getMesVentes = exports.getMesAchats = exports.getOrderDetail = exports.c
 const MarketplaceOrder_js_1 = __importDefault(require("../../models/MarketplaceOrder.js"));
 const MarketplaceService_js_1 = __importDefault(require("../../models/MarketplaceService.js"));
 const MarketplaceEvent_js_1 = __importDefault(require("../../models/MarketplaceEvent.js"));
+const deadlineUtils_js_1 = require("../../services/marketplace/deadlineUtils.js");
 const orderNotifications_js_1 = require("./orderNotifications.js");
 /**
  * POST /api/marketplace/orders
@@ -116,7 +117,41 @@ const getOrderDetail = async (req, res) => {
         if (!isPartie) {
             return res.status(403).json({ succes: false, message: "Vous n'avez pas acces a cette commande" });
         }
-        return res.json({ succes: true, data: { commande } });
+        // Calculer deadline a la volee (Option A)
+        const deadlineFields = (0, deadlineUtils_js_1.computeDeadlineFields)(commande);
+        const enriched = { ...commande };
+        if (deadlineFields.deadlineActive || commande.acceptedAt) {
+            enriched.deadline = {
+                acceptedAt: commande.acceptedAt,
+                initialDeliverySeconds: commande.initialDeliverySeconds,
+                currentDeadlineAt: commande.currentDeadlineAt,
+                remainingSeconds: deadlineFields.remainingSeconds,
+                isLate: deadlineFields.isLate,
+                lateSince: deadlineFields.lateSince,
+                deadlineActive: deadlineFields.deadlineActive,
+                extensions: commande.extensions || [],
+                deadlineHistory: commande.deadlineHistory || [],
+            };
+            // Persister isLate a la premiere detection (fire-and-forget)
+            if (deadlineFields.isLate && !commande.isLate) {
+                MarketplaceOrder_js_1.default.findByIdAndUpdate(commande._id, {
+                    isLate: true,
+                    lateSince: deadlineFields.lateSince,
+                }).catch(() => { });
+                // Notification retard (une seule fois)
+                const vendeurObj = commande.vendeur;
+                const vendeurId = vendeurObj._id?.toString() || vendeurObj.toString();
+                const acheteurObj = commande.acheteur;
+                const acheteurId = acheteurObj._id?.toString() || acheteurObj.toString();
+                const vendeurProfil = {
+                    _id: vendeurId,
+                    prenom: vendeurObj.prenom || 'Vendeur',
+                    nom: vendeurObj.nom || '',
+                };
+                (0, orderNotifications_js_1.notifierCommandeEnRetard)(commande._id.toString(), commande.serviceSnapshot?.nom || 'Service', vendeurProfil, acheteurId, vendeurId).catch(() => { });
+            }
+        }
+        return res.json({ succes: true, data: { commande: enriched } });
     }
     catch (error) {
         console.error('[marketplace:orders] Erreur getOrderDetail:', error);
@@ -137,7 +172,7 @@ const getMesAchats = async (req, res) => {
         if (req.query.statut) {
             filtre.statut = req.query.statut;
         }
-        const [commandes, total] = await Promise.all([
+        const [commandesRaw, total] = await Promise.all([
             MarketplaceOrder_js_1.default.find(filtre)
                 .sort({ dateCreation: -1 })
                 .skip(skip)
@@ -147,6 +182,13 @@ const getMesAchats = async (req, res) => {
                 .lean(),
             MarketplaceOrder_js_1.default.countDocuments(filtre),
         ]);
+        // Enrichir chaque commande avec deadline legere
+        const commandes = commandesRaw.map((c) => {
+            if (!c.acceptedAt || !c.currentDeadlineAt)
+                return c;
+            const df = (0, deadlineUtils_js_1.computeDeadlineFields)(c);
+            return { ...c, deadline: { currentDeadlineAt: c.currentDeadlineAt, remainingSeconds: df.remainingSeconds, isLate: df.isLate, deadlineActive: df.deadlineActive } };
+        });
         return res.json({
             succes: true,
             data: {
@@ -174,7 +216,7 @@ const getMesVentes = async (req, res) => {
         if (req.query.statut) {
             filtre.statut = req.query.statut;
         }
-        const [commandes, total] = await Promise.all([
+        const [commandesRaw, total] = await Promise.all([
             MarketplaceOrder_js_1.default.find(filtre)
                 .sort({ dateCreation: -1 })
                 .skip(skip)
@@ -184,6 +226,13 @@ const getMesVentes = async (req, res) => {
                 .lean(),
             MarketplaceOrder_js_1.default.countDocuments(filtre),
         ]);
+        // Enrichir chaque commande avec deadline legere
+        const commandes = commandesRaw.map((c) => {
+            if (!c.acceptedAt || !c.currentDeadlineAt)
+                return c;
+            const df = (0, deadlineUtils_js_1.computeDeadlineFields)(c);
+            return { ...c, deadline: { currentDeadlineAt: c.currentDeadlineAt, remainingSeconds: df.remainingSeconds, isLate: df.isLate, deadlineActive: df.deadlineActive } };
+        });
         return res.json({
             succes: true,
             data: {

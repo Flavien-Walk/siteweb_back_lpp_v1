@@ -42,7 +42,7 @@ const notificationSchema = new mongoose_1.Schema({
     },
     type: {
         type: String,
-        enum: ['projet_cloture', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'mention', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow', 'broadcast', 'support_reponse', 'commande_nouvelle', 'commande_acceptee', 'commande_refusee', 'commande_en_cours', 'commande_livree', 'commande_terminee', 'commande_annulee', 'commande_litige', 'commande_revision'],
+        enum: ['projet_cloture', 'annonce', 'live-rappel', 'interaction', 'demande_ami', 'ami_accepte', 'nouveau_commentaire', 'nouveau_like', 'like_commentaire', 'mention', 'sanction_ban', 'sanction_suspend', 'sanction_warn', 'sanction_unban', 'sanction_unsuspend', 'sanction_unwarn', 'moderation', 'project_follow', 'broadcast', 'support_reponse', 'commande_nouvelle', 'commande_acceptee', 'commande_refusee', 'commande_en_cours', 'commande_livree', 'commande_terminee', 'commande_annulee', 'commande_litige', 'commande_revision', 'commande_deadline_extended', 'commande_en_retard'],
         required: true,
     },
     titre: {

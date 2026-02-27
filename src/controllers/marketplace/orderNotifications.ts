@@ -11,6 +11,7 @@ import {
   envoyerEmailCommandeAcceptee,
   envoyerEmailLivraison,
   envoyerEmailCommandeTerminee,
+  envoyerEmailDeadlineExtended,
 } from '../../services/emailService.js';
 
 /** Recupere l'email + prenom d'un user (pour les emails transactionnels) */
@@ -232,5 +233,50 @@ export function notifierProgressionAjoutee(
     'Avancement mis a jour',
     `${vendeur.prenom} a mis a jour l'avancement (${percent}%) de "${serviceNom}"`,
     { commandeId, serviceNom, acteur: vendeur, destinataireId: acheteurId },
+  );
+}
+
+/**
+ * Deadline prolongee (→ acheteur)
+ */
+export async function notifierDeadlineExtended(
+  commandeId: string,
+  serviceNom: string,
+  vendeur: { _id: string; prenom: string; nom: string; avatar?: string },
+  acheteurId: string,
+  dureeAjoutee: string,
+) {
+  await creerNotifCommande('commande_deadline_extended',
+    'Delai prolonge',
+    `${vendeur.prenom} a prolonge le delai de "${serviceNom}" de ${dureeAjoutee}`,
+    { commandeId, serviceNom, acteur: vendeur, destinataireId: acheteurId },
+  );
+  const acheteur = await getUserEmail(acheteurId);
+  if (acheteur) {
+    envoyerEmailDeadlineExtended(acheteur.email, acheteur.prenom, serviceNom, vendeur.prenom, dureeAjoutee);
+  }
+}
+
+/**
+ * Commande en retard (→ acheteur + vendeur)
+ */
+export async function notifierCommandeEnRetard(
+  commandeId: string,
+  serviceNom: string,
+  vendeur: { _id: string; prenom: string; nom: string; avatar?: string },
+  acheteurId: string,
+  vendeurId: string,
+) {
+  // Notif acheteur
+  await creerNotifCommande('commande_en_retard',
+    'Commande en retard',
+    `La livraison de "${serviceNom}" a depasse le delai prevu`,
+    { commandeId, serviceNom, acteur: vendeur, destinataireId: acheteurId },
+  );
+  // Notif vendeur
+  await creerNotifCommande('commande_en_retard',
+    'Commande en retard',
+    `Votre livraison de "${serviceNom}" a depasse le delai prevu`,
+    { commandeId, serviceNom, acteur: vendeur, destinataireId: vendeurId },
   );
 }

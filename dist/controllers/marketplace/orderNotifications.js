@@ -12,6 +12,8 @@ exports.notifierRevisionDemandee = notifierRevisionDemandee;
 exports.notifierCommandeAnnulee = notifierCommandeAnnulee;
 exports.notifierLitige = notifierLitige;
 exports.notifierProgressionAjoutee = notifierProgressionAjoutee;
+exports.notifierDeadlineExtended = notifierDeadlineExtended;
+exports.notifierCommandeEnRetard = notifierCommandeEnRetard;
 const Notification_js_1 = __importDefault(require("../../models/Notification.js"));
 const Utilisateur_js_1 = __importDefault(require("../../models/Utilisateur.js"));
 const emitters_js_1 = require("../../socket/emitters.js");
@@ -132,5 +134,24 @@ function notifierLitige(commandeId, serviceNom, acteur, destinataireId) {
  */
 function notifierProgressionAjoutee(commandeId, serviceNom, vendeur, acheteurId, percent) {
     return creerNotifCommande('commande_en_cours', 'Avancement mis a jour', `${vendeur.prenom} a mis a jour l'avancement (${percent}%) de "${serviceNom}"`, { commandeId, serviceNom, acteur: vendeur, destinataireId: acheteurId });
+}
+/**
+ * Deadline prolongee (→ acheteur)
+ */
+async function notifierDeadlineExtended(commandeId, serviceNom, vendeur, acheteurId, dureeAjoutee) {
+    await creerNotifCommande('commande_deadline_extended', 'Delai prolonge', `${vendeur.prenom} a prolonge le delai de "${serviceNom}" de ${dureeAjoutee}`, { commandeId, serviceNom, acteur: vendeur, destinataireId: acheteurId });
+    const acheteur = await getUserEmail(acheteurId);
+    if (acheteur) {
+        (0, emailService_js_1.envoyerEmailDeadlineExtended)(acheteur.email, acheteur.prenom, serviceNom, vendeur.prenom, dureeAjoutee);
+    }
+}
+/**
+ * Commande en retard (→ acheteur + vendeur)
+ */
+async function notifierCommandeEnRetard(commandeId, serviceNom, vendeur, acheteurId, vendeurId) {
+    // Notif acheteur
+    await creerNotifCommande('commande_en_retard', 'Commande en retard', `La livraison de "${serviceNom}" a depasse le delai prevu`, { commandeId, serviceNom, acteur: vendeur, destinataireId: acheteurId });
+    // Notif vendeur
+    await creerNotifCommande('commande_en_retard', 'Commande en retard', `Votre livraison de "${serviceNom}" a depasse le delai prevu`, { commandeId, serviceNom, acteur: vendeur, destinataireId: vendeurId });
 }
 //# sourceMappingURL=orderNotifications.js.map

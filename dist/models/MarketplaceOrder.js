@@ -94,6 +94,19 @@ const progressUpdateSchema = new mongoose_1.Schema({
     createdAt: { type: Date, default: Date.now },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
 }, { _id: true });
+const extensionSchema = new mongoose_1.Schema({
+    requestedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+    secondsAdded: { type: Number, required: true },
+    reason: { type: String },
+    createdAt: { type: Date, default: Date.now },
+}, { _id: false });
+const deadlineHistorySchema = new mongoose_1.Schema({
+    from: { type: Date, required: true },
+    to: { type: Date, required: true },
+    by: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+    reason: { type: String },
+    createdAt: { type: Date, default: Date.now },
+}, { _id: false });
 const marketplaceOrderSchema = new mongoose_1.Schema({
     service: { type: mongoose_1.Schema.Types.ObjectId, ref: 'MarketplaceService', required: true },
     acheteur: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
@@ -130,6 +143,14 @@ const marketplaceOrderSchema = new mongoose_1.Schema({
     progressUpdates: { type: [progressUpdateSchema], default: [] },
     aReview: { type: Boolean, default: false },
     conversationId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Conversation' },
+    // Deadline
+    acceptedAt: { type: Date },
+    initialDeliverySeconds: { type: Number, default: 259200 }, // 3 jours
+    currentDeadlineAt: { type: Date },
+    isLate: { type: Boolean, default: false },
+    lateSince: { type: Date },
+    extensions: { type: [extensionSchema], default: [] },
+    deadlineHistory: { type: [deadlineHistorySchema], default: [] },
 }, { timestamps: { createdAt: 'dateCreation', updatedAt: 'dateMiseAJour' } });
 marketplaceOrderSchema.index({ acheteur: 1, dateCreation: -1 });
 marketplaceOrderSchema.index({ vendeur: 1, dateCreation: -1 });

@@ -43,4 +43,9 @@ export declare const annulerCommande: (req: Request, res: Response) => Promise<R
  * Ouvrir un litige
  */
 export declare const ouvrirLitige: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+/**
+ * POST /api/marketplace/orders/:id/extend-deadline
+ * Vendeur prolonge la deadline. Body: { secondsAdded: number, reason?: string }
+ */
+export declare const prolongerDeadline: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=orderActions.d.ts.map
