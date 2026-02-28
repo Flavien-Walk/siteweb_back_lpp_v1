@@ -32,7 +32,9 @@ export type AuditAction =
   | 'config:update'
   // Actions d'authentification staff
   | 'staff:login'
-  | 'staff:logout';
+  | 'staff:logout'
+  // Actions marketplace
+  | 'marketplace:resolve_dispute';
 
 /**
  * Types de cibles possibles pour une action
@@ -47,7 +49,8 @@ export type AuditTargetType =
   | 'projet'
   | 'report'
   | 'config'
-  | 'system';
+  | 'system'
+  | 'commande';
 
 /**
  * Source de l'action (d'où provient l'action de modération)
@@ -146,13 +149,14 @@ const auditLogSchema = new Schema<IAuditLog>(
         'report:process', 'report:escalate', 'report:dismiss', 'report:assign',
         'config:update',
         'staff:login', 'staff:logout',
+        'marketplace:resolve_dispute',
       ],
       required: [true, "L'action est requise"],
       index: true,
     },
     targetType: {
       type: String,
-      enum: ['utilisateur', 'publication', 'commentaire', 'message', 'story', 'live', 'projet', 'report', 'config', 'system'],
+      enum: ['utilisateur', 'publication', 'commentaire', 'message', 'story', 'live', 'projet', 'report', 'config', 'system', 'commande'],
       required: [true, 'Le type de cible est requis'],
       index: true,
     },

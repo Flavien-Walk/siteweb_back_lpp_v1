@@ -41,7 +41,9 @@ export type Permission =
   | 'config:edit'
   | 'staff:chat'
   | 'tickets:view'
-  | 'tickets:respond';
+  | 'tickets:respond'
+  | 'marketplace:view'
+  | 'marketplace:manage_disputes';
 
 // Permissions par défaut selon le rôle
 // Note: 'admin' legacy a les mêmes permissions que 'admin_modo'
@@ -53,6 +55,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
     'users:view', 'users:warn', 'users:suspend', 'users:ban',
     'content:hide', 'staff:chat',
     'tickets:view', 'tickets:respond',
+    'marketplace:view',
   ],
   admin_modo: [
     'reports:view', 'reports:process', 'reports:escalate',
@@ -60,6 +63,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
     'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
     'tickets:view', 'tickets:respond',
+    'marketplace:view', 'marketplace:manage_disputes',
   ],
   admin: [ // Legacy: mêmes permissions que admin_modo
     'reports:view', 'reports:process', 'reports:escalate',
@@ -67,6 +71,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
     'content:hide', 'content:delete', 'content:edit',
     'audit:view', 'staff:chat',
     'tickets:view', 'tickets:respond',
+    'marketplace:view', 'marketplace:manage_disputes',
   ],
   super_admin: [
     'reports:view', 'reports:process', 'reports:escalate',
@@ -76,6 +81,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleWithLegacy, Permission[]> = {
     'config:view', 'config:edit',
     'staff:chat',
     'tickets:view', 'tickets:respond',
+    'marketplace:view', 'marketplace:manage_disputes',
   ],
 };
 

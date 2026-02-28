@@ -95,6 +95,15 @@ import {
   getAtRiskUsers,
   getCommentaireThread,
 } from '../controllers/moderationController.js';
+import {
+  listerCommandes,
+  getCommandeDetail,
+  getCommandesStats,
+  listerServices,
+  getServiceDetail,
+  listerLitiges,
+  resoudreLitige,
+} from '../controllers/adminMarketplace/index.js';
 
 const router = Router();
 
@@ -419,5 +428,28 @@ router.patch('/tickets/:id/status', verifierJwt, requirePermission('tickets:resp
 
 // POST /api/admin/tickets/:id/assign - Assigner un ticket
 router.post('/tickets/:id/assign', verifierJwt, requirePermission('tickets:respond'), assignerTicket);
+
+// ============ MARKETPLACE ============
+
+// GET /api/admin/marketplace/commandes - Lister toutes les commandes
+router.get('/marketplace/commandes', verifierJwt, requirePermission('marketplace:view'), listerCommandes);
+
+// GET /api/admin/marketplace/commandes/stats - Stats des commandes
+router.get('/marketplace/commandes/stats', verifierJwt, requirePermission('marketplace:view'), getCommandesStats);
+
+// GET /api/admin/marketplace/commandes/:id - Detail d'une commande
+router.get('/marketplace/commandes/:id', verifierJwt, requirePermission('marketplace:view'), getCommandeDetail);
+
+// GET /api/admin/marketplace/services - Lister tous les services
+router.get('/marketplace/services', verifierJwt, requirePermission('marketplace:view'), listerServices);
+
+// GET /api/admin/marketplace/services/:id - Detail d'un service
+router.get('/marketplace/services/:id', verifierJwt, requirePermission('marketplace:view'), getServiceDetail);
+
+// GET /api/admin/marketplace/litiges - Lister les commandes en litige
+router.get('/marketplace/litiges', verifierJwt, requirePermission('marketplace:view'), listerLitiges);
+
+// POST /api/admin/marketplace/litiges/:id/resoudre - Resoudre un litige
+router.post('/marketplace/litiges/:id/resoudre', verifierJwt, requirePermission('marketplace:manage_disputes'), resoudreLitige);
 
 export default router;
