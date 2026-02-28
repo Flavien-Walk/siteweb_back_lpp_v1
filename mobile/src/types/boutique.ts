@@ -244,6 +244,13 @@ export interface MarketplaceOrder {
   conversationId?: string;
   deadline?: OrderDeadline;
   revisionInfo?: RevisionInfo;
+  litigeInfo?: {
+    raison: string;
+    ouvertPar: string;
+    dateOuverture: string;
+    moderateur?: { _id: string; prenom: string; nom: string; avatar?: string } | null;
+    datePriseEnCharge?: string | null;
+  };
   dateCreation: string;
   dateMiseAJour: string;
 }

@@ -24,6 +24,7 @@ import BlocLivraison from '../../../src/composants/commandes/BlocLivraison';
 import BlocDeadline from '../../../src/composants/commandes/BlocDeadline';
 import BlocMediation from '../../../src/composants/commandes/BlocMediation';
 import ModalProlongation from '../../../src/composants/commandes/ModalProlongation';
+import ModalLitige from '../../../src/composants/commandes/ModalLitige';
 import { formatPrice } from '../../../src/constantes/boutique';
 import {
   getOrderDetail, accepterCommande, refuserCommande,
@@ -69,6 +70,8 @@ export default function CommandeDetailScreen() {
 
   // Deadline prolongation
   const [showProlongation, setShowProlongation] = useState(false);
+  // Litige
+  const [showLitige, setShowLitige] = useState(false);
   const revisionPrompted = useRef(false);
 
   const loadCommande = useCallback(async () => {
@@ -185,12 +188,16 @@ export default function CommandeDetailScreen() {
     ]);
   };
 
-  const handleLitige = () => {
-    Alert.alert('Ouvrir un litige', 'Un moderateur LPP interviendra.', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Ouvrir', style: 'destructive', onPress: () => doAction(() => ouvrirLitige(id!, 'Litige ouvert par l\'utilisateur'), 'Litige ouvert.') },
-    ]);
-  };
+  const handleLitige = useCallback(async (raison: string) => {
+    const res = await ouvrirLitige(id!, raison);
+    if (res.succes) {
+      if (res.data?.commande) setCommande(res.data.commande);
+      else await loadCommande();
+      Alert.alert('Succes', 'Litige ouvert. Un moderateur interviendra.');
+    } else {
+      throw new Error(res.message || 'Erreur');
+    }
+  }, [id, loadCommande]);
 
   const handleAddProgress = () => {
     const pct = parseInt(progressPercent, 10);
@@ -314,7 +321,11 @@ export default function CommandeDetailScreen() {
 
           {/* Mediation (litige) */}
           {statut === 'litige' && id && (
-            <BlocMediation commandeId={id} couleurs={couleurs} />
+            <BlocMediation
+              commandeId={id}
+              couleurs={couleurs}
+              litigeInfo={commande.litigeInfo}
+            />
           )}
 
           {/* Brief */}
@@ -523,7 +534,7 @@ export default function CommandeDetailScreen() {
             </Pressable>
           )}
           {['en_cours', 'livre'].includes(statut) && (
-            <Pressable style={s.dangerBtn} onPress={handleLitige}>
+            <Pressable style={s.dangerBtn} onPress={() => setShowLitige(true)}>
               <Text style={s.dangerBtnText}>Signaler un probleme</Text>
             </Pressable>
           )}
@@ -583,6 +594,14 @@ export default function CommandeDetailScreen() {
           visible={showProlongation}
           onClose={() => setShowProlongation(false)}
           onConfirm={handleProlonger}
+          couleurs={couleurs}
+        />
+
+        {/* Modal litige */}
+        <ModalLitige
+          visible={showLitige}
+          onClose={() => setShowLitige(false)}
+          onConfirm={handleLitige}
           couleurs={couleurs}
         />
       </SafeAreaView>

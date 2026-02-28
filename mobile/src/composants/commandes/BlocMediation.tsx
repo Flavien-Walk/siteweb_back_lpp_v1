@@ -19,11 +19,16 @@ import type { MediationMessage } from '../../types/boutique';
 interface Props {
   commandeId: string;
   couleurs: ThemeCouleurs;
+  litigeInfo?: {
+    raison: string;
+    moderateur?: { _id: string; prenom: string; nom: string; avatar?: string } | null;
+    datePriseEnCharge?: string | null;
+  };
 }
 
 const POLL_INTERVAL = 12000; // 12s
 
-function BlocMediation({ commandeId, couleurs }: Props) {
+function BlocMediation({ commandeId, couleurs, litigeInfo }: Props) {
   const s = createStyles(couleurs);
   const [messages, setMessages] = useState<MediationMessage[]>([]);
   const [canal, setCanal] = useState<string>('');
@@ -158,7 +163,9 @@ function BlocMediation({ commandeId, couleurs }: Props) {
         <View style={s.headerTextWrap}>
           <Text style={s.headerTitle}>Mediation en cours</Text>
           <Text style={s.headerSubtitle}>
-            Un moderateur LPP gere votre litige
+            {litigeInfo?.moderateur
+              ? `Pris en charge par ${litigeInfo.moderateur.prenom}`
+              : 'En attente de prise en charge par un moderateur'}
           </Text>
         </View>
         {messages.length > 0 && (
@@ -175,6 +182,25 @@ function BlocMediation({ commandeId, couleurs }: Props) {
 
       {!collapsed && (
         <>
+          {/* Statut prise en charge */}
+          <View style={[s.statusBadge, {
+            backgroundColor: litigeInfo?.moderateur ? '#10B98115' : '#F59E0B15',
+            borderColor: litigeInfo?.moderateur ? '#10B98130' : '#F59E0B30',
+          }]}>
+            <Ionicons
+              name={litigeInfo?.moderateur ? 'checkmark-circle-outline' : 'time-outline'}
+              size={15}
+              color={litigeInfo?.moderateur ? '#10B981' : '#F59E0B'}
+            />
+            <Text style={[s.statusBadgeText, {
+              color: litigeInfo?.moderateur ? '#10B981' : '#F59E0B',
+            }]}>
+              {litigeInfo?.moderateur
+                ? `Pris en charge par ${litigeInfo.moderateur.prenom}`
+                : 'En attente de prise en charge par un moderateur'}
+            </Text>
+          </View>
+
           {/* Info card */}
           <View style={s.infoCard}>
             <Ionicons name="information-circle-outline" size={16} color={couleurs.texteMuted} />
@@ -276,6 +302,16 @@ const createStyles = (couleurs: ThemeCouleurs) =>
       paddingHorizontal: 6,
     },
     counterText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+    // Status badge
+    statusBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginHorizontal: espacements.lg,
+      marginBottom: espacements.sm,
+      paddingVertical: 8, paddingHorizontal: 12,
+      borderRadius: rayons.sm,
+      borderWidth: 1,
+    },
+    statusBadgeText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 16 },
     // Info card
     infoCard: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
