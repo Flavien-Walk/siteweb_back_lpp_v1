@@ -248,6 +248,25 @@ export interface MarketplaceOrder {
   dateMiseAJour: string;
 }
 
+// ============ MEDIATION ============
+
+export type MediationCanal = 'acheteur' | 'vendeur';
+
+export interface MediationMessage {
+  _id: string;
+  canal: MediationCanal;
+  auteur: {
+    _id: string;
+    prenom: string;
+    nom: string;
+    avatar?: string;
+  };
+  auteurRole: 'moderateur' | 'acheteur' | 'vendeur';
+  contenu: string;
+  dateCreation: string;
+  lu: boolean;
+}
+
 export interface MarketplacePagination {
   page: number;
   limit: number;

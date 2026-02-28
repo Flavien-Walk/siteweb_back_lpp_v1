@@ -22,6 +22,7 @@ import BlocBrief from '../../../src/composants/commandes/BlocBrief';
 import BlocAvancement from '../../../src/composants/commandes/BlocAvancement';
 import BlocLivraison from '../../../src/composants/commandes/BlocLivraison';
 import BlocDeadline from '../../../src/composants/commandes/BlocDeadline';
+import BlocMediation from '../../../src/composants/commandes/BlocMediation';
 import ModalProlongation from '../../../src/composants/commandes/ModalProlongation';
 import { formatPrice } from '../../../src/constantes/boutique';
 import {
@@ -309,6 +310,11 @@ export default function CommandeDetailScreen() {
               onProlonger={() => setShowProlongation(true)}
               couleurs={couleurs}
             />
+          )}
+
+          {/* Mediation (litige) */}
+          {statut === 'litige' && id && (
+            <BlocMediation commandeId={id} couleurs={couleurs} />
           )}
 
           {/* Brief */}

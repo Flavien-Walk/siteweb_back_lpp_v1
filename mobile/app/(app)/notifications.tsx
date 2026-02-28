@@ -231,6 +231,11 @@ export default function Notifications() {
         pathname: '/(app)/support',
         params: { ticketId: notif.data.ticketId },
       });
+    } else if (notif.data?.type === 'mediation' && notif.data?.commandeId) {
+      router.push({
+        pathname: '/(app)/commande/[id]',
+        params: { id: notif.data.commandeId },
+      } as any);
     } else if (notif.type.startsWith('commande_') && notif.data?.commandeId) {
       router.push({
         pathname: '/(app)/commande/[id]',
@@ -540,8 +545,9 @@ export default function Notifications() {
     const estDemandeAmi = item.type === 'demande_ami';
     const estBroadcast = item.type === 'broadcast';
     const estCloture = item.type === 'projet_cloture';
-    const broadcastColor = estBroadcast ? getBroadcastColor(item.data?.broadcastBadge) : getNotifColor(item.type);
-    const broadcastIcon = estBroadcast ? getBroadcastIconForBadge(item.data?.broadcastBadge) : getNotifIcon(item.type);
+    const estMediation = item.data?.type === 'mediation';
+    const broadcastColor = estMediation ? '#EF4444' : estBroadcast ? getBroadcastColor(item.data?.broadcastBadge) : getNotifColor(item.type);
+    const broadcastIcon = estMediation ? ('shield-half-outline' as keyof typeof Ionicons.glyphMap) : estBroadcast ? getBroadcastIconForBadge(item.data?.broadcastBadge) : getNotifIcon(item.type);
 
     return (
       <SwipeLeftToDelete onDelete={() => handleSupprimer(item._id)}>

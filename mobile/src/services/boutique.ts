@@ -15,7 +15,7 @@ import api from './api';
 
 // Types — source de verite dans types/boutique.ts
 import type { ReponseAPI } from '../types/api';
-import type { LppPlusSubscription, UserSubscription, MarketplaceProduct, MarketplaceCategory, MarketplaceOrder, MarketplacePagination } from '../types/boutique';
+import type { LppPlusSubscription, UserSubscription, MarketplaceProduct, MarketplaceCategory, MarketplaceOrder, MarketplacePagination, MediationMessage } from '../types/boutique';
 
 // Re-exports types pour compatibilite des imports existants
 export type { SubscriptionStatus, LppPlusSubscription, CertificationBenefit, CertificationPlan, UserSubscription, BoostGoalType, BoostIntensity, BoostGoal, BoostBundle, MarketplaceCategory, ProductReview, ProductOption, MarketplaceProduct, MarketplaceCategoryItem, PriceBreakdown, MarketplaceOrder, OrderStatut, MarketplacePagination, RevisionInfo } from '../types/boutique';
@@ -407,6 +407,34 @@ export async function ouvrirLitige(
     return api.post<{ commande: MarketplaceOrder }>(`/marketplace/orders/${commandeId}/dispute`, { raison }, true);
   } catch {
     return { succes: false, message: 'Erreur lors de l\'ouverture du litige.' };
+  }
+}
+
+// ============ MEDIATION (litige) ============
+
+/** Recuperer mes messages de mediation sur mon canal */
+export async function getMediationMessages(
+  commandeId: string,
+): Promise<ReponseAPI<{ canal: string; messages: MediationMessage[] }>> {
+  try {
+    return api.get<{ canal: string; messages: MediationMessage[] }>(
+      `/marketplace/orders/${commandeId}/mediation`, true,
+    );
+  } catch {
+    return { succes: false, message: 'Erreur lors du chargement des messages.' };
+  }
+}
+
+/** Envoyer un message de mediation */
+export async function envoyerMediationMessage(
+  commandeId: string, contenu: string,
+): Promise<ReponseAPI<{ message: MediationMessage }>> {
+  try {
+    return api.post<{ message: MediationMessage }>(
+      `/marketplace/orders/${commandeId}/mediation`, { contenu }, true,
+    );
+  } catch {
+    return { succes: false, message: "Erreur lors de l'envoi du message." };
   }
 }
 

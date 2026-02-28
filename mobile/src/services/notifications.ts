@@ -80,6 +80,7 @@ export interface Notification {
     // Données marketplace/commande
     commandeId?: string;
     serviceNom?: string;
+    type?: string;
   };
 }
 
