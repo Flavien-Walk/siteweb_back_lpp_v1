@@ -35,6 +35,8 @@ const CartographyPage = lazy(() => import('@/pages/Cartography'))
 const SecurityPage = lazy(() => import('@/pages/Security'))
 const TicketsPage = lazy(() => import('@/pages/Tickets'))
 const TicketDetailPage = lazy(() => import('@/pages/TicketDetail'))
+const MarketplacePage = lazy(() => import('@/pages/Marketplace'))
+const LitigesPage = lazy(() => import('@/pages/Litiges'))
 const ProfilePage = lazy(() => import('@/pages/Profile'))
 
 const queryClient = new QueryClient({
@@ -135,6 +137,9 @@ function App() {
 
               <Route path="tickets" element={<ProtectedRoute requiredPermission="tickets:view"><Lazy><TicketsPage /></Lazy></ProtectedRoute>} />
               <Route path="tickets/:id" element={<ProtectedRoute requiredPermission="tickets:view"><Lazy><TicketDetailPage /></Lazy></ProtectedRoute>} />
+
+              <Route path="marketplace" element={<ProtectedRoute requiredPermission="marketplace:view"><Lazy><MarketplacePage /></Lazy></ProtectedRoute>} />
+              <Route path="litiges" element={<ProtectedRoute requiredPermission="marketplace:view"><Lazy><LitigesPage /></Lazy></ProtectedRoute>} />
 
               <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
             </Route>

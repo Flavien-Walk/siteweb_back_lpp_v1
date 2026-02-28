@@ -32,6 +32,8 @@ import {
   BarChart3,
   MapPin,
   Headphones,
+  ShoppingBag,
+  Gavel,
 } from 'lucide-react'
 
 interface NavItem {
@@ -60,6 +62,13 @@ const navSections: NavSection[] = [
       { label: 'Utilisateurs', href: '/users', icon: <Users className="h-4 w-4" />, permission: 'users:view' },
       { label: 'Suspendus', href: '/suspended', icon: <UserX className="h-4 w-4" />, permission: 'users:view' },
       { label: 'Surveillance', href: '/surveillance', icon: <Eye className="h-4 w-4" />, permission: 'users:view' },
+    ],
+  },
+  {
+    title: 'Marketplace',
+    items: [
+      { label: 'Services', href: '/marketplace', icon: <ShoppingBag className="h-4 w-4" />, permission: 'marketplace:view' },
+      { label: 'Litiges', href: '/litiges', icon: <Gavel className="h-4 w-4" />, permission: 'marketplace:view' },
     ],
   },
   {

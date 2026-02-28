@@ -39,7 +39,7 @@ import {
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { RiskBadge } from '@/components/RiskBadge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import type { User as UserType, TimelineEvent, AuditLog, UserReport, AdminGamificationData } from '@/types'
+import type { User as UserType, TimelineEvent, AuditLog, UserReport } from '@/types'
 
 const roleLabels: Record<string, string> = {
   user: 'Utilisateur',

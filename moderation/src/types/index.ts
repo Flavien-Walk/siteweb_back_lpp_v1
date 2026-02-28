@@ -22,6 +22,8 @@ export type Permission =
   | 'staff:chat'
   | 'tickets:view'
   | 'tickets:respond'
+  | 'marketplace:view'
+  | 'marketplace:manage_disputes'
 
 export interface Warning {
   _id?: string
@@ -705,6 +707,72 @@ export interface AdminGamificationData {
   onboarding: GamificationOnboarding
   recentEvents: GamificationEvent[]
   totalEventsCount: number
+}
+
+// ============ MARKETPLACE ============
+
+export type OrderStatut = 'en_attente' | 'acceptee' | 'refusee' | 'en_cours' | 'livre' | 'termine' | 'annule' | 'litige'
+export type ServiceStatut = 'brouillon' | 'actif' | 'pause' | 'archive'
+export type ServiceCategorie = 'service' | 'formation' | 'produit' | 'outil' | 'accompagnement'
+
+export interface MarketplaceOrderAdmin {
+  _id: string
+  acheteur: { _id: string; prenom: string; nom: string; avatar?: string; email: string }
+  vendeur: { _id: string; prenom: string; nom: string; avatar?: string; email: string }
+  service: { _id: string; nom: string; image?: string; categorie: string }
+  serviceSnapshot: { nom: string; prix: number }
+  statut: OrderStatut
+  montantTotal: number
+  commission: number
+  devise: string
+  historique: { de: string; vers: string; date: string; par?: string; commentaire?: string }[]
+  litigeInfo?: { raison: string; ouvertPar: string; dateOuverture: string }
+  revisionInfo?: {
+    accepteRevisions: boolean
+    revisionsIncluses: number
+    revisionsUtilisees: number
+    revisionsRestantes: number
+  }
+  deadline?: {
+    acceptedAt?: string
+    currentDeadlineAt?: string
+    remainingSeconds: number
+    isLate: boolean
+    deadlineActive: boolean
+  }
+  dateCreation: string
+  dateMiseAJour: string
+}
+
+export interface MarketplaceServiceAdmin {
+  _id: string
+  nom: string
+  description: string
+  descriptionLongue?: string
+  categorie: ServiceCategorie
+  prix: number | null
+  devise: string
+  statut: ServiceStatut
+  createur: { _id: string; prenom: string; nom: string; avatar?: string; email: string }
+  image: string
+  gallery?: string[]
+  tags?: string[]
+  delaiLivraison: string
+  accepteRevisions: boolean
+  revisionsIncluses: number
+  options?: { label: string; description: string; prix: number; devise: string }[]
+  faq?: { question: string; answer: string }[]
+  statsCache?: { noteGlobale: number; nombreAvis: number; commandesRealisees: number; vues: number }
+  dateCreation: string
+  dateMiseAJour?: string
+}
+
+export interface MarketplaceStats {
+  total: number
+  litiges: number
+  last30Days: number
+  montantTotalTermine: number
+  parStatut: Record<string, number>
 }
 
 // ============ API RESPONSES ============
