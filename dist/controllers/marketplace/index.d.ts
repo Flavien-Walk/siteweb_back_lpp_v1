@@ -4,4 +4,5 @@ export { accepterCommande, refuserCommande, ajouterProgression, livrerCommande, 
 export { creerReview, getReviewsService, modifierReview, supprimerReview } from './reviews.js';
 export { getTrending } from './trending.js';
 export { trackView } from './events.js';
+export { getMesMediationMessages, envoyerMediationMessage } from './mediation.js';
 //# sourceMappingURL=index.d.ts.map

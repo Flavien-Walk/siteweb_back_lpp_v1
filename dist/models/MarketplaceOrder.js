@@ -107,6 +107,37 @@ const deadlineHistorySchema = new mongoose_1.Schema({
     reason: { type: String },
     createdAt: { type: Date, default: Date.now },
 }, { _id: false });
+const mediationMessageSchema = new mongoose_1.Schema({
+    canal: {
+        type: String,
+        enum: ['acheteur', 'vendeur'],
+        required: true,
+    },
+    auteur: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Utilisateur',
+        required: true,
+    },
+    auteurRole: {
+        type: String,
+        enum: ['moderateur', 'acheteur', 'vendeur'],
+        required: true,
+    },
+    contenu: {
+        type: String,
+        required: [true, 'Le contenu du message est requis'],
+        maxlength: [2000, 'Le message ne peut pas depasser 2000 caracteres'],
+        trim: true,
+    },
+    dateCreation: {
+        type: Date,
+        default: Date.now,
+    },
+    lu: {
+        type: Boolean,
+        default: false,
+    },
+}, { _id: true });
 const marketplaceOrderSchema = new mongoose_1.Schema({
     service: { type: mongoose_1.Schema.Types.ObjectId, ref: 'MarketplaceService', required: true },
     acheteur: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
@@ -143,6 +174,14 @@ const marketplaceOrderSchema = new mongoose_1.Schema({
     progressUpdates: { type: [progressUpdateSchema], default: [] },
     aReview: { type: Boolean, default: false },
     conversationId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Conversation' },
+    // Revision settings (snapshot from service at accept)
+    revisionSettings: {
+        type: {
+            accepteRevisions: { type: Boolean, default: true },
+            revisionsIncluses: { type: Number, default: 2 },
+        },
+        default: { accepteRevisions: true, revisionsIncluses: 2 },
+    },
     // Deadline
     acceptedAt: { type: Date },
     initialDeliverySeconds: { type: Number, default: 259200 }, // 3 jours
@@ -151,6 +190,7 @@ const marketplaceOrderSchema = new mongoose_1.Schema({
     lateSince: { type: Date },
     extensions: { type: [extensionSchema], default: [] },
     deadlineHistory: { type: [deadlineHistorySchema], default: [] },
+    mediationMessages: { type: [mediationMessageSchema], default: [] },
 }, { timestamps: { createdAt: 'dateCreation', updatedAt: 'dateMiseAJour' } });
 marketplaceOrderSchema.index({ acheteur: 1, dateCreation: -1 });
 marketplaceOrderSchema.index({ vendeur: 1, dateCreation: -1 });

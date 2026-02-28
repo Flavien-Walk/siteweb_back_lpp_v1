@@ -65,6 +65,7 @@ const auditLogSchema = new mongoose_1.Schema({
             'config:update',
             'staff:login', 'staff:logout',
             'marketplace:resolve_dispute',
+            'marketplace:mediation_message',
         ],
         required: [true, "L'action est requise"],
         index: true,

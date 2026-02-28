@@ -151,6 +151,17 @@ const getOrderDetail = async (req, res) => {
                 (0, orderNotifications_js_1.notifierCommandeEnRetard)(commande._id.toString(), commande.serviceSnapshot?.nom || 'Service', vendeurProfil, acheteurId, vendeurId).catch(() => { });
             }
         }
+        // Revision info
+        const settings = commande.revisionSettings || { accepteRevisions: true, revisionsIncluses: 2 };
+        const revisionsUtilisees = (commande.historique || []).filter((h) => h.de === 'livre' && h.vers === 'en_cours').length;
+        const revisionsRestantes = Math.max(0, settings.revisionsIncluses - revisionsUtilisees);
+        enriched.revisionInfo = {
+            accepteRevisions: settings.accepteRevisions,
+            revisionsIncluses: settings.revisionsIncluses,
+            revisionsUtilisees,
+            revisionsRestantes,
+            peutDemanderRevision: settings.accepteRevisions && revisionsRestantes > 0 && commande.statut === 'livre',
+        };
         return res.json({ succes: true, data: { commande: enriched } });
     }
     catch (error) {

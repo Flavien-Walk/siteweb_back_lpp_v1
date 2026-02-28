@@ -59,6 +59,16 @@ export interface IBuyerBrief {
   submittedAt: Date;
 }
 
+export interface IMediationMessage {
+  _id?: mongoose.Types.ObjectId;
+  canal: 'acheteur' | 'vendeur';
+  auteur: mongoose.Types.ObjectId;
+  auteurRole: 'moderateur' | 'acheteur' | 'vendeur';
+  contenu: string;
+  dateCreation: Date;
+  lu: boolean;
+}
+
 export interface IMarketplaceOrder extends Document {
   service: mongoose.Types.ObjectId;
   acheteur: mongoose.Types.ObjectId;
@@ -84,6 +94,7 @@ export interface IMarketplaceOrder extends Document {
   lateSince?: Date;
   extensions: IDeadlineExtension[];
   deadlineHistory: IDeadlineHistory[];
+  mediationMessages: IMediationMessage[];
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -169,6 +180,38 @@ const deadlineHistorySchema = new Schema({
   createdAt: { type: Date, default: Date.now },
 }, { _id: false });
 
+const mediationMessageSchema = new Schema({
+  canal: {
+    type: String,
+    enum: ['acheteur', 'vendeur'],
+    required: true,
+  },
+  auteur: {
+    type: Schema.Types.ObjectId,
+    ref: 'Utilisateur',
+    required: true,
+  },
+  auteurRole: {
+    type: String,
+    enum: ['moderateur', 'acheteur', 'vendeur'],
+    required: true,
+  },
+  contenu: {
+    type: String,
+    required: [true, 'Le contenu du message est requis'],
+    maxlength: [2000, 'Le message ne peut pas depasser 2000 caracteres'],
+    trim: true,
+  },
+  dateCreation: {
+    type: Date,
+    default: Date.now,
+  },
+  lu: {
+    type: Boolean,
+    default: false,
+  },
+}, { _id: true });
+
 const marketplaceOrderSchema = new Schema<IMarketplaceOrder>({
   service: { type: Schema.Types.ObjectId, ref: 'MarketplaceService', required: true },
   acheteur: { type: Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
@@ -221,6 +264,7 @@ const marketplaceOrderSchema = new Schema<IMarketplaceOrder>({
   lateSince: { type: Date },
   extensions: { type: [extensionSchema], default: [] },
   deadlineHistory: { type: [deadlineHistorySchema], default: [] },
+  mediationMessages: { type: [mediationMessageSchema], default: [] },
 }, { timestamps: { createdAt: 'dateCreation', updatedAt: 'dateMiseAJour' } });
 
 marketplaceOrderSchema.index({ acheteur: 1, dateCreation: -1 });

@@ -31,6 +31,7 @@ export declare const validerCommande: (req: Request, res: Response) => Promise<R
 /**
  * POST /api/marketplace/orders/:id/revision
  * Acheteur demande une revision → retour en_cours
+ * Body: { message: string } — motif obligatoire
  */
 export declare const demanderRevision: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 /**

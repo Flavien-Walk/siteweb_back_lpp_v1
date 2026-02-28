@@ -2,7 +2,7 @@ import mongoose, { Document, Model } from 'mongoose';
 /**
  * Types d'actions pouvant être enregistrées dans l'audit log
  */
-export type AuditAction = 'user:warn' | 'user:warn_remove' | 'user:suspend' | 'user:unsuspend' | 'user:ban' | 'user:unban' | 'user:role_change' | 'user:permission_add' | 'user:permission_remove' | 'content:hide' | 'content:unhide' | 'content:delete' | 'content:restore' | 'content:edit' | 'user:surveillance_on' | 'user:surveillance_off' | 'report:process' | 'report:escalate' | 'report:dismiss' | 'report:assign' | 'config:update' | 'staff:login' | 'staff:logout' | 'marketplace:resolve_dispute';
+export type AuditAction = 'user:warn' | 'user:warn_remove' | 'user:suspend' | 'user:unsuspend' | 'user:ban' | 'user:unban' | 'user:role_change' | 'user:permission_add' | 'user:permission_remove' | 'content:hide' | 'content:unhide' | 'content:delete' | 'content:restore' | 'content:edit' | 'user:surveillance_on' | 'user:surveillance_off' | 'report:process' | 'report:escalate' | 'report:dismiss' | 'report:assign' | 'config:update' | 'staff:login' | 'staff:logout' | 'marketplace:resolve_dispute' | 'marketplace:mediation_message';
 /**
  * Types de cibles possibles pour une action
  */

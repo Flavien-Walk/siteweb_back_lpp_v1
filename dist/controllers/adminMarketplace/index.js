@@ -4,7 +4,7 @@
  * Endpoints pour le panel de moderation : commandes, services, litiges
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resoudreLitige = exports.listerLitiges = exports.getServiceDetail = exports.listerServices = exports.getCommandesStats = exports.getCommandeDetail = exports.listerCommandes = void 0;
+exports.sendMediationMessage = exports.getMediationMessages = exports.resoudreLitige = exports.listerLitiges = exports.getServiceDetail = exports.listerServices = exports.getCommandesStats = exports.getCommandeDetail = exports.listerCommandes = void 0;
 var commandes_js_1 = require("./commandes.js");
 Object.defineProperty(exports, "listerCommandes", { enumerable: true, get: function () { return commandes_js_1.listerCommandes; } });
 Object.defineProperty(exports, "getCommandeDetail", { enumerable: true, get: function () { return commandes_js_1.getCommandeDetail; } });
@@ -15,4 +15,6 @@ Object.defineProperty(exports, "getServiceDetail", { enumerable: true, get: func
 var litiges_js_1 = require("./litiges.js");
 Object.defineProperty(exports, "listerLitiges", { enumerable: true, get: function () { return litiges_js_1.listerLitiges; } });
 Object.defineProperty(exports, "resoudreLitige", { enumerable: true, get: function () { return litiges_js_1.resoudreLitige; } });
+Object.defineProperty(exports, "getMediationMessages", { enumerable: true, get: function () { return litiges_js_1.getMediationMessages; } });
+Object.defineProperty(exports, "sendMediationMessage", { enumerable: true, get: function () { return litiges_js_1.sendMediationMessage; } });
 //# sourceMappingURL=index.js.map

@@ -62,7 +62,7 @@ export declare function notifierCommandeAnnulee(commandeId: string, serviceNom: 
     avatar?: string;
 }, destinataireId: string): Promise<void>;
 /**
- * Litige ouvert (→ l'autre partie)
+ * Litige ouvert (→ l'autre partie + emails aux deux)
  */
 export declare function notifierLitige(commandeId: string, serviceNom: string, acteur: {
     _id: string;

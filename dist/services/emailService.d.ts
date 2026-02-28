@@ -47,4 +47,6 @@ export declare const envoyerEmailCommandeTerminee: (email: string, prenom: strin
  * Email deadline prolongee (→ acheteur)
  */
 export declare const envoyerEmailDeadlineExtended: (email: string, prenom: string, serviceNom: string, vendeurPrenom: string, dureeAjoutee: string) => Promise<void>;
+export declare const envoyerEmailLitigeInitiateur: (email: string, prenom: string, serviceNom: string) => Promise<void>;
+export declare const envoyerEmailLitigeReceveur: (email: string, prenom: string, serviceNom: string, initiateurPrenom: string) => Promise<void>;
 //# sourceMappingURL=emailService.d.ts.map

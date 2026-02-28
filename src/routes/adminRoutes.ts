@@ -103,6 +103,8 @@ import {
   getServiceDetail,
   listerLitiges,
   resoudreLitige,
+  getMediationMessages,
+  sendMediationMessage,
 } from '../controllers/adminMarketplace/index.js';
 
 const router = Router();
@@ -451,5 +453,11 @@ router.get('/marketplace/litiges', verifierJwt, requirePermission('marketplace:v
 
 // POST /api/admin/marketplace/litiges/:id/resoudre - Resoudre un litige
 router.post('/marketplace/litiges/:id/resoudre', verifierJwt, requirePermission('marketplace:manage_disputes'), resoudreLitige);
+
+// GET /api/admin/marketplace/litiges/:id/mediation - Messages de mediation
+router.get('/marketplace/litiges/:id/mediation', verifierJwt, requirePermission('marketplace:manage_disputes'), getMediationMessages);
+
+// POST /api/admin/marketplace/litiges/:id/mediation - Envoyer un message de mediation
+router.post('/marketplace/litiges/:id/mediation', verifierJwt, requirePermission('marketplace:manage_disputes'), sendMediationMessage);
 
 export default router;

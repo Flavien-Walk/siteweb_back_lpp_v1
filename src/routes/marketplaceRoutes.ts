@@ -50,6 +50,16 @@ router.post('/orders/:id/cancel', verifierJwt, checkUserStatus, ctrl.annulerComm
 router.post('/orders/:id/dispute', verifierJwt, checkUserStatus, ctrl.ouvrirLitige);
 
 // ============================================
+// MEDIATION (litige en cours)
+// ============================================
+
+/** Recuperer mes messages de mediation */
+router.get('/orders/:id/mediation', verifierJwt, checkUserStatus, ctrl.getMesMediationMessages);
+
+/** Envoyer un message de mediation */
+router.post('/orders/:id/mediation', verifierJwt, checkUserStatus, ctrl.envoyerMediationMessage);
+
+// ============================================
 // AVIS
 // ============================================
 

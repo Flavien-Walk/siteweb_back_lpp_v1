@@ -50,6 +50,15 @@ export interface IBuyerBrief {
     attachments: IAttachment[];
     submittedAt: Date;
 }
+export interface IMediationMessage {
+    _id?: mongoose.Types.ObjectId;
+    canal: 'acheteur' | 'vendeur';
+    auteur: mongoose.Types.ObjectId;
+    auteurRole: 'moderateur' | 'acheteur' | 'vendeur';
+    contenu: string;
+    dateCreation: Date;
+    lu: boolean;
+}
 export interface IMarketplaceOrder extends Document {
     service: mongoose.Types.ObjectId;
     acheteur: mongoose.Types.ObjectId;
@@ -74,6 +83,10 @@ export interface IMarketplaceOrder extends Document {
     progressUpdates: IProgressUpdate[];
     aReview: boolean;
     conversationId?: mongoose.Types.ObjectId;
+    revisionSettings: {
+        accepteRevisions: boolean;
+        revisionsIncluses: number;
+    };
     acceptedAt?: Date;
     initialDeliverySeconds: number;
     currentDeadlineAt?: Date;
@@ -81,6 +94,7 @@ export interface IMarketplaceOrder extends Document {
     lateSince?: Date;
     extensions: IDeadlineExtension[];
     deadlineHistory: IDeadlineHistory[];
+    mediationMessages: IMediationMessage[];
     dateCreation: Date;
     dateMiseAJour: Date;
 }

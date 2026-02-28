@@ -249,5 +249,9 @@ router.get('/marketplace/services/:id', verifierJwt_js_1.verifierJwt, (0, checkU
 router.get('/marketplace/litiges', verifierJwt_js_1.verifierJwt, (0, checkUserStatus_js_1.requirePermission)('marketplace:view'), index_js_1.listerLitiges);
 // POST /api/admin/marketplace/litiges/:id/resoudre - Resoudre un litige
 router.post('/marketplace/litiges/:id/resoudre', verifierJwt_js_1.verifierJwt, (0, checkUserStatus_js_1.requirePermission)('marketplace:manage_disputes'), index_js_1.resoudreLitige);
+// GET /api/admin/marketplace/litiges/:id/mediation - Messages de mediation
+router.get('/marketplace/litiges/:id/mediation', verifierJwt_js_1.verifierJwt, (0, checkUserStatus_js_1.requirePermission)('marketplace:manage_disputes'), index_js_1.getMediationMessages);
+// POST /api/admin/marketplace/litiges/:id/mediation - Envoyer un message de mediation
+router.post('/marketplace/litiges/:id/mediation', verifierJwt_js_1.verifierJwt, (0, checkUserStatus_js_1.requirePermission)('marketplace:manage_disputes'), index_js_1.sendMediationMessage);
 exports.default = router;
 //# sourceMappingURL=adminRoutes.js.map

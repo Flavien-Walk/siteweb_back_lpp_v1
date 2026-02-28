@@ -124,10 +124,20 @@ function notifierCommandeAnnulee(commandeId, serviceNom, acteur, destinataireId)
     return creerNotifCommande('commande_annulee', 'Commande annulee', `${acteur.prenom} a annule la commande "${serviceNom}"`, { commandeId, serviceNom, acteur, destinataireId });
 }
 /**
- * Litige ouvert (→ l'autre partie)
+ * Litige ouvert (→ l'autre partie + emails aux deux)
  */
-function notifierLitige(commandeId, serviceNom, acteur, destinataireId) {
-    return creerNotifCommande('commande_litige', 'Litige ouvert', `${acteur.prenom} a ouvert un litige sur "${serviceNom}"`, { commandeId, serviceNom, acteur, destinataireId });
+async function notifierLitige(commandeId, serviceNom, acteur, destinataireId) {
+    // Notif in-app → autre partie
+    await creerNotifCommande('commande_litige', 'Litige ouvert', `${acteur.prenom} a ouvert un litige sur "${serviceNom}"`, { commandeId, serviceNom, acteur, destinataireId });
+    // Emails aux deux parties
+    const initiateur = await getUserEmail(acteur._id);
+    const receveur = await getUserEmail(destinataireId);
+    if (initiateur) {
+        (0, emailService_js_1.envoyerEmailLitigeInitiateur)(initiateur.email, initiateur.prenom, serviceNom);
+    }
+    if (receveur) {
+        (0, emailService_js_1.envoyerEmailLitigeReceveur)(receveur.email, receveur.prenom, serviceNom, acteur.prenom);
+    }
 }
 /**
  * Progression ajoutee (→ acheteur)

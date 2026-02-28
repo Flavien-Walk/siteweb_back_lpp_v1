@@ -46,6 +46,8 @@ const marketplaceServiceSchema = new mongoose_1.Schema({
     gallery: { type: [String], default: [], validate: [(v) => v.length <= 5, 'Maximum 5 images'] },
     tags: { type: [String], default: [], validate: [(v) => v.length <= 8, 'Maximum 8 tags'] },
     delaiLivraison: { type: String, required: true },
+    accepteRevisions: { type: Boolean, default: true },
+    revisionsIncluses: { type: Number, default: 2, min: 0, max: 10 },
     options: { type: [{ label: String, description: String, prix: Number, devise: { type: String, default: 'EUR' } }], default: [], validate: [(v) => v.length <= 10, 'Maximum 10 options'] },
     faq: { type: [{ question: String, answer: String }], default: [] },
     statut: { type: String, enum: ['brouillon', 'actif', 'pause', 'archive'], default: 'actif' },

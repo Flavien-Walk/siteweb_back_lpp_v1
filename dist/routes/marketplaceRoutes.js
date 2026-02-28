@@ -73,6 +73,13 @@ router.post('/orders/:id/extend-deadline', verifierJwt_js_1.verifierJwt, checkUs
 router.post('/orders/:id/cancel', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.annulerCommande);
 router.post('/orders/:id/dispute', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.ouvrirLitige);
 // ============================================
+// MEDIATION (litige en cours)
+// ============================================
+/** Recuperer mes messages de mediation */
+router.get('/orders/:id/mediation', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.getMesMediationMessages);
+/** Envoyer un message de mediation */
+router.post('/orders/:id/mediation', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.envoyerMediationMessage);
+// ============================================
 // AVIS
 // ============================================
 router.post('/reviews', verifierJwt_js_1.verifierJwt, checkUserStatus_js_1.checkUserStatus, ctrl.creerReview);

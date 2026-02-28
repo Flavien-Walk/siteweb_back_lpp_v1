@@ -11,6 +11,13 @@ import { emitNewNotification } from '../../socket/emitters.js';
 import { auditLogger } from '../../utils/auditLogger.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 
+const schemaMediationMessage = z.object({
+  canal: z.enum(['acheteur', 'vendeur'], {
+    errorMap: () => ({ message: "Le canal doit etre 'acheteur' ou 'vendeur'" }),
+  }),
+  contenu: z.string().min(1, 'Le message ne peut pas etre vide').max(2000),
+});
+
 const schemaResoudreLitige = z.object({
   resolution: z.string().min(10, 'La resolution doit faire au moins 10 caracteres').max(2000),
   action: z.enum(['reprendre', 'annuler'], {
@@ -179,6 +186,156 @@ export const resoudreLitige = async (
       succes: true,
       message: `Litige resolu: commande ${donnees.action === 'reprendre' ? 'reprise' : 'annulee'}.`,
       data: { commande },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/admin/marketplace/litiges/:id/mediation
+ * Recupere tous les messages de mediation (les deux canaux) pour le moderateur
+ */
+export const getMediationMessages = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ErreurAPI('ID commande invalide', 400);
+    }
+
+    const commande = await MarketplaceOrder.findById(id)
+      .populate('mediationMessages.auteur', '_id prenom nom avatar role')
+      .populate('acheteur', '_id prenom nom avatar email')
+      .populate('vendeur', '_id prenom nom avatar email')
+      .select('mediationMessages acheteur vendeur statut litigeInfo serviceSnapshot montantTotal historique')
+      .lean();
+
+    if (!commande) {
+      throw new ErreurAPI('Commande introuvable', 404);
+    }
+
+    const messages = commande.mediationMessages || [];
+
+    const messagesAcheteur = messages
+      .filter((m: any) => m.canal === 'acheteur')
+      .sort((a: any, b: any) => new Date(a.dateCreation).getTime() - new Date(b.dateCreation).getTime());
+
+    const messagesVendeur = messages
+      .filter((m: any) => m.canal === 'vendeur')
+      .sort((a: any, b: any) => new Date(a.dateCreation).getTime() - new Date(b.dateCreation).getTime());
+
+    res.status(200).json({
+      succes: true,
+      data: {
+        acheteur: commande.acheteur,
+        vendeur: commande.vendeur,
+        messagesAcheteur,
+        messagesVendeur,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/admin/marketplace/litiges/:id/mediation
+ * Envoyer un message de mediation en tant que moderateur (sur un canal specifique)
+ */
+export const sendMediationMessage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const moderator = (req as any).utilisateur;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ErreurAPI('ID commande invalide', 400);
+    }
+
+    const donnees = schemaMediationMessage.parse(req.body);
+
+    const commande = await MarketplaceOrder.findById(id);
+    if (!commande) {
+      throw new ErreurAPI('Commande introuvable', 404);
+    }
+
+    const message = {
+      canal: donnees.canal as 'acheteur' | 'vendeur',
+      auteur: moderator._id,
+      auteurRole: 'moderateur' as const,
+      contenu: donnees.contenu.trim(),
+      dateCreation: new Date(),
+      lu: false,
+    };
+
+    commande.mediationMessages.push(message as any);
+    await commande.save();
+
+    // Recuperer le message cree avec l'auteur populated
+    const updatedCommande = await MarketplaceOrder.findById(id)
+      .populate('mediationMessages.auteur', '_id prenom nom avatar role')
+      .select('mediationMessages')
+      .lean();
+
+    const createdMessage = updatedCommande?.mediationMessages?.[
+      (updatedCommande.mediationMessages?.length || 1) - 1
+    ];
+
+    // Audit log
+    await auditLogger.log(req, {
+      action: 'marketplace:mediation_message',
+      targetType: 'commande',
+      targetId: commande._id as mongoose.Types.ObjectId,
+      reason: `Message mediation (canal: ${donnees.canal})`,
+      metadata: {
+        canal: donnees.canal,
+        messageLength: donnees.contenu.length,
+      },
+    });
+
+    // Notifier la partie ciblee
+    const destinataireId = donnees.canal === 'acheteur'
+      ? commande.acheteur.toString()
+      : commande.vendeur.toString();
+
+    const serviceNom = commande.serviceSnapshot?.nom || 'Service';
+
+    try {
+      const notif = await Notification.create({
+        destinataire: destinataireId,
+        type: 'interaction',
+        titre: 'Nouveau message de mediation',
+        message: `Un moderateur vous a envoye un message concernant le litige sur "${serviceNom}".`,
+        data: {
+          commandeId: commande._id.toString(),
+          serviceNom,
+          type: 'mediation',
+        },
+      });
+
+      emitNewNotification(destinataireId, {
+        _id: notif._id.toString(),
+        type: notif.type,
+        titre: notif.titre,
+        message: notif.message,
+        lu: false,
+        dateCreation: notif.dateCreation.toISOString(),
+      });
+    } catch (notifError) {
+      console.error('[adminMarketplace] Erreur notif mediation:', notifError);
+    }
+
+    res.status(201).json({
+      succes: true,
+      message: 'Message de mediation envoye.',
+      data: { message: createdMessage },
     });
   } catch (error) {
     next(error);
