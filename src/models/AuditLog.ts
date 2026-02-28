@@ -35,7 +35,8 @@ export type AuditAction =
   | 'staff:logout'
   // Actions marketplace
   | 'marketplace:resolve_dispute'
-  | 'marketplace:mediation_message';
+  | 'marketplace:mediation_message'
+  | 'marketplace:claim_dispute';
 
 /**
  * Types de cibles possibles pour une action
@@ -152,6 +153,7 @@ const auditLogSchema = new Schema<IAuditLog>(
         'staff:login', 'staff:logout',
         'marketplace:resolve_dispute',
         'marketplace:mediation_message',
+        'marketplace:claim_dispute',
       ],
       required: [true, "L'action est requise"],
       index: true,

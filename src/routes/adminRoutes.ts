@@ -105,6 +105,7 @@ import {
   resoudreLitige,
   getMediationMessages,
   sendMediationMessage,
+  prendreEnCharge,
 } from '../controllers/adminMarketplace/index.js';
 
 const router = Router();
@@ -459,5 +460,8 @@ router.get('/marketplace/litiges/:id/mediation', verifierJwt, requirePermission(
 
 // POST /api/admin/marketplace/litiges/:id/mediation - Envoyer un message de mediation
 router.post('/marketplace/litiges/:id/mediation', verifierJwt, requirePermission('marketplace:manage_disputes'), sendMediationMessage);
+
+// POST /api/admin/marketplace/litiges/:id/prendre-en-charge - Moderateur prend en charge un litige
+router.post('/marketplace/litiges/:id/prendre-en-charge', verifierJwt, requirePermission('marketplace:manage_disputes'), prendreEnCharge);
 
 export default router;

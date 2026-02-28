@@ -121,6 +121,7 @@ export const getOrderDetail = async (req: Request, res: Response) => {
       .populate('acheteur', 'prenom nom avatar')
       .populate('vendeur', 'prenom nom avatar')
       .populate('service', 'nom image categorie')
+      .populate('litigeInfo.moderateur', 'prenom nom avatar')
       .lean();
 
     if (!commande) {
@@ -191,6 +192,11 @@ export const getOrderDetail = async (req: Request, res: Response) => {
       revisionsRestantes,
       peutDemanderRevision: settings.accepteRevisions && revisionsRestantes > 0 && commande.statut === 'livre',
     };
+
+    // Litige info (si en litige ou ancien litige)
+    if ((commande as any).litigeInfo) {
+      enriched.litigeInfo = (commande as any).litigeInfo;
+    }
 
     return res.json({ succes: true, data: { commande: enriched } });
   } catch (error) {

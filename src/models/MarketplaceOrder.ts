@@ -95,6 +95,13 @@ export interface IMarketplaceOrder extends Document {
   extensions: IDeadlineExtension[];
   deadlineHistory: IDeadlineHistory[];
   mediationMessages: IMediationMessage[];
+  litigeInfo?: {
+    raison: string;
+    ouvertPar: mongoose.Types.ObjectId;
+    dateOuverture: Date;
+    moderateur?: mongoose.Types.ObjectId;
+    datePriseEnCharge?: Date;
+  };
   dateCreation: Date;
   dateMiseAJour: Date;
 }
@@ -265,6 +272,16 @@ const marketplaceOrderSchema = new Schema<IMarketplaceOrder>({
   extensions: { type: [extensionSchema], default: [] },
   deadlineHistory: { type: [deadlineHistorySchema], default: [] },
   mediationMessages: { type: [mediationMessageSchema], default: [] },
+  litigeInfo: {
+    type: {
+      raison: { type: String, required: true },
+      ouvertPar: { type: Schema.Types.ObjectId, ref: 'Utilisateur', required: true },
+      dateOuverture: { type: Date, required: true },
+      moderateur: { type: Schema.Types.ObjectId, ref: 'Utilisateur', default: null },
+      datePriseEnCharge: { type: Date, default: null },
+    },
+    default: undefined,
+  },
 }, { timestamps: { createdAt: 'dateCreation', updatedAt: 'dateMiseAJour' } });
 
 marketplaceOrderSchema.index({ acheteur: 1, dateCreation: -1 });

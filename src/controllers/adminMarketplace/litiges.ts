@@ -72,6 +72,7 @@ export const listerLitiges = async (
         .populate('acheteur', '_id prenom nom avatar email')
         .populate('vendeur', '_id prenom nom avatar email')
         .populate('service', '_id nom image categorie')
+        .populate('litigeInfo.moderateur', '_id prenom nom avatar')
         .sort({ dateMiseAJour: -1 })
         .skip(skip)
         .limit(limit)
@@ -79,7 +80,9 @@ export const listerLitiges = async (
       MarketplaceOrder.countDocuments(filter),
     ]);
 
+    // Backward compat : si litigeInfo persiste, l'utiliser; sinon, deriver depuis historique
     const litiges = commandes.map((c: any) => {
+      if (c.litigeInfo) return c;
       const litigeEvent = [...(c.historique || [])].reverse().find(
         (h: any) => h.vers === 'litige'
       );
@@ -341,6 +344,125 @@ export const sendMediationMessage = async (
     next(error);
   }
 };
+
+/**
+ * POST /api/admin/marketplace/litiges/:id/prendre-en-charge
+ * Moderateur prend en charge un litige
+ */
+export const prendreEnCharge = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const moderator = (req as any).utilisateur;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ErreurAPI('ID commande invalide', 400);
+    }
+
+    const commande = await MarketplaceOrder.findById(id);
+    if (!commande) {
+      throw new ErreurAPI('Commande introuvable', 404);
+    }
+
+    if (commande.statut !== 'litige') {
+      throw new ErreurAPI("Cette commande n'est pas en litige", 400);
+    }
+
+    if (commande.litigeInfo?.moderateur) {
+      throw new ErreurAPI('Ce litige est deja pris en charge par un moderateur', 409);
+    }
+
+    // Si litigeInfo n'existe pas (anciennes commandes), le reconstruire depuis historique
+    if (!commande.litigeInfo) {
+      const litigeEvent = [...(commande.historique || [])].reverse().find(
+        (h: any) => h.vers === 'litige'
+      );
+      commande.litigeInfo = {
+        raison: litigeEvent?.commentaire || 'Litige',
+        ouvertPar: litigeEvent?.par || commande.acheteur,
+        dateOuverture: litigeEvent?.date || new Date(),
+        moderateur: moderator._id,
+        datePriseEnCharge: new Date(),
+      };
+    } else {
+      commande.litigeInfo.moderateur = moderator._id;
+      commande.litigeInfo.datePriseEnCharge = new Date();
+    }
+
+    await commande.save();
+
+    // Audit log
+    await auditLogger.log(req, {
+      action: 'marketplace:claim_dispute',
+      targetType: 'commande',
+      targetId: commande._id as mongoose.Types.ObjectId,
+      reason: 'Prise en charge du litige',
+      metadata: {
+        acheteurId: commande.acheteur.toString(),
+        vendeurId: commande.vendeur.toString(),
+      },
+    });
+
+    // Notifier les deux parties
+    const serviceNom = commande.serviceSnapshot?.nom || 'Service';
+    const moderatorName = moderator.prenom || 'Un moderateur';
+    const msg = `${moderatorName} a pris en charge votre litige sur "${serviceNom}".`;
+
+    await Promise.all([
+      notifierPriseEnCharge(commande._id.toString(), serviceNom, msg, commande.acheteur.toString()),
+      notifierPriseEnCharge(commande._id.toString(), serviceNom, msg, commande.vendeur.toString()),
+    ]);
+
+    // Re-fetch avec populate pour la reponse
+    const updated = await MarketplaceOrder.findById(id)
+      .populate('acheteur', '_id prenom nom avatar email')
+      .populate('vendeur', '_id prenom nom avatar email')
+      .populate('litigeInfo.moderateur', '_id prenom nom avatar')
+      .lean();
+
+    res.status(200).json({
+      succes: true,
+      message: 'Litige pris en charge.',
+      data: { commande: updated },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Notification de prise en charge litige + push socket
+ */
+async function notifierPriseEnCharge(
+  commandeId: string,
+  serviceNom: string,
+  message: string,
+  destinataireId: string,
+) {
+  try {
+    const notif = await Notification.create({
+      destinataire: destinataireId,
+      type: 'interaction',
+      titre: 'Litige pris en charge',
+      message,
+      data: { commandeId, serviceNom, type: 'litige_prise_en_charge' },
+    });
+
+    emitNewNotification(destinataireId, {
+      _id: notif._id.toString(),
+      type: notif.type,
+      titre: notif.titre,
+      message: notif.message,
+      lu: false,
+      dateCreation: notif.dateCreation.toISOString(),
+    });
+  } catch (err) {
+    console.error('[adminMarketplace] Erreur notif prise en charge:', err);
+  }
+}
 
 /**
  * Cree une notification de resolution de litige + push socket

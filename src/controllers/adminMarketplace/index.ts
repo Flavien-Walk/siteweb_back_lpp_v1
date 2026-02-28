@@ -5,4 +5,4 @@
 
 export { listerCommandes, getCommandeDetail, getCommandesStats } from './commandes.js';
 export { listerServices, getServiceDetail } from './services.js';
-export { listerLitiges, resoudreLitige, getMediationMessages, sendMediationMessage } from './litiges.js';
+export { listerLitiges, resoudreLitige, getMediationMessages, sendMediationMessage, prendreEnCharge } from './litiges.js';

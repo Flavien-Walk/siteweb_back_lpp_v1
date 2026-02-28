@@ -409,17 +409,45 @@ export const ouvrirLitige = async (req: Request, res: Response) => {
   if (!raison || raison.trim().length < 10) {
     return res.status(400).json({ succes: false, message: 'La raison du litige doit contenir au moins 10 caracteres' });
   }
-  return transitionStatut(req, res, 'litige', {
-    commentaire: raison,
-    afterSave: (commande, userId) => {
-      const autreId = userId.equals(commande.acheteur)
-        ? commande.vendeur.toString()
-        : commande.acheteur.toString();
-      getUserProfil(userId).then(acteur =>
-        notifierLitige(commande._id.toString(), commande.serviceSnapshot.nom, acteur, autreId)
-      );
-    },
-  });
+
+  try {
+    const commande = await loadOrder(req, res);
+    if (!commande) return;
+
+    const userId = (req as any).utilisateur._id;
+
+    const auth = isAutorise(commande.statut as OrderStatut, 'litige', userId, commande.acheteur, commande.vendeur);
+    if (!auth.ok) return res.status(403).json({ succes: false, message: auth.message });
+
+    const metier = validationsMetier(commande.statut as OrderStatut, 'litige', commande);
+    if (!metier.ok) return res.status(400).json({ succes: false, message: metier.message });
+
+    const ancien = commande.statut;
+    commande.statut = 'litige';
+    commande.historique.push({
+      de: ancien, vers: 'litige', date: new Date(), par: userId, commentaire: raison.trim(),
+    });
+    commande.litigeInfo = {
+      raison: raison.trim(),
+      ouvertPar: userId,
+      dateOuverture: new Date(),
+    };
+
+    await commande.save();
+
+    // Notifier l'autre partie
+    const autreId = userId.equals(commande.acheteur)
+      ? commande.vendeur.toString()
+      : commande.acheteur.toString();
+    getUserProfil(userId).then(acteur =>
+      notifierLitige(commande._id.toString(), commande.serviceSnapshot.nom, acteur, autreId)
+    );
+
+    return res.json({ succes: true, data: { commande } });
+  } catch (error) {
+    console.error('[marketplace:orderActions] Erreur ouvrirLitige:', error);
+    return res.status(500).json({ succes: false, message: 'Erreur serveur' });
+  }
 };
 
 // ============ DEADLINE ============
