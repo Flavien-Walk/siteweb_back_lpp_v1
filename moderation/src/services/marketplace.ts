@@ -5,6 +5,9 @@ import type {
   MarketplaceOrderAdmin,
   MarketplaceServiceAdmin,
   MarketplaceStats,
+  MediationData,
+  MediationMessage,
+  MediationCanal,
 } from '@/types'
 
 export interface OrderListParams {
@@ -170,6 +173,37 @@ export const marketplaceService = {
     }
 
     return response.data.data.commande
+  },
+
+  // ============ MEDIATION ============
+
+  async getMediationMessages(litigeId: string): Promise<MediationData> {
+    const response = await api.get<ApiResponse<MediationData>>(
+      `/admin/marketplace/litiges/${litigeId}/mediation`
+    )
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors du chargement des messages')
+    }
+
+    return response.data.data
+  },
+
+  async sendMediationMessage(
+    litigeId: string,
+    canal: MediationCanal,
+    contenu: string
+  ): Promise<MediationMessage> {
+    const response = await api.post<ApiResponse<{ message: MediationMessage }>>(
+      `/admin/marketplace/litiges/${litigeId}/mediation`,
+      { canal, contenu }
+    )
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || "Erreur lors de l'envoi du message")
+    }
+
+    return response.data.data.message
   },
 }
 

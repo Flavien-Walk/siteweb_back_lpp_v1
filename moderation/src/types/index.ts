@@ -775,6 +775,34 @@ export interface MarketplaceStats {
   parStatut: Record<string, number>
 }
 
+// ============ MEDIATION ============
+
+export type MediationCanal = 'acheteur' | 'vendeur'
+export type MediationAuteurRole = 'moderateur' | 'acheteur' | 'vendeur'
+
+export interface MediationMessage {
+  _id: string
+  canal: MediationCanal
+  auteur: {
+    _id: string
+    prenom: string
+    nom: string
+    avatar?: string
+    role?: string
+  }
+  auteurRole: MediationAuteurRole
+  contenu: string
+  dateCreation: string
+  lu: boolean
+}
+
+export interface MediationData {
+  acheteur: { _id: string; prenom: string; nom: string; avatar?: string }
+  vendeur: { _id: string; prenom: string; nom: string; avatar?: string }
+  messagesAcheteur: MediationMessage[]
+  messagesVendeur: MediationMessage[]
+}
+
 // ============ API RESPONSES ============
 
 export interface ApiResponse<T> {

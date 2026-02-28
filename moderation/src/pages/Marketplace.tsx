@@ -314,8 +314,18 @@ function ServicesTab() {
                   </p>
                 </div>
                 <div className="p-3 rounded bg-zinc-800/50">
-                  <p className="text-[10px] text-zinc-500 uppercase">Commandes</p>
-                  <p className="text-sm text-zinc-200">{detail.stats.totalCommandes}</p>
+                  <p className="text-[10px] text-zinc-500 uppercase mb-1">Commandes ({detail.stats.totalCommandes})</p>
+                  {detail.stats.commandesParStatut && Object.keys(detail.stats.commandesParStatut).length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {Object.entries(detail.stats.commandesParStatut).map(([statut, count]) => (
+                        <Badge key={statut} variant={orderStatusColors[statut as OrderStatut] as 'default' | 'secondary' | 'destructive' | 'outline'} className="text-[10px]">
+                          {orderStatusLabels[statut as OrderStatut] || statut}: {count}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-200">0</p>
+                  )}
                 </div>
               </div>
 
