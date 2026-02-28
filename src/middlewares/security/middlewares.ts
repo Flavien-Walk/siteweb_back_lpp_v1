@@ -136,19 +136,14 @@ export const checkBlockedIP = async (req: Request, res: Response, next: NextFunc
   }
 
   // 6. Pas de User-Agent du tout = suspect (bots basiques)
+  // NOTE: Les apps mobiles natives (React Native/Expo) n'envoient pas toujours
+  // de User-Agent via fetch. On logue un warning mais on laisse passer.
   if (!ua || ua.length < 5) {
-    console.warn(`[SECURITY] NO USER-AGENT IP=${ip} path=${req.originalUrl} ua="${ua}"`);
-    logSecurityEvent('unauthorized_access', 'medium', req, 403,
+    console.warn(`[SECURITY] NO USER-AGENT IP=${ip} path=${req.originalUrl} ua="${ua}" (warning only)`);
+    logSecurityEvent('unauthorized_access', 'low', req, 0,
       `Requete sans User-Agent depuis ${ip}: ${req.originalUrl}`, {
         source: 'missing_ua',
-      }, true);
-    trackAttack(ip, req, 'suspicious_ua');
-
-    res.status(403).json({
-      succes: false,
-      message: 'Acces refuse.',
-    });
-    return;
+      });
   }
 
   next();
