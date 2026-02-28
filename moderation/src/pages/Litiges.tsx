@@ -17,6 +17,7 @@ import {
   User,
   Send,
   MessageSquare,
+  ShieldCheck,
 } from 'lucide-react'
 import { formatRelativeTime, formatDate } from '@/lib/utils'
 import type { MarketplaceOrderAdmin, MediationMessage, MediationCanal } from '@/types'
@@ -95,7 +96,11 @@ function LitigeSidebar({
                   {formatEUR(l.montantTotal)}
                 </span>
                 {l.statut === 'litige' ? (
-                  <Badge variant="destructive" className="text-[9px] h-4 px-1">Actif</Badge>
+                  l.litigeInfo?.moderateur ? (
+                    <Badge variant="default" className="text-[9px] h-4 px-1 bg-emerald-500/20 text-emerald-400 border-emerald-500/30">En cours</Badge>
+                  ) : (
+                    <Badge variant="destructive" className="text-[9px] h-4 px-1">Non attribue</Badge>
+                  )
                 ) : (
                   <Badge variant="secondary" className="text-[9px] h-4 px-1">{l.statut}</Badge>
                 )}
@@ -158,6 +163,38 @@ function MediationHeader({ litige }: { litige: MarketplaceOrderAdmin }) {
           <p className="text-[10px] text-zinc-500 mt-1">
             Ouvert le {formatDate(litige.litigeInfo.dateOuverture)}
           </p>
+        </div>
+      )}
+
+      {/* Statut prise en charge */}
+      {litige.litigeInfo && (
+        <div className={`p-2.5 rounded border ${
+          litige.litigeInfo.moderateur
+            ? 'bg-emerald-500/10 border-emerald-500/20'
+            : 'bg-amber-500/10 border-amber-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            {litige.litigeInfo.moderateur ? (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <span className="text-xs text-emerald-400 font-medium">
+                  Pris en charge par {litige.litigeInfo.moderateur.prenom} {litige.litigeInfo.moderateur.nom}
+                </span>
+                {litige.litigeInfo.datePriseEnCharge && (
+                  <span className="text-[10px] text-zinc-500 ml-auto">
+                    {formatRelativeTime(litige.litigeInfo.datePriseEnCharge)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <Clock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <span className="text-xs text-amber-400 font-medium">
+                  En attente de prise en charge
+                </span>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -421,6 +458,18 @@ export default function LitigesPage() {
     },
   })
 
+  const priseEnChargeMutation = useMutation({
+    mutationFn: () => marketplaceService.prendreEnCharge(selectedLitigeId!),
+    onSuccess: () => {
+      toast.success('Litige pris en charge')
+      queryClient.invalidateQueries({ queryKey: ['admin-marketplace-litiges'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-mediation', selectedLitigeId] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur prise en charge')
+    },
+  })
+
   const acheteurName = mediationData?.acheteur
     ? `${mediationData.acheteur.prenom} ${mediationData.acheteur.nom}`
     : selectedLitige
@@ -475,6 +524,18 @@ export default function LitigesPage() {
                 {/* Litige info */}
                 <MediationHeader litige={selectedLitige} />
 
+                {/* Bouton prise en charge */}
+                {canManageDisputes && selectedLitige.statut === 'litige' && !selectedLitige.litigeInfo?.moderateur && (
+                  <Button
+                    onClick={() => priseEnChargeMutation.mutate()}
+                    disabled={priseEnChargeMutation.isPending}
+                    className="w-full bg-violet-600 hover:bg-violet-700"
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    {priseEnChargeMutation.isPending ? 'Prise en charge...' : 'Prendre en charge ce litige'}
+                  </Button>
+                )}
+
                 {/* Chat panels */}
                 <div className="grid grid-cols-2 gap-3">
                   <MediationChatPanel
@@ -483,7 +544,7 @@ export default function LitigesPage() {
                     messages={mediationData?.messagesAcheteur || []}
                     onSend={(contenu) => sendMessageMutation.mutate({ canal: 'acheteur', contenu })}
                     isSending={sendMessageMutation.isPending}
-                    canSend={!!canManageDisputes && selectedLitige.statut === 'litige'}
+                    canSend={!!canManageDisputes && selectedLitige.statut === 'litige' && !!selectedLitige.litigeInfo?.moderateur}
                   />
                   <MediationChatPanel
                     canal="vendeur"
@@ -491,7 +552,7 @@ export default function LitigesPage() {
                     messages={mediationData?.messagesVendeur || []}
                     onSend={(contenu) => sendMessageMutation.mutate({ canal: 'vendeur', contenu })}
                     isSending={sendMessageMutation.isPending}
-                    canSend={!!canManageDisputes && selectedLitige.statut === 'litige'}
+                    canSend={!!canManageDisputes && selectedLitige.statut === 'litige' && !!selectedLitige.litigeInfo?.moderateur}
                   />
                 </div>
 

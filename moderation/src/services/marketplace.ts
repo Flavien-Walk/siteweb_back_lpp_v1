@@ -205,6 +205,19 @@ export const marketplaceService = {
 
     return response.data.data.message
   },
+
+  async prendreEnCharge(litigeId: string): Promise<MarketplaceOrderAdmin> {
+    const response = await api.post<ApiResponse<{ commande: MarketplaceOrderAdmin }>>(
+      `/admin/marketplace/litiges/${litigeId}/prendre-en-charge`,
+      {}
+    )
+
+    if (!response.data.succes || !response.data.data) {
+      throw new Error(response.data.message || 'Erreur lors de la prise en charge')
+    }
+
+    return response.data.data.commande
+  },
 }
 
 export default marketplaceService

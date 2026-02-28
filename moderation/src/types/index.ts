@@ -726,7 +726,13 @@ export interface MarketplaceOrderAdmin {
   commission: number
   devise: string
   historique: { de: string; vers: string; date: string; par?: string; commentaire?: string }[]
-  litigeInfo?: { raison: string; ouvertPar: string; dateOuverture: string }
+  litigeInfo?: {
+    raison: string
+    ouvertPar: string
+    dateOuverture: string
+    moderateur?: { _id: string; prenom: string; nom: string; avatar?: string } | null
+    datePriseEnCharge?: string | null
+  }
   revisionInfo?: {
     accepteRevisions: boolean
     revisionsIncluses: number
