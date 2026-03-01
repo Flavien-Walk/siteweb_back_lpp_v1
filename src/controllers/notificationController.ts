@@ -71,6 +71,7 @@ export const enregistrerPushToken = async (req: Request, res: Response): Promise
     }
 
     const userId = req.utilisateur!._id;
+    console.log(`[PUSH] enregistrerPushToken appelé — user: ${userId}, platform: ${platform}, deviceId: ${deviceId}, token: ${token.substring(0, 30)}...`);
 
     // Upsert : si le deviceId existe déjà, mettre à jour le token
     await Utilisateur.updateOne(
@@ -89,6 +90,7 @@ export const enregistrerPushToken = async (req: Request, res: Response): Promise
       }
     );
 
+    console.log(`[PUSH] Token enregistré avec succès pour user: ${userId}`);
     res.json({ succes: true, message: 'Push token enregistré.' });
   } catch (error) {
     console.error('Erreur enregistrerPushToken:', error);

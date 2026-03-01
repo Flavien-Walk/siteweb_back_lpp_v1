@@ -151,13 +151,17 @@ export async function envoyerPushNotification(
   options: PushOptions
 ): Promise<void> {
   try {
+    console.log(`[PUSH] envoyerPushNotification appelé — user: ${userId}, type: ${options.type}, skipSmart: ${!!options.skipSmartDelivery}`);
+
     // Smart delivery : skip si user connecté via socket
     if (!options.skipSmartDelivery && isUserConnected(userId)) {
+      console.log(`[PUSH] Skip — user ${userId} connecté via socket (smart delivery)`);
       return;
     }
 
     // Anti-spam
     if (isAntiSpamBlocked(userId, options.type)) {
+      console.log(`[PUSH] Skip — anti-spam pour user ${userId}, type: ${options.type}`);
       return;
     }
 
@@ -166,6 +170,7 @@ export async function envoyerPushNotification(
     if (prefs) {
       const pushPrefs = (prefs as any).notificationsPush;
       if (pushPrefs && pushPrefs[options.categorie] === false) {
+        console.log(`[PUSH] Skip — préférence ${options.categorie} désactivée pour user ${userId}`);
         return;
       }
     }
@@ -173,8 +178,11 @@ export async function envoyerPushNotification(
     // Charger les push tokens du user
     const user = await Utilisateur.findById(userId).select('+pushTokens').lean();
     if (!user || !user.pushTokens || user.pushTokens.length === 0) {
+      console.log(`[PUSH] Skip — aucun push token pour user ${userId}`);
       return;
     }
+
+    console.log(`[PUSH] Envoi à ${user.pushTokens.length} device(s) pour user ${userId}`);
 
     // Construire les messages
     const messages: ExpoPushMessage[] = user.pushTokens.map((pt: any) => ({
