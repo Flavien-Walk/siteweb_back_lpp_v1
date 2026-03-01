@@ -31,6 +31,16 @@ export interface IUserPreferences extends Document {
   // Nombre total d'interactions (pour detecter cold start)
   totalInteractions: number;
 
+  // Préférences push notifications
+  notificationsPush: {
+    messages: boolean;
+    activite: boolean;
+    recommandations: boolean;
+  };
+
+  // Dernier push de rétention envoyé
+  dernierPushRetention: Date;
+
   lastComputed: Date;
 }
 
@@ -95,6 +105,17 @@ const userPreferencesSchema = new Schema<IUserPreferences>(
       type: Number,
       default: 0,
       min: 0,
+    },
+
+    notificationsPush: {
+      messages: { type: Boolean, default: true },
+      activite: { type: Boolean, default: true },
+      recommandations: { type: Boolean, default: true },
+    },
+
+    dernierPushRetention: {
+      type: Date,
+      default: null,
     },
 
     lastComputed: {

@@ -7,6 +7,7 @@ import { applyGamificationEvent } from '../../services/gamificationEngine.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 import { isBase64DataUrl, isBase64VideoDataUrl, uploadPublicationMedia } from '../../utils/cloudinary.js';
 import { emitNewMessage } from '../../socket/index.js';
+import { envoyerPushNotification } from '../../services/pushService.js';
 
 // Schéma pour envoyer un message
 // Note: pour les médias (image/video), contenu peut être un base64 data URL (jusqu'à 25MB)
@@ -201,6 +202,23 @@ export const envoyerMessage = async (
       dateEnvoi: messageComplet!.dateCreation.toISOString(),
       lu: false,
     });
+
+    // Push notification pour les autres participants
+    const apercu = messageComplet!.contenu.length > 50
+      ? messageComplet!.contenu.substring(0, 50) + '...'
+      : messageComplet!.contenu;
+    for (const participantId of conversation.participants) {
+      const pid = participantId.toString();
+      if (pid !== userId.toString()) {
+        envoyerPushNotification(pid, {
+          titre: `${expediteur.prenom} ${expediteur.nom}`,
+          message: apercu,
+          type: 'nouveau_message',
+          data: { conversationId: conversation._id.toString() },
+          categorie: 'messages',
+        }).catch(() => {});
+      }
+    }
 
     // Gamification: XP pour envoi de message
     const gamification = await applyGamificationEvent(userId.toString(), 'send_message', conversation._id.toString()).catch(() => null);

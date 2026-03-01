@@ -8,6 +8,7 @@ import Notification from '../../models/Notification.js';
 import Utilisateur from '../../models/Utilisateur.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 import { emitNewNotification } from '../../socket/index.js';
+import { envoyerPushNotification } from '../../services/pushService.js';
 import { emitEngagementEvent } from '../../utils/engagementHelper.js';
 
 // Schéma pour créer un commentaire
@@ -197,6 +198,15 @@ export const ajouterCommentaire = async (
               lu: false,
               dateCreation: notif.dateCreation.toISOString(),
             });
+
+            // Push notification
+            envoyerPushNotification(auteurPublicationId, {
+              titre: 'Nouveau commentaire',
+              message: `${commentateur.prenom} ${commentateur.nom} a commenté votre publication.`,
+              type: 'nouveau_commentaire',
+              data: { publicationId: id },
+              categorie: 'activite',
+            }).catch(() => {});
           }
         }
       } catch (notifError) {

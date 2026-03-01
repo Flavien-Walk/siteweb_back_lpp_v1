@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import Notification, { TypeNotification } from '../../models/Notification.js';
 import Utilisateur from '../../models/Utilisateur.js';
 import { emitNewNotification } from '../../socket/emitters.js';
+import { envoyerPushNotification } from '../../services/pushService.js';
 import {
   envoyerEmailNouvelleCommande,
   envoyerEmailCommandeAcceptee,
@@ -59,7 +60,7 @@ async function creerNotifCommande(
       },
     });
 
-    // Push temps reel
+    // Push temps reel (socket)
     emitNewNotification(params.destinataireId, {
       _id: notif._id.toString(),
       type: notif.type,
@@ -68,6 +69,15 @@ async function creerNotifCommande(
       lu: false,
       dateCreation: notif.dateCreation.toISOString(),
     });
+
+    // Push notification native
+    envoyerPushNotification(params.destinataireId, {
+      titre,
+      message,
+      type,
+      data: { commandeId: params.commandeId },
+      categorie: 'activite',
+    }).catch(() => {});
   } catch (err) {
     console.error('[orderNotifications] Erreur creation notif:', err);
   }

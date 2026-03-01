@@ -8,6 +8,7 @@ import Utilisateur from '../../models/Utilisateur.js';
 import Projet from '../../models/Projet.js';
 import { ErreurAPI } from '../../middlewares/gestionErreurs.js';
 import { emitNewNotification } from '../../socket/index.js';
+import { envoyerPushNotification } from '../../services/pushService.js';
 import { emitEngagementEvent } from '../../utils/engagementHelper.js';
 
 /**
@@ -87,6 +88,15 @@ export const toggleLikePublication = async (
               lu: false,
               dateCreation: notif.dateCreation.toISOString(),
             });
+
+            // Push notification
+            envoyerPushNotification(auteurPublicationId, {
+              titre: 'Nouveau like',
+              message: `${likeur.prenom} ${likeur.nom} a aimé votre publication.`,
+              type: 'nouveau_like',
+              data: { publicationId: id },
+              categorie: 'activite',
+            }).catch(() => {});
           }
         }
       } catch (notifError) {

@@ -5,6 +5,10 @@ import {
   marquerToutLu,
   supprimerNotification,
   supprimerToutesNotifications,
+  enregistrerPushToken,
+  supprimerPushToken,
+  getPreferencesNotifications,
+  majPreferencesNotifications,
 } from '../controllers/notificationController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -20,6 +24,30 @@ router.use(checkUserStatus);
  * Mes notifications
  */
 router.get('/', mesNotifications);
+
+/**
+ * POST /api/notifications/push-token
+ * Enregistrer un push token Expo
+ */
+router.post('/push-token', enregistrerPushToken);
+
+/**
+ * DELETE /api/notifications/push-token
+ * Supprimer un push token (logout)
+ */
+router.delete('/push-token', supprimerPushToken);
+
+/**
+ * GET /api/notifications/preferences
+ * Récupérer les préférences push
+ */
+router.get('/preferences', getPreferencesNotifications);
+
+/**
+ * PATCH /api/notifications/preferences
+ * Mettre à jour les préférences push
+ */
+router.patch('/preferences', majPreferencesNotifications);
 
 /**
  * PATCH /api/notifications/lire-tout

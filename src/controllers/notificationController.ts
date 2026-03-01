@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import Notification from '../models/Notification.js';
+import Utilisateur from '../models/Utilisateur.js';
+import UserPreferences from '../models/UserPreferences.js';
 
 /**
  * GET /api/notifications
@@ -39,6 +41,86 @@ export const mesNotifications = async (req: Request, res: Response): Promise<voi
     });
   } catch (error) {
     console.error('Erreur mesNotifications:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * POST /api/notifications/push-token
+ * Enregistrer un push token Expo (upsert par deviceId)
+ */
+export const enregistrerPushToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, platform, deviceId } = req.body;
+
+    // Validation format ExponentPushToken
+    if (!token || !/^ExponentPushToken\[.+\]$/.test(token)) {
+      res.status(400).json({ succes: false, message: 'Token push invalide. Format attendu: ExponentPushToken[...]' });
+      return;
+    }
+
+    if (!platform || !['ios', 'android'].includes(platform)) {
+      res.status(400).json({ succes: false, message: 'Plateforme invalide. Valeurs acceptées: ios, android' });
+      return;
+    }
+
+    if (!deviceId) {
+      res.status(400).json({ succes: false, message: 'deviceId requis.' });
+      return;
+    }
+
+    const userId = req.utilisateur!._id;
+
+    // Upsert : si le deviceId existe déjà, mettre à jour le token
+    await Utilisateur.updateOne(
+      { _id: userId },
+      {
+        $pull: { pushTokens: { deviceId } },
+      }
+    );
+
+    await Utilisateur.updateOne(
+      { _id: userId },
+      {
+        $push: {
+          pushTokens: { token, platform, deviceId, lastSeenAt: new Date() },
+        },
+      }
+    );
+
+    res.json({ succes: true, message: 'Push token enregistré.' });
+  } catch (error) {
+    console.error('Erreur enregistrerPushToken:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * DELETE /api/notifications/push-token
+ * Supprimer un push token (logout / désinscription)
+ */
+export const supprimerPushToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, deviceId } = req.body;
+
+    if (!token && !deviceId) {
+      res.status(400).json({ succes: false, message: 'Token ou deviceId requis.' });
+      return;
+    }
+
+    const userId = req.utilisateur!._id;
+    const pullFilter: Record<string, string> = {};
+    if (token) pullFilter.token = token;
+    if (deviceId) pullFilter.deviceId = deviceId;
+
+    await Utilisateur.updateOne(
+      { _id: userId },
+      { $pull: { pushTokens: pullFilter } }
+    );
+
+    res.json({ succes: true, message: 'Push token supprimé.' });
+  } catch (error) {
+    console.error('Erreur supprimerPushToken:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };
@@ -119,6 +201,65 @@ export const supprimerToutesNotifications = async (req: Request, res: Response):
     res.json({ succes: true, message: 'Toutes les notifications ont été supprimées.' });
   } catch (error) {
     console.error('Erreur supprimerToutesNotifications:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * GET /api/notifications/preferences
+ * Récupérer les préférences de notifications push
+ */
+export const getPreferencesNotifications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.utilisateur!._id;
+
+    let prefs = await UserPreferences.findOne({ utilisateur: userId });
+    if (!prefs) {
+      prefs = await UserPreferences.create({ utilisateur: userId });
+    }
+
+    res.json({
+      succes: true,
+      data: {
+        messages: prefs.notificationsPush?.messages ?? true,
+        activite: prefs.notificationsPush?.activite ?? true,
+        recommandations: prefs.notificationsPush?.recommandations ?? true,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur getPreferencesNotifications:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * PATCH /api/notifications/preferences
+ * Mettre à jour les préférences de notifications push
+ */
+export const majPreferencesNotifications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.utilisateur!._id;
+    const { messages, activite, recommandations } = req.body;
+
+    const update: Record<string, boolean> = {};
+    if (typeof messages === 'boolean') update['notificationsPush.messages'] = messages;
+    if (typeof activite === 'boolean') update['notificationsPush.activite'] = activite;
+    if (typeof recommandations === 'boolean') update['notificationsPush.recommandations'] = recommandations;
+
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({ succes: false, message: 'Aucune préférence à mettre à jour.' });
+      return;
+    }
+
+    await UserPreferences.findOneAndUpdate(
+      { utilisateur: userId },
+      { $set: update },
+      { upsert: true, new: true }
+    );
+
+    res.json({ succes: true, message: 'Préférences mises à jour.' });
+  } catch (error) {
+    console.error('Erreur majPreferencesNotifications:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };

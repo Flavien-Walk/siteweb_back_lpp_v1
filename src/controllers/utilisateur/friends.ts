@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import Utilisateur from '../../models/Utilisateur.js';
 import Notification from '../../models/Notification.js';
 import { emitDemandeAmi } from '../../socket/index.js';
+import { envoyerPushNotification } from '../../services/pushService.js';
 import { applyGamificationEvent } from '../../services/gamificationEngine.js';
 
 /**
@@ -139,6 +140,15 @@ export const envoyerDemandeAmi = async (
           avatar: utilisateur.avatar,
         },
       });
+
+      // Push notification
+      envoyerPushNotification(cible._id.toString(), {
+        titre: 'Demande d\'ami',
+        message: `${utilisateur.prenom} ${utilisateur.nom} veut être votre ami.`,
+        type: 'demande_ami',
+        data: { userId: utilisateur._id.toString() },
+        categorie: 'activite',
+      }).catch(() => {});
     }
 
     // Gamification: XP pour demande d'ami
@@ -278,6 +288,15 @@ export const accepterDemandeAmi = async (
         avatar: utilisateur.avatar,
       },
     });
+
+    // Push notification
+    envoyerPushNotification(demandeur._id.toString(), {
+      titre: 'Demande acceptée',
+      message: `${utilisateur.prenom} ${utilisateur.nom} a accepté votre demande d'ami.`,
+      type: 'ami_accepte',
+      data: { userId: utilisateur._id.toString() },
+      categorie: 'activite',
+    }).catch(() => {});
 
     res.json({ succes: true, message: 'Demande acceptée. Vous êtes maintenant amis !' });
   } catch (error) {

@@ -150,6 +150,13 @@ export interface IUtilisateur extends Document {
     canceledAt?: Date | null;
     renewalCount: number;
   };
+  // Push tokens (Expo Push Notifications)
+  pushTokens: {
+    token: string;
+    platform: 'ios' | 'android';
+    deviceId: string;
+    lastSeenAt: Date;
+  }[];
   // Surveillance
   surveillance: {
     active: boolean;
@@ -409,6 +416,17 @@ const utilisateurSchema = new Schema<IUtilisateur>(
         type: Number,
         default: 0,
       },
+    },
+    // Push tokens (Expo Push Notifications)
+    pushTokens: {
+      type: [{
+        token: { type: String, required: true },
+        platform: { type: String, enum: ['ios', 'android'], required: true },
+        deviceId: { type: String, required: true },
+        lastSeenAt: { type: Date, default: Date.now },
+      }],
+      default: [],
+      select: false,
     },
     // Surveillance
     surveillance: {
