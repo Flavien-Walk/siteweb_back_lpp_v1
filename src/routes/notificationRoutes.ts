@@ -9,6 +9,7 @@ import {
   supprimerPushToken,
   getPreferencesNotifications,
   majPreferencesNotifications,
+  testPush,
 } from '../controllers/notificationController.js';
 import { verifierJwt } from '../middlewares/verifierJwt.js';
 import { checkUserStatus } from '../middlewares/checkUserStatus.js';
@@ -48,6 +49,12 @@ router.get('/preferences', getPreferencesNotifications);
  * Mettre à jour les préférences push
  */
 router.patch('/preferences', majPreferencesNotifications);
+
+/**
+ * POST /api/notifications/test-push
+ * Envoyer une push de test (diagnostic)
+ */
+router.post('/test-push', testPush);
 
 /**
  * PATCH /api/notifications/lire-tout

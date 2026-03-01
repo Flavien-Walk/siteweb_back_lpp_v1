@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Notification from '../models/Notification.js';
 import Utilisateur from '../models/Utilisateur.js';
 import UserPreferences from '../models/UserPreferences.js';
+import { envoyerPushNotification } from '../services/pushService.js';
 
 /**
  * GET /api/notifications
@@ -260,6 +261,61 @@ export const majPreferencesNotifications = async (req: Request, res: Response): 
     res.json({ succes: true, message: 'Préférences mises à jour.' });
   } catch (error) {
     console.error('Erreur majPreferencesNotifications:', error);
+    res.status(500).json({ succes: false, message: 'Erreur serveur.' });
+  }
+};
+
+/**
+ * POST /api/notifications/test-push
+ * Envoyer une push de test à soi-même (diagnostic)
+ */
+export const testPush = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.utilisateur!._id;
+
+    // Vérifier si l'utilisateur a des push tokens
+    const user = await Utilisateur.findById(userId).select('+pushTokens').lean();
+    const tokens = user?.pushTokens || [];
+
+    console.log(`[PUSH TEST] User ${userId} — ${tokens.length} token(s) enregistré(s)`);
+    if (tokens.length > 0) {
+      console.log(`[PUSH TEST] Tokens:`, tokens.map((t: any) => ({ token: t.token, platform: t.platform, deviceId: t.deviceId })));
+    }
+
+    if (tokens.length === 0) {
+      res.json({
+        succes: false,
+        message: 'Aucun push token enregistré pour cet utilisateur.',
+        diagnostic: {
+          userId: userId.toString(),
+          tokensCount: 0,
+          conseil: 'Le mobile doit appeler POST /api/notifications/push-token au login.',
+        },
+      });
+      return;
+    }
+
+    // Envoyer une push de test (skipSmartDelivery pour forcer même si connecté socket)
+    await envoyerPushNotification(userId.toString(), {
+      titre: 'Test Push LPP',
+      message: 'Si tu vois ceci, les push notifications fonctionnent !',
+      type: 'test',
+      data: {},
+      categorie: 'activite',
+      skipSmartDelivery: true,
+    });
+
+    res.json({
+      succes: true,
+      message: 'Push de test envoyée.',
+      diagnostic: {
+        userId: userId.toString(),
+        tokensCount: tokens.length,
+        tokens: tokens.map((t: any) => ({ platform: t.platform, deviceId: t.deviceId, lastSeenAt: t.lastSeenAt })),
+      },
+    });
+  } catch (error) {
+    console.error('Erreur testPush:', error);
     res.status(500).json({ succes: false, message: 'Erreur serveur.' });
   }
 };
